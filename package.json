@@ -1,0 +1,16 @@
+{
+  "name": "gaem",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run build -w @gaem/shared && concurrently -n shared,server,client -c gray,blue,green \"npm run dev -w @gaem/shared\" \"npm run dev -w @gaem/server\" \"npm run dev -w @gaem/client\"",
+    "build": "npm run build -w @gaem/shared && npm run build -w @gaem/server && npm run build -w @gaem/client",
+    "dev:cf": "npm run build -w @gaem/shared && npm run build -w @gaem/client && npm run dev -w @gaem/cf-worker",
+    "deploy:cf": "npm run build -w @gaem/shared && npm run build -w @gaem/client && npm run deploy -w @gaem/cf-worker"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
