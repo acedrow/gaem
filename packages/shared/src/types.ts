@@ -14,6 +14,18 @@ export type GameState = {
   players: Player[];
 };
 
+/**
+ * Persisted in KV. Keep top-level fields stable and append
+ * future attributes under `data`.
+ */
+export type PlayerProfile = {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  data: Record<string, unknown>;
+};
+
 /** Server → client */
 export type ServerMessage =
   | { type: "state"; state: GameState; yourPlayerId: string | null }

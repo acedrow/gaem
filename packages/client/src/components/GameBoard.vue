@@ -4,6 +4,7 @@ import { computed, onMounted, onUnmounted, ref } from "vue";
 
 const props = defineProps<{
   role: "gm" | "player";
+  playerProfile?: { id: string; name: string } | null;
 }>();
 
 const wsUrl =
@@ -17,7 +18,6 @@ const gameState = ref<GameState | null>(null);
 const yourPlayerId = ref<string | null>(null);
 const lastError = ref<string | null>(null);
 let socket: WebSocket | null = null;
-const playerStorageKey = "gaem.playerKey";
 
 function hueFromId(id: string): number {
   let h = 0;
@@ -102,12 +102,12 @@ function connect() {
 
   socket.addEventListener("open", () => {
     connection.value = "open";
-    const playerKey =
-      props.role === "player"
-        ? localStorage.getItem(playerStorageKey) ?? crypto.randomUUID()
-        : undefined;
-    if (playerKey) localStorage.setItem(playerStorageKey, playerKey);
-    send({ type: "join", role: props.role, playerKey });
+    send({
+      type: "join",
+      role: props.role,
+      playerKey: props.role === "player" ? props.playerProfile?.id : undefined,
+      nickname: props.role === "player" ? props.playerProfile?.name : undefined,
+    });
   });
 
   socket.addEventListener("close", () => {

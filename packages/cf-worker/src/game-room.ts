@@ -8,13 +8,9 @@ import {
 } from "@gaem/shared";
 
 import type { Env } from "./env.js";
+import { getPlayerProfile, savePlayerProfile } from "./player-profiles.js";
 
 type Attachment = { playerId: string | null; playerKey: string | null };
-type PlayerProfile = {
-  nickname?: string;
-  moveCount: number;
-  lastSeenAt: string;
-};
 
 export class GameRoom {
   private gameState = createInitialState();
@@ -82,7 +78,7 @@ export class GameRoom {
       }
 
       const playerKey = parsed.playerKey ?? currentKey ?? crypto.randomUUID();
-      const profile = await this.readPlayerProfile(playerKey);
+      const profile = await getPlayerProfile(this.env, playerKey);
       let playerId = currentId;
       if (!playerId) {
         playerId = crypto.randomUUID();
@@ -94,13 +90,15 @@ export class GameRoom {
       }
 
       const p = this.gameState.players.find((pl) => pl.id === playerId);
-      if (p) p.nickname = parsed.nickname ?? profile?.nickname;
+      if (p) p.nickname = parsed.nickname ?? profile?.name;
       ws.serializeAttachment({ playerId, playerKey } satisfies Attachment);
-      await this.writePlayerProfile(playerKey, {
-        nickname: p?.nickname,
-        moveCount: profile?.moveCount ?? 0,
-        lastSeenAt: new Date().toISOString(),
-      });
+      if (profile && p?.nickname && p.nickname !== profile.name) {
+        await savePlayerProfile(this.env, {
+          ...profile,
+          name: p.nickname,
+          updatedAt: new Date().toISOString(),
+        });
+      }
       this.broadcastState();
       return;
     }
@@ -119,13 +117,19 @@ export class GameRoom {
       applyMove(this.gameState, id, parsed.x, parsed.y);
       const key = att?.playerKey;
       if (key) {
-        const profile = await this.readPlayerProfile(key);
-        const movedPlayer = this.gameState.players.find((pl) => pl.id === id);
-        await this.writePlayerProfile(key, {
-          nickname: movedPlayer?.nickname ?? profile?.nickname,
-          moveCount: (profile?.moveCount ?? 0) + 1,
-          lastSeenAt: new Date().toISOString(),
-        });
+        const profile = await getPlayerProfile(this.env, key);
+        if (profile) {
+          const moveCount = Number(profile.data.moveCount ?? 0) + 1;
+          await savePlayerProfile(this.env, {
+            ...profile,
+            updatedAt: new Date().toISOString(),
+            data: {
+              ...profile.data,
+              moveCount,
+              lastSeenAt: new Date().toISOString(),
+            },
+          });
+        }
       }
       this.broadcastState();
     }
@@ -139,12 +143,18 @@ export class GameRoom {
       const movedPlayer = this.gameState.players.find((pl) => pl.id === playerId);
       removePlayer(this.gameState, playerId);
       if (playerKey) {
-        const profile = await this.readPlayerProfile(playerKey);
-        await this.writePlayerProfile(playerKey, {
-          nickname: movedPlayer?.nickname ?? profile?.nickname,
-          moveCount: profile?.moveCount ?? 0,
-          lastSeenAt: new Date().toISOString(),
-        });
+        const profile = await getPlayerProfile(this.env, playerKey);
+        if (profile) {
+          await savePlayerProfile(this.env, {
+            ...profile,
+            name: movedPlayer?.nickname ?? profile.name,
+            updatedAt: new Date().toISOString(),
+            data: {
+              ...profile.data,
+              lastSeenAt: new Date().toISOString(),
+            },
+          });
+        }
       }
       ws.serializeAttachment({
         playerId: null,
@@ -171,20 +181,5 @@ export class GameRoom {
       };
       socket.send(JSON.stringify(msg));
     }
-  }
-
-  private profileKey(playerKey: string): string {
-    return `player:${playerKey}:profile`;
-  }
-
-  private async readPlayerProfile(playerKey: string): Promise<PlayerProfile | null> {
-    return this.env.PLAYER_KV.get<PlayerProfile>(this.profileKey(playerKey), "json");
-  }
-
-  private async writePlayerProfile(
-    playerKey: string,
-    profile: PlayerProfile
-  ): Promise<void> {
-    await this.env.PLAYER_KV.put(this.profileKey(playerKey), JSON.stringify(profile));
   }
 }

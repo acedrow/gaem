@@ -1,7 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 
-import type { ClientMessage, ServerMessage } from "@gaem/shared";
+import type {
+  ClientMessage,
+  PlayerProfile,
+  ServerMessage,
+} from "@gaem/shared";
 import express from "express";
 import { WebSocketServer, type WebSocket } from "ws";
 
@@ -16,8 +20,43 @@ import {
 const PORT = Number(process.env.PORT) || 3001;
 
 const app = express();
+app.use(express.json());
+app.use((_, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  next();
+});
+app.options("*", (_req, res) => {
+  res.sendStatus(204);
+});
+
+const playerProfiles = new Map<string, PlayerProfile>();
+
 app.get("/health", (_req, res) => {
   res.json({ ok: true });
+});
+
+app.get("/api/player-profiles", (_req, res) => {
+  res.json({ profiles: [...playerProfiles.values()] });
+});
+
+app.post("/api/player-profiles", (req, res) => {
+  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+  if (!name) {
+    res.status(400).json({ error: "Name is required" });
+    return;
+  }
+  const now = new Date().toISOString();
+  const profile: PlayerProfile = {
+    id: randomUUID(),
+    name,
+    createdAt: now,
+    updatedAt: now,
+    data: {},
+  };
+  playerProfiles.set(profile.id, profile);
+  res.status(201).json({ profile });
 });
 
 const httpServer = createServer(app);
