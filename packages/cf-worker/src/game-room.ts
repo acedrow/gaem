@@ -24,6 +24,11 @@ export class GameRoom {
   }
 
   async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    if (url.pathname === "/internal/active-profiles") {
+      return Response.json({ activeProfileIds: this.activeProfileIds() });
+    }
+
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("Expected WebSocket", { status: 426 });
     }
@@ -78,6 +83,10 @@ export class GameRoom {
       }
 
       const playerKey = parsed.playerKey ?? currentKey ?? crypto.randomUUID();
+      if (this.profileInUseByAnotherSocket(playerKey, ws)) {
+        this.sendError(ws, "That player profile is already in use");
+        return;
+      }
       const profile = await getPlayerProfile(this.env, playerKey);
       let playerId = currentId;
       if (!playerId) {
@@ -181,5 +190,25 @@ export class GameRoom {
       };
       socket.send(JSON.stringify(msg));
     }
+  }
+
+  private activeProfileIds(): string[] {
+    const ids = new Set<string>();
+    for (const socket of this.ctx.getWebSockets()) {
+      const att = socket.deserializeAttachment() as Attachment | null;
+      if (att?.playerId && att.playerKey) {
+        ids.add(att.playerKey);
+      }
+    }
+    return [...ids];
+  }
+
+  private profileInUseByAnotherSocket(profileId: string, socket: WebSocket): boolean {
+    for (const s of this.ctx.getWebSockets()) {
+      if (s === socket) continue;
+      const att = s.deserializeAttachment() as Attachment | null;
+      if (att?.playerId && att.playerKey === profileId) return true;
+    }
+    return false;
   }
 }

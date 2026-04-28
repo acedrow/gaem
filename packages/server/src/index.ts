@@ -38,7 +38,17 @@ app.get("/health", (_req, res) => {
 });
 
 app.get("/api/player-profiles", (_req, res) => {
-  res.json({ profiles: [...playerProfiles.values()] });
+  const active = new Set(
+    [...socketProfile.entries()]
+      .filter(([ws, profileId]) => !!profileId && !!socketPlayer.get(ws))
+      .map(([, profileId]) => profileId as string)
+  );
+  res.json({
+    profiles: [...playerProfiles.values()].map((p) => ({
+      ...p,
+      isActive: active.has(p.id),
+    })),
+  });
 });
 
 app.post("/api/player-profiles", (req, res) => {
@@ -67,6 +77,8 @@ let gameState = createInitialState();
 
 /** socket -> playerId when joined as player, else null for GM */
 const socketPlayer = new Map<WebSocket, string | null>();
+/** socket -> player profile id when joined as player */
+const socketProfile = new Map<WebSocket, string | null>();
 
 function cloneState() {
   return structuredClone(gameState);
@@ -111,6 +123,7 @@ httpServer.on("upgrade", (request, socket, head) => {
 
 wss.on("connection", (ws: WebSocket) => {
   socketPlayer.set(ws, null);
+  socketProfile.set(ws, null);
   broadcastState();
 
   ws.on("message", (raw) => {
@@ -125,13 +138,32 @@ wss.on("connection", (ws: WebSocket) => {
     if (parsed.type === "join") {
       const role = parsed.role ?? "player";
       const currentId = socketPlayer.get(ws) ?? null;
+      const currentProfileId = socketProfile.get(ws) ?? null;
 
       if (role === "gm") {
         if (currentId) {
           removePlayer(gameState, currentId);
         }
         socketPlayer.set(ws, null);
+        socketProfile.set(ws, null);
         broadcastState();
+        return;
+      }
+
+      const requestedProfileId = parsed.playerKey ?? currentProfileId ?? null;
+      if (!requestedProfileId || !playerProfiles.has(requestedProfileId)) {
+        sendError(ws, "Invalid player profile");
+        return;
+      }
+
+      const profileInUse = [...socketProfile.entries()].some(
+        ([otherWs, otherProfileId]) =>
+          otherWs !== ws &&
+          otherProfileId === requestedProfileId &&
+          !!socketPlayer.get(otherWs)
+      );
+      if (profileInUse) {
+        sendError(ws, "That player profile is already in use");
         return;
       }
 
@@ -148,8 +180,10 @@ wss.on("connection", (ws: WebSocket) => {
       const id = socketPlayer.get(ws);
       if (id) {
         const p = gameState.players.find((pl) => pl.id === id);
-        if (p) p.nickname = parsed.nickname;
+        const profile = playerProfiles.get(requestedProfileId);
+        if (p) p.nickname = profile?.name ?? parsed.nickname;
       }
+      socketProfile.set(ws, requestedProfileId);
       broadcastState();
       return;
     }
@@ -174,6 +208,7 @@ wss.on("connection", (ws: WebSocket) => {
     const id = socketPlayer.get(ws);
     if (id) removePlayer(gameState, id);
     socketPlayer.delete(ws);
+    socketProfile.delete(ws);
     broadcastState();
   });
 });

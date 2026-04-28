@@ -3,9 +3,11 @@ import type { PlayerProfile } from "@gaem/shared";
 import { computed, ref } from "vue";
 import GameBoard from "./components/GameBoard.vue";
 
+type PlayerProfileOption = PlayerProfile & { isActive?: boolean };
+
 const mode = ref<"gm" | "player" | null>(null);
 const showProfileModal = ref(false);
-const profiles = ref<PlayerProfile[]>([]);
+const profiles = ref<PlayerProfileOption[]>([]);
 const selectedProfileId = ref<string | null>(null);
 const newProfileName = ref("");
 const loadingProfiles = ref(false);
@@ -27,10 +29,11 @@ async function loadProfiles() {
   try {
     const res = await fetch(`${apiBase.value}/api/player-profiles`);
     if (!res.ok) throw new Error("Failed to load profiles");
-    const data = (await res.json()) as { profiles: PlayerProfile[] };
+    const data = (await res.json()) as { profiles: PlayerProfileOption[] };
     profiles.value = data.profiles;
     if (!selectedProfileId.value && profiles.value.length > 0) {
-      selectedProfileId.value = profiles.value[0].id;
+      const firstAvailable = profiles.value.find((p) => !p.isActive);
+      selectedProfileId.value = firstAvailable?.id ?? null;
     }
   } catch {
     profileError.value = "Unable to load player profiles";
@@ -57,7 +60,7 @@ async function createProfile() {
     });
     if (!res.ok) throw new Error("Failed to create profile");
     const data = (await res.json()) as { profile: PlayerProfile };
-    profiles.value = [...profiles.value, data.profile];
+    profiles.value = [...profiles.value, { ...data.profile, isActive: false }];
     selectedProfileId.value = data.profile.id;
     newProfileName.value = "";
   } catch {
@@ -68,7 +71,7 @@ async function createProfile() {
 }
 
 function joinAsSelectedPlayer() {
-  if (!selectedProfile.value) return;
+  if (!selectedProfile.value || selectedProfile.value.isActive) return;
   showProfileModal.value = false;
   mode.value = "player";
 }
@@ -103,10 +106,11 @@ function joinAsSelectedPlayer() {
           type="button"
           class="profile-item"
           :disabled="loadingProfiles"
-          :class="{ active: selectedProfileId === p.id }"
-          @click="selectedProfileId = p.id"
+          :class="{ active: selectedProfileId === p.id, inactive: p.isActive }"
+          @click="!p.isActive && (selectedProfileId = p.id)"
         >
           {{ p.name }}
+          <span v-if="p.isActive" class="tag">In game</span>
         </button>
       </div>
 
@@ -136,7 +140,7 @@ function joinAsSelectedPlayer() {
         </button>
         <button
           class="cta"
-          :disabled="loadingProfiles || !selectedProfile"
+          :disabled="loadingProfiles || !selectedProfile || !!selectedProfile.isActive"
           @click="joinAsSelectedPlayer"
         >
           Join game as player
@@ -202,6 +206,9 @@ function joinAsSelectedPlayer() {
 }
 
 .profile-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   text-align: left;
   border: 1px solid #30363d;
   background: #161b22;
@@ -213,6 +220,18 @@ function joinAsSelectedPlayer() {
 
 .profile-item.active {
   border-color: #388bfd;
+}
+
+.profile-item.inactive {
+  opacity: 0.6;
+}
+
+.tag {
+  font-size: 0.72rem;
+  color: #d29922;
+  border: 1px solid #30363d;
+  border-radius: 999px;
+  padding: 0.1rem 0.45rem;
 }
 
 .create-row {

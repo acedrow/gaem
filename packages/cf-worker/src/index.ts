@@ -24,7 +24,14 @@ export default {
 
     if (url.pathname === "/api/player-profiles" && request.method === "GET") {
       const profiles = await listPlayerProfiles(env);
-      return Response.json({ profiles });
+      const id = env.GAME_ROOM.idFromName("default");
+      const stub = env.GAME_ROOM.get(id);
+      const activeRes = await stub.fetch("http://internal/internal/active-profiles");
+      const activeData = (await activeRes.json()) as { activeProfileIds: string[] };
+      const active = new Set(activeData.activeProfileIds);
+      return Response.json({
+        profiles: profiles.map((p) => ({ ...p, isActive: active.has(p.id) })),
+      });
     }
 
     if (url.pathname === "/api/player-profiles" && request.method === "POST") {
