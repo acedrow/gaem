@@ -152,7 +152,9 @@ onUnmounted(() => {
       <span :class="['pill', connection]">{{ connection }}</span>
       <template v-if="yourPlayerId">
         · You:
-        <code class="id">{{ yourPlayerId.slice(0, 8) }}…</code>
+        <code class="id">
+          {{ props.playerProfile?.name ?? `${yourPlayerId.slice(0, 8)}…` }}
+        </code>
       </template>
     </p>
     <p class="hint" v-if="props.role === 'player'">

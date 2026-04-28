@@ -90,7 +90,10 @@ function joinAsSelectedPlayer() {
       <h2 class="modal-title">Select player profile</h2>
       <p class="subtitle">Choose an existing profile or create a new one.</p>
 
-      <p v-if="loadingProfiles" class="muted">Loading profiles…</p>
+      <p v-if="loadingProfiles" class="loading-row">
+        <span class="spinner" aria-hidden="true" />
+        <span class="muted">Loading profiles…</span>
+      </p>
       <p v-else-if="profiles.length === 0" class="muted">No profiles yet.</p>
 
       <div class="profile-list" v-if="profiles.length > 0">
@@ -99,6 +102,7 @@ function joinAsSelectedPlayer() {
           :key="p.id"
           type="button"
           class="profile-item"
+          :disabled="loadingProfiles"
           :class="{ active: selectedProfileId === p.id }"
           @click="selectedProfileId = p.id"
         >
@@ -114,16 +118,27 @@ function joinAsSelectedPlayer() {
           class="name-input"
           type="text"
           placeholder="New player name"
+          :disabled="loadingProfiles || creatingProfile"
           @keyup.enter="createProfile"
         />
-        <button class="cta" :disabled="creatingProfile || !newProfileName.trim()" @click="createProfile">
+        <button
+          class="cta"
+          :disabled="loadingProfiles || creatingProfile || !newProfileName.trim()"
+          @click="createProfile"
+        >
           {{ creatingProfile ? "Adding..." : "Add new player profile" }}
         </button>
       </div>
 
       <div class="modal-actions">
-        <button class="cta secondary" @click="showProfileModal = false">Cancel</button>
-        <button class="cta" :disabled="!selectedProfile" @click="joinAsSelectedPlayer">
+        <button class="cta secondary" :disabled="loadingProfiles" @click="showProfileModal = false">
+          Cancel
+        </button>
+        <button
+          class="cta"
+          :disabled="loadingProfiles || !selectedProfile"
+          @click="joinAsSelectedPlayer"
+        >
           Join game as player
         </button>
       </div>
@@ -229,4 +244,23 @@ function joinAsSelectedPlayer() {
 
 .muted { color: #8b949e; }
 .error { color: #f85149; margin: 0.5rem 0; }
+
+.loading-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.spinner {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 50%;
+  border: 2px solid #30363d;
+  border-top-color: #3fb950;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 </style>
