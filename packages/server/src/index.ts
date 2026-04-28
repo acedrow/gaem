@@ -26,8 +26,8 @@ const wss = new WebSocketServer({ noServer: true });
 
 let gameState = createInitialState();
 
-/** socket -> playerId once joined */
-const socketPlayer = new Map<WebSocket, string>();
+/** socket -> playerId when joined as player, else null for GM */
+const socketPlayer = new Map<WebSocket, string | null>();
 
 function cloneState() {
   return structuredClone(gameState);
@@ -71,16 +71,7 @@ httpServer.on("upgrade", (request, socket, head) => {
 });
 
 wss.on("connection", (ws: WebSocket) => {
-  const playerId = randomUUID();
-
-  const joined = addPlayer(gameState, { id: playerId, x: 0, y: 0 });
-  if (!joined) {
-    sendError(ws, "Board full");
-    ws.close();
-    return;
-  }
-
-  socketPlayer.set(ws, playerId);
+  socketPlayer.set(ws, null);
   broadcastState();
 
   ws.on("message", (raw) => {
@@ -92,20 +83,44 @@ wss.on("connection", (ws: WebSocket) => {
       return;
     }
 
-    const id = socketPlayer.get(ws);
-    if (!id) {
-      sendError(ws, "Not joined");
-      return;
-    }
-
     if (parsed.type === "join") {
-      const p = gameState.players.find((pl) => pl.id === id);
-      if (p) p.nickname = parsed.nickname;
+      const role = parsed.role ?? "player";
+      const currentId = socketPlayer.get(ws) ?? null;
+
+      if (role === "gm") {
+        if (currentId) {
+          removePlayer(gameState, currentId);
+        }
+        socketPlayer.set(ws, null);
+        broadcastState();
+        return;
+      }
+
+      if (!currentId) {
+        const playerId = randomUUID();
+        const joined = addPlayer(gameState, { id: playerId, x: 0, y: 0 });
+        if (!joined) {
+          sendError(ws, "Board full");
+          return;
+        }
+        socketPlayer.set(ws, playerId);
+      }
+
+      const id = socketPlayer.get(ws);
+      if (id) {
+        const p = gameState.players.find((pl) => pl.id === id);
+        if (p) p.nickname = parsed.nickname;
+      }
       broadcastState();
       return;
     }
 
     if (parsed.type === "move") {
+      const id = socketPlayer.get(ws);
+      if (!id) {
+        sendError(ws, "Only players can move");
+        return;
+      }
       const err = validateMove(gameState, id, parsed.x, parsed.y);
       if (err) {
         sendError(ws, err);
@@ -117,8 +132,9 @@ wss.on("connection", (ws: WebSocket) => {
   });
 
   ws.on("close", () => {
+    const id = socketPlayer.get(ws);
+    if (id) removePlayer(gameState, id);
     socketPlayer.delete(ws);
-    removePlayer(gameState, playerId);
     broadcastState();
   });
 });

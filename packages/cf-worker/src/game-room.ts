@@ -9,7 +9,7 @@ import {
 
 import type { Env } from "./env.js";
 
-type Attachment = { playerId: string };
+type Attachment = { playerId: string | null };
 
 export class GameRoom {
   private gameState = createInitialState();
@@ -28,19 +28,7 @@ export class GameRoom {
     const [client, server] = Object.values(pair);
 
     this.ctx.acceptWebSocket(server);
-
-    const playerId = crypto.randomUUID();
-    server.serializeAttachment({ playerId } satisfies Attachment);
-
-    const joined = addPlayer(this.gameState, {
-      id: playerId,
-      x: 0,
-      y: 0,
-    });
-    if (!joined) {
-      server.close(1013, "Board full");
-      return new Response(null, { status: 101, webSocket: client });
-    }
+    server.serializeAttachment({ playerId: null } satisfies Attachment);
 
     this.broadcastState();
 
@@ -65,20 +53,42 @@ export class GameRoom {
     }
 
     const att = ws.deserializeAttachment() as Attachment | null;
-    const id = att?.playerId;
-    if (!id) {
-      this.sendError(ws, "Not joined");
-      return;
-    }
-
     if (parsed.type === "join") {
-      const p = this.gameState.players.find((pl) => pl.id === id);
+      const role = parsed.role ?? "player";
+      const currentId = att?.playerId ?? null;
+
+      if (role === "gm") {
+        if (currentId) {
+          removePlayer(this.gameState, currentId);
+        }
+        ws.serializeAttachment({ playerId: null } satisfies Attachment);
+        this.broadcastState();
+        return;
+      }
+
+      let playerId = currentId;
+      if (!playerId) {
+        playerId = crypto.randomUUID();
+        const joined = addPlayer(this.gameState, { id: playerId, x: 0, y: 0 });
+        if (!joined) {
+          this.sendError(ws, "Board full");
+          return;
+        }
+        ws.serializeAttachment({ playerId } satisfies Attachment);
+      }
+
+      const p = this.gameState.players.find((pl) => pl.id === playerId);
       if (p) p.nickname = parsed.nickname;
       this.broadcastState();
       return;
     }
 
     if (parsed.type === "move") {
+      const id = att?.playerId;
+      if (!id) {
+        this.sendError(ws, "Only players can move");
+        return;
+      }
       const err = validateMove(this.gameState, id, parsed.x, parsed.y);
       if (err) {
         this.sendError(ws, err);
@@ -94,6 +104,7 @@ export class GameRoom {
     const playerId = att?.playerId;
     if (playerId) {
       removePlayer(this.gameState, playerId);
+      ws.serializeAttachment({ playerId: null } satisfies Attachment);
       this.broadcastState();
     }
   }

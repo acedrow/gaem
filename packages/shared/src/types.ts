@@ -21,5 +21,5 @@ export type ServerMessage =
 
 /** Client → server */
 export type ClientMessage =
-  | { type: "join"; nickname?: string }
+  | { type: "join"; role?: "player" | "gm"; nickname?: string }
   | { type: "move"; x: number; y: number };
