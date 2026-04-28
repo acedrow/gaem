@@ -37,7 +37,6 @@ const mode = ref<"gm" | "player" | null>(null);
   padding: 0.65rem 1rem;
   cursor: pointer;
   font-weight: 600;
-  transition: background-color 120ms ease-out;
 }
 .cta:hover { background: #1f2937; }
 </style>

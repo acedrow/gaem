@@ -13,8 +13,8 @@ class_name = "GameRoom"
 
 [[kv_namespaces]]
 binding = "PLAYER_KV"
-id = "880eeee77c4b4f7ab78cf0861e4f40e5"
-preview_id = "b45b7ded8e1b417e8aaf6b65d69e9c2e"
+id = "gaem"
+preview_id = "gaem-preview"
 
 [[migrations]]
 tag = "v1"

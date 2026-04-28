@@ -215,8 +215,8 @@ onUnmounted(() => {
 .pill.closed { background: #f8514933; color: #f85149; }
 .board-wrap { overflow: auto; border-radius: 12px; border: 1px solid #30363d; background: #161b22; padding: 0.75rem; }
 .board { display: grid; gap: 3px; width: min(100%, 520px); aspect-ratio: v-bind(boardAspectRatio); }
-.cell { position: relative; border: none; border-radius: 4px; min-height: 28px; padding: 0; cursor: not-allowed; background: #21262d; }
-.cell.wall { background: #484f58; }
+.cell { position: relative; border: none; border-radius: 4px; min-height: 28px; padding: 0; cursor: default; background: #21262d; }
+.cell.wall { background: #484f58; cursor: not-allowed; }
 .cell.movable:not(:disabled) { cursor: pointer; outline: 1px dashed #388bfd66; }
 .cell:disabled:not(.wall) { opacity: 0.85; }
 .piece { position: absolute; inset: 4px; border-radius: 50%; display: block; }
