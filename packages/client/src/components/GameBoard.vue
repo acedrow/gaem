@@ -17,6 +17,7 @@ const gameState = ref<GameState | null>(null);
 const yourPlayerId = ref<string | null>(null);
 const lastError = ref<string | null>(null);
 let socket: WebSocket | null = null;
+const playerStorageKey = "gaem.playerKey";
 
 function hueFromId(id: string): number {
   let h = 0;
@@ -101,7 +102,12 @@ function connect() {
 
   socket.addEventListener("open", () => {
     connection.value = "open";
-    send({ type: "join", role: props.role });
+    const playerKey =
+      props.role === "player"
+        ? localStorage.getItem(playerStorageKey) ?? crypto.randomUUID()
+        : undefined;
+    if (playerKey) localStorage.setItem(playerStorageKey, playerKey);
+    send({ type: "join", role: props.role, playerKey });
   });
 
   socket.addEventListener("close", () => {

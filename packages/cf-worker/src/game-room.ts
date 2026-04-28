@@ -9,15 +9,23 @@ import {
 
 import type { Env } from "./env.js";
 
-type Attachment = { playerId: string | null };
+type Attachment = { playerId: string | null; playerKey: string | null };
+type PlayerProfile = {
+  nickname?: string;
+  moveCount: number;
+  lastSeenAt: string;
+};
 
 export class GameRoom {
   private gameState = createInitialState();
+  private readonly env: Env;
 
   constructor(
     private readonly ctx: DurableObjectState,
-    _env: Env
-  ) {}
+    env: Env
+  ) {
+    this.env = env;
+  }
 
   async fetch(request: Request): Promise<Response> {
     if (request.headers.get("Upgrade") !== "websocket") {
@@ -28,7 +36,10 @@ export class GameRoom {
     const [client, server] = Object.values(pair);
 
     this.ctx.acceptWebSocket(server);
-    server.serializeAttachment({ playerId: null } satisfies Attachment);
+    server.serializeAttachment({
+      playerId: null,
+      playerKey: null,
+    } satisfies Attachment);
 
     this.broadcastState();
 
@@ -56,16 +67,22 @@ export class GameRoom {
     if (parsed.type === "join") {
       const role = parsed.role ?? "player";
       const currentId = att?.playerId ?? null;
+      const currentKey = att?.playerKey ?? null;
 
       if (role === "gm") {
         if (currentId) {
           removePlayer(this.gameState, currentId);
         }
-        ws.serializeAttachment({ playerId: null } satisfies Attachment);
+        ws.serializeAttachment({
+          playerId: null,
+          playerKey: null,
+        } satisfies Attachment);
         this.broadcastState();
         return;
       }
 
+      const playerKey = parsed.playerKey ?? currentKey ?? crypto.randomUUID();
+      const profile = await this.readPlayerProfile(playerKey);
       let playerId = currentId;
       if (!playerId) {
         playerId = crypto.randomUUID();
@@ -74,11 +91,16 @@ export class GameRoom {
           this.sendError(ws, "Board full");
           return;
         }
-        ws.serializeAttachment({ playerId } satisfies Attachment);
       }
 
       const p = this.gameState.players.find((pl) => pl.id === playerId);
-      if (p) p.nickname = parsed.nickname;
+      if (p) p.nickname = parsed.nickname ?? profile?.nickname;
+      ws.serializeAttachment({ playerId, playerKey } satisfies Attachment);
+      await this.writePlayerProfile(playerKey, {
+        nickname: p?.nickname,
+        moveCount: profile?.moveCount ?? 0,
+        lastSeenAt: new Date().toISOString(),
+      });
       this.broadcastState();
       return;
     }
@@ -95,6 +117,16 @@ export class GameRoom {
         return;
       }
       applyMove(this.gameState, id, parsed.x, parsed.y);
+      const key = att?.playerKey;
+      if (key) {
+        const profile = await this.readPlayerProfile(key);
+        const movedPlayer = this.gameState.players.find((pl) => pl.id === id);
+        await this.writePlayerProfile(key, {
+          nickname: movedPlayer?.nickname ?? profile?.nickname,
+          moveCount: (profile?.moveCount ?? 0) + 1,
+          lastSeenAt: new Date().toISOString(),
+        });
+      }
       this.broadcastState();
     }
   }
@@ -102,9 +134,22 @@ export class GameRoom {
   async webSocketClose(ws: WebSocket): Promise<void> {
     const att = ws.deserializeAttachment() as Attachment | null;
     const playerId = att?.playerId;
+    const playerKey = att?.playerKey;
     if (playerId) {
+      const movedPlayer = this.gameState.players.find((pl) => pl.id === playerId);
       removePlayer(this.gameState, playerId);
-      ws.serializeAttachment({ playerId: null } satisfies Attachment);
+      if (playerKey) {
+        const profile = await this.readPlayerProfile(playerKey);
+        await this.writePlayerProfile(playerKey, {
+          nickname: movedPlayer?.nickname ?? profile?.nickname,
+          moveCount: profile?.moveCount ?? 0,
+          lastSeenAt: new Date().toISOString(),
+        });
+      }
+      ws.serializeAttachment({
+        playerId: null,
+        playerKey: att?.playerKey ?? null,
+      } satisfies Attachment);
       this.broadcastState();
     }
   }
@@ -126,5 +171,20 @@ export class GameRoom {
       };
       socket.send(JSON.stringify(msg));
     }
+  }
+
+  private profileKey(playerKey: string): string {
+    return `player:${playerKey}:profile`;
+  }
+
+  private async readPlayerProfile(playerKey: string): Promise<PlayerProfile | null> {
+    return this.env.PLAYER_KV.get<PlayerProfile>(this.profileKey(playerKey), "json");
+  }
+
+  private async writePlayerProfile(
+    playerKey: string,
+    profile: PlayerProfile
+  ): Promise<void> {
+    await this.env.PLAYER_KV.put(this.profileKey(playerKey), JSON.stringify(profile));
   }
 }
