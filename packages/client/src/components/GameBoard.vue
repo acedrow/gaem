@@ -3,7 +3,9 @@ import type { ClientMessage, Enemy, MapTile, Player, ServerMessage, TerrainObjec
 import { getEnemyMaxHp, getPlayerMaxHp, isWalkable, tileAt } from "@gaem/shared";
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 
+import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
+import { logConsole, useGameConsole } from "../composables/useGameConsole.js";
 import { useGameConnection } from "../composables/useGameConnection.js";
 import { useGameState } from "../composables/useGameState.js";
 
@@ -19,11 +21,20 @@ const wsUrl =
     : `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`);
 
 const { connection } = useGameConnection();
-const { selectedSheetId, selectSheet } = useCharacterSheetSelection();
+const { selectedSheetId } = useCharacterSheetSelection();
+const { clearConsole } = useGameConsole();
+const {
+  boardSelection,
+  selectedEnemyId,
+  clearBoardSelection,
+  selectBoardPlayer,
+  selectBoardEnemy,
+  isPlayerSelected,
+  isEnemySelected,
+} = useBoardSelection();
 const { gameState, yourPlayerId, setGameState, registerSend, clearGameState } = useGameState();
 const lastError = ref<string | null>(null);
 const hoveredKey = ref<string | null>(null);
-const selectedEnemyId = ref<string | null>(null);
 const addEnemyMode = ref(false);
 const viewportEl = ref<HTMLElement | null>(null);
 const scale = ref(1);
@@ -306,13 +317,28 @@ function tryMove(x: number, y: number) {
   send({ type: "move", x, y });
 }
 
-function openPlayerSheet(player: Player) {
-  if (!player.characterSheetId) return;
-  selectSheet(player.characterSheetId);
+function onPlayerTokenClick(player: Player) {
+  selectBoardPlayer(player.id, player.characterSheetId);
 }
 
-function onPlayerTokenClick(player: Player) {
-  openPlayerSheet(player);
+function onEnemyTokenClick(enemy: Enemy) {
+  selectBoardEnemy(enemy.id);
+}
+
+function onPlayerCellClick(x: number, y: number) {
+  lastError.value = null;
+  const player = playerAt(x, y);
+  if (player) {
+    selectBoardPlayer(player.id, player.characterSheetId);
+    return;
+  }
+  const enemy = enemyAt(x, y);
+  if (enemy) {
+    selectBoardEnemy(enemy.id);
+    return;
+  }
+  clearBoardSelection();
+  tryMove(x, y);
 }
 
 function onGmCellClick(x: number, y: number) {
@@ -322,13 +348,14 @@ function onGmCellClick(x: number, y: number) {
 
   const player = playerAt(x, y);
   if (player) {
-    openPlayerSheet(player);
+    selectBoardPlayer(player.id, player.characterSheetId);
+    addEnemyMode.value = false;
     return;
   }
 
   const enemy = enemyAt(x, y);
   if (enemy) {
-    selectedEnemyId.value = enemy.id;
+    selectBoardEnemy(enemy.id);
     addEnemyMode.value = false;
     return;
   }
@@ -341,37 +368,48 @@ function onGmCellClick(x: number, y: number) {
   }
 
   const selected = selectedEnemyId.value;
-  if (!selected) return;
-  const selectedEnemy = s.enemies.find((e) => e.id === selected);
-  if (!selectedEnemy) {
-    selectedEnemyId.value = null;
-    return;
+  if (selected) {
+    const selectedEnemy = s.enemies.find((e) => e.id === selected);
+    if (!selectedEnemy) {
+      clearBoardSelection();
+      return;
+    }
+    if (isAdjacentToSelectedEnemy(x, y) && isEmptyWalkable(x, y)) {
+      send({ type: "moveEnemy", enemyId: selected, x, y });
+      return;
+    }
   }
 
-  if (!isAdjacentToSelectedEnemy(x, y)) {
-    selectedEnemyId.value = null;
-    return;
-  }
-  if (!isEmptyWalkable(x, y)) return;
-  send({ type: "moveEnemy", enemyId: selected, x, y });
+  clearBoardSelection();
 }
 
 function onCellClick(x: number, y: number) {
   if (props.role === "gm") onGmCellClick(x, y);
-  else tryMove(x, y);
+  else onPlayerCellClick(x, y);
+}
+
+function onViewportClick(e: MouseEvent) {
+  if ((e.target as HTMLElement).closest(".cell")) return;
+  clearBoardSelection();
+}
+
+function onBoardDisplayClick(e: MouseEvent) {
+  const target = e.target as HTMLElement;
+  if (target.closest(".board-viewport, .gm-toolbar, .reset-zoom-btn")) return;
+  clearBoardSelection();
 }
 
 function removeSelectedEnemy() {
   if (!selectedEnemyId.value) return;
   lastError.value = null;
   send({ type: "removeEnemy", enemyId: selectedEnemyId.value });
-  selectedEnemyId.value = null;
+  clearBoardSelection();
 }
 
 function onKeydown(e: KeyboardEvent) {
   if (props.role === "gm") {
     if (e.key === "Escape") {
-      selectedEnemyId.value = null;
+      clearBoardSelection();
       addEnemyMode.value = false;
       return;
     }
@@ -400,13 +438,20 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 function connect() {
+  clearConsole();
   connection.value = "connecting";
+  logConsole("Connecting to game…");
   lastError.value = null;
   socket = new WebSocket(wsUrl);
   registerSend(send);
 
   socket.addEventListener("open", () => {
     connection.value = "connected";
+    logConsole(
+      props.role === "gm"
+        ? "Connected as GM"
+        : `Connected as ${props.playerProfile?.name ?? "player"}`,
+    );
     send({
       type: "join",
       role: props.role,
@@ -419,6 +464,7 @@ function connect() {
 
   socket.addEventListener("close", () => {
     connection.value = "disconnected";
+    logConsole("Disconnected from game");
     socket = null;
   });
 
@@ -432,11 +478,17 @@ function connect() {
     }
     if (msg.type === "state") {
       setGameState(msg.state, msg.yourPlayerId);
+      const selection = boardSelection.value;
       if (
-        selectedEnemyId.value &&
-        !msg.state.enemies.some((e) => e.id === selectedEnemyId.value)
+        selection?.kind === "enemy" &&
+        !msg.state.enemies.some((e) => e.id === selection.id)
       ) {
-        selectedEnemyId.value = null;
+        clearBoardSelection();
+      } else if (
+        selection?.kind === "player" &&
+        !msg.state.players.some((p) => p.id === selection.id)
+      ) {
+        clearBoardSelection();
       }
     } else if (msg.type === "error") {
       lastError.value = msg.message;
@@ -475,7 +527,7 @@ onUnmounted(() => {
   <div class="game-board">
     <p v-if="lastError" class="error">{{ lastError }}</p>
 
-    <div v-if="gameState" class="board-display">
+    <div v-if="gameState" class="board-display" @click="onBoardDisplayClick">
       <div v-if="props.role === 'gm'" class="gm-toolbar">
         <button
           type="button"
@@ -483,7 +535,7 @@ onUnmounted(() => {
           :class="{ active: addEnemyMode }"
           @click="
             addEnemyMode = !addEnemyMode;
-            if (addEnemyMode) selectedEnemyId = null;
+            if (addEnemyMode) clearBoardSelection();
           "
         >
           Add enemy
@@ -497,7 +549,7 @@ onUnmounted(() => {
           Remove
         </button>
       </div>
-      <div ref="viewportEl" class="board-viewport" @wheel.prevent="onWheel">
+      <div ref="viewportEl" class="board-viewport" @click="onViewportClick" @wheel.prevent="onWheel">
         <div class="board-stage" :style="stageStyle">
           <div class="board-wrap">
             <div class="board" :style="gridStyle">
@@ -522,13 +574,6 @@ onUnmounted(() => {
                 'gm-add-target':
                   props.role === 'gm' && addEnemyMode && isEmptyWalkable(c.x, c.y),
               }"
-              :disabled="
-                props.role === 'player' &&
-                (!isWalkable(getTile(c.x, c.y)) ||
-                  !isAdjacentToYou(c.x, c.y) ||
-                  !!playerAt(c.x, c.y) ||
-                  !!enemyAt(c.x, c.y))
-              "
               @click="onCellClick(c.x, c.y)"
               @mouseenter="hoveredKey = c.key"
               @mouseleave="hoveredKey = null"
@@ -573,15 +618,15 @@ onUnmounted(() => {
               <span
                 v-if="enemyAt(c.x, c.y)"
                 class="piece enemy"
-                :class="{ selected: enemyAt(c.x, c.y)!.id === selectedEnemyId }"
+                :class="{ selected: isEnemySelected(enemyAt(c.x, c.y)!.id) }"
+                @click.stop="onEnemyTokenClick(enemyAt(c.x, c.y)!)"
               />
               <span
                 v-if="playerAt(c.x, c.y)"
                 class="piece player-piece"
+                :class="{ selected: isPlayerSelected(playerAt(c.x, c.y)!.id) }"
                 :style="{
                   background: `hsl(${hueFromId(playerAt(c.x, c.y)!.id)} 70% 45%)`,
-                  outline:
-                    playerAt(c.x, c.y)!.id === yourPlayerId ? '2px solid #fff' : undefined,
                 }"
                 @click.stop="onPlayerTokenClick(playerAt(c.x, c.y)!)"
               />
@@ -677,14 +722,13 @@ onUnmounted(() => {
 .cell.void { background: #0d1117; cursor: not-allowed; }
 .cell.cover { background: #2d4a3e; }
 .cell.uneasy { background: #3d3520; }
-.cell.movable:not(:disabled) { cursor: pointer; outline: 1px dashed #388bfd66; }
+.cell.movable { cursor: pointer; outline: 1px dashed #388bfd66; }
 .cell.gm-movable { cursor: pointer; outline: 1px dashed #f8514966; }
 .cell.gm-add-target { cursor: pointer; outline: 1px dashed #3fb95066; }
-.cell:disabled:not(.impassable):not(.obstacle):not(.void) { opacity: 0.85; }
 .piece { position: absolute; inset: 4px; border-radius: 50%; display: block; z-index: 1; }
 .piece.player-piece { cursor: pointer; z-index: 2; }
 .piece.enemy { background: hsl(0 70% 45%); z-index: 0; }
-.piece.enemy.selected { outline: 2px solid #fff; }
+.piece.selected { outline: 2px solid #fff; }
 .tile-tooltip {
   position: absolute;
   bottom: calc(100% + 4px);

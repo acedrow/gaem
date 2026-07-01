@@ -4,13 +4,13 @@ import { useRouter } from "vue-router";
 import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
 import { useGameConnection } from "../composables/useGameConnection.js";
 import { useSession } from "../composables/useSession.js";
-import CharacterSheetPanel from "./CharacterSheetPanel.vue";
 import GameBoard from "./GameBoard.vue";
+import RightPanel from "./RightPanel.vue";
 import SideNav from "./SideNav.vue";
 
 const router = useRouter();
 const { role, playerProfile, clearSession } = useSession();
-const { selectedSheetId, sidebarCollapsed, rightPanelCollapsed } = useCharacterSheetSelection();
+const { sidebarCollapsed } = useCharacterSheetSelection();
 const { connection } = useGameConnection();
 
 function leave() {
@@ -53,25 +53,8 @@ function leave() {
       />
     </main>
 
-    <aside
-      v-if="selectedSheetId"
-      class="right-panel"
-      :class="{ collapsed: rightPanelCollapsed }"
-    >
-      <button
-        class="panel-toggle right-toggle"
-        type="button"
-        :title="rightPanelCollapsed ? 'Expand panel' : 'Collapse panel'"
-        @click="rightPanelCollapsed = !rightPanelCollapsed"
-      >
-        {{ rightPanelCollapsed ? "◂" : "▸" }}
-      </button>
-      <CharacterSheetPanel
-        v-show="!rightPanelCollapsed"
-        :key="selectedSheetId"
-        :sheet-id="selectedSheetId"
-      />
-    </aside>
+    <RightPanel v-if="role" />
+
   </div>
 </template>
 
@@ -186,20 +169,6 @@ function leave() {
   flex-direction: column;
 }
 
-.right-panel {
-  position: relative;
-  width: 22rem;
-  flex-shrink: 0;
-  border-left: 1px solid #30363d;
-  background: #0d1117;
-  overflow: hidden;
-  transition: width 0.2s ease;
-}
-
-.right-panel.collapsed {
-  width: 1.75rem;
-}
-
 .panel-toggle {
   position: absolute;
   top: 50%;
@@ -224,10 +193,5 @@ function leave() {
 .sidebar-toggle {
   right: -0.625rem;
   border-radius: 0 6px 6px 0;
-}
-
-.right-toggle {
-  left: -0.625rem;
-  border-radius: 6px 0 0 6px;
 }
 </style>

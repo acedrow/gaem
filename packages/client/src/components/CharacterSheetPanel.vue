@@ -12,11 +12,14 @@ import {
 import { computed, nextTick, onUnmounted, ref, watch } from "vue";
 
 import { useApi } from "../composables/useApi.js";
+import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
+import { logConsole } from "../composables/useGameConsole.js";
 import { useGameState } from "../composables/useGameState.js";
 import { useSession } from "../composables/useSession.js";
 
 type PlayerProfileOption = PlayerProfile & { isActive?: boolean };
+type EditableField = "name" | "class" | "armor" | "weapon" | "player";
 
 const props = defineProps<{ sheetId: string }>();
 
@@ -24,6 +27,7 @@ const { apiFetch, fetchPortraitUrl } = useApi();
 const { role, playerProfile } = useSession();
 const { gameState, send } = useGameState();
 const { selectSheet, notifySheetsChanged } = useCharacterSheetSelection();
+const { closeRightPanel } = useBoardSelection();
 
 const sheet = ref<CharacterSheet | null>(null);
 const profiles = ref<PlayerProfileOption[]>([]);
@@ -41,9 +45,11 @@ const form = ref({
   armor: "",
   weapon: "",
 });
+const editingField = ref<EditableField | null>(null);
 const editingHp = ref(false);
 const hpDraft = ref(0);
 const hpInputEl = ref<HTMLInputElement | null>(null);
+const fieldInputEl = ref<HTMLInputElement | HTMLSelectElement | null>(null);
 
 const canEdit = computed(() => {
   if (!sheet.value) return false;
@@ -76,6 +82,9 @@ const hpBarLevel = computed(() => {
 const selectedClass = computed(() => getClassByName(form.value.class));
 const selectedArmor = computed(() => getArmorByName(form.value.armor));
 const selectedWeapon = computed(() => getWeaponByName(form.value.weapon));
+const selectedProfileName = computed(
+  () => profiles.value.find((p) => p.id === form.value.player)?.name ?? form.value.player
+);
 
 async function loadProfiles() {
   if (role.value !== "gm") return;
@@ -124,7 +133,13 @@ async function loadSheet() {
 }
 
 async function saveSheet() {
-  if (!sheet.value) return;
+  if (!sheet.value || !canEdit.value) return;
+  const prev = {
+    name: sheet.value.name,
+    class: sheet.value.class,
+    armor: sheet.value.armor,
+    weapon: sheet.value.weapon,
+  };
   saving.value = true;
   error.value = null;
   try {
@@ -148,6 +163,19 @@ async function saveSheet() {
     const data = (await res.json()) as { sheet: CharacterSheet };
     sheet.value = data.sheet;
     notifySheetsChanged();
+    const label = data.sheet.name || "Character";
+    if (prev.name !== data.sheet.name) {
+      logConsole(`${label} name set to ${data.sheet.name}`);
+    }
+    if (prev.armor !== data.sheet.armor) {
+      logConsole(`${label} armor set to ${data.sheet.armor}`);
+    }
+    if (prev.weapon !== data.sheet.weapon) {
+      logConsole(`${label} weapon set to ${data.sheet.weapon}`);
+    }
+    if (prev.class !== data.sheet.class && !boardPlayer.value) {
+      logConsole(`${label} class set to ${data.sheet.class}`);
+    }
     if (boardPlayer.value) {
       send({
         type: "syncPlayerSheet",
@@ -162,6 +190,37 @@ async function saveSheet() {
   }
 }
 
+function resetFormFromSheet() {
+  if (!sheet.value) return;
+  form.value = {
+    player: sheet.value.player,
+    name: sheet.value.name,
+    class: sheet.value.class,
+    armor: sheet.value.armor,
+    weapon: sheet.value.weapon,
+  };
+}
+
+function startFieldEdit(field: EditableField) {
+  if (!canEdit.value) return;
+  editingField.value = field;
+  nextTick(() => {
+    fieldInputEl.value?.focus();
+    if (fieldInputEl.value instanceof HTMLInputElement) fieldInputEl.value.select();
+  });
+}
+
+async function commitFieldEdit() {
+  if (!editingField.value) return;
+  editingField.value = null;
+  await saveSheet();
+}
+
+function cancelFieldEdit() {
+  editingField.value = null;
+  resetFormFromSheet();
+}
+
 async function deleteSheet() {
   if (!sheet.value || !confirm("Delete this character sheet?")) return;
   deleting.value = true;
@@ -172,6 +231,7 @@ async function deleteSheet() {
     });
     if (!res.ok) throw new Error("Failed to delete");
     notifySheetsChanged();
+    closeRightPanel();
     selectSheet(null);
   } catch {
     error.value = "Unable to delete character sheet";
@@ -237,6 +297,7 @@ watch(
   () => props.sheetId,
   async (id) => {
     if (!id) return;
+    editingField.value = null;
     await loadProfiles();
     await loadSheet();
   },
@@ -250,146 +311,287 @@ onUnmounted(() => {
 
 <template>
   <div class="panel">
+    <svg aria-hidden="true" class="icon-defs">
+      <symbol id="icon-pencil" viewBox="0 0 16 16">
+        <path
+          d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.387 8.387L2.5 14.5l1.126-3.666 8.387-8.387z"
+        />
+      </symbol>
+    </svg>
+
     <div class="panel-header">
       <h2 class="panel-title">{{ form.name || "Character sheet" }}</h2>
-      <button class="close-btn" type="button" title="Close" @click="selectSheet(null)">×</button>
+      <button class="close-btn" type="button" title="Close" @click="closeRightPanel">×</button>
     </div>
 
     <p v-if="loading" class="muted">Loading…</p>
     <p v-else-if="error && !sheet" class="error">{{ error }}</p>
 
-    <template v-else-if="sheet">
+    <div v-else-if="sheet" class="panel-body">
       <p v-if="error" class="error">{{ error }}</p>
 
-      <div class="hp-bar-block">
-        <div class="hp-bar-header">
-          <span class="hp-bar-label">HP</span>
-          <span class="hp-bar-values">
-            <input
-              v-if="editingHp"
-              ref="hpInputEl"
-              v-model.number="hpDraft"
-              class="hp-inline-input"
-              type="number"
-              min="0"
-              :max="maxHp"
-              @blur="commitHpEdit"
-              @keydown.enter.prevent="commitHpEdit"
-              @keydown.esc.prevent="cancelHpEdit"
-            />
-            <button
-              v-else-if="canEdit && boardPlayer"
-              type="button"
-              class="hp-current hp-editable"
-              @click="startHpEdit"
-            >
-              {{ currentHp }}
-            </button>
-            <span v-else class="hp-current">{{ currentHp }}</span>
-            <span class="hp-max"> / {{ maxHp }}</span>
-          </span>
-        </div>
-        <div class="hp-bar-track">
-          <div class="hp-bar-fill" :class="hpBarLevel" :style="{ width: `${hpPercent}%` }" />
-        </div>
-      </div>
-
       <div class="layout">
-        <div class="portrait-block">
-          <div class="portrait-frame">
+        <div class="portrait-column">
+          <div class="portrait-frame" :class="{ editable: canEdit }">
             <img v-if="portraitUrl" :src="portraitUrl" alt="Portrait" class="portrait" />
             <span v-else class="portrait-placeholder">No portrait</span>
+            <label v-if="canEdit" class="portrait-edit-btn" :class="{ uploading }">
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                hidden
+                :disabled="uploading"
+                @change="onPortraitSelected"
+              />
+              <svg class="icon"><use href="#icon-pencil" /></svg>
+            </label>
           </div>
-          <label class="upload-btn" v-if="canEdit">
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              hidden
-              :disabled="uploading"
-              @change="onPortraitSelected"
-            />
-            {{ uploading ? "Uploading…" : "Upload portrait" }}
-          </label>
+
+          <div class="hp-bar-block">
+            <div class="hp-bar-header">
+              <span class="hp-bar-label">HP</span>
+              <span class="hp-bar-values">
+                <input
+                  v-if="editingHp"
+                  ref="hpInputEl"
+                  v-model.number="hpDraft"
+                  class="hp-inline-input"
+                  type="number"
+                  min="0"
+                  :max="maxHp"
+                  @blur="commitHpEdit"
+                  @keydown.enter.prevent="commitHpEdit"
+                  @keydown.esc.prevent="cancelHpEdit"
+                />
+                <button
+                  v-else-if="canEdit && boardPlayer"
+                  type="button"
+                  class="hp-current hp-editable"
+                  @click="startHpEdit"
+                >
+                  {{ currentHp }}
+                </button>
+                <span v-else class="hp-current">{{ currentHp }}</span>
+                <span class="hp-max"> / {{ maxHp }}</span>
+              </span>
+            </div>
+            <div class="hp-bar-track">
+              <div class="hp-bar-fill" :class="hpBarLevel" :style="{ width: `${hpPercent}%` }" />
+            </div>
+          </div>
         </div>
 
-        <form class="form" @submit.prevent="saveSheet">
-          <label v-if="role === 'gm'" class="field">
-            <span>Player profile</span>
-            <select v-model="form.player" class="input" :disabled="!canEdit">
-              <option v-for="p in profiles" :key="p.id" :value="p.id">{{ p.name }}</option>
-            </select>
-          </label>
-
-          <label class="field">
-            <span>Name</span>
-            <input v-model="form.name" class="input" type="text" required :disabled="!canEdit" />
-          </label>
-
-          <label class="field">
-            <span>Class</span>
-            <select v-model="form.class" class="input" required :disabled="!canEdit">
-              <option value="" disabled>Select class</option>
-              <option v-for="c in PLAYER_CLASSES" :key="c.name" :value="c.name">
-                {{ c.name }}
-              </option>
-            </select>
-          </label>
-
-          <label class="field">
-            <span>Armor</span>
-            <select v-model="form.armor" class="input" required :disabled="!canEdit">
-              <option value="" disabled>Select armor</option>
-              <option v-for="a in PLAYER_ARMOR" :key="a.name" :value="a.name">
-                {{ a.name }}
-              </option>
-            </select>
-          </label>
-
-          <label class="field">
-            <span>Weapon</span>
-            <select v-model="form.weapon" class="input" required :disabled="!canEdit">
-              <option value="" disabled>Select weapon</option>
-              <option v-for="w in PLAYER_WEAPONS" :key="w.name" :value="w.name">
-                {{ w.name }}
-              </option>
-            </select>
-          </label>
-
-          <div v-if="canEdit" class="form-actions">
-            <button class="cta" type="submit" :disabled="saving">
-              {{ saving ? "Saving…" : "Save" }}
-            </button>
-            <button class="cta danger" type="button" :disabled="deleting" @click="deleteSheet">
-              {{ deleting ? "Deleting…" : "Delete" }}
-            </button>
+        <div class="fields">
+          <div v-if="role === 'gm'" class="field-row">
+            <template v-if="editingField !== 'player'">
+              <span class="field-label">Player:</span>
+              <span class="field-value">{{ selectedProfileName || "—" }}</span>
+              <button
+                v-if="canEdit"
+                type="button"
+                class="edit-btn"
+                aria-label="Edit player"
+                @click="startFieldEdit('player')"
+              >
+                <svg class="icon"><use href="#icon-pencil" /></svg>
+              </button>
+            </template>
+            <template v-else>
+              <span class="field-label">Player:</span>
+              <select
+                ref="fieldInputEl"
+                v-model="form.player"
+                class="field-input"
+                @change="commitFieldEdit"
+                @blur="commitFieldEdit"
+                @keydown.esc.prevent="cancelFieldEdit"
+              >
+                <option v-for="p in profiles" :key="p.id" :value="p.id">{{ p.name }}</option>
+              </select>
+            </template>
           </div>
-        </form>
+
+          <div class="field-row">
+            <template v-if="editingField !== 'name'">
+              <span class="field-label">Name:</span>
+              <span class="field-value">{{ form.name || "—" }}</span>
+              <button
+                v-if="canEdit"
+                type="button"
+                class="edit-btn"
+                aria-label="Edit name"
+                @click="startFieldEdit('name')"
+              >
+                <svg class="icon"><use href="#icon-pencil" /></svg>
+              </button>
+            </template>
+            <template v-else>
+              <span class="field-label">Name:</span>
+              <input
+                ref="fieldInputEl"
+                v-model="form.name"
+                class="field-input"
+                type="text"
+                required
+                @blur="commitFieldEdit"
+                @keydown.enter.prevent="commitFieldEdit"
+                @keydown.esc.prevent="cancelFieldEdit"
+              />
+            </template>
+          </div>
+
+          <div class="field-row">
+            <template v-if="editingField !== 'class'">
+              <span class="field-label">Class:</span>
+              <span class="field-value-wrap">
+                <span class="field-value">{{ form.class || "—" }}</span>
+                <div v-if="selectedClass" class="field-tooltip">
+                  <p v-if="selectedClass.summary" class="tooltip-summary">{{ selectedClass.summary }}</p>
+                  <p class="tooltip-body">{{ selectedClass.description }}</p>
+                </div>
+              </span>
+              <button
+                v-if="canEdit"
+                type="button"
+                class="edit-btn"
+                aria-label="Edit class"
+                @click="startFieldEdit('class')"
+              >
+                <svg class="icon"><use href="#icon-pencil" /></svg>
+              </button>
+            </template>
+            <template v-else>
+              <span class="field-label">Class:</span>
+              <select
+                ref="fieldInputEl"
+                v-model="form.class"
+                class="field-input"
+                required
+                @change="commitFieldEdit"
+                @blur="commitFieldEdit"
+                @keydown.esc.prevent="cancelFieldEdit"
+              >
+                <option value="" disabled>Select class</option>
+                <option v-for="c in PLAYER_CLASSES" :key="c.name" :value="c.name">
+                  {{ c.name }}
+                </option>
+              </select>
+            </template>
+          </div>
+
+          <div class="field-row">
+            <template v-if="editingField !== 'armor'">
+              <span class="field-label">Armor:</span>
+              <span class="field-value-wrap">
+                <span class="field-value">{{ form.armor || "—" }}</span>
+                <div v-if="selectedArmor" class="field-tooltip">
+                  <p v-if="selectedArmor.summary" class="tooltip-summary">{{ selectedArmor.summary }}</p>
+                  <p class="tooltip-body">{{ selectedArmor.description }}</p>
+                </div>
+              </span>
+              <button
+                v-if="canEdit"
+                type="button"
+                class="edit-btn"
+                aria-label="Edit armor"
+                @click="startFieldEdit('armor')"
+              >
+                <svg class="icon"><use href="#icon-pencil" /></svg>
+              </button>
+            </template>
+            <template v-else>
+              <span class="field-label">Armor:</span>
+              <select
+                ref="fieldInputEl"
+                v-model="form.armor"
+                class="field-input"
+                required
+                @change="commitFieldEdit"
+                @blur="commitFieldEdit"
+                @keydown.esc.prevent="cancelFieldEdit"
+              >
+                <option value="" disabled>Select armor</option>
+                <option v-for="a in PLAYER_ARMOR" :key="a.name" :value="a.name">
+                  {{ a.name }}
+                </option>
+              </select>
+            </template>
+          </div>
+
+          <div class="field-row">
+            <template v-if="editingField !== 'weapon'">
+              <span class="field-label">Weapon:</span>
+              <span class="field-value-wrap">
+                <span class="field-value">{{ form.weapon || "—" }}</span>
+                <div v-if="selectedWeapon" class="field-tooltip">
+                  <p class="tooltip-body">{{ selectedWeapon.description }}</p>
+                </div>
+              </span>
+              <button
+                v-if="canEdit"
+                type="button"
+                class="edit-btn"
+                aria-label="Edit weapon"
+                @click="startFieldEdit('weapon')"
+              >
+                <svg class="icon"><use href="#icon-pencil" /></svg>
+              </button>
+            </template>
+            <template v-else>
+              <span class="field-label">Weapon:</span>
+              <select
+                ref="fieldInputEl"
+                v-model="form.weapon"
+                class="field-input"
+                required
+                @change="commitFieldEdit"
+                @blur="commitFieldEdit"
+                @keydown.esc.prevent="cancelFieldEdit"
+              >
+                <option value="" disabled>Select weapon</option>
+                <option v-for="w in PLAYER_WEAPONS" :key="w.name" :value="w.name">
+                  {{ w.name }}
+                </option>
+              </select>
+            </template>
+          </div>
+        </div>
       </div>
+    </div>
 
-      <section v-if="selectedClass" class="detail-section">
-        <h3 class="section-title">{{ selectedClass.name }}</h3>
-        <p class="summary">{{ selectedClass.summary }}</p>
-        <p class="body-text">{{ selectedClass.description }}</p>
-      </section>
-
-      <section v-if="selectedArmor" class="detail-section">
-        <h3 class="section-title">{{ selectedArmor.name }}</h3>
-        <p class="summary">{{ selectedArmor.summary }}</p>
-      </section>
-
-      <section v-if="selectedWeapon" class="detail-section">
-        <h3 class="section-title">{{ selectedWeapon.name }}</h3>
-        <p class="body-text">{{ selectedWeapon.description }}</p>
-      </section>
-    </template>
+    <div v-if="canEdit && sheet" class="panel-footer">
+      <button class="cta danger" type="button" :disabled="deleting || saving" @click="deleteSheet">
+        {{ deleting ? "Deleting…" : "Delete" }}
+      </button>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .panel {
   height: 100%;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: 1rem;
+}
+
+.panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.panel-footer {
+  flex-shrink: 0;
+  padding-top: 1rem;
+}
+
+.icon-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
 }
 
 .panel-header {
@@ -422,8 +624,81 @@ onUnmounted(() => {
   color: #e6edf3;
 }
 
+.layout {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.portrait-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.portrait-frame {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  border: 1px solid #30363d;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #161b22;
+  display: grid;
+  place-items: center;
+}
+
+.portrait-frame.editable:hover .portrait-edit-btn,
+.portrait-frame.editable:focus-within .portrait-edit-btn {
+  opacity: 1;
+}
+
+.portrait {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.portrait-placeholder {
+  color: #8b949e;
+  font-size: 0.85rem;
+}
+
+.portrait-edit-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 6px;
+  border: 1px solid #30363d;
+  background: #0d1117dd;
+  color: #e6edf3;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.portrait-edit-btn:hover {
+  background: #161b22;
+  color: #58a6ff;
+}
+
+.portrait-edit-btn.uploading {
+  opacity: 1;
+  cursor: wait;
+}
+
+.portrait-edit-btn .icon {
+  width: 0.85rem;
+  height: 0.85rem;
+  fill: currentColor;
+}
+
 .hp-bar-block {
-  margin-bottom: 1rem;
+  width: 120px;
 }
 
 .hp-bar-header {
@@ -514,89 +789,109 @@ onUnmounted(() => {
   background: linear-gradient(90deg, #8b1e1e, #f85149);
 }
 
-.input:disabled {
-  opacity: 0.75;
-  cursor: default;
-}
-
-.layout {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  margin-bottom: 1.25rem;
-}
-
-.portrait-block {
+.fields {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
 
-.portrait-frame {
-  width: 120px;
-  height: 120px;
-  border: 1px solid #30363d;
-  border-radius: 10px;
-  overflow: hidden;
-  background: #161b22;
-  display: grid;
-  place-items: center;
+.field-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  min-height: 1.75rem;
 }
 
-.portrait {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.portrait-placeholder {
+.field-label {
+  flex-shrink: 0;
   color: #8b949e;
-  font-size: 0.85rem;
+  font-weight: 500;
 }
 
-.upload-btn {
-  width: fit-content;
-  border: 1px solid #30363d;
-  border-radius: 8px;
-  background: #161b22;
+.field-value-wrap {
+  position: relative;
+  min-width: 0;
+}
+
+.field-value-wrap:hover .field-tooltip {
+  display: block;
+}
+
+.field-value {
   color: #e6edf3;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.field-tooltip {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
+  z-index: 10;
+  min-width: 180px;
+  max-width: 280px;
   padding: 0.45rem 0.55rem;
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-
-.upload-btn:hover {
-  background: #1f2937;
-}
-
-.form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.85rem;
-  color: #8b949e;
-}
-
-.input {
+  border-radius: 6px;
   border: 1px solid #30363d;
-  border-radius: 8px;
   background: #0d1117;
   color: #e6edf3;
-  padding: 0.5rem 0.6rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  white-space: normal;
+  box-shadow: 0 4px 12px #01040966;
+  pointer-events: none;
+}
+
+.field-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid #388bfd;
+  border-radius: 6px;
+  background: #0d1117;
+  color: #e6edf3;
+  padding: 0.2rem 0.45rem;
+  font: inherit;
   font-size: 0.9rem;
 }
 
-.form-actions {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  margin-top: 0.25rem;
+.edit-btn {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #8b949e;
+  cursor: pointer;
+  padding: 0;
+}
+
+.edit-btn:hover {
+  color: #58a6ff;
+  background: #21262d;
+}
+
+.edit-btn .icon {
+  width: 0.75rem;
+  height: 0.75rem;
+  fill: currentColor;
+}
+
+.tooltip-summary {
+  margin: 0 0 0.35rem;
+  color: #8b949e;
+  font-size: 0.75rem;
+}
+
+.tooltip-body {
+  margin: 0;
 }
 
 .cta {
@@ -622,29 +917,6 @@ onUnmounted(() => {
 .danger {
   border-color: #f8514966;
   color: #f85149;
-}
-
-.detail-section {
-  margin-top: 1rem;
-  padding-top: 0.85rem;
-  border-top: 1px solid #30363d;
-}
-
-.section-title {
-  margin: 0 0 0.35rem;
-  font-size: 0.95rem;
-}
-
-.summary {
-  color: #8b949e;
-  margin: 0 0 0.5rem;
-  font-size: 0.85rem;
-}
-
-.body-text {
-  margin: 0;
-  font-size: 0.85rem;
-  line-height: 1.5;
 }
 
 .muted {

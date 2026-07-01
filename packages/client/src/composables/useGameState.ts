@@ -1,12 +1,15 @@
 import type { ClientMessage, GameState } from "@gaem/shared";
 import { ref } from "vue";
 
+import { logGameStateChanges } from "./logGameStateChanges.js";
+
 const gameState = ref<GameState | null>(null);
 const yourPlayerId = ref<string | null>(null);
 let sendFn: ((msg: ClientMessage) => void) | null = null;
 
 export function useGameState() {
   function setGameState(state: GameState, playerId: string | null) {
+    logGameStateChanges(gameState.value, state);
     gameState.value = state;
     yourPlayerId.value = playerId;
   }

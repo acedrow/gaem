@@ -1,9 +1,12 @@
 import paracletusJson from "./data/enemies/paracletus.json" with { type: "json" };
 
-type EnemyListing = {
+export type EnemyListing = {
   name: string;
   codename?: string;
+  title?: string;
+  description?: string;
   hp: number;
+  tags?: string[];
 };
 
 type EnemyFaction = {
@@ -12,14 +15,22 @@ type EnemyFaction = {
 
 const ENEMY_FACTIONS = [paracletusJson] as EnemyFaction[];
 
-export function getEnemyMaxHpByName(name: string | undefined): number {
-  if (!name) return 0;
+function findEnemyListing(name: string | undefined): EnemyListing | undefined {
+  if (!name) return undefined;
   const normalized = name.trim().toLowerCase();
   for (const faction of ENEMY_FACTIONS) {
     for (const enemy of faction.enemies) {
-      if (enemy.name.toLowerCase() === normalized) return enemy.hp;
-      if (enemy.codename?.toLowerCase() === normalized) return enemy.hp;
+      if (enemy.name.toLowerCase() === normalized) return enemy;
+      if (enemy.codename?.toLowerCase() === normalized) return enemy;
     }
   }
-  return 0;
+  return undefined;
+}
+
+export function getEnemyListingByName(name: string | undefined): EnemyListing | undefined {
+  return findEnemyListing(name);
+}
+
+export function getEnemyMaxHpByName(name: string | undefined): number {
+  return findEnemyListing(name)?.hp ?? 0;
 }
