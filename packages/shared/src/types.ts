@@ -1,4 +1,27 @@
-export type TileKind = "empty" | "wall";
+export const TERRAIN_TYPES = [
+  "standard",
+  "uneasy",
+  "impassable",
+  "cover",
+  "obstacle",
+  "void",
+] as const;
+
+export type TerrainType = (typeof TERRAIN_TYPES)[number];
+
+export type MapTile = {
+  x: number;
+  y: number;
+  terrain: TerrainType[];
+  elevation: number;
+};
+
+export type GameMap = {
+  id: string;
+  width: number;
+  height: number;
+  tiles: MapTile[];
+};
 
 export type Player = {
   id: string;
@@ -8,9 +31,10 @@ export type Player = {
 };
 
 export type GameState = {
+  mapId: string;
   width: number;
   height: number;
-  tiles: TileKind[][];
+  tiles: MapTile[];
   players: Player[];
 };
 

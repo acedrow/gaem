@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import type { ClientMessage, GameState, ServerMessage } from "@gaem/shared";
+import type { ClientMessage, GameState, MapTile, ServerMessage } from "@gaem/shared";
+import { isWalkable, tileAt } from "@gaem/shared";
 import { computed, onMounted, onUnmounted, ref } from "vue";
 
 const props = defineProps<{
@@ -17,6 +18,7 @@ const connection = ref<"connecting" | "open" | "closed">("connecting");
 const gameState = ref<GameState | null>(null);
 const yourPlayerId = ref<string | null>(null);
 const lastError = ref<string | null>(null);
+const hoveredKey = ref<string | null>(null);
 let socket: WebSocket | null = null;
 
 function hueFromId(id: string): number {
@@ -49,6 +51,22 @@ const boardAspectRatio = computed(() => {
   if (!s) return "1 / 1";
   return `${s.width} / ${s.height}`;
 });
+
+function getTile(x: number, y: number): MapTile | undefined {
+  const s = gameState.value;
+  if (!s) return undefined;
+  return tileAt(s.tiles, x, y);
+}
+
+function terrainClass(tile: MapTile | undefined): string | null {
+  if (!tile) return null;
+  if (tile.terrain.includes("impassable")) return "impassable";
+  if (tile.terrain.includes("obstacle")) return "obstacle";
+  if (tile.terrain.includes("void")) return "void";
+  if (tile.terrain.includes("cover")) return "cover";
+  if (tile.terrain.includes("uneasy")) return "uneasy";
+  return null;
+}
 
 function playerAt(x: number, y: number) {
   return gameState.value?.players.find((p) => p.x === x && p.y === y);
@@ -172,21 +190,28 @@ onUnmounted(() => {
         type="button"
         class="cell"
         :class="{
-          wall: gameState.tiles[c.y][c.x] === 'wall',
+          [terrainClass(getTile(c.x, c.y)) ?? '']: !!terrainClass(getTile(c.x, c.y)),
           movable:
             props.role === 'player' &&
-            gameState.tiles[c.y][c.x] === 'empty' &&
+            isWalkable(getTile(c.x, c.y)) &&
             isAdjacentToYou(c.x, c.y) &&
             !playerAt(c.x, c.y),
         }"
         :disabled="
           props.role !== 'player' ||
-          gameState.tiles[c.y][c.x] === 'wall' ||
+          !isWalkable(getTile(c.x, c.y)) ||
           !isAdjacentToYou(c.x, c.y) ||
           !!playerAt(c.x, c.y)
         "
         @click="tryMove(c.x, c.y)"
+        @mouseenter="hoveredKey = c.key"
+        @mouseleave="hoveredKey = null"
       >
+        <div v-if="hoveredKey === c.key && getTile(c.x, c.y)" class="tile-tooltip">
+          <span class="tooltip-row">({{ c.x }}, {{ c.y }})</span>
+          <span class="tooltip-row">Terrain: {{ getTile(c.x, c.y)!.terrain.join(", ") }}</span>
+          <span class="tooltip-row">Elevation: {{ getTile(c.x, c.y)!.elevation }}</span>
+        </div>
         <span
           v-if="playerAt(c.x, c.y)"
           class="piece"
@@ -218,9 +243,32 @@ onUnmounted(() => {
 .board-wrap { overflow: auto; border-radius: 12px; border: 1px solid #30363d; background: #161b22; padding: 0.75rem; }
 .board { display: grid; gap: 3px; width: min(100%, 520px); aspect-ratio: v-bind(boardAspectRatio); }
 .cell { position: relative; border: none; border-radius: 4px; min-height: 28px; padding: 0; cursor: default; background: #21262d; }
-.cell.wall { background: #484f58; cursor: not-allowed; }
+.cell.impassable { background: #484f58; cursor: not-allowed; }
+.cell.obstacle { background: #6e4c2a; cursor: not-allowed; }
+.cell.void { background: #0d1117; cursor: not-allowed; }
+.cell.cover { background: #2d4a3e; }
+.cell.uneasy { background: #3d3520; }
 .cell.movable:not(:disabled) { cursor: pointer; outline: 1px dashed #388bfd66; }
-.cell:disabled:not(.wall) { opacity: 0.85; }
-.piece { position: absolute; inset: 4px; border-radius: 50%; display: block; }
+.cell:disabled:not(.impassable):not(.obstacle):not(.void) { opacity: 0.85; }
+.piece { position: absolute; inset: 4px; border-radius: 50%; display: block; z-index: 1; }
+.tile-tooltip {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  min-width: 120px;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid #30363d;
+  background: #0d1117;
+  color: #e6edf3;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 4px 12px #01040966;
+}
+.tooltip-row { display: block; }
 .loading { color: #8b949e; }
 </style>

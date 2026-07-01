@@ -1,8 +1,12 @@
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import type {
   ClientMessage,
+  GameState,
   PlayerProfile,
   ServerMessage,
 } from "@gaem/shared";
@@ -12,7 +16,9 @@ import { WebSocketServer, type WebSocket } from "ws";
 import {
   addPlayer,
   applyMove,
-  createInitialState,
+  createInitialStateFromMap,
+  DEFAULT_MAP_ID,
+  parseGameMap,
   removePlayer,
   validateMove,
 } from "@gaem/shared";
@@ -73,7 +79,7 @@ const httpServer = createServer(app);
 
 const wss = new WebSocketServer({ noServer: true });
 
-let gameState = createInitialState();
+let gameState: GameState;
 
 /** socket -> playerId when joined as player, else null for GM */
 const socketPlayer = new Map<WebSocket, string | null>();
@@ -213,6 +219,23 @@ wss.on("connection", (ws: WebSocket) => {
   });
 });
 
-httpServer.listen(PORT, () => {
-  console.log(`Server listening on http://localhost:${PORT}`);
-});
+async function loadMap(): Promise<void> {
+  const mapsDir = join(
+    fileURLToPath(new URL(".", import.meta.url)),
+    "../../maps"
+  );
+  const raw = await readFile(join(mapsDir, `${DEFAULT_MAP_ID}.json`), "utf8");
+  const map = parseGameMap(JSON.parse(raw));
+  gameState = createInitialStateFromMap(map);
+}
+
+loadMap()
+  .then(() => {
+    httpServer.listen(PORT, () => {
+      console.log(`Server listening on http://localhost:${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error("Failed to load map:", err);
+    process.exit(1);
+  });

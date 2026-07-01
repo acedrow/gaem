@@ -1,33 +1,11 @@
-import { BOARD_HEIGHT, BOARD_WIDTH } from "./constants.js";
-import type { GameState, Player, TileKind } from "./types.js";
-
-function emptyBoard(): TileKind[][] {
-  const rows: TileKind[][] = [];
-  for (let y = 0; y < BOARD_HEIGHT; y++) {
-    const row: TileKind[] = [];
-    for (let x = 0; x < BOARD_WIDTH; x++) {
-      const border =
-        x === 0 || y === 0 || x === BOARD_WIDTH - 1 || y === BOARD_HEIGHT - 1;
-      row.push(border ? "wall" : "empty");
-    }
-    rows.push(row);
-  }
-  return rows;
-}
-
-export function createInitialState(): GameState {
-  return {
-    width: BOARD_WIDTH,
-    height: BOARD_HEIGHT,
-    tiles: emptyBoard(),
-    players: [],
-  };
-}
+import type { GameState, Player } from "./types.js";
+import { isWalkable, tileAt } from "./map.js";
 
 export function findSpawn(state: GameState): { x: number; y: number } | null {
   for (let y = 1; y < state.height - 1; y++) {
     for (let x = 1; x < state.width - 1; x++) {
-      if (state.tiles[y][x] !== "empty") continue;
+      const tile = tileAt(state.tiles, x, y);
+      if (!isWalkable(tile)) continue;
       if (state.players.some((p) => p.x === x && p.y === y)) continue;
       return { x, y };
     }
@@ -51,7 +29,7 @@ export function validateMove(
   if (toX < 0 || toY < 0 || toX >= state.width || toY >= state.height) {
     return "Out of bounds";
   }
-  if (state.tiles[toY][toX] === "wall") return "Blocked";
+  if (!isWalkable(tileAt(state.tiles, toX, toY))) return "Blocked";
 
   const dx = Math.abs(toX - player.x);
   const dy = Math.abs(toY - player.y);
