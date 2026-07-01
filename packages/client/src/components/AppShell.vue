@@ -234,7 +234,7 @@ function onPhaseAction() {
 
 .main {
   flex: 1;
-  padding: 1.25rem 1.5rem;
+  padding: 0.75rem 0.75rem;
   min-width: 0;
   min-height: 0;
   display: flex;
@@ -243,6 +243,7 @@ function onPhaseAction() {
 }
 
 .center-header {
+  min-height: 25px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -273,7 +274,7 @@ function onPhaseAction() {
   border-radius: 8px;
   background: #388bfd22;
   color: #58a6ff;
-  padding: 0.4rem 0.75rem;
+  padding: 0.2rem 0.75rem;
   cursor: pointer;
   font-size: 0.85rem;
   font-weight: 600;
