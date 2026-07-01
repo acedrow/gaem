@@ -101,7 +101,6 @@ function updateFitState() {
 function clampView() {
   const el = viewportEl.value;
   if (!el) return;
-  updateFitState();
   const minS = fitScale.value;
   const maxS = fitScale.value * ZOOM_MAX_FACTOR;
   scale.value = Math.min(maxS, Math.max(minS, scale.value));
@@ -130,30 +129,73 @@ const resizeObserver = new ResizeObserver(() => {
   const wasFit = !isTransformed.value;
   nextTick(() => {
     if (wasFit) fitToView();
-    else clampView();
+    else {
+      updateFitState();
+      clampView();
+    }
   });
 });
 
-function onWheel(e: WheelEvent) {
-  if (!viewportEl.value) return;
-  e.preventDefault();
-  const rect = viewportEl.value.getBoundingClientRect();
-  const mx = e.clientX - rect.left;
-  const my = e.clientY - rect.top;
-  if (e.ctrlKey || e.metaKey) {
+let wheelFrame = 0;
+let pendingPanDx = 0;
+let pendingPanDy = 0;
+let pendingZoom: { deltaY: number; mx: number; my: number } | null = null;
+
+function applyWheelUpdate() {
+  wheelFrame = 0;
+  const el = viewportEl.value;
+  if (!el) {
+    pendingPanDx = 0;
+    pendingPanDy = 0;
+    pendingZoom = null;
+    return;
+  }
+
+  if (pendingZoom) {
+    const { deltaY, mx, my } = pendingZoom;
+    pendingZoom = null;
     const minS = fitScale.value;
     const maxS = fitScale.value * ZOOM_MAX_FACTOR;
-    const next = Math.min(maxS, Math.max(minS, scale.value * Math.exp(-e.deltaY * 0.005)));
+    const next = Math.min(maxS, Math.max(minS, scale.value * Math.exp(-deltaY * 0.005)));
     const ratio = next / scale.value;
     panX.value = mx - (mx - panX.value) * ratio;
     panY.value = my - (my - panY.value) * ratio;
     scale.value = next;
     clampView();
-  } else {
-    panX.value -= e.deltaX;
-    panY.value -= e.deltaY;
-    clampView();
+    return;
   }
+
+  const dx = pendingPanDx;
+  const dy = pendingPanDy;
+  pendingPanDx = 0;
+  pendingPanDy = 0;
+  if (dx === 0 && dy === 0) return;
+
+  panX.value -= dx;
+  panY.value -= dy;
+  clampView();
+}
+
+function onWheel(e: WheelEvent) {
+  if (!viewportEl.value) return;
+  e.preventDefault();
+
+  if (e.ctrlKey || e.metaKey) {
+    const rect = viewportEl.value.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    if (pendingZoom) pendingZoom.deltaY += e.deltaY;
+    else pendingZoom = { deltaY: e.deltaY, mx, my };
+    pendingZoom.mx = mx;
+    pendingZoom.my = my;
+    pendingPanDx = 0;
+    pendingPanDy = 0;
+  } else {
+    pendingPanDx += e.deltaX;
+    pendingPanDy += e.deltaY;
+  }
+
+  if (!wheelFrame) wheelFrame = requestAnimationFrame(applyWheelUpdate);
 }
 
 const cells = computed(() => {
@@ -288,6 +330,7 @@ watch(viewportEl, (el, prev) => {
 });
 
 onUnmounted(() => {
+  if (wheelFrame) cancelAnimationFrame(wheelFrame);
   window.removeEventListener("keydown", onKeydown);
   resizeObserver.disconnect();
   socket?.close();
