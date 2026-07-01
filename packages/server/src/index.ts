@@ -52,7 +52,7 @@ import {
   characterSheets,
 } from "./character-sheets.js";
 import { parseAuth } from "./auth.js";
-import { randomIntegersHandler } from "./random-integers.js";
+import { randomIntegersHandler, rollDiceHandler } from "./random-integers.js";
 
 const PORT = Number(process.env.PORT) || 3001;
 
@@ -79,6 +79,14 @@ app.get("/health", (_req, res) => {
 
 app.get("/api/random-integers", (req, res) => {
   void randomIntegersHandler(req, res);
+});
+
+app.post("/api/random-integers", (req, res) => {
+  const auth = parseAuth(req, res);
+  if (!auth) return;
+  void rollDiceHandler(req, res, (message) => {
+    broadcastConsole(actorForAuth(auth), message);
+  });
 });
 
 app.get("/api/player-profiles", (_req, res) => {

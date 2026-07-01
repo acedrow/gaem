@@ -11,6 +11,7 @@ import {
 } from "./character-sheets.js";
 import { parseAuth } from "./auth.js";
 import { createPlayerProfile, listPlayerProfiles } from "./player-profiles.js";
+import { handleRandomIntegersGet, handleRollDicePost } from "./random-integers.js";
 
 export { GameRoom };
 
@@ -57,6 +58,18 @@ export default {
       }
       const profile = await createPlayerProfile(env, name);
       return Response.json({ profile }, { status: 201 });
+    }
+
+    if (url.pathname === "/api/random-integers") {
+      if (request.method === "GET") {
+        return handleRandomIntegersGet(env, request);
+      }
+      if (request.method === "POST") {
+        const auth = parseAuth(request);
+        if (auth instanceof Response) return auth;
+        return handleRollDicePost(env, auth, request);
+      }
+      return new Response(null, { status: 405 });
     }
 
     if (url.pathname === "/api/character-sheets") {

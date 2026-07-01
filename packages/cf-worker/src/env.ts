@@ -4,4 +4,5 @@ export interface Env {
   PLAYER_KV: KVNamespace;
   MAP_KV: KVNamespace;
   PORTRAIT_R2: R2Bucket;
+  RANDOM_ORG_API_KEY: string;
 }

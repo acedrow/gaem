@@ -19,6 +19,16 @@ export function trimConsoleEntries(entries: ConsoleLogEntry[]): ConsoleLogEntry[
   return entries.slice(-CONSOLE_MAX_ENTRIES);
 }
 
+export function formatDiceRollMessage(
+  rolls: number[],
+  max: number,
+  bonus: number,
+): string {
+  const dice = rolls.map((v) => `[${v}]`).join("");
+  const total = rolls.reduce((sum, v) => sum + v, 0) + bonus;
+  return `rolled ${rolls.length}d${max} + ${bonus}, result: ${dice} + ${bonus} = ${total}`;
+}
+
 export function playerLabel(player: Player): string {
   return player.nickname ?? player.id;
 }

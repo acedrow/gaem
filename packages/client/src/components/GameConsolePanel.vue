@@ -1,10 +1,17 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from "vue";
 
+import { useApi } from "../composables/useApi.js";
 import { useGameConsole } from "../composables/useGameConsole.js";
 
 const { entries } = useGameConsole();
+const { apiFetch } = useApi();
+
 const listEl = ref<HTMLElement | null>(null);
+const quantity = ref(1);
+const diceMax = ref<6 | 10>(6);
+const bonus = ref(0);
+const rolling = ref(false);
 
 function formatTime(at: number): string {
   const d = new Date(at);
@@ -13,6 +20,43 @@ function formatTime(at: number): string {
   const hh = String(d.getHours()).padStart(2, "0");
   const min = String(d.getMinutes()).padStart(2, "0");
   return `${mm}/${dd} ${hh}:${min}`;
+}
+
+function clampQuantity(value: number): number {
+  return Math.max(1, Math.min(100, value));
+}
+
+function adjustQuantity(delta: number) {
+  quantity.value = clampQuantity(quantity.value + delta);
+}
+
+function adjustBonus(delta: number) {
+  bonus.value += delta;
+}
+
+async function rollDice() {
+  if (rolling.value) return;
+  rolling.value = true;
+  try {
+    const res = await apiFetch("/api/random-integers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        n: quantity.value,
+        min: 1,
+        max: diceMax.value,
+        bonus: bonus.value,
+      }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(data?.error ?? "Roll failed");
+    }
+  } catch {
+    // console sync handles successful rolls; errors stay silent in UI for now
+  } finally {
+    rolling.value = false;
+  }
 }
 
 watch(
@@ -26,21 +70,85 @@ watch(
 
 <template>
   <div class="console-panel">
-    <div v-if="entries.length === 0" class="empty">No game events yet.</div>
-    <ul v-else ref="listEl" class="log">
-      <li v-for="entry in entries" :key="entry.id" class="entry">
-        <time class="time">{{ formatTime(entry.at) }}</time>
-        <span class="message">
-          <span class="actor" :class="entry.actor.role">{{ entry.actor.name }}</span>
-          {{ " " + entry.message }}
-        </span>
-      </li>
-    </ul>
+    <div class="log-area">
+      <div v-if="entries.length === 0" class="empty">No game events yet.</div>
+      <ul v-else ref="listEl" class="log">
+        <li v-for="entry in entries" :key="entry.id" class="entry">
+          <time class="time">{{ formatTime(entry.at) }}</time>
+          <span class="message">
+            <span class="actor" :class="entry.actor.role">{{ entry.actor.name }}</span>
+            {{ " " + entry.message }}
+          </span>
+        </li>
+      </ul>
+    </div>
+
+    <form class="dice-bar" @submit.prevent="rollDice">
+      <div class="stepper">
+        <button type="button" class="step-btn" :disabled="rolling" @click="adjustQuantity(-1)">−</button>
+        <input
+          v-model.number="quantity"
+          type="number"
+          class="step-input"
+          min="1"
+          max="100"
+          :disabled="rolling"
+          @change="quantity = clampQuantity(quantity)"
+        />
+        <button type="button" class="step-btn" :disabled="rolling" @click="adjustQuantity(1)">+</button>
+      </div>
+
+      <div class="dice-type">
+        <button
+          type="button"
+          class="dice-btn"
+          :class="{ active: diceMax === 6 }"
+          :disabled="rolling"
+          @click="diceMax = 6"
+        >
+          d6
+        </button>
+        <button
+          type="button"
+          class="dice-btn"
+          :class="{ active: diceMax === 10 }"
+          :disabled="rolling"
+          @click="diceMax = 10"
+        >
+          d10
+        </button>
+      </div>
+
+      <span class="plus-icon" aria-hidden="true">+</span>
+
+      <div class="stepper">
+        <button type="button" class="step-btn" :disabled="rolling" @click="adjustBonus(-1)">−</button>
+        <input
+          v-model.number="bonus"
+          type="number"
+          class="step-input"
+          :disabled="rolling"
+        />
+        <button type="button" class="step-btn" :disabled="rolling" @click="adjustBonus(1)">+</button>
+      </div>
+
+      <button type="submit" class="roll-btn" :disabled="rolling">
+        {{ rolling ? "…" : "Roll" }}
+      </button>
+    </form>
   </div>
 </template>
 
 <style scoped>
 .console-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.log-area {
   flex: 1;
   min-height: 0;
   display: flex;
@@ -99,5 +207,156 @@ watch(
 
 .actor.player {
   color: #388bfd;
+}
+
+.dice-bar {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  row-gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border-top: 1px solid #30363d;
+  background: #161b22;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+}
+
+.step-btn {
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 1px solid #30363d;
+  background: #21262d;
+  color: #c9d1d9;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.step-btn:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.step-btn:last-child {
+  border-radius: 0 6px 6px 0;
+}
+
+.step-btn:hover:not(:disabled) {
+  background: #30363d;
+  color: #e6edf3;
+}
+
+.step-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.step-input {
+  width: 2.25rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 1px solid #30363d;
+  border-left: none;
+  border-right: none;
+  background: #0d1117;
+  color: #e6edf3;
+  font-size: 0.85rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.step-input::-webkit-outer-spin-button,
+.step-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.step-input:disabled {
+  opacity: 0.5;
+}
+
+.dice-type {
+  display: flex;
+  gap: 0;
+  flex-shrink: 0;
+}
+
+.dice-btn {
+  padding: 0.3rem 0.55rem;
+  border: 1px solid #30363d;
+  background: #21262d;
+  color: #8b949e;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dice-btn:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.dice-btn:last-child {
+  border-radius: 0 6px 6px 0;
+  border-left: none;
+}
+
+.dice-btn:hover:not(:disabled) {
+  color: #e6edf3;
+  background: #30363d;
+}
+
+.dice-btn.active {
+  background: #388bfd;
+  border-color: #388bfd;
+  color: #fff;
+}
+
+.dice-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.plus-icon {
+  flex-shrink: 0;
+  font-size: 1.35rem;
+  font-weight: 300;
+  color: #6e7681;
+  line-height: 1;
+  user-select: none;
+  pointer-events: none;
+}
+
+.roll-btn {
+  margin-left: auto;
+  padding: 0.35rem 0.85rem;
+  border: 1px solid #238636;
+  border-radius: 6px;
+  background: #238636;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  flex-grow: 1;
+}
+
+.roll-btn:hover:not(:disabled) {
+  background: #2ea043;
+  border-color: #2ea043;
+}
+
+.roll-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>
