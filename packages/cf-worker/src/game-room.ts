@@ -1,11 +1,13 @@
-import type { ClientMessage, GaemRole, GameState, ServerMessage } from "@gaem/shared";
+import type { ClientMessage, ConsoleActor, ConsoleLogEntry, GaemRole, GameState, ServerMessage } from "@gaem/shared";
 import {
   addEnemy,
   addPlayer,
   applyEnemyMove,
   applyMove,
+  characterTargetLabel,
   createInitialStateFromMap,
   DEFAULT_MAP_ID,
+  enemyLabel,
   normalizeGameState,
   removeEnemy,
   removePlayer,
@@ -17,6 +19,7 @@ import {
 } from "@gaem/shared";
 
 import type { Env } from "./env.js";
+import { appendConsole, loadConsoleEntries } from "./console-log.js";
 import { getCharacterSheet, listCharacterSheets } from "./character-sheets.js";
 import { getMap } from "./maps.js";
 import { getPlayerProfile, savePlayerProfile } from "./player-profiles.js";
@@ -88,6 +91,16 @@ export class GameRoom {
     if (url.pathname === "/internal/active-profiles") {
       return Response.json({ activeProfileIds: this.activeProfileIds() });
     }
+    if (url.pathname === "/internal/broadcast-console" && request.method === "POST") {
+      const body = (await request.json()) as { entry: ConsoleLogEntry };
+      this.sendConsoleEntry(body.entry);
+      return new Response(null, { status: 204 });
+    }
+    if (url.pathname === "/internal/sheet-on-board") {
+      const sheetId = url.searchParams.get("sheetId");
+      const onBoard = !!sheetId && this.gameState.players.some((p) => p.characterSheetId === sheetId);
+      return Response.json({ onBoard });
+    }
 
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("Expected WebSocket", { status: 426 });
@@ -103,6 +116,7 @@ export class GameRoom {
       role: null,
     } satisfies Attachment);
 
+    await this.sendConsoleSync(server);
     await this.broadcastState();
 
     return new Response(null, { status: 101, webSocket: client });
@@ -140,6 +154,7 @@ export class GameRoom {
           playerKey: null,
           role: "gm",
         } satisfies Attachment);
+        await this.broadcastConsole(await this.actorForSocket(ws), "connected to game");
         await this.broadcastState();
         return;
       }
@@ -179,6 +194,7 @@ export class GameRoom {
           updatedAt: new Date().toISOString(),
         });
       }
+      await this.broadcastConsole(await this.actorForSocket(ws), "connected to game");
       await this.broadcastState();
       return;
     }
@@ -189,12 +205,17 @@ export class GameRoom {
         return;
       }
       if (parsed.type === "moveEnemy") {
+        const enemy = this.gameState.enemies.find((e) => e.id === parsed.enemyId);
         const err = validateEnemyMove(this.gameState, parsed.enemyId, parsed.x, parsed.y);
         if (err) {
           this.sendError(ws, err);
           return;
         }
         applyEnemyMove(this.gameState, parsed.enemyId, parsed.x, parsed.y);
+        if (enemy) {
+          const actor = await this.actorForSocket(ws);
+          this.broadcastConsole(actor, `moved ${enemyLabel(enemy)} to (${parsed.x}, ${parsed.y})`);
+        }
       } else if (parsed.type === "addEnemy") {
         const id = crypto.randomUUID();
         const err = addEnemy(this.gameState, {
@@ -207,9 +228,21 @@ export class GameRoom {
           this.sendError(ws, err);
           return;
         }
-      } else if (!removeEnemy(this.gameState, parsed.enemyId)) {
-        this.sendError(ws, "Unknown enemy");
-        return;
+        const enemy = this.gameState.enemies.find((e) => e.id === id);
+        if (enemy) {
+          const actor = await this.actorForSocket(ws);
+          this.broadcastConsole(actor, `spawned ${enemyLabel(enemy)} at (${parsed.x}, ${parsed.y})`);
+        }
+      } else {
+        const enemy = this.gameState.enemies.find((e) => e.id === parsed.enemyId);
+        if (!removeEnemy(this.gameState, parsed.enemyId)) {
+          this.sendError(ws, "Unknown enemy");
+          return;
+        }
+        if (enemy) {
+          const actor = await this.actorForSocket(ws);
+          this.broadcastConsole(actor, `removed ${enemyLabel(enemy)}`);
+        }
       }
       await this.broadcastState();
       return;
@@ -229,6 +262,9 @@ export class GameRoom {
         this.sendError(ws, err);
         return;
       }
+      const actor = await this.actorForSocket(ws);
+      const target = await this.targetLabelForPlayer(parsed.playerId);
+      this.broadcastConsole(actor, `set ${target} HP to ${Math.trunc(parsed.hp)}`);
       await this.broadcastState();
       return;
     }
@@ -238,11 +274,14 @@ export class GameRoom {
         this.sendError(ws, "Forbidden");
         return;
       }
+      const sheet = await getCharacterSheet(this.env, parsed.characterSheetId);
       const err = syncPlayerSheet(this.gameState, parsed.characterSheetId, parsed.class);
       if (err) {
         this.sendError(ws, err);
         return;
       }
+      const actor = await this.actorForSocket(ws);
+      this.broadcastConsole(actor, `set ${sheet?.name ?? "Character"} class to ${parsed.class}`);
       await this.broadcastState();
       return;
     }
@@ -259,6 +298,8 @@ export class GameRoom {
         return;
       }
       applyMove(this.gameState, id, parsed.x, parsed.y);
+      const actor = await this.actorForSocket(ws);
+      this.broadcastConsole(actor, `moved to (${parsed.x}, ${parsed.y})`);
       const key = att?.playerKey;
       if (key) {
         const profile = await getPlayerProfile(this.env, key);
@@ -281,6 +322,9 @@ export class GameRoom {
 
   async webSocketClose(ws: WebSocket): Promise<void> {
     const att = ws.deserializeAttachment() as Attachment | null;
+    if (att?.role) {
+      await this.broadcastConsole(await this.actorForSocket(ws), "disconnected from game");
+    }
     const playerId = att?.playerId;
     const playerKey = att?.playerKey;
     if (playerKey) {
@@ -310,6 +354,46 @@ export class GameRoom {
   private sendError(ws: WebSocket, message: string): void {
     const msg: ServerMessage = { type: "error", message };
     ws.send(JSON.stringify(msg));
+  }
+
+  private async actorForSocket(ws: WebSocket): Promise<ConsoleActor> {
+    const att = ws.deserializeAttachment() as Attachment | null;
+    if (att?.role === "gm") return { name: "GM", role: "gm" };
+    if (att?.playerKey) {
+      const profile = await getPlayerProfile(this.env, att.playerKey);
+      if (profile?.name) return { name: profile.name, role: "player" };
+    }
+    const player = att?.playerId
+      ? this.gameState.players.find((p) => p.id === att.playerId)
+      : undefined;
+    return { name: player?.nickname ?? "Player", role: "player" };
+  }
+
+  private async targetLabelForPlayer(playerId: string): Promise<string> {
+    const player = this.gameState.players.find((p) => p.id === playerId);
+    const sheet = player?.characterSheetId
+      ? await getCharacterSheet(this.env, player.characterSheetId)
+      : undefined;
+    return characterTargetLabel(player, sheet?.name);
+  }
+
+  private sendConsoleEntry(entry: ConsoleLogEntry): void {
+    const msg: ServerMessage = { type: "console", entry };
+    const payload = JSON.stringify(msg);
+    for (const socket of this.ctx.getWebSockets()) {
+      socket.send(payload);
+    }
+  }
+
+  private async sendConsoleSync(ws: WebSocket): Promise<void> {
+    const entries = await loadConsoleEntries(this.env);
+    const msg: ServerMessage = { type: "consoleSync", entries };
+    ws.send(JSON.stringify(msg));
+  }
+
+  private async broadcastConsole(actor: ConsoleActor, message: string): Promise<void> {
+    const entry = await appendConsole(this.env, actor, message);
+    this.sendConsoleEntry(entry);
   }
 
   private async broadcastState(): Promise<void> {

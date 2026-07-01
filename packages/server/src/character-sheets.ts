@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
-import type { CharacterSheet } from "@gaem/shared";
-import { validateCharacterSheetRefs } from "@gaem/shared";
+import type { CharacterSheet, ConsoleActor } from "@gaem/shared";
+import { logSheetFieldChanges, validateCharacterSheetRefs } from "@gaem/shared";
 import type { Request, Response } from "express";
 
 import type { AuthContext } from "./auth.js";
@@ -119,7 +119,12 @@ export function patchSheetHandler(
   id: string,
   req: Request,
   res: Response,
-  hasProfile: (id: string) => boolean
+  hasProfile: (id: string) => boolean,
+  opts?: {
+    actor: ConsoleActor;
+    sheetOnBoard: boolean;
+    logConsole: (actor: ConsoleActor, message: string) => void;
+  },
 ): void {
   const sheet = characterSheets.get(id);
   if (!sheet) {
@@ -134,6 +139,13 @@ export function patchSheetHandler(
     res.status(403).json({ error: "Forbidden" });
     return;
   }
+
+  const prev = {
+    name: sheet.name,
+    class: sheet.class,
+    armor: sheet.armor,
+    weapon: sheet.weapon,
+  };
 
   if (req.body?.player !== undefined) {
     if (auth.role !== "gm") {
@@ -180,6 +192,22 @@ export function patchSheetHandler(
 
   sheet.updatedAt = new Date().toISOString();
   characterSheets.set(sheet.id, sheet);
+  if (opts) {
+    const label = sheet.name || "Character";
+    logSheetFieldChanges(
+      opts.logConsole,
+      opts.actor,
+      label,
+      prev,
+      {
+        name: sheet.name,
+        class: sheet.class,
+        armor: sheet.armor,
+        weapon: sheet.weapon,
+      },
+      opts.sheetOnBoard,
+    );
+  }
   res.json({ sheet });
 }
 

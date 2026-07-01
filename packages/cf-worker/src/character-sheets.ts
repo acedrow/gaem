@@ -1,8 +1,9 @@
 import type { CharacterSheet } from "@gaem/shared";
-import { validateCharacterSheetRefs } from "@gaem/shared";
+import { actorForAuth, logSheetFieldChanges, validateCharacterSheetRefs } from "@gaem/shared";
 
 import type { AuthContext } from "./auth.js";
 import { canAccessSheet, canCreateForPlayer, canEditSheet } from "./auth.js";
+import { logConsole } from "./console-log.js";
 import type { Env } from "./env.js";
 import { getPlayerProfile } from "./player-profiles.js";
 
@@ -171,6 +172,13 @@ export async function handlePatchCharacterSheet(
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  const prev = {
+    name: sheet.name,
+    class: sheet.class,
+    armor: sheet.armor,
+    weapon: sheet.weapon,
+  };
+
   const body = (await request.json().catch(() => null)) as PatchBody | null;
   if (!body) {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
@@ -221,6 +229,30 @@ export async function handlePatchCharacterSheet(
 
   sheet.updatedAt = new Date().toISOString();
   await saveCharacterSheet(env, sheet);
+
+  const roomId = env.GAME_ROOM.idFromName("default");
+  const stub = env.GAME_ROOM.get(roomId);
+  const onBoardRes = await stub.fetch(`http://internal/internal/sheet-on-board?sheetId=${encodeURIComponent(id)}`);
+  const onBoardData = (await onBoardRes.json()) as { onBoard: boolean };
+  const profile = auth.playerKey ? await getPlayerProfile(env, auth.playerKey) : null;
+  const actor = actorForAuth(auth.role, profile?.name);
+  const label = sheet.name || "Character";
+  logSheetFieldChanges(
+    (a, message) => {
+      void logConsole(env, a, message);
+    },
+    actor,
+    label,
+    prev,
+    {
+      name: sheet.name,
+      class: sheet.class,
+      armor: sheet.armor,
+      weapon: sheet.weapon,
+    },
+    onBoardData.onBoard,
+  );
+
   return Response.json({ sheet });
 }
 

@@ -14,7 +14,6 @@ import { computed, nextTick, onUnmounted, ref, watch } from "vue";
 import { useApi } from "../composables/useApi.js";
 import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
-import { logConsole } from "../composables/useGameConsole.js";
 import { useGameState } from "../composables/useGameState.js";
 import { useSession } from "../composables/useSession.js";
 
@@ -134,12 +133,6 @@ async function loadSheet() {
 
 async function saveSheet() {
   if (!sheet.value || !canEdit.value) return;
-  const prev = {
-    name: sheet.value.name,
-    class: sheet.value.class,
-    armor: sheet.value.armor,
-    weapon: sheet.value.weapon,
-  };
   saving.value = true;
   error.value = null;
   try {
@@ -163,19 +156,6 @@ async function saveSheet() {
     const data = (await res.json()) as { sheet: CharacterSheet };
     sheet.value = data.sheet;
     notifySheetsChanged();
-    const label = data.sheet.name || "Character";
-    if (prev.name !== data.sheet.name) {
-      logConsole(`${label} name set to ${data.sheet.name}`);
-    }
-    if (prev.armor !== data.sheet.armor) {
-      logConsole(`${label} armor set to ${data.sheet.armor}`);
-    }
-    if (prev.weapon !== data.sheet.weapon) {
-      logConsole(`${label} weapon set to ${data.sheet.weapon}`);
-    }
-    if (prev.class !== data.sheet.class && !boardPlayer.value) {
-      logConsole(`${label} class set to ${data.sheet.class}`);
-    }
     if (boardPlayer.value) {
       send({
         type: "syncPlayerSheet",

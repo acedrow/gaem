@@ -7,11 +7,12 @@ const { entries } = useGameConsole();
 const listEl = ref<HTMLElement | null>(null);
 
 function formatTime(at: number): string {
-  return new Date(at).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+  const d = new Date(at);
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const min = String(d.getMinutes()).padStart(2, "0");
+  return `${mm}/${dd} ${hh}:${min}`;
 }
 
 watch(
@@ -29,7 +30,10 @@ watch(
     <ul v-else ref="listEl" class="log">
       <li v-for="entry in entries" :key="entry.id" class="entry">
         <time class="time">{{ formatTime(entry.at) }}</time>
-        <span class="message">{{ entry.message }}</span>
+        <span class="message">
+          <span class="actor" :class="entry.actor.role">{{ entry.actor.name }}</span>
+          {{ " " + entry.message }}
+        </span>
       </li>
     </ul>
   </div>
@@ -83,5 +87,17 @@ watch(
 .message {
   color: #c9d1d9;
   min-width: 0;
+}
+
+.actor {
+  font-weight: 600;
+}
+
+.actor.gm {
+  color: #3fb950;
+}
+
+.actor.player {
+  color: #388bfd;
 }
 </style>

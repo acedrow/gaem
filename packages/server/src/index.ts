@@ -1,3 +1,5 @@
+import "dotenv/config";
+
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
@@ -6,6 +8,8 @@ import { fileURLToPath } from "node:url";
 
 import type {
   ClientMessage,
+  ConsoleActor,
+  ConsoleLogEntry,
   GaemRole,
   GameState,
   PlayerProfile,
@@ -15,8 +19,10 @@ import {
   addEnemy,
   applyEnemyMove,
   applyMove,
+  characterTargetLabel,
   createInitialStateFromMap,
   DEFAULT_MAP_ID,
+  enemyLabel,
   normalizeGameState,
   parseGameMap,
   removeEnemy,
@@ -31,6 +37,11 @@ import express from "express";
 import { WebSocketServer, type WebSocket } from "ws";
 
 import {
+  appendConsole,
+  getConsoleEntries,
+  registerConsoleBroadcaster,
+} from "./console-log.js";
+import {
   createSheetHandler,
   deleteSheetHandler,
   getPortraitHandler,
@@ -41,6 +52,7 @@ import {
   characterSheets,
 } from "./character-sheets.js";
 import { parseAuth } from "./auth.js";
+import { randomIntegersHandler } from "./random-integers.js";
 
 const PORT = Number(process.env.PORT) || 3001;
 
@@ -63,6 +75,10 @@ const playerProfiles = new Map<string, PlayerProfile>();
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true });
+});
+
+app.get("/api/random-integers", (req, res) => {
+  void randomIntegersHandler(req, res);
 });
 
 app.get("/api/player-profiles", (_req, res) => {
@@ -160,7 +176,11 @@ app.get("/api/character-sheets/:id", (req, res) => {
 app.patch("/api/character-sheets/:id", (req, res) => {
   const auth = parseAuth(req, res);
   if (!auth) return;
-  patchSheetHandler(auth, req.params.id, req, res, hasProfile);
+  patchSheetHandler(auth, req.params.id, req, res, hasProfile, {
+    actor: actorForAuth(auth),
+    sheetOnBoard: gameState.players.some((p) => p.characterSheetId === req.params.id),
+    logConsole: appendConsole,
+  });
 });
 
 app.delete("/api/character-sheets/:id", (req, res) => {
@@ -212,6 +232,51 @@ function broadcastState(): void {
   }
 }
 
+function actorForAuth(auth: { role: GaemRole; playerKey: string | null }): ConsoleActor {
+  if (auth.role === "gm") return { name: "GM", role: "gm" };
+  const profile = auth.playerKey ? playerProfiles.get(auth.playerKey) : undefined;
+  return { name: profile?.name ?? "Player", role: "player" };
+}
+
+function actorForSocket(ws: WebSocket): ConsoleActor {
+  const role = socketRole.get(ws);
+  if (role === "gm") return { name: "GM", role: "gm" };
+  const profileId = socketProfile.get(ws);
+  const profile = profileId ? playerProfiles.get(profileId) : undefined;
+  const playerId = socketPlayer.get(ws);
+  const player = playerId
+    ? gameState.players.find((p) => p.id === playerId)
+    : undefined;
+  return { name: profile?.name ?? player?.nickname ?? "Player", role: "player" };
+}
+
+function targetLabelForPlayer(playerId: string): string {
+  const player = gameState.players.find((p) => p.id === playerId);
+  const sheet = player?.characterSheetId
+    ? characterSheets.get(player.characterSheetId)
+    : undefined;
+  return characterTargetLabel(player, sheet?.name);
+}
+
+function broadcastConsoleEntry(entry: ConsoleLogEntry): void {
+  const msg: ServerMessage = { type: "console", entry };
+  const payload = JSON.stringify(msg);
+  for (const ws of wss.clients) {
+    if (ws.readyState === ws.OPEN) ws.send(payload);
+  }
+}
+
+function broadcastConsole(actor: ConsoleActor, message: string): void {
+  appendConsole(actor, message);
+}
+
+registerConsoleBroadcaster(broadcastConsoleEntry);
+
+function sendConsoleSync(ws: WebSocket): void {
+  const msg: ServerMessage = { type: "consoleSync", entries: getConsoleEntries() };
+  ws.send(JSON.stringify(msg));
+}
+
 function sendError(ws: WebSocket, message: string): void {
   const msg: ServerMessage = { type: "error", message };
   ws.send(JSON.stringify(msg));
@@ -239,6 +304,7 @@ wss.on("connection", (ws: WebSocket) => {
   socketPlayer.set(ws, null);
   socketProfile.set(ws, null);
   socketRole.set(ws, null);
+  sendConsoleSync(ws);
   broadcastState();
 
   ws.on("message", (raw) => {
@@ -262,6 +328,7 @@ wss.on("connection", (ws: WebSocket) => {
         socketPlayer.set(ws, null);
         socketProfile.set(ws, null);
         socketRole.set(ws, "gm");
+        broadcastConsole(actorForSocket(ws), "connected to game");
         broadcastState();
         return;
       }
@@ -304,6 +371,7 @@ wss.on("connection", (ws: WebSocket) => {
       socketPlayer.set(ws, resolved.playerId);
       socketProfile.set(ws, requestedProfileId);
       socketRole.set(ws, "player");
+      broadcastConsole(actorForSocket(ws), "connected to game");
       broadcastState();
       return;
     }
@@ -315,12 +383,16 @@ wss.on("connection", (ws: WebSocket) => {
         return;
       }
       if (parsed.type === "moveEnemy") {
+        const enemy = gameState.enemies.find((e) => e.id === parsed.enemyId);
         const err = validateEnemyMove(gameState, parsed.enemyId, parsed.x, parsed.y);
         if (err) {
           sendError(ws, err);
           return;
         }
         applyEnemyMove(gameState, parsed.enemyId, parsed.x, parsed.y);
+        if (enemy) {
+          broadcastConsole(actorForSocket(ws), `moved ${enemyLabel(enemy)} to (${parsed.x}, ${parsed.y})`);
+        }
       } else if (parsed.type === "addEnemy") {
         const id = randomUUID();
         const err = addEnemy(gameState, {
@@ -333,10 +405,18 @@ wss.on("connection", (ws: WebSocket) => {
           sendError(ws, err);
           return;
         }
+        const enemy = gameState.enemies.find((e) => e.id === id);
+        if (enemy) {
+          broadcastConsole(actorForSocket(ws), `spawned ${enemyLabel(enemy)} at (${parsed.x}, ${parsed.y})`);
+        }
       } else {
+        const enemy = gameState.enemies.find((e) => e.id === parsed.enemyId);
         if (!removeEnemy(gameState, parsed.enemyId)) {
           sendError(ws, "Unknown enemy");
           return;
+        }
+        if (enemy) {
+          broadcastConsole(actorForSocket(ws), `removed ${enemyLabel(enemy)}`);
         }
       }
       broadcastState();
@@ -359,6 +439,10 @@ wss.on("connection", (ws: WebSocket) => {
         sendError(ws, err);
         return;
       }
+      broadcastConsole(
+        actorForSocket(ws),
+        `set ${targetLabelForPlayer(parsed.playerId)} HP to ${Math.trunc(parsed.hp)}`,
+      );
       broadcastState();
       return;
     }
@@ -370,11 +454,16 @@ wss.on("connection", (ws: WebSocket) => {
         sendError(ws, "Forbidden");
         return;
       }
+      const sheet = characterSheets.get(parsed.characterSheetId);
       const err = syncPlayerSheet(gameState, parsed.characterSheetId, parsed.class);
       if (err) {
         sendError(ws, err);
         return;
       }
+      broadcastConsole(
+        actorForSocket(ws),
+        `set ${sheet?.name ?? "Character"} class to ${parsed.class}`,
+      );
       broadcastState();
       return;
     }
@@ -391,11 +480,16 @@ wss.on("connection", (ws: WebSocket) => {
         return;
       }
       applyMove(gameState, id, parsed.x, parsed.y);
+      broadcastConsole(actorForSocket(ws), `moved to (${parsed.x}, ${parsed.y})`);
       broadcastState();
     }
   });
 
   ws.on("close", () => {
+    const actor = actorForSocket(ws);
+    if (socketRole.get(ws)) {
+      broadcastConsole(actor, "disconnected from game");
+    }
     socketPlayer.delete(ws);
     socketProfile.delete(ws);
     socketRole.delete(ws);

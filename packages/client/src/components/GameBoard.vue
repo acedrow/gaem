@@ -5,7 +5,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 
 import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
-import { logConsole, useGameConsole } from "../composables/useGameConsole.js";
+import { appendConsoleEntry, setConsoleEntries } from "../composables/useGameConsole.js";
 import { useGameConnection } from "../composables/useGameConnection.js";
 import { useGameState } from "../composables/useGameState.js";
 
@@ -22,7 +22,6 @@ const wsUrl =
 
 const { connection } = useGameConnection();
 const { selectedSheetId } = useCharacterSheetSelection();
-const { clearConsole } = useGameConsole();
 const {
   boardSelection,
   selectedEnemyId,
@@ -438,20 +437,13 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 function connect() {
-  clearConsole();
   connection.value = "connecting";
-  logConsole("Connecting to game…");
   lastError.value = null;
   socket = new WebSocket(wsUrl);
   registerSend(send);
 
   socket.addEventListener("open", () => {
     connection.value = "connected";
-    logConsole(
-      props.role === "gm"
-        ? "Connected as GM"
-        : `Connected as ${props.playerProfile?.name ?? "player"}`,
-    );
     send({
       type: "join",
       role: props.role,
@@ -464,7 +456,6 @@ function connect() {
 
   socket.addEventListener("close", () => {
     connection.value = "disconnected";
-    logConsole("Disconnected from game");
     socket = null;
   });
 
@@ -490,6 +481,10 @@ function connect() {
       ) {
         clearBoardSelection();
       }
+    } else if (msg.type === "consoleSync") {
+      setConsoleEntries(msg.entries);
+    } else if (msg.type === "console") {
+      appendConsoleEntry(msg.entry);
     } else if (msg.type === "error") {
       lastError.value = msg.message;
     }

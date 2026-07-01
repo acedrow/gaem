@@ -74,6 +74,8 @@ export type PlayerProfile = {
 
 export type GaemRole = "gm" | "player";
 
+export type { ConsoleActor, ConsoleLogEntry } from "./console.js";
+
 export type CharacterSheet = {
   id: string;
   player: string;
@@ -89,6 +91,8 @@ export type CharacterSheet = {
 /** Server → client */
 export type ServerMessage =
   | { type: "state"; state: GameState; yourPlayerId: string | null }
+  | { type: "console"; entry: import("./console.js").ConsoleLogEntry }
+  | { type: "consoleSync"; entries: import("./console.js").ConsoleLogEntry[] }
   | { type: "error"; message: string };
 
 /** Client → server */

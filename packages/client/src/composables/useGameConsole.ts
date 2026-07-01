@@ -1,30 +1,25 @@
+import type { ConsoleLogEntry } from "@gaem/shared";
 import { ref } from "vue";
 
 export type RightPanelTab = "console" | "info";
 
-export type ConsoleEntry = {
-  id: number;
-  at: number;
-  message: string;
-};
-
-const entries = ref<ConsoleEntry[]>([]);
+const entries = ref<ConsoleLogEntry[]>([]);
 export const activeTab = ref<RightPanelTab>("info");
-let nextId = 0;
 
-export function logConsole(message: string) {
-  entries.value.push({ id: nextId++, at: Date.now(), message });
+export function setConsoleEntries(next: ConsoleLogEntry[]) {
+  entries.value = next;
+}
+
+export function appendConsoleEntry(entry: ConsoleLogEntry) {
+  if (entries.value.some((e) => e.id === entry.id)) return;
+  entries.value.push(entry);
 }
 
 export function useGameConsole() {
-  function clearConsole() {
-    entries.value = [];
-  }
-
   return {
     entries,
     activeTab,
-    logConsole,
-    clearConsole,
+    setConsoleEntries,
+    appendConsoleEntry,
   };
 }

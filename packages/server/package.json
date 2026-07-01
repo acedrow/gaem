@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@gaem/shared": "*",
+    "dotenv": "^17.4.2",
     "express": "^4.21.2",
     "ws": "^8.18.0"
   },
