@@ -18,6 +18,11 @@ export function getClassByName(name: string): PlayerClass | undefined {
   return PLAYER_CLASSES.find((c) => c.name === name);
 }
 
+export function getClassMaxHp(className: string | undefined): number {
+  if (!className) return 0;
+  return getClassByName(className)?.hp ?? 0;
+}
+
 export function getArmorByName(name: string): PlayerArmor | undefined {
   return PLAYER_ARMOR.find((a) => a.name === name);
 }

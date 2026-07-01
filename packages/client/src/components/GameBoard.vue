@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import type { ClientMessage, GameState, MapTile, ServerMessage } from "@gaem/shared";
-import { isWalkable, tileAt } from "@gaem/shared";
+import type { ClientMessage, Enemy, MapTile, Player, ServerMessage, TerrainObject } from "@gaem/shared";
+import { getEnemyMaxHp, getPlayerMaxHp, isWalkable, tileAt } from "@gaem/shared";
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 
+import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
 import { useGameConnection } from "../composables/useGameConnection.js";
+import { useGameState } from "../composables/useGameState.js";
 
 const props = defineProps<{
   role: "gm" | "player";
@@ -17,8 +19,8 @@ const wsUrl =
     : `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`);
 
 const { connection } = useGameConnection();
-const gameState = ref<GameState | null>(null);
-const yourPlayerId = ref<string | null>(null);
+const { selectedSheetId, selectSheet } = useCharacterSheetSelection();
+const { gameState, yourPlayerId, setGameState, registerSend, clearGameState } = useGameState();
 const lastError = ref<string | null>(null);
 const hoveredKey = ref<string | null>(null);
 const selectedEnemyId = ref<string | null>(null);
@@ -236,8 +238,37 @@ function playerAt(x: number, y: number) {
   return gameState.value?.players.find((p) => p.x === x && p.y === y);
 }
 
+function playersAt(x: number, y: number): Player[] {
+  return gameState.value?.players.filter((p) => p.x === x && p.y === y) ?? [];
+}
+
 function enemyAt(x: number, y: number) {
   return gameState.value?.enemies.find((e) => e.x === x && e.y === y);
+}
+
+function enemiesAt(x: number, y: number): Enemy[] {
+  return gameState.value?.enemies.filter((e) => e.x === x && e.y === y) ?? [];
+}
+
+function terrainObjectsAt(x: number, y: number): TerrainObject[] {
+  return gameState.value?.terrainObjects?.filter((o) => o.x === x && o.y === y) ?? [];
+}
+
+function playerLabel(player: Player): string {
+  return player.nickname ?? player.id;
+}
+
+function enemyLabel(enemy: Enemy): string {
+  return enemy.name ?? "Enemy";
+}
+
+function terrainObjectLabel(object: TerrainObject): string {
+  return object.name ?? "Object";
+}
+
+function formatHp(current: number | undefined, max: number): string {
+  const hp = current ?? 0;
+  return max > 0 ? `${hp}/${max}` : String(hp);
 }
 
 function isEmptyWalkable(x: number, y: number): boolean {
@@ -275,10 +306,25 @@ function tryMove(x: number, y: number) {
   send({ type: "move", x, y });
 }
 
+function openPlayerSheet(player: Player) {
+  if (!player.characterSheetId) return;
+  selectSheet(player.characterSheetId);
+}
+
+function onPlayerTokenClick(player: Player) {
+  openPlayerSheet(player);
+}
+
 function onGmCellClick(x: number, y: number) {
   lastError.value = null;
   const s = gameState.value;
   if (!s) return;
+
+  const player = playerAt(x, y);
+  if (player) {
+    openPlayerSheet(player);
+    return;
+  }
 
   const enemy = enemyAt(x, y);
   if (enemy) {
@@ -357,6 +403,7 @@ function connect() {
   connection.value = "connecting";
   lastError.value = null;
   socket = new WebSocket(wsUrl);
+  registerSend(send);
 
   socket.addEventListener("open", () => {
     connection.value = "connected";
@@ -365,6 +412,8 @@ function connect() {
       role: props.role,
       playerKey: props.role === "player" ? props.playerProfile?.id : undefined,
       nickname: props.role === "player" ? props.playerProfile?.name : undefined,
+      characterSheetId:
+        props.role === "player" ? selectedSheetId.value ?? undefined : undefined,
     });
   });
 
@@ -382,8 +431,7 @@ function connect() {
       return;
     }
     if (msg.type === "state") {
-      gameState.value = msg.state;
-      yourPlayerId.value = msg.yourPlayerId;
+      setGameState(msg.state, msg.yourPlayerId);
       if (
         selectedEnemyId.value &&
         !msg.state.enemies.some((e) => e.id === selectedEnemyId.value)
@@ -418,6 +466,7 @@ onUnmounted(() => {
   window.removeEventListener("keydown", onKeydown);
   resizeObserver.disconnect();
   socket?.close();
+  clearGameState();
   connection.value = "disconnected";
 });
 </script>
@@ -485,25 +534,56 @@ onUnmounted(() => {
               @mouseleave="hoveredKey = null"
             >
               <div v-if="hoveredKey === c.key && getTile(c.x, c.y)" class="tile-tooltip">
-                <span class="tooltip-row">({{ c.x }}, {{ c.y }})</span>
-                <span class="tooltip-row">Terrain: {{ getTile(c.x, c.y)!.terrain.join(", ") }}</span>
-                <span class="tooltip-row">Elevation: {{ getTile(c.x, c.y)!.elevation }}</span>
+                <div class="tooltip-section">
+                  <span class="tooltip-row">({{ c.x }}, {{ c.y }})</span>
+                  <span class="tooltip-row">Terrain: {{ getTile(c.x, c.y)!.terrain.join(", ") }}</span>
+                  <span class="tooltip-row">Elevation: {{ getTile(c.x, c.y)!.elevation }}</span>
+                </div>
+                <div v-if="playersAt(c.x, c.y).length" class="tooltip-section">
+                  <span class="tooltip-heading">Players</span>
+                  <span
+                    v-for="player in playersAt(c.x, c.y)"
+                    :key="player.id"
+                    class="tooltip-row"
+                  >
+                    {{ playerLabel(player) }} · HP {{ formatHp(player.hp, getPlayerMaxHp(player)) }}
+                  </span>
+                </div>
+                <div v-if="enemiesAt(c.x, c.y).length" class="tooltip-section">
+                  <span class="tooltip-heading">Enemies</span>
+                  <span
+                    v-for="enemy in enemiesAt(c.x, c.y)"
+                    :key="enemy.id"
+                    class="tooltip-row"
+                  >
+                    {{ enemyLabel(enemy) }} · HP {{ formatHp(enemy.hp, getEnemyMaxHp(enemy)) }}
+                  </span>
+                </div>
+                <div v-if="terrainObjectsAt(c.x, c.y).length" class="tooltip-section">
+                  <span class="tooltip-heading">Objects</span>
+                  <span
+                    v-for="object in terrainObjectsAt(c.x, c.y)"
+                    :key="object.id"
+                    class="tooltip-row"
+                  >
+                    {{ terrainObjectLabel(object) }}
+                  </span>
+                </div>
               </div>
               <span
                 v-if="enemyAt(c.x, c.y)"
                 class="piece enemy"
                 :class="{ selected: enemyAt(c.x, c.y)!.id === selectedEnemyId }"
-                :title="enemyAt(c.x, c.y)!.name ?? 'Enemy'"
               />
               <span
                 v-if="playerAt(c.x, c.y)"
-                class="piece"
+                class="piece player-piece"
                 :style="{
                   background: `hsl(${hueFromId(playerAt(c.x, c.y)!.id)} 70% 45%)`,
                   outline:
                     playerAt(c.x, c.y)!.id === yourPlayerId ? '2px solid #fff' : undefined,
                 }"
-                :title="playerAt(c.x, c.y)!.nickname ?? playerAt(c.x, c.y)!.id"
+                @click.stop="onPlayerTokenClick(playerAt(c.x, c.y)!)"
               />
             </button>
             </div>
@@ -602,6 +682,7 @@ onUnmounted(() => {
 .cell.gm-add-target { cursor: pointer; outline: 1px dashed #3fb95066; }
 .cell:disabled:not(.impassable):not(.obstacle):not(.void) { opacity: 0.85; }
 .piece { position: absolute; inset: 4px; border-radius: 50%; display: block; z-index: 1; }
+.piece.player-piece { cursor: pointer; z-index: 2; }
 .piece.enemy { background: hsl(0 70% 45%); z-index: 0; }
 .piece.enemy.selected { outline: 2px solid #fff; }
 .tile-tooltip {
@@ -612,6 +693,7 @@ onUnmounted(() => {
   transform-origin: bottom center;
   z-index: 2;
   min-width: 120px;
+  max-width: 220px;
   padding: 0.35rem 0.5rem;
   border-radius: 6px;
   border: 1px solid #30363d;
@@ -622,6 +704,20 @@ onUnmounted(() => {
   white-space: nowrap;
   pointer-events: none;
   box-shadow: 0 4px 12px #01040966;
+}
+.tooltip-section + .tooltip-section {
+  margin-top: 0.35rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid #30363d;
+}
+.tooltip-heading {
+  display: block;
+  margin-bottom: 0.15rem;
+  color: #8b949e;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 .tooltip-row { display: block; }
 .loading { color: #8b949e; }

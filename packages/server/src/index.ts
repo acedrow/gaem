@@ -22,6 +22,8 @@ import {
   removeEnemy,
   removePlayer,
   resolvePlayerForJoin,
+  setPlayerHp,
+  syncPlayerSheet,
   validateEnemyMove,
   validateMove,
 } from "@gaem/shared";
@@ -36,6 +38,7 @@ import {
   listSheetsHandler,
   patchSheetHandler,
   putPortraitHandler,
+  characterSheets,
 } from "./character-sheets.js";
 import { parseAuth } from "./auth.js";
 
@@ -101,6 +104,39 @@ const portraitParser = express.raw({
 
 function hasProfile(id: string): boolean {
   return playerProfiles.has(id);
+}
+
+function resolveSheetForJoin(
+  playerKey: string,
+  characterSheetId?: string
+): { className?: string; characterSheetId?: string } {
+  if (characterSheetId) {
+    const sheet = characterSheets.get(characterSheetId);
+    if (sheet?.player === playerKey) {
+      return { className: sheet.class, characterSheetId: sheet.id };
+    }
+  }
+  const sheet = [...characterSheets.values()].find((s) => s.player === playerKey);
+  return sheet ? { className: sheet.class, characterSheetId: sheet.id } : {};
+}
+
+function canSetPlayerHp(
+  role: GaemRole | null | undefined,
+  socketPlayerId: string | null | undefined,
+  targetPlayerId: string
+): boolean {
+  if (role === "gm") return true;
+  return role === "player" && socketPlayerId === targetPlayerId;
+}
+
+function canSyncPlayerSheet(
+  role: GaemRole | null | undefined,
+  playerKey: string | null | undefined,
+  characterSheetId: string
+): boolean {
+  if (role === "gm") return true;
+  const sheet = characterSheets.get(characterSheetId);
+  return role === "player" && !!playerKey && sheet?.player === playerKey;
 }
 
 app.get("/api/character-sheets", (req, res) => {
@@ -249,11 +285,17 @@ wss.on("connection", (ws: WebSocket) => {
 
       const profile = playerProfiles.get(requestedProfileId);
       const nickname = profile?.name ?? parsed.nickname;
+      const sheetJoin = resolveSheetForJoin(
+        requestedProfileId,
+        parsed.characterSheetId
+      );
       const resolved = resolvePlayerForJoin(gameState, {
         playerKey: requestedProfileId,
         nickname,
         preferredId: currentId,
         newId: randomUUID(),
+        className: sheetJoin.className,
+        characterSheetId: sheetJoin.characterSheetId,
       });
       if ("error" in resolved) {
         sendError(ws, "Board full");
@@ -296,6 +338,42 @@ wss.on("connection", (ws: WebSocket) => {
           sendError(ws, "Unknown enemy");
           return;
         }
+      }
+      broadcastState();
+      return;
+    }
+
+    if (parsed.type === "setPlayerHp") {
+      const role = socketRole.get(ws);
+      const playerId = socketPlayer.get(ws);
+      if (!canSetPlayerHp(role, playerId, parsed.playerId)) {
+        sendError(ws, "Forbidden");
+        return;
+      }
+      if (!Number.isFinite(parsed.hp)) {
+        sendError(ws, "Invalid HP");
+        return;
+      }
+      const err = setPlayerHp(gameState, parsed.playerId, Math.trunc(parsed.hp));
+      if (err) {
+        sendError(ws, err);
+        return;
+      }
+      broadcastState();
+      return;
+    }
+
+    if (parsed.type === "syncPlayerSheet") {
+      const role = socketRole.get(ws);
+      const playerKey = socketProfile.get(ws);
+      if (!canSyncPlayerSheet(role, playerKey, parsed.characterSheetId)) {
+        sendError(ws, "Forbidden");
+        return;
+      }
+      const err = syncPlayerSheet(gameState, parsed.characterSheetId, parsed.class);
+      if (err) {
+        sendError(ws, err);
+        return;
       }
       broadcastState();
       return;

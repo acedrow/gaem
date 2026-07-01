@@ -3,15 +3,17 @@ import type { CharacterSheet, PlayerProfile } from "@gaem/shared";
 import {
   getArmorByName,
   getClassByName,
+  getClassMaxHp,
   getWeaponByName,
   PLAYER_ARMOR,
   PLAYER_CLASSES,
   PLAYER_WEAPONS,
 } from "@gaem/shared";
-import { computed, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onUnmounted, ref, watch } from "vue";
 
 import { useApi } from "../composables/useApi.js";
 import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
+import { useGameState } from "../composables/useGameState.js";
 import { useSession } from "../composables/useSession.js";
 
 type PlayerProfileOption = PlayerProfile & { isActive?: boolean };
@@ -19,7 +21,8 @@ type PlayerProfileOption = PlayerProfile & { isActive?: boolean };
 const props = defineProps<{ sheetId: string }>();
 
 const { apiFetch, fetchPortraitUrl } = useApi();
-const { role } = useSession();
+const { role, playerProfile } = useSession();
+const { gameState, send } = useGameState();
 const { selectSheet, notifySheetsChanged } = useCharacterSheetSelection();
 
 const sheet = ref<CharacterSheet | null>(null);
@@ -37,6 +40,37 @@ const form = ref({
   class: "",
   armor: "",
   weapon: "",
+});
+const editingHp = ref(false);
+const hpDraft = ref(0);
+const hpInputEl = ref<HTMLInputElement | null>(null);
+
+const canEdit = computed(() => {
+  if (!sheet.value) return false;
+  if (role.value === "gm") return true;
+  return role.value === "player" && playerProfile.value?.id === sheet.value.player;
+});
+
+const boardPlayer = computed(() =>
+  gameState.value?.players.find((p) => p.characterSheetId === props.sheetId)
+);
+
+const HP_MEDIUM_THRESHOLD = 0.5;
+const HP_LOW_THRESHOLD = 0.25;
+
+const maxHp = computed(() => getClassMaxHp(form.value.class));
+const currentHp = computed(() => boardPlayer.value?.hp ?? 0);
+const hpPercent = computed(() => {
+  if (maxHp.value <= 0) return 0;
+  const hp = Math.min(currentHp.value, maxHp.value);
+  return Math.max(0, Math.min(100, (hp / maxHp.value) * 100));
+});
+const hpBarLevel = computed(() => {
+  if (maxHp.value <= 0) return "high";
+  const ratio = Math.min(currentHp.value, maxHp.value) / maxHp.value;
+  if (ratio < HP_LOW_THRESHOLD) return "low";
+  if (ratio < HP_MEDIUM_THRESHOLD) return "medium";
+  return "high";
 });
 
 const selectedClass = computed(() => getClassByName(form.value.class));
@@ -114,6 +148,13 @@ async function saveSheet() {
     const data = (await res.json()) as { sheet: CharacterSheet };
     sheet.value = data.sheet;
     notifySheetsChanged();
+    if (boardPlayer.value) {
+      send({
+        type: "syncPlayerSheet",
+        characterSheetId: props.sheetId,
+        class: form.value.class,
+      });
+    }
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Unable to save";
   } finally {
@@ -167,6 +208,31 @@ async function onPortraitSelected(event: Event) {
   }
 }
 
+function startHpEdit() {
+  if (!canEdit.value || !boardPlayer.value) return;
+  hpDraft.value = currentHp.value;
+  editingHp.value = true;
+  nextTick(() => {
+    hpInputEl.value?.focus();
+    hpInputEl.value?.select();
+  });
+}
+
+function commitHpEdit() {
+  if (!editingHp.value) return;
+  editingHp.value = false;
+  if (!canEdit.value || !boardPlayer.value) return;
+  const hp = Math.trunc(hpDraft.value);
+  if (!Number.isFinite(hp)) return;
+  if (hp === currentHp.value) return;
+  send({ type: "setPlayerHp", playerId: boardPlayer.value.id, hp });
+}
+
+function cancelHpEdit() {
+  editingHp.value = false;
+  hpDraft.value = currentHp.value;
+}
+
 watch(
   () => props.sheetId,
   async (id) => {
@@ -195,13 +261,46 @@ onUnmounted(() => {
     <template v-else-if="sheet">
       <p v-if="error" class="error">{{ error }}</p>
 
+      <div class="hp-bar-block">
+        <div class="hp-bar-header">
+          <span class="hp-bar-label">HP</span>
+          <span class="hp-bar-values">
+            <input
+              v-if="editingHp"
+              ref="hpInputEl"
+              v-model.number="hpDraft"
+              class="hp-inline-input"
+              type="number"
+              min="0"
+              :max="maxHp"
+              @blur="commitHpEdit"
+              @keydown.enter.prevent="commitHpEdit"
+              @keydown.esc.prevent="cancelHpEdit"
+            />
+            <button
+              v-else-if="canEdit && boardPlayer"
+              type="button"
+              class="hp-current hp-editable"
+              @click="startHpEdit"
+            >
+              {{ currentHp }}
+            </button>
+            <span v-else class="hp-current">{{ currentHp }}</span>
+            <span class="hp-max"> / {{ maxHp }}</span>
+          </span>
+        </div>
+        <div class="hp-bar-track">
+          <div class="hp-bar-fill" :class="hpBarLevel" :style="{ width: `${hpPercent}%` }" />
+        </div>
+      </div>
+
       <div class="layout">
         <div class="portrait-block">
           <div class="portrait-frame">
             <img v-if="portraitUrl" :src="portraitUrl" alt="Portrait" class="portrait" />
             <span v-else class="portrait-placeholder">No portrait</span>
           </div>
-          <label class="upload-btn">
+          <label class="upload-btn" v-if="canEdit">
             <input
               type="file"
               accept="image/jpeg,image/png,image/webp"
@@ -216,19 +315,19 @@ onUnmounted(() => {
         <form class="form" @submit.prevent="saveSheet">
           <label v-if="role === 'gm'" class="field">
             <span>Player profile</span>
-            <select v-model="form.player" class="input">
+            <select v-model="form.player" class="input" :disabled="!canEdit">
               <option v-for="p in profiles" :key="p.id" :value="p.id">{{ p.name }}</option>
             </select>
           </label>
 
           <label class="field">
             <span>Name</span>
-            <input v-model="form.name" class="input" type="text" required />
+            <input v-model="form.name" class="input" type="text" required :disabled="!canEdit" />
           </label>
 
           <label class="field">
             <span>Class</span>
-            <select v-model="form.class" class="input" required>
+            <select v-model="form.class" class="input" required :disabled="!canEdit">
               <option value="" disabled>Select class</option>
               <option v-for="c in PLAYER_CLASSES" :key="c.name" :value="c.name">
                 {{ c.name }}
@@ -238,7 +337,7 @@ onUnmounted(() => {
 
           <label class="field">
             <span>Armor</span>
-            <select v-model="form.armor" class="input" required>
+            <select v-model="form.armor" class="input" required :disabled="!canEdit">
               <option value="" disabled>Select armor</option>
               <option v-for="a in PLAYER_ARMOR" :key="a.name" :value="a.name">
                 {{ a.name }}
@@ -248,7 +347,7 @@ onUnmounted(() => {
 
           <label class="field">
             <span>Weapon</span>
-            <select v-model="form.weapon" class="input" required>
+            <select v-model="form.weapon" class="input" required :disabled="!canEdit">
               <option value="" disabled>Select weapon</option>
               <option v-for="w in PLAYER_WEAPONS" :key="w.name" :value="w.name">
                 {{ w.name }}
@@ -256,7 +355,7 @@ onUnmounted(() => {
             </select>
           </label>
 
-          <div class="form-actions">
+          <div v-if="canEdit" class="form-actions">
             <button class="cta" type="submit" :disabled="saving">
               {{ saving ? "Saving…" : "Save" }}
             </button>
@@ -321,6 +420,103 @@ onUnmounted(() => {
 
 .close-btn:hover {
   color: #e6edf3;
+}
+
+.hp-bar-block {
+  margin-bottom: 1rem;
+}
+
+.hp-bar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.35rem;
+}
+
+.hp-bar-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8b949e;
+}
+
+.hp-bar-values {
+  display: inline-flex;
+  align-items: baseline;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.hp-current {
+  color: #e6edf3;
+}
+
+.hp-editable {
+  border: none;
+  background: transparent;
+  color: #e6edf3;
+  font: inherit;
+  font-weight: 600;
+  padding: 0;
+  cursor: pointer;
+  border-bottom: 1px dashed #388bfd66;
+}
+
+.hp-editable:hover {
+  color: #58a6ff;
+  border-bottom-color: #58a6ff;
+}
+
+.hp-max {
+  color: #8b949e;
+  font-weight: 500;
+}
+
+.hp-inline-input {
+  width: 2.75rem;
+  border: 1px solid #388bfd;
+  border-radius: 4px;
+  background: #0d1117;
+  color: #e6edf3;
+  font: inherit;
+  font-weight: 600;
+  padding: 0 0.2rem;
+  text-align: right;
+  -moz-appearance: textfield;
+}
+
+.hp-inline-input::-webkit-outer-spin-button,
+.hp-inline-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.hp-bar-track {
+  height: 0.55rem;
+  border-radius: 999px;
+  background: #21262d;
+  overflow: hidden;
+}
+
+.hp-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #238636, #3fb950);
+  transition: width 0.2s ease, background 0.2s ease;
+}
+
+.hp-bar-fill.medium {
+  background: linear-gradient(90deg, #9e6a03, #d29922);
+}
+
+.hp-bar-fill.low {
+  background: linear-gradient(90deg, #8b1e1e, #f85149);
+}
+
+.input:disabled {
+  opacity: 0.75;
+  cursor: default;
 }
 
 .layout {

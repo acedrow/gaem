@@ -23,9 +23,17 @@ function portraitExt(contentType: string): string | null {
   return PORTRAIT_TYPES[contentType] ?? null;
 }
 
-function canAccessSheet(auth: AuthContext, sheet: CharacterSheet): boolean {
+function canViewSheet(auth: AuthContext): boolean {
+  return auth.role === "gm" || auth.role === "player";
+}
+
+function canEditSheet(auth: AuthContext, sheet: CharacterSheet): boolean {
   if (auth.role === "gm") return true;
   return sheet.player === auth.playerKey;
+}
+
+function canAccessSheet(auth: AuthContext, _sheet: CharacterSheet): boolean {
+  return canViewSheet(auth);
 }
 
 function canCreateForPlayer(auth: AuthContext, playerId: string): boolean {
@@ -122,6 +130,10 @@ export function patchSheetHandler(
     res.status(403).json({ error: "Forbidden" });
     return;
   }
+  if (!canEditSheet(auth, sheet)) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
 
   if (req.body?.player !== undefined) {
     if (auth.role !== "gm") {
@@ -181,6 +193,10 @@ export function deleteSheetHandler(auth: AuthContext, id: string, res: Response)
     res.status(403).json({ error: "Forbidden" });
     return;
   }
+  if (!canEditSheet(auth, sheet)) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
   deletePortrait(sheet.portraitKey);
   characterSheets.delete(id);
   res.json({ ok: true });
@@ -198,6 +214,10 @@ export function putPortraitHandler(
     return;
   }
   if (!canAccessSheet(auth, sheet)) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  if (!canEditSheet(auth, sheet)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }

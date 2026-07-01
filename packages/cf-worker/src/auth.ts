@@ -17,9 +17,17 @@ export function parseAuth(request: Request): AuthContext | Response {
   return { role: roleHeader, playerKey };
 }
 
-export function canAccessSheet(auth: AuthContext, sheet: CharacterSheet): boolean {
+export function canViewSheet(auth: AuthContext): boolean {
+  return auth.role === "gm" || auth.role === "player";
+}
+
+export function canEditSheet(auth: AuthContext, sheet: CharacterSheet): boolean {
   if (auth.role === "gm") return true;
   return sheet.player === auth.playerKey;
+}
+
+export function canAccessSheet(auth: AuthContext, _sheet: CharacterSheet): boolean {
+  return canViewSheet(auth);
 }
 
 export function canCreateForPlayer(auth: AuthContext, playerId: string): boolean {

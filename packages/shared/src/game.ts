@@ -1,5 +1,19 @@
 import type { Enemy, GameState, Player } from "./types.js";
+import { getEnemyMaxHpByName } from "./enemy-data.js";
+import { getClassMaxHp } from "./player-data.js";
 import { isWalkable, tileAt } from "./map.js";
+
+export function clampHp(hp: number, maxHp: number): number {
+  return Math.max(0, Math.min(hp, maxHp));
+}
+
+export function getPlayerMaxHp(player: Player): number {
+  return getClassMaxHp(player.class);
+}
+
+export function getEnemyMaxHp(enemy: Enemy): number {
+  return getEnemyMaxHpByName(enemy.name);
+}
 
 function isOccupiedByPlayer(state: GameState, x: number, y: number): boolean {
   return state.players.some((p) => p.x === x && p.y === y);
@@ -114,7 +128,11 @@ export function validateAddEnemy(
 export function addEnemy(state: GameState, enemy: Enemy): string | null {
   const err = validateAddEnemy(state, enemy.x, enemy.y);
   if (err) return err;
-  state.enemies.push(enemy);
+  const maxHp = getEnemyMaxHp(enemy);
+  state.enemies.push({
+    ...enemy,
+    hp: clampHp(enemy.hp ?? maxHp, maxHp),
+  });
   return null;
 }
 
@@ -124,10 +142,22 @@ export function removeEnemy(state: GameState, enemyId: string): boolean {
   return state.enemies.length < before;
 }
 
-export function addPlayer(state: GameState, player: Player): boolean {
+export function addPlayer(
+  state: GameState,
+  player: Player,
+  opts?: { className?: string }
+): boolean {
   const spawn = findSpawn(state);
   if (!spawn) return false;
-  state.players.push({ ...player, x: spawn.x, y: spawn.y });
+  const className = opts?.className ?? player.class;
+  const maxHp = getClassMaxHp(className);
+  state.players.push({
+    ...player,
+    x: spawn.x,
+    y: spawn.y,
+    ...(className !== undefined ? { class: className } : {}),
+    hp: clampHp(player.hp ?? maxHp, maxHp),
+  });
   return true;
 }
 
@@ -144,6 +174,29 @@ function playerMatchesProfile(
   return nickname !== undefined && !player.playerKey && player.nickname === nickname;
 }
 
+export function setPlayerHp(
+  state: GameState,
+  playerId: string,
+  hp: number
+): string | null {
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player) return "Unknown player";
+  player.hp = clampHp(hp, getPlayerMaxHp(player));
+  return null;
+}
+
+export function syncPlayerSheet(
+  state: GameState,
+  characterSheetId: string,
+  className: string
+): string | null {
+  const player = state.players.find((p) => p.characterSheetId === characterSheetId);
+  if (!player) return "Player not on board";
+  player.class = className;
+  player.hp = clampHp(player.hp ?? getClassMaxHp(className), getClassMaxHp(className));
+  return null;
+}
+
 export function resolvePlayerForJoin(
   state: GameState,
   opts: {
@@ -151,9 +204,11 @@ export function resolvePlayerForJoin(
     nickname?: string;
     preferredId?: string | null;
     newId: string;
+    className?: string;
+    characterSheetId?: string;
   }
 ): { playerId: string } | { error: "board_full" } {
-  const { playerKey, nickname, preferredId, newId } = opts;
+  const { playerKey, nickname, preferredId, newId, className, characterSheetId } = opts;
   const isMatch = (p: Player) => playerMatchesProfile(p, playerKey, nickname);
   const matches = state.players.filter(isMatch);
 
@@ -165,13 +220,19 @@ export function resolvePlayerForJoin(
   }
 
   if (!playerId) {
-    const joined = addPlayer(state, {
-      id: newId,
-      x: 0,
-      y: 0,
-      playerKey,
-      nickname,
-    });
+    const joined = addPlayer(
+      state,
+      {
+        id: newId,
+        x: 0,
+        y: 0,
+        playerKey,
+        nickname,
+        characterSheetId,
+        hp: getClassMaxHp(className),
+      },
+      { className }
+    );
     if (!joined) return { error: "board_full" };
     return { playerId: newId };
   }
@@ -184,6 +245,16 @@ export function resolvePlayerForJoin(
   if (player) {
     player.playerKey = playerKey;
     if (nickname !== undefined) player.nickname = nickname;
+    if (characterSheetId !== undefined) player.characterSheetId = characterSheetId;
+    if (className !== undefined) {
+      const maxHp = getClassMaxHp(className);
+      player.class = className;
+      if (player.hp === undefined) {
+        player.hp = maxHp;
+      } else {
+        player.hp = clampHp(player.hp, maxHp);
+      }
+    }
   }
 
   return { playerId };
@@ -192,6 +263,22 @@ export function resolvePlayerForJoin(
 export function normalizeGameState(state: GameState): GameState {
   if (!state.enemies) {
     state.enemies = [];
+  }
+  for (const player of state.players) {
+    const maxHp = getPlayerMaxHp(player);
+    if (player.hp === undefined) {
+      player.hp = maxHp;
+    } else {
+      player.hp = clampHp(player.hp, maxHp);
+    }
+  }
+  for (const enemy of state.enemies) {
+    const maxHp = getEnemyMaxHp(enemy);
+    if (enemy.hp === undefined) {
+      enemy.hp = maxHp;
+    } else {
+      enemy.hp = clampHp(enemy.hp, maxHp);
+    }
   }
   return state;
 }

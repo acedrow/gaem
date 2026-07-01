@@ -2,7 +2,7 @@ import type { CharacterSheet } from "@gaem/shared";
 import { validateCharacterSheetRefs } from "@gaem/shared";
 
 import type { AuthContext } from "./auth.js";
-import { canAccessSheet, canCreateForPlayer } from "./auth.js";
+import { canAccessSheet, canCreateForPlayer, canEditSheet } from "./auth.js";
 import type { Env } from "./env.js";
 import { getPlayerProfile } from "./player-profiles.js";
 
@@ -167,6 +167,9 @@ export async function handlePatchCharacterSheet(
   if (!canAccessSheet(auth, sheet)) {
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }
+  if (!canEditSheet(auth, sheet)) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const body = (await request.json().catch(() => null)) as PatchBody | null;
   if (!body) {
@@ -233,6 +236,9 @@ export async function handleDeleteCharacterSheet(
   if (!canAccessSheet(auth, sheet)) {
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }
+  if (!canEditSheet(auth, sheet)) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   await deletePortrait(env, sheet.portraitKey);
   await deleteCharacterSheet(env, id);
@@ -250,6 +256,9 @@ export async function handlePutPortrait(
     return Response.json({ error: "Not found" }, { status: 404 });
   }
   if (!canAccessSheet(auth, sheet)) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+  if (!canEditSheet(auth, sheet)) {
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 

@@ -10,17 +10,56 @@ import {
   removeEnemy,
   removePlayer,
   resolvePlayerForJoin,
+  setPlayerHp,
+  syncPlayerSheet,
   validateEnemyMove,
   validateMove,
 } from "@gaem/shared";
 
 import type { Env } from "./env.js";
+import { getCharacterSheet, listCharacterSheets } from "./character-sheets.js";
 import { getMap } from "./maps.js";
 import { getPlayerProfile, savePlayerProfile } from "./player-profiles.js";
 
 type Attachment = { playerId: string | null; playerKey: string | null; role: GaemRole | null };
 
 const GAME_STATE_KEY = "gameState";
+
+async function resolveSheetForJoin(
+  env: Env,
+  playerKey: string,
+  characterSheetId?: string
+): Promise<{ className?: string; characterSheetId?: string }> {
+  if (characterSheetId) {
+    const sheet = await getCharacterSheet(env, characterSheetId);
+    if (sheet?.player === playerKey) {
+      return { className: sheet.class, characterSheetId: sheet.id };
+    }
+  }
+  const sheets = await listCharacterSheets(env);
+  const sheet = sheets.find((s) => s.player === playerKey);
+  return sheet ? { className: sheet.class, characterSheetId: sheet.id } : {};
+}
+
+function canSetPlayerHp(
+  role: GaemRole | null | undefined,
+  socketPlayerId: string | null | undefined,
+  targetPlayerId: string
+): boolean {
+  if (role === "gm") return true;
+  return role === "player" && socketPlayerId === targetPlayerId;
+}
+
+async function canSyncPlayerSheet(
+  env: Env,
+  role: GaemRole | null | undefined,
+  playerKey: string | null | undefined,
+  characterSheetId: string
+): Promise<boolean> {
+  if (role === "gm") return true;
+  const sheet = await getCharacterSheet(env, characterSheetId);
+  return role === "player" && !!playerKey && sheet?.player === playerKey;
+}
 
 export class GameRoom {
   private gameState!: GameState;
@@ -112,11 +151,18 @@ export class GameRoom {
       }
       const profile = await getPlayerProfile(this.env, playerKey);
       const nickname = parsed.nickname ?? profile?.name;
+      const sheetJoin = await resolveSheetForJoin(
+        this.env,
+        playerKey,
+        parsed.characterSheetId
+      );
       const resolved = resolvePlayerForJoin(this.gameState, {
         playerKey,
         nickname,
         preferredId: currentId,
         newId: crypto.randomUUID(),
+        className: sheetJoin.className,
+        characterSheetId: sheetJoin.characterSheetId,
       });
       if ("error" in resolved) {
         this.sendError(ws, "Board full");
@@ -163,6 +209,38 @@ export class GameRoom {
         }
       } else if (!removeEnemy(this.gameState, parsed.enemyId)) {
         this.sendError(ws, "Unknown enemy");
+        return;
+      }
+      await this.broadcastState();
+      return;
+    }
+
+    if (parsed.type === "setPlayerHp") {
+      if (!canSetPlayerHp(att?.role, att?.playerId, parsed.playerId)) {
+        this.sendError(ws, "Forbidden");
+        return;
+      }
+      if (!Number.isFinite(parsed.hp)) {
+        this.sendError(ws, "Invalid HP");
+        return;
+      }
+      const err = setPlayerHp(this.gameState, parsed.playerId, Math.trunc(parsed.hp));
+      if (err) {
+        this.sendError(ws, err);
+        return;
+      }
+      await this.broadcastState();
+      return;
+    }
+
+    if (parsed.type === "syncPlayerSheet") {
+      if (!(await canSyncPlayerSheet(this.env, att?.role, att?.playerKey, parsed.characterSheetId))) {
+        this.sendError(ws, "Forbidden");
+        return;
+      }
+      const err = syncPlayerSheet(this.gameState, parsed.characterSheetId, parsed.class);
+      if (err) {
+        this.sendError(ws, err);
         return;
       }
       await this.broadcastState();

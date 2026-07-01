@@ -21,6 +21,14 @@ export type Enemy = {
   x: number;
   y: number;
   name?: string;
+  hp?: number;
+};
+
+export type TerrainObject = {
+  id: string;
+  x: number;
+  y: number;
+  name?: string;
 };
 
 export type GameMap = {
@@ -37,6 +45,9 @@ export type Player = {
   y: number;
   nickname?: string;
   playerKey?: string;
+  characterSheetId?: string;
+  class?: string;
+  hp?: number;
 };
 
 export type GameState = {
@@ -46,6 +57,7 @@ export type GameState = {
   tiles: MapTile[];
   players: Player[];
   enemies: Enemy[];
+  terrainObjects?: TerrainObject[];
 };
 
 /**
@@ -86,8 +98,11 @@ export type ClientMessage =
       role?: "player" | "gm";
       nickname?: string;
       playerKey?: string;
+      characterSheetId?: string;
     }
   | { type: "move"; x: number; y: number }
   | { type: "moveEnemy"; enemyId: string; x: number; y: number }
   | { type: "addEnemy"; x: number; y: number; name?: string }
-  | { type: "removeEnemy"; enemyId: string };
+  | { type: "removeEnemy"; enemyId: string }
+  | { type: "setPlayerHp"; playerId: string; hp: number }
+  | { type: "syncPlayerSheet"; characterSheetId: string; class: string };

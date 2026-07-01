@@ -1,5 +1,6 @@
 import type { Enemy, GameMap, GameState, MapTile, TerrainType } from "./types.js";
 import { TERRAIN_TYPES } from "./types.js";
+import { getEnemyMaxHpByName } from "./enemy-data.js";
 
 const BLOCKING_TERRAIN = new Set<TerrainType>(["impassable", "obstacle", "void"]);
 const TERRAIN_SET = new Set<string>(TERRAIN_TYPES);
@@ -183,6 +184,9 @@ export function createInitialStateFromMap(map: GameMap): GameState {
     height: map.height,
     tiles: map.tiles,
     players: [],
-    enemies: (map.enemies ?? []).map((e) => ({ ...e })),
+    enemies: (map.enemies ?? []).map((e) => ({
+      ...e,
+      hp: getEnemyMaxHpByName(e.name),
+    })),
   };
 }
