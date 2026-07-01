@@ -25,11 +25,22 @@ const viewportEl = ref<HTMLElement | null>(null);
 const scale = ref(1);
 const panX = ref(0);
 const panY = ref(0);
+const fitScale = ref(1);
+const fitPanX = ref(0);
+const fitPanY = ref(0);
 let socket: WebSocket | null = null;
 
-const MIN_SCALE = 0.2;
-const MAX_SCALE = 4;
+const BOARD_PAD = 24;
+const ZOOM_MAX_FACTOR = 4;
+const PAN_MIN_VISIBLE_FRACTION = 0.2;
 
+function clampPanAxis(pan: number, scaledSize: number, viewportSize: number): number {
+  const minVisible = Math.min(
+    scaledSize * PAN_MIN_VISIBLE_FRACTION,
+    viewportSize * PAN_MIN_VISIBLE_FRACTION,
+  );
+  return Math.min(viewportSize - minVisible, Math.max(minVisible - scaledSize, pan));
+}
 function hueFromId(id: string): number {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
@@ -54,28 +65,74 @@ const gridStyle = computed(() => {
 
 const stageStyle = computed(() => ({
   transform: `translate(${panX.value}px, ${panY.value}px) scale(${scale.value})`,
+  "--board-scale": String(scale.value),
 }));
+
+const isTransformed = computed(
+  () =>
+    Math.abs(scale.value - fitScale.value) > 0.005 ||
+    Math.abs(panX.value - fitPanX.value) > 1 ||
+    Math.abs(panY.value - fitPanY.value) > 1,
+);
+
+function getBoardSize() {
+  const s = gameState.value;
+  if (!s) return { w: 544, h: 544 };
+  const innerW = boardWidthPx.value;
+  const innerH = innerW * (s.height / s.width);
+  return { w: innerW + BOARD_PAD, h: innerH + BOARD_PAD };
+}
+
+function computeFitTransform(vw: number, vh: number) {
+  const { w, h } = getBoardSize();
+  const s = Math.min(vw / w, vh / h);
+  return { scale: s, panX: (vw - w * s) / 2, panY: (vh - h * s) / 2 };
+}
+
+function updateFitState() {
+  const el = viewportEl.value;
+  if (!el) return;
+  const fit = computeFitTransform(el.clientWidth, el.clientHeight);
+  fitScale.value = fit.scale;
+  fitPanX.value = fit.panX;
+  fitPanY.value = fit.panY;
+}
+
+function clampView() {
+  const el = viewportEl.value;
+  if (!el) return;
+  updateFitState();
+  const minS = fitScale.value;
+  const maxS = fitScale.value * ZOOM_MAX_FACTOR;
+  scale.value = Math.min(maxS, Math.max(minS, scale.value));
+  const { w, h } = getBoardSize();
+  const scaledW = w * scale.value;
+  const scaledH = h * scale.value;
+  const vw = el.clientWidth;
+  const vh = el.clientHeight;
+  panX.value = clampPanAxis(panX.value, scaledW, vw);
+  panY.value = clampPanAxis(panY.value, scaledH, vh);
+}
 
 function fitToView() {
   const el = viewportEl.value;
-  const s = gameState.value;
-  if (!el || !s) return;
-  const pad = 24;
-  const w = boardWidthPx.value + pad;
-  const h = w * (s.height / s.width) + pad;
-  const vw = el.clientWidth;
-  const vh = el.clientHeight;
-  if (w <= vw && h <= vh) {
-    scale.value = 1;
-    panX.value = (vw - w) / 2;
-    panY.value = (vh - h) / 2;
-  } else {
-    const fit = Math.min((vw - 16) / w, (vh - 16) / h, 1);
-    scale.value = fit;
-    panX.value = (vw - w * fit) / 2;
-    panY.value = (vh - h * fit) / 2;
-  }
+  if (!el || !gameState.value) return;
+  const fit = computeFitTransform(el.clientWidth, el.clientHeight);
+  scale.value = fit.scale;
+  panX.value = fit.panX;
+  panY.value = fit.panY;
+  fitScale.value = fit.scale;
+  fitPanX.value = fit.panX;
+  fitPanY.value = fit.panY;
 }
+
+const resizeObserver = new ResizeObserver(() => {
+  const wasFit = !isTransformed.value;
+  nextTick(() => {
+    if (wasFit) fitToView();
+    else clampView();
+  });
+});
 
 function onWheel(e: WheelEvent) {
   if (!viewportEl.value) return;
@@ -84,14 +141,18 @@ function onWheel(e: WheelEvent) {
   const mx = e.clientX - rect.left;
   const my = e.clientY - rect.top;
   if (e.ctrlKey || e.metaKey) {
-    const next = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale.value * Math.exp(-e.deltaY * 0.002)));
+    const minS = fitScale.value;
+    const maxS = fitScale.value * ZOOM_MAX_FACTOR;
+    const next = Math.min(maxS, Math.max(minS, scale.value * Math.exp(-e.deltaY * 0.005)));
     const ratio = next / scale.value;
     panX.value = mx - (mx - panX.value) * ratio;
     panY.value = my - (my - panY.value) * ratio;
     scale.value = next;
+    clampView();
   } else {
     panX.value -= e.deltaX;
     panY.value -= e.deltaY;
+    clampView();
   }
 }
 
@@ -221,8 +282,14 @@ onMounted(() => {
   window.addEventListener("keydown", onKeydown);
 });
 
+watch(viewportEl, (el, prev) => {
+  if (prev) resizeObserver.unobserve(prev);
+  if (el) resizeObserver.observe(el);
+});
+
 onUnmounted(() => {
   window.removeEventListener("keydown", onKeydown);
+  resizeObserver.disconnect();
   socket?.close();
   connection.value = "disconnected";
 });
@@ -232,10 +299,11 @@ onUnmounted(() => {
   <div class="game-board">
     <p v-if="lastError" class="error">{{ lastError }}</p>
 
-    <div v-if="gameState" ref="viewportEl" class="board-viewport" @wheel.prevent="onWheel">
-      <div class="board-stage" :style="stageStyle">
-        <div class="board-wrap">
-          <div class="board" :style="gridStyle">
+    <div v-if="gameState" class="board-display">
+      <div ref="viewportEl" class="board-viewport" @wheel.prevent="onWheel">
+        <div class="board-stage" :style="stageStyle">
+          <div class="board-wrap">
+            <div class="board" :style="gridStyle">
             <button
               v-for="c in cells"
               :key="c.key"
@@ -275,9 +343,13 @@ onUnmounted(() => {
                 :title="playerAt(c.x, c.y)!.nickname ?? playerAt(c.x, c.y)!.id"
               />
             </button>
+            </div>
           </div>
         </div>
       </div>
+      <button v-if="isTransformed" class="reset-zoom-btn" type="button" @click="fitToView">
+        Reset zoom
+      </button>
     </div>
 
     <p v-else class="loading">Loading board…</p>
@@ -293,6 +365,13 @@ onUnmounted(() => {
   width: 100%;
 }
 .error { margin: 0 0 0.75rem; color: #f85149; font-size: 0.9rem; }
+.board-display {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 .board-viewport {
   flex: 1;
   min-height: 0;
@@ -300,6 +379,24 @@ onUnmounted(() => {
   border-radius: 12px;
   border: 1px solid #30363d;
   background: #161b22;
+}
+.reset-zoom-btn {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  background: #0d1117ee;
+  color: #e6edf3;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.reset-zoom-btn:hover {
+  background: #161b22;
+  border-color: #388bfd66;
 }
 .board-stage { transform-origin: 0 0; will-change: transform; }
 .board-wrap { width: fit-content; padding: 0.75rem; }
@@ -317,7 +414,8 @@ onUnmounted(() => {
   position: absolute;
   bottom: calc(100% + 4px);
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) scale(calc(1 / var(--board-scale, 1)));
+  transform-origin: bottom center;
   z-index: 2;
   min-width: 120px;
   padding: 0.35rem 0.5rem;
