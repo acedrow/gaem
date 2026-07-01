@@ -50,6 +50,20 @@ export type PlayerProfile = {
   data: Record<string, unknown>;
 };
 
+export type GaemRole = "gm" | "player";
+
+export type CharacterSheet = {
+  id: string;
+  player: string;
+  name: string;
+  portraitKey: string | null;
+  class: string;
+  armor: string;
+  weapon: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 /** Server → client */
 export type ServerMessage =
   | { type: "state"; state: GameState; yourPlayerId: string | null }

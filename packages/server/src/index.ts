@@ -10,9 +10,6 @@ import type {
   PlayerProfile,
   ServerMessage,
 } from "@gaem/shared";
-import express from "express";
-import { WebSocketServer, type WebSocket } from "ws";
-
 import {
   addPlayer,
   applyMove,
@@ -22,6 +19,19 @@ import {
   removePlayer,
   validateMove,
 } from "@gaem/shared";
+import express from "express";
+import { WebSocketServer, type WebSocket } from "ws";
+
+import {
+  createSheetHandler,
+  deleteSheetHandler,
+  getPortraitHandler,
+  getSheetHandler,
+  listSheetsHandler,
+  patchSheetHandler,
+  putPortraitHandler,
+} from "./character-sheets.js";
+import { parseAuth } from "./auth.js";
 
 const PORT = Number(process.env.PORT) || 3001;
 
@@ -29,8 +39,11 @@ const app = express();
 app.use(express.json());
 app.use((_, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,DELETE,OPTIONS");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, X-Gaem-Role, X-Gaem-Player-Key"
+  );
   next();
 });
 app.options("*", (_req, res) => {
@@ -73,6 +86,57 @@ app.post("/api/player-profiles", (req, res) => {
   };
   playerProfiles.set(profile.id, profile);
   res.status(201).json({ profile });
+});
+
+const portraitParser = express.raw({
+  type: ["image/jpeg", "image/png", "image/webp"],
+  limit: "5mb",
+});
+
+function hasProfile(id: string): boolean {
+  return playerProfiles.has(id);
+}
+
+app.get("/api/character-sheets", (req, res) => {
+  const auth = parseAuth(req, res);
+  if (!auth) return;
+  listSheetsHandler(auth, res);
+});
+
+app.post("/api/character-sheets", (req, res) => {
+  const auth = parseAuth(req, res);
+  if (!auth) return;
+  createSheetHandler(auth, req, res, hasProfile);
+});
+
+app.get("/api/character-sheets/:id", (req, res) => {
+  const auth = parseAuth(req, res);
+  if (!auth) return;
+  getSheetHandler(auth, req.params.id, res);
+});
+
+app.patch("/api/character-sheets/:id", (req, res) => {
+  const auth = parseAuth(req, res);
+  if (!auth) return;
+  patchSheetHandler(auth, req.params.id, req, res, hasProfile);
+});
+
+app.delete("/api/character-sheets/:id", (req, res) => {
+  const auth = parseAuth(req, res);
+  if (!auth) return;
+  deleteSheetHandler(auth, req.params.id, res);
+});
+
+app.put("/api/character-sheets/:id/portrait", portraitParser, (req, res) => {
+  const auth = parseAuth(req, res);
+  if (!auth) return;
+  putPortraitHandler(auth, req.params.id, req, res);
+});
+
+app.get("/api/character-sheets/:id/portrait", (req, res) => {
+  const auth = parseAuth(req, res);
+  if (!auth) return;
+  getPortraitHandler(auth, req.params.id, res);
 });
 
 const httpServer = createServer(app);

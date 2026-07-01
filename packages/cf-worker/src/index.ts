@@ -1,8 +1,21 @@
 import type { Env } from "./env.js";
 import { GameRoom } from "./game-room.js";
+import {
+  handleCreateCharacterSheet,
+  handleDeleteCharacterSheet,
+  handleGetCharacterSheet,
+  handleGetPortrait,
+  handleListCharacterSheets,
+  handlePatchCharacterSheet,
+  handlePutPortrait,
+} from "./character-sheets.js";
+import { parseAuth } from "./auth.js";
 import { createPlayerProfile, listPlayerProfiles } from "./player-profiles.js";
 
 export { GameRoom };
+
+const SHEET_ID_RE = /^\/api\/character-sheets\/([^/]+)$/;
+const PORTRAIT_RE = /^\/api\/character-sheets\/([^/]+)\/portrait$/;
 
 export default {
   async fetch(
@@ -44,6 +57,49 @@ export default {
       }
       const profile = await createPlayerProfile(env, name);
       return Response.json({ profile }, { status: 201 });
+    }
+
+    if (url.pathname === "/api/character-sheets") {
+      const auth = parseAuth(request);
+      if (auth instanceof Response) return auth;
+
+      if (request.method === "GET") {
+        return handleListCharacterSheets(env, auth);
+      }
+      if (request.method === "POST") {
+        return handleCreateCharacterSheet(env, auth, request);
+      }
+    }
+
+    const portraitMatch = url.pathname.match(PORTRAIT_RE);
+    if (portraitMatch) {
+      const auth = parseAuth(request);
+      if (auth instanceof Response) return auth;
+      const sheetId = portraitMatch[1];
+
+      if (request.method === "GET") {
+        return handleGetPortrait(env, auth, sheetId);
+      }
+      if (request.method === "PUT") {
+        return handlePutPortrait(env, auth, sheetId, request);
+      }
+    }
+
+    const sheetMatch = url.pathname.match(SHEET_ID_RE);
+    if (sheetMatch) {
+      const auth = parseAuth(request);
+      if (auth instanceof Response) return auth;
+      const sheetId = sheetMatch[1];
+
+      if (request.method === "GET") {
+        return handleGetCharacterSheet(env, auth, sheetId);
+      }
+      if (request.method === "PATCH") {
+        return handlePatchCharacterSheet(env, auth, sheetId, request);
+      }
+      if (request.method === "DELETE") {
+        return handleDeleteCharacterSheet(env, auth, sheetId);
+      }
     }
 
     return env.ASSETS.fetch(request);

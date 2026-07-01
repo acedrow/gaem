@@ -3,4 +3,5 @@ export interface Env {
   ASSETS: Fetcher;
   PLAYER_KV: KVNamespace;
   MAP_KV: KVNamespace;
+  PORTRAIT_R2: R2Bucket;
 }

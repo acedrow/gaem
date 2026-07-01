@@ -21,6 +21,11 @@ binding = "MAP_KV"
 id = "bc5c9c49543d4e3884364184422b5a5c"
 preview_id = "1261597feb9c46bdb1c56c46fb6420a2"
 
+[[r2_buckets]]
+binding = "PORTRAIT_R2"
+bucket_name = "gaem-portraits"
+preview_bucket_name = "gaem-portraits-preview"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["GameRoom"]
