@@ -5,13 +5,18 @@ import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
 import { activeTab } from "../composables/useGameConsole.js";
 import { useGameState } from "../composables/useGameState.js";
+import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import CharacterSheetPanel from "./CharacterSheetPanel.vue";
 import EnemyInfoPanel from "./EnemyInfoPanel.vue";
 import GameConsolePanel from "./GameConsolePanel.vue";
+import GameDataDetailPanel from "./GameDataDetailPanel.vue";
+import InfoSearchPanel from "./InfoSearchPanel.vue";
 import PlayerBoardPanel from "./PlayerBoardPanel.vue";
+import PlayerDataPanel from "./PlayerDataPanel.vue";
 
 const { selectedSheetId, rightPanelCollapsed } = useCharacterSheetSelection();
 const { boardSelection } = useBoardSelection();
+const { dataCategory, dataFocus } = useInfoDataSelection();
 const { gameState } = useGameState();
 
 const boardPlayerSheetId = computed(() => {
@@ -67,12 +72,22 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
             :key="boardSelection.id"
             :player-id="boardSelection.id"
           />
+          <GameDataDetailPanel
+            v-else-if="dataFocus"
+            :key="`${dataFocus.kind}:${dataFocus.name}`"
+            :focus="dataFocus"
+          />
+          <PlayerDataPanel
+            v-else-if="dataCategory"
+            :key="dataCategory"
+            :category="dataCategory"
+          />
           <CharacterSheetPanel
             v-else-if="activeSheetId"
             :key="activeSheetId"
             :sheet-id="activeSheetId"
           />
-          <p v-else class="info-empty">Select a token on the board or a character sheet to view details.</p>
+          <InfoSearchPanel v-else />
         </div>
       </div>
     </template>
@@ -144,14 +159,6 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
   display: flex;
   flex-direction: column;
   overflow: hidden;
-}
-
-.info-empty {
-  margin: 0;
-  padding: 1rem;
-  color: #8b949e;
-  font-size: 0.85rem;
-  line-height: 1.5;
 }
 
 .panel-toggle {

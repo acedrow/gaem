@@ -4,14 +4,21 @@ import { PLAYER_ARMOR, PLAYER_CLASSES, PLAYER_WEAPONS } from "@gaem/shared";
 import { computed, ref, watch } from "vue";
 
 import { useApi } from "../composables/useApi.js";
+import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
+import { activeTab } from "../composables/useGameConsole.js";
+import type { DataCategory } from "../composables/useInfoDataSelection.js";
+import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import { useSession } from "../composables/useSession.js";
 
 type PlayerProfileOption = PlayerProfile & { isActive?: boolean };
 
 const { apiFetch } = useApi();
-const { role, playerProfile } = useSession();
-const { selectedSheetId, sheetsExpanded, sheetsVersion, selectSheet } = useCharacterSheetSelection();
+const { role } = useSession();
+const { selectedSheetId, sheetsExpanded, sheetsVersion, rightPanelCollapsed, selectSheet } =
+  useCharacterSheetSelection();
+const { clearBoardSelection, selectSheetFromNav } = useBoardSelection();
+const { dataCategory, dataExpanded, selectDataCategory } = useInfoDataSelection();
 
 const sheets = ref<CharacterSheet[]>([]);
 const profiles = ref<PlayerProfileOption[]>([]);
@@ -39,21 +46,18 @@ async function loadSheets() {
   loading.value = true;
   loadError.value = null;
   try {
+    const profilesUrl = import.meta.env.DEV
+      ? `http://${location.hostname}:3001/api/player-profiles`
+      : "/api/player-profiles";
     const [sheetsRes, profilesRes] = await Promise.all([
       apiFetch("/api/character-sheets"),
-      role.value === "gm"
-        ? fetch(
-          import.meta.env.DEV
-            ? `http://${location.hostname}:3001/api/player-profiles`
-            : "/api/player-profiles"
-        )
-        : Promise.resolve(null),
+      fetch(profilesUrl),
     ]);
     if (!sheetsRes.ok) throw new Error("Failed to load character sheets");
     const sheetsData = (await sheetsRes.json()) as { sheets: CharacterSheet[] };
     sheets.value = sheetsData.sheets;
 
-    if (profilesRes?.ok) {
+    if (profilesRes.ok) {
       const profilesData = (await profilesRes.json()) as { profiles: PlayerProfileOption[] };
       profiles.value = profilesData.profiles;
     }
@@ -68,14 +72,24 @@ function toggleSheets() {
   sheetsExpanded.value = !sheetsExpanded.value;
 }
 
+function toggleData() {
+  dataExpanded.value = !dataExpanded.value;
+}
+
+function onSelectSheet(sheetId: string) {
+  selectSheetFromNav(sheetId);
+}
+
+function onSelectData(category: DataCategory) {
+  clearBoardSelection();
+  selectSheet(null);
+  selectDataCategory(category);
+  rightPanelCollapsed.value = false;
+  activeTab.value = "info";
+}
+
 function openCreate() {
-  createForm.value = {
-    player: role.value === "player" && playerProfile.value ? playerProfile.value.id : "",
-    name: "",
-    class: "",
-    armor: "",
-    weapon: "",
-  };
+  createForm.value = { player: "", name: "", class: "", armor: "", weapon: "" };
   createError.value = null;
   showCreate.value = true;
 }
@@ -96,7 +110,7 @@ async function createSheet() {
     const data = (await res.json()) as { sheet: CharacterSheet };
     showCreate.value = false;
     await loadSheets();
-    selectSheet(data.sheet.id);
+    selectSheetFromNav(data.sheet.id);
   } catch (e) {
     createError.value = e instanceof Error ? e.message : "Unable to create sheet";
   } finally {
@@ -125,22 +139,54 @@ watch(sheetsVersion, () => {
       <p v-else-if="loadError" class="sublist-error">{{ loadError }}</p>
       <template v-else>
         <button v-for="sheet in sheets" :key="sheet.id" class="sheet-item"
-          :class="{ selected: selectedSheetId === sheet.id }" type="button" @click="selectSheet(sheet.id)">
+          :class="{ selected: selectedSheetId === sheet.id }" type="button" @click="onSelectSheet(sheet.id)">
           <span class="sheet-name">{{ sheet.name }}</span>
-          <span v-if="role === 'gm'" class="sheet-meta">
+          <span class="sheet-meta">
             {{ profileNameById.get(sheet.player) ?? sheet.player }}
           </span>
         </button>
         <p v-if="sheets.length === 0" class="sublist-muted">No sheets yet.</p>
       </template>
-      <button class="new-sheet-btn" type="button" @click="openCreate">+ New sheet</button>
+      <button v-if="role === 'gm'" class="new-sheet-btn" type="button" @click="openCreate">+ New sheet</button>
+    </div>
+
+    <button class="nav-link nav-toggle" :class="{ expanded: dataExpanded }" type="button" @click="toggleData">
+      Data
+      <span class="chevron" aria-hidden="true">{{ dataExpanded ? "▾" : "▸" }}</span>
+    </button>
+
+    <div v-if="dataExpanded" class="sheet-sublist">
+      <button
+        class="sheet-item"
+        :class="{ selected: dataCategory === 'armor' }"
+        type="button"
+        @click="onSelectData('armor')"
+      >
+        <span class="sheet-name">Armor</span>
+      </button>
+      <button
+        class="sheet-item"
+        :class="{ selected: dataCategory === 'classes' }"
+        type="button"
+        @click="onSelectData('classes')"
+      >
+        <span class="sheet-name">Classes</span>
+      </button>
+      <button
+        class="sheet-item"
+        :class="{ selected: dataCategory === 'weapons' }"
+        type="button"
+        @click="onSelectData('weapons')"
+      >
+        <span class="sheet-name">Weapons</span>
+      </button>
     </div>
 
     <div v-if="showCreate" class="modal-backdrop" @click.self="showCreate = false">
       <div class="modal">
         <h2 class="modal-title">New character sheet</h2>
 
-        <label v-if="role === 'gm'" class="field">
+        <label class="field">
           <span>Player profile</span>
           <select v-model="createForm.player" class="input">
             <option value="" disabled>Select player</option>
@@ -188,7 +234,7 @@ watch(sheetsVersion, () => {
         <div class="modal-actions">
           <button class="cta secondary" type="button" @click="showCreate = false">Cancel</button>
           <button class="cta" type="button"
-            :disabled="creating || !createForm.name || !createForm.class || !createForm.armor || !createForm.weapon || (role === 'gm' && !createForm.player)"
+            :disabled="creating || !createForm.player || !createForm.name || !createForm.class || !createForm.armor || !createForm.weapon"
             @click="createSheet">
             {{ creating ? "Creating…" : "Create" }}
           </button>

@@ -69,13 +69,9 @@ type CreateBody = {
 
 export async function handleListCharacterSheets(
   env: Env,
-  auth: AuthContext
+  _auth: AuthContext
 ): Promise<Response> {
-  const all = await listCharacterSheets(env);
-  const sheets =
-    auth.role === "gm"
-      ? all
-      : all.filter((s) => s.player === auth.playerKey);
+  const sheets = await listCharacterSheets(env);
   return Response.json({ sheets });
 }
 

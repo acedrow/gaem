@@ -36,22 +36,16 @@ function canAccessSheet(auth: AuthContext, _sheet: CharacterSheet): boolean {
   return canViewSheet(auth);
 }
 
-function canCreateForPlayer(auth: AuthContext, playerId: string): boolean {
-  if (auth.role === "gm") return true;
-  return playerId === auth.playerKey;
+function canCreateForPlayer(auth: AuthContext, _playerId: string): boolean {
+  return auth.role === "gm";
 }
 
 function deletePortrait(portraitKey: string | null): void {
   if (portraitKey) portraits.delete(portraitKey);
 }
 
-export function listSheetsHandler(auth: AuthContext, res: Response): void {
-  const all = [...characterSheets.values()];
-  const sheets =
-    auth.role === "gm"
-      ? all
-      : all.filter((s) => s.player === auth.playerKey);
-  res.json({ sheets });
+export function listSheetsHandler(_auth: AuthContext, res: Response): void {
+  res.json({ sheets: [...characterSheets.values()] });
 }
 
 export function createSheetHandler(

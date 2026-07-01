@@ -15,6 +15,10 @@ type EnemyFaction = {
 
 const ENEMY_FACTIONS = [paracletusJson] as EnemyFaction[];
 
+export function listEnemyListings(): EnemyListing[] {
+  return ENEMY_FACTIONS.flatMap((faction) => faction.enemies);
+}
+
 function findEnemyListing(name: string | undefined): EnemyListing | undefined {
   if (!name) return undefined;
   const normalized = name.trim().toLowerCase();
