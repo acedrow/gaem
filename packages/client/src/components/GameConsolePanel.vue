@@ -4,7 +4,7 @@ import { nextTick, ref, watch } from "vue";
 import { useApi } from "../composables/useApi.js";
 import { useGameConsole } from "../composables/useGameConsole.js";
 
-const { entries } = useGameConsole();
+const { entries, activeTab } = useGameConsole();
 const { apiFetch } = useApi();
 
 const listEl = ref<HTMLElement | null>(null);
@@ -59,13 +59,16 @@ async function rollDice() {
   }
 }
 
-watch(
-  () => entries.value.length,
-  async () => {
-    await nextTick();
-    if (listEl.value) listEl.value.scrollTop = listEl.value.scrollHeight;
-  },
-);
+async function scrollLogToBottom() {
+  await nextTick();
+  if (listEl.value) listEl.value.scrollTop = listEl.value.scrollHeight;
+}
+
+watch(() => entries.value.length, scrollLogToBottom);
+
+watch(activeTab, (tab) => {
+  if (tab === "console") void scrollLogToBottom();
+});
 </script>
 
 <template>
