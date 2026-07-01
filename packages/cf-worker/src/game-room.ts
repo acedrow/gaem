@@ -14,6 +14,8 @@ import { getPlayerProfile, savePlayerProfile } from "./player-profiles.js";
 
 type Attachment = { playerId: string | null; playerKey: string | null };
 
+const GAME_STATE_KEY = "gameState";
+
 export class GameRoom {
   private gameState!: GameState;
   private readonly env: Env;
@@ -24,8 +26,15 @@ export class GameRoom {
   ) {
     this.env = env;
     this.ctx.blockConcurrencyWhile(async () => {
-      const map = await getMap(this.env, DEFAULT_MAP_ID);
-      this.gameState = createInitialStateFromMap(map);
+      const stored = await this.ctx.storage.get<GameState>(GAME_STATE_KEY);
+      if (stored) {
+        this.gameState = stored;
+      } else {
+        const map = await getMap(this.env, DEFAULT_MAP_ID);
+        this.gameState = createInitialStateFromMap(map);
+        await this.ctx.storage.put(GAME_STATE_KEY, this.gameState);
+      }
+      this.reconcilePlayersFromSockets();
     });
   }
 
@@ -48,7 +57,7 @@ export class GameRoom {
       playerKey: null,
     } satisfies Attachment);
 
-    this.broadcastState();
+    await this.broadcastState();
 
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -84,7 +93,7 @@ export class GameRoom {
           playerId: null,
           playerKey: null,
         } satisfies Attachment);
-        this.broadcastState();
+        await this.broadcastState();
         return;
       }
 
@@ -114,7 +123,7 @@ export class GameRoom {
           updatedAt: new Date().toISOString(),
         });
       }
-      this.broadcastState();
+      await this.broadcastState();
       return;
     }
 
@@ -146,7 +155,7 @@ export class GameRoom {
           });
         }
       }
-      this.broadcastState();
+      await this.broadcastState();
     }
   }
 
@@ -175,7 +184,7 @@ export class GameRoom {
         playerId: null,
         playerKey: att?.playerKey ?? null,
       } satisfies Attachment);
-      this.broadcastState();
+      await this.broadcastState();
     }
   }
 
@@ -184,7 +193,8 @@ export class GameRoom {
     ws.send(JSON.stringify(msg));
   }
 
-  private broadcastState(): void {
+  private async broadcastState(): Promise<void> {
+    await this.ctx.storage.put(GAME_STATE_KEY, this.gameState);
     const snapshot = structuredClone(this.gameState);
     for (const socket of this.ctx.getWebSockets()) {
       const att = socket.deserializeAttachment() as Attachment | null;
@@ -207,6 +217,15 @@ export class GameRoom {
       }
     }
     return [...ids];
+  }
+
+  private reconcilePlayersFromSockets(): void {
+    for (const socket of this.ctx.getWebSockets()) {
+      const att = socket.deserializeAttachment() as Attachment | null;
+      if (!att?.playerId) continue;
+      if (this.gameState.players.some((p) => p.id === att.playerId)) continue;
+      addPlayer(this.gameState, { id: att.playerId, x: 0, y: 0 });
+    }
   }
 
   private profileInUseByAnotherSocket(profileId: string, socket: WebSocket): boolean {
