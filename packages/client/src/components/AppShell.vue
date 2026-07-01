@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { useRouter } from "vue-router";
 
 import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
 import { useGameConnection } from "../composables/useGameConnection.js";
+import { useGameState } from "../composables/useGameState.js";
 import { useSession } from "../composables/useSession.js";
 import GameBoard from "./GameBoard.vue";
 import RightPanel from "./RightPanel.vue";
@@ -12,6 +14,9 @@ const router = useRouter();
 const { role, playerProfile, clearSession } = useSession();
 const { sidebarCollapsed } = useCharacterSheetSelection();
 const { connection } = useGameConnection();
+const { gameState } = useGameState();
+
+const mapName = computed(() => gameState.value?.mapName ?? gameState.value?.mapId ?? null);
 
 function leave() {
   clearSession();
@@ -46,6 +51,9 @@ function leave() {
     </aside>
 
     <main class="main">
+      <header v-if="mapName" class="center-header">
+        <h1 class="map-title">{{ mapName }}</h1>
+      </header>
       <GameBoard
         v-if="role"
         :role="role"
@@ -167,6 +175,19 @@ function leave() {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  gap: 0.75rem;
+}
+
+.center-header {
+  flex-shrink: 0;
+}
+
+.map-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
 }
 
 .panel-toggle {

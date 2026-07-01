@@ -118,7 +118,19 @@ export function parseGameMap(raw: unknown): GameMap {
 
   const enemies = parseMapEnemies(obj.enemies, w, h);
 
-  return { id: id.trim(), width: w, height: h, tiles, enemies };
+  const name = obj.name;
+  if (name !== undefined && (typeof name !== "string" || !name.trim())) {
+    throw new Error("Map name must be a non-empty string");
+  }
+
+  return {
+    id: id.trim(),
+    name: typeof name === "string" ? name.trim() : undefined,
+    width: w,
+    height: h,
+    tiles,
+    enemies,
+  };
 }
 
 function parseMapEnemies(raw: unknown, width: number, height: number): Enemy[] | undefined {
@@ -180,6 +192,7 @@ function parseMapEnemies(raw: unknown, width: number, height: number): Enemy[] |
 export function createInitialStateFromMap(map: GameMap): GameState {
   return {
     mapId: map.id,
+    mapName: map.name ?? map.id,
     width: map.width,
     height: map.height,
     tiles: map.tiles,

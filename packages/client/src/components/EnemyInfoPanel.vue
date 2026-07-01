@@ -4,12 +4,9 @@ import { computed } from "vue";
 
 import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useGameState } from "../composables/useGameState.js";
-import { useSession } from "../composables/useSession.js";
-
 const props = defineProps<{ enemyId: string }>();
 
-const { role } = useSession();
-const { gameState, send } = useGameState();
+const { gameState } = useGameState();
 const { closeRightPanel } = useBoardSelection();
 
 const enemy = computed(() => gameState.value?.enemies.find((e) => e.id === props.enemyId));
@@ -35,11 +32,6 @@ const hpBarLevel = computed(() => {
   return "high";
 });
 
-function removeEnemy() {
-  if (!enemy.value) return;
-  send({ type: "removeEnemy", enemyId: enemy.value.id });
-  closeRightPanel();
-}
 </script>
 
 <template>
@@ -74,15 +66,6 @@ function removeEnemy() {
       </div>
 
       <p class="position">Position ({{ enemy.x }}, {{ enemy.y }})</p>
-
-      <button
-        v-if="role === 'gm'"
-        class="remove-btn"
-        type="button"
-        @click="removeEnemy"
-      >
-        Remove enemy
-      </button>
     </div>
 
     <p v-else class="muted">Enemy not found.</p>
@@ -224,22 +207,6 @@ function removeEnemy() {
   margin: 0;
   font-size: 0.8rem;
   color: #8b949e;
-}
-
-.remove-btn {
-  margin-top: auto;
-  border: 1px solid #f8514966;
-  border-radius: 8px;
-  background: #f8514922;
-  color: #f85149;
-  padding: 0.45rem 0.75rem;
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-
-.remove-btn:hover {
-  background: #f8514933;
-  border-color: #f85149;
 }
 
 .muted {

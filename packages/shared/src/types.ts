@@ -33,6 +33,7 @@ export type TerrainObject = {
 
 export type GameMap = {
   id: string;
+  name?: string;
   width: number;
   height: number;
   tiles: MapTile[];
@@ -52,6 +53,7 @@ export type Player = {
 
 export type GameState = {
   mapId: string;
+  mapName: string;
   width: number;
   height: number;
   tiles: MapTile[];

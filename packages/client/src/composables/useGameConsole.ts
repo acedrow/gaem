@@ -1,7 +1,7 @@
 import type { ConsoleLogEntry } from "@gaem/shared";
 import { ref } from "vue";
 
-export type RightPanelTab = "console" | "info";
+export type RightPanelTab = "console" | "info" | "turnOrder";
 
 const entries = ref<ConsoleLogEntry[]>([]);
 export const activeTab = ref<RightPanelTab>("info");

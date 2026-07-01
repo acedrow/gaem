@@ -34,7 +34,6 @@ const {
 const { gameState, yourPlayerId, setGameState, registerSend, clearGameState } = useGameState();
 const lastError = ref<string | null>(null);
 const hoveredKey = ref<string | null>(null);
-const addEnemyMode = ref(false);
 const viewportEl = ref<HTMLElement | null>(null);
 const scale = ref(1);
 const panX = ref(0);
@@ -348,21 +347,12 @@ function onGmCellClick(x: number, y: number) {
   const player = playerAt(x, y);
   if (player) {
     selectBoardPlayer(player.id, player.characterSheetId);
-    addEnemyMode.value = false;
     return;
   }
 
   const enemy = enemyAt(x, y);
   if (enemy) {
     selectBoardEnemy(enemy.id);
-    addEnemyMode.value = false;
-    return;
-  }
-
-  if (addEnemyMode.value) {
-    if (!isEmptyWalkable(x, y)) return;
-    send({ type: "addEnemy", x, y });
-    addEnemyMode.value = false;
     return;
   }
 
@@ -394,7 +384,7 @@ function onViewportClick(e: MouseEvent) {
 
 function onBoardDisplayClick(e: MouseEvent) {
   const target = e.target as HTMLElement;
-  if (target.closest(".board-viewport, .gm-toolbar, .reset-zoom-btn")) return;
+  if (target.closest(".board-viewport, .reset-zoom-btn")) return;
   clearBoardSelection();
 }
 
@@ -409,7 +399,6 @@ function onKeydown(e: KeyboardEvent) {
   if (props.role === "gm") {
     if (e.key === "Escape") {
       clearBoardSelection();
-      addEnemyMode.value = false;
       return;
     }
     if ((e.key === "Delete" || e.key === "Backspace") && selectedEnemyId.value) {
@@ -523,27 +512,6 @@ onUnmounted(() => {
     <p v-if="lastError" class="error">{{ lastError }}</p>
 
     <div v-if="gameState" class="board-display" @click="onBoardDisplayClick">
-      <div v-if="props.role === 'gm'" class="gm-toolbar">
-        <button
-          type="button"
-          class="gm-btn"
-          :class="{ active: addEnemyMode }"
-          @click="
-            addEnemyMode = !addEnemyMode;
-            if (addEnemyMode) clearBoardSelection();
-          "
-        >
-          Add enemy
-        </button>
-        <button
-          type="button"
-          class="gm-btn"
-          :disabled="!selectedEnemyId"
-          @click="removeSelectedEnemy"
-        >
-          Remove
-        </button>
-      </div>
       <div ref="viewportEl" class="board-viewport" @click="onViewportClick" @wheel.prevent="onWheel">
         <div class="board-stage" :style="stageStyle">
           <div class="board-wrap">
@@ -566,8 +534,6 @@ onUnmounted(() => {
                   !!selectedEnemyId &&
                   isAdjacentToSelectedEnemy(c.x, c.y) &&
                   isEmptyWalkable(c.x, c.y),
-                'gm-add-target':
-                  props.role === 'gm' && addEnemyMode && isEmptyWalkable(c.x, c.y),
               }"
               @click="onCellClick(c.x, c.y)"
               @mouseenter="hoveredKey = c.key"
@@ -656,32 +622,6 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 0.5rem;
 }
-.gm-toolbar {
-  display: flex;
-  gap: 0.5rem;
-  flex-shrink: 0;
-}
-.gm-btn {
-  border: 1px solid #30363d;
-  border-radius: 8px;
-  background: #21262d;
-  color: #e6edf3;
-  padding: 0.35rem 0.75rem;
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-.gm-btn:hover:not(:disabled) {
-  background: #30363d;
-  border-color: #388bfd66;
-}
-.gm-btn.active {
-  background: #388bfd33;
-  border-color: #388bfd;
-}
-.gm-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
 .board-viewport {
   flex: 1;
   min-height: 0;
@@ -719,7 +659,6 @@ onUnmounted(() => {
 .cell.uneasy { background: #3d3520; }
 .cell.movable { cursor: pointer; outline: 1px dashed #388bfd66; }
 .cell.gm-movable { cursor: pointer; outline: 1px dashed #f8514966; }
-.cell.gm-add-target { cursor: pointer; outline: 1px dashed #3fb95066; }
 .piece { position: absolute; inset: 4px; border-radius: 50%; display: block; z-index: 1; }
 .piece.player-piece { cursor: pointer; z-index: 2; }
 .piece.enemy { background: hsl(0 70% 45%); z-index: 0; }

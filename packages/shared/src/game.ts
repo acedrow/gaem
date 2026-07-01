@@ -261,6 +261,9 @@ export function resolvePlayerForJoin(
 }
 
 export function normalizeGameState(state: GameState): GameState {
+  if (!state.mapName) {
+    state.mapName = state.mapId;
+  }
   if (!state.enemies) {
     state.enemies = [];
   }

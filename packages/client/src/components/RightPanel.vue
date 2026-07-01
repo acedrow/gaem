@@ -45,17 +45,47 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
           type="button"
           class="tab"
           :class="{ active: activeTab === 'console' }"
+          title="Console"
+          aria-label="Console"
           @click="activeTab = 'console'"
         >
-          Console
+          <svg class="tab-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <rect x="1.75" y="2.75" width="12.5" height="10.5" rx="1.5" stroke="currentColor" stroke-width="1.25" />
+            <path d="M9.5 5.5L6.5 10.5" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" />
+          </svg>
         </button>
         <button
           type="button"
           class="tab"
           :class="{ active: activeTab === 'info' }"
+          title="Info"
+          aria-label="Info"
           @click="activeTab = 'info'"
         >
-          Info
+          <svg class="tab-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.25" />
+            <circle cx="8" cy="5.25" r="0.75" fill="currentColor" />
+            <path d="M8 7.25v4" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="tab"
+          :class="{ active: activeTab === 'turnOrder' }"
+          title="Turn order"
+          aria-label="Turn order"
+          @click="activeTab = 'turnOrder'"
+        >
+          <svg class="tab-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M4 2.5h8M4 13.5h8" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" />
+            <path
+              d="M6 2.5v2.25l2 2.25-2 2.25v2.25M10 2.5v2.25l-2 2.25 2 2.25v2.25"
+              stroke="currentColor"
+              stroke-width="1.25"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
         </button>
       </div>
 
@@ -88,6 +118,9 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
             :sheet-id="activeSheetId"
           />
           <InfoSearchPanel v-else />
+        </div>
+        <div v-show="activeTab === 'turnOrder'" class="turn-order-pane">
+          <p class="turn-order-empty">No turn order set.</p>
         </div>
       </div>
     </template>
@@ -125,15 +158,21 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
 
 .tab {
   flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: none;
   border-bottom: 2px solid transparent;
   background: transparent;
   color: #8b949e;
-  padding: 0.6rem 0.5rem;
-  font-size: 0.8rem;
-  font-weight: 600;
+  padding: 0.65rem 0.5rem;
   cursor: pointer;
   margin-bottom: -1px;
+}
+
+.tab-icon {
+  width: 1rem;
+  height: 1rem;
 }
 
 .tab:hover {
@@ -159,6 +198,21 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.turn-order-pane {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 1rem;
+}
+
+.turn-order-empty {
+  margin: 0;
+  color: #8b949e;
+  font-size: 0.9rem;
 }
 
 .panel-toggle {
