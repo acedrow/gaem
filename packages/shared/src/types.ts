@@ -16,11 +16,19 @@ export type MapTile = {
   elevation: number;
 };
 
+export type Enemy = {
+  id: string;
+  x: number;
+  y: number;
+  name?: string;
+};
+
 export type GameMap = {
   id: string;
   width: number;
   height: number;
   tiles: MapTile[];
+  enemies?: Enemy[];
 };
 
 export type Player = {
@@ -37,6 +45,7 @@ export type GameState = {
   height: number;
   tiles: MapTile[];
   players: Player[];
+  enemies: Enemy[];
 };
 
 /**
@@ -78,4 +87,7 @@ export type ClientMessage =
       nickname?: string;
       playerKey?: string;
     }
-  | { type: "move"; x: number; y: number };
+  | { type: "move"; x: number; y: number }
+  | { type: "moveEnemy"; enemyId: string; x: number; y: number }
+  | { type: "addEnemy"; x: number; y: number; name?: string }
+  | { type: "removeEnemy"; enemyId: string };

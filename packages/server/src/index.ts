@@ -6,17 +6,23 @@ import { fileURLToPath } from "node:url";
 
 import type {
   ClientMessage,
+  GaemRole,
   GameState,
   PlayerProfile,
   ServerMessage,
 } from "@gaem/shared";
 import {
+  addEnemy,
+  applyEnemyMove,
   applyMove,
   createInitialStateFromMap,
   DEFAULT_MAP_ID,
+  normalizeGameState,
   parseGameMap,
+  removeEnemy,
   removePlayer,
   resolvePlayerForJoin,
+  validateEnemyMove,
   validateMove,
 } from "@gaem/shared";
 import express from "express";
@@ -149,6 +155,8 @@ let gameState: GameState;
 const socketPlayer = new Map<WebSocket, string | null>();
 /** socket -> player profile id when joined as player */
 const socketProfile = new Map<WebSocket, string | null>();
+/** socket -> role after join */
+const socketRole = new Map<WebSocket, GaemRole | null>();
 
 function cloneState() {
   return structuredClone(gameState);
@@ -194,6 +202,7 @@ httpServer.on("upgrade", (request, socket, head) => {
 wss.on("connection", (ws: WebSocket) => {
   socketPlayer.set(ws, null);
   socketProfile.set(ws, null);
+  socketRole.set(ws, null);
   broadcastState();
 
   ws.on("message", (raw) => {
@@ -216,6 +225,7 @@ wss.on("connection", (ws: WebSocket) => {
         }
         socketPlayer.set(ws, null);
         socketProfile.set(ws, null);
+        socketRole.set(ws, "gm");
         broadcastState();
         return;
       }
@@ -251,6 +261,42 @@ wss.on("connection", (ws: WebSocket) => {
       }
       socketPlayer.set(ws, resolved.playerId);
       socketProfile.set(ws, requestedProfileId);
+      socketRole.set(ws, "player");
+      broadcastState();
+      return;
+    }
+
+    const role = socketRole.get(ws);
+    if (parsed.type === "moveEnemy" || parsed.type === "addEnemy" || parsed.type === "removeEnemy") {
+      if (role !== "gm") {
+        sendError(ws, "Only the game master can manage enemies");
+        return;
+      }
+      if (parsed.type === "moveEnemy") {
+        const err = validateEnemyMove(gameState, parsed.enemyId, parsed.x, parsed.y);
+        if (err) {
+          sendError(ws, err);
+          return;
+        }
+        applyEnemyMove(gameState, parsed.enemyId, parsed.x, parsed.y);
+      } else if (parsed.type === "addEnemy") {
+        const id = randomUUID();
+        const err = addEnemy(gameState, {
+          id,
+          x: parsed.x,
+          y: parsed.y,
+          ...(parsed.name !== undefined ? { name: parsed.name } : {}),
+        });
+        if (err) {
+          sendError(ws, err);
+          return;
+        }
+      } else {
+        if (!removeEnemy(gameState, parsed.enemyId)) {
+          sendError(ws, "Unknown enemy");
+          return;
+        }
+      }
       broadcastState();
       return;
     }
@@ -274,6 +320,7 @@ wss.on("connection", (ws: WebSocket) => {
   ws.on("close", () => {
     socketPlayer.delete(ws);
     socketProfile.delete(ws);
+    socketRole.delete(ws);
   });
 });
 
@@ -284,7 +331,7 @@ async function loadMap(): Promise<void> {
   );
   const raw = await readFile(join(mapsDir, `${DEFAULT_MAP_ID}.json`), "utf8");
   const map = parseGameMap(JSON.parse(raw));
-  gameState = createInitialStateFromMap(map);
+  gameState = normalizeGameState(createInitialStateFromMap(map));
 }
 
 loadMap()

@@ -1,4 +1,4 @@
-import type { GameMap, GameState, MapTile, TerrainType } from "./types.js";
+import type { Enemy, GameMap, GameState, MapTile, TerrainType } from "./types.js";
 import { TERRAIN_TYPES } from "./types.js";
 
 const BLOCKING_TERRAIN = new Set<TerrainType>(["impassable", "obstacle", "void"]);
@@ -115,7 +115,65 @@ export function parseGameMap(raw: unknown): GameMap {
     });
   }
 
-  return { id: id.trim(), width: w, height: h, tiles };
+  const enemies = parseMapEnemies(obj.enemies, w, h);
+
+  return { id: id.trim(), width: w, height: h, tiles, enemies };
+}
+
+function parseMapEnemies(raw: unknown, width: number, height: number): Enemy[] | undefined {
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw)) {
+    throw new Error("Map enemies must be an array");
+  }
+
+  const seenIds = new Set<string>();
+  const seenPositions = new Set<string>();
+  const enemies: Enemy[] = [];
+
+  for (const entry of raw) {
+    if (!entry || typeof entry !== "object") {
+      throw new Error("Each enemy must be an object");
+    }
+    const e = entry as Record<string, unknown>;
+
+    const id = e.id;
+    if (typeof id !== "string" || !id.trim()) {
+      throw new Error("Enemy id must be a non-empty string");
+    }
+    if (seenIds.has(id)) {
+      throw new Error(`Duplicate enemy id: ${id}`);
+    }
+    seenIds.add(id);
+
+    const x = e.x;
+    const y = e.y;
+    if (!Number.isInteger(x) || !Number.isInteger(y)) {
+      throw new Error(`Enemy ${id} x and y must be integers`);
+    }
+    if ((x as number) < 0 || (x as number) >= width || (y as number) < 0 || (y as number) >= height) {
+      throw new Error(`Enemy ${id} at (${x}, ${y}) is out of bounds`);
+    }
+
+    const posKey = tileKey(x as number, y as number);
+    if (seenPositions.has(posKey)) {
+      throw new Error(`Multiple enemies at (${x}, ${y})`);
+    }
+    seenPositions.add(posKey);
+
+    const name = e.name;
+    if (name !== undefined && typeof name !== "string") {
+      throw new Error(`Enemy ${id} name must be a string`);
+    }
+
+    enemies.push({
+      id: id.trim(),
+      x: x as number,
+      y: y as number,
+      ...(name !== undefined ? { name: name as string } : {}),
+    });
+  }
+
+  return enemies;
 }
 
 export function createInitialStateFromMap(map: GameMap): GameState {
@@ -125,5 +183,6 @@ export function createInitialStateFromMap(map: GameMap): GameState {
     height: map.height,
     tiles: map.tiles,
     players: [],
+    enemies: (map.enemies ?? []).map((e) => ({ ...e })),
   };
 }

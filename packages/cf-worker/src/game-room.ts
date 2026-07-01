@@ -1,11 +1,16 @@
-import type { ClientMessage, GameState, ServerMessage } from "@gaem/shared";
+import type { ClientMessage, GaemRole, GameState, ServerMessage } from "@gaem/shared";
 import {
+  addEnemy,
   addPlayer,
+  applyEnemyMove,
   applyMove,
   createInitialStateFromMap,
   DEFAULT_MAP_ID,
+  normalizeGameState,
+  removeEnemy,
   removePlayer,
   resolvePlayerForJoin,
+  validateEnemyMove,
   validateMove,
 } from "@gaem/shared";
 
@@ -13,7 +18,7 @@ import type { Env } from "./env.js";
 import { getMap } from "./maps.js";
 import { getPlayerProfile, savePlayerProfile } from "./player-profiles.js";
 
-type Attachment = { playerId: string | null; playerKey: string | null };
+type Attachment = { playerId: string | null; playerKey: string | null; role: GaemRole | null };
 
 const GAME_STATE_KEY = "gameState";
 
@@ -29,7 +34,7 @@ export class GameRoom {
     this.ctx.blockConcurrencyWhile(async () => {
       const stored = await this.ctx.storage.get<GameState>(GAME_STATE_KEY);
       if (stored) {
-        this.gameState = stored;
+        this.gameState = normalizeGameState(stored);
       } else {
         const map = await getMap(this.env, DEFAULT_MAP_ID);
         this.gameState = createInitialStateFromMap(map);
@@ -56,6 +61,7 @@ export class GameRoom {
     server.serializeAttachment({
       playerId: null,
       playerKey: null,
+      role: null,
     } satisfies Attachment);
 
     await this.broadcastState();
@@ -93,6 +99,7 @@ export class GameRoom {
         ws.serializeAttachment({
           playerId: null,
           playerKey: null,
+          role: "gm",
         } satisfies Attachment);
         await this.broadcastState();
         return;
@@ -118,13 +125,45 @@ export class GameRoom {
       const playerId = resolved.playerId;
 
       const p = this.gameState.players.find((pl) => pl.id === playerId);
-      ws.serializeAttachment({ playerId, playerKey } satisfies Attachment);
+      ws.serializeAttachment({ playerId, playerKey, role: "player" } satisfies Attachment);
       if (profile && p?.nickname && p.nickname !== profile.name) {
         await savePlayerProfile(this.env, {
           ...profile,
           name: p.nickname,
           updatedAt: new Date().toISOString(),
         });
+      }
+      await this.broadcastState();
+      return;
+    }
+
+    if (parsed.type === "moveEnemy" || parsed.type === "addEnemy" || parsed.type === "removeEnemy") {
+      if (att?.role !== "gm") {
+        this.sendError(ws, "Only the game master can manage enemies");
+        return;
+      }
+      if (parsed.type === "moveEnemy") {
+        const err = validateEnemyMove(this.gameState, parsed.enemyId, parsed.x, parsed.y);
+        if (err) {
+          this.sendError(ws, err);
+          return;
+        }
+        applyEnemyMove(this.gameState, parsed.enemyId, parsed.x, parsed.y);
+      } else if (parsed.type === "addEnemy") {
+        const id = crypto.randomUUID();
+        const err = addEnemy(this.gameState, {
+          id,
+          x: parsed.x,
+          y: parsed.y,
+          ...(parsed.name !== undefined ? { name: parsed.name } : {}),
+        });
+        if (err) {
+          this.sendError(ws, err);
+          return;
+        }
+      } else if (!removeEnemy(this.gameState, parsed.enemyId)) {
+        this.sendError(ws, "Unknown enemy");
+        return;
       }
       await this.broadcastState();
       return;
@@ -186,6 +225,7 @@ export class GameRoom {
     ws.serializeAttachment({
       playerId: null,
       playerKey: att?.playerKey ?? null,
+      role: att?.role ?? null,
     } satisfies Attachment);
   }
 

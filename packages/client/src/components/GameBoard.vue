@@ -21,6 +21,8 @@ const gameState = ref<GameState | null>(null);
 const yourPlayerId = ref<string | null>(null);
 const lastError = ref<string | null>(null);
 const hoveredKey = ref<string | null>(null);
+const selectedEnemyId = ref<string | null>(null);
+const addEnemyMode = ref(false);
 const viewportEl = ref<HTMLElement | null>(null);
 const scale = ref(1);
 const panX = ref(0);
@@ -234,6 +236,23 @@ function playerAt(x: number, y: number) {
   return gameState.value?.players.find((p) => p.x === x && p.y === y);
 }
 
+function enemyAt(x: number, y: number) {
+  return gameState.value?.enemies.find((e) => e.x === x && e.y === y);
+}
+
+function isEmptyWalkable(x: number, y: number): boolean {
+  return isWalkable(getTile(x, y)) && !playerAt(x, y) && !enemyAt(x, y);
+}
+
+function isAdjacentToSelectedEnemy(x: number, y: number): boolean {
+  const id = selectedEnemyId.value;
+  const s = gameState.value;
+  if (!id || !s) return false;
+  const enemy = s.enemies.find((e) => e.id === id);
+  if (!enemy) return false;
+  return Math.abs(x - enemy.x) + Math.abs(y - enemy.y) === 1;
+}
+
 function isAdjacentToYou(x: number, y: number): boolean {
   const id = yourPlayerId.value;
   const s = gameState.value;
@@ -252,11 +271,70 @@ function tryMove(x: number, y: number) {
   if (props.role !== "player") return;
   if (!yourPlayerId.value || !gameState.value) return;
   if (!isAdjacentToYou(x, y)) return;
+  if (enemyAt(x, y)) return;
   send({ type: "move", x, y });
 }
 
+function onGmCellClick(x: number, y: number) {
+  lastError.value = null;
+  const s = gameState.value;
+  if (!s) return;
+
+  const enemy = enemyAt(x, y);
+  if (enemy) {
+    selectedEnemyId.value = enemy.id;
+    addEnemyMode.value = false;
+    return;
+  }
+
+  if (addEnemyMode.value) {
+    if (!isEmptyWalkable(x, y)) return;
+    send({ type: "addEnemy", x, y });
+    addEnemyMode.value = false;
+    return;
+  }
+
+  const selected = selectedEnemyId.value;
+  if (!selected) return;
+  const selectedEnemy = s.enemies.find((e) => e.id === selected);
+  if (!selectedEnemy) {
+    selectedEnemyId.value = null;
+    return;
+  }
+
+  if (!isAdjacentToSelectedEnemy(x, y)) {
+    selectedEnemyId.value = null;
+    return;
+  }
+  if (!isEmptyWalkable(x, y)) return;
+  send({ type: "moveEnemy", enemyId: selected, x, y });
+}
+
+function onCellClick(x: number, y: number) {
+  if (props.role === "gm") onGmCellClick(x, y);
+  else tryMove(x, y);
+}
+
+function removeSelectedEnemy() {
+  if (!selectedEnemyId.value) return;
+  lastError.value = null;
+  send({ type: "removeEnemy", enemyId: selectedEnemyId.value });
+  selectedEnemyId.value = null;
+}
+
 function onKeydown(e: KeyboardEvent) {
-  if (props.role !== "player") return;
+  if (props.role === "gm") {
+    if (e.key === "Escape") {
+      selectedEnemyId.value = null;
+      addEnemyMode.value = false;
+      return;
+    }
+    if ((e.key === "Delete" || e.key === "Backspace") && selectedEnemyId.value) {
+      e.preventDefault();
+      removeSelectedEnemy();
+    }
+    return;
+  }
   const id = yourPlayerId.value;
   const s = gameState.value;
   if (!id || !s) return;
@@ -306,6 +384,12 @@ function connect() {
     if (msg.type === "state") {
       gameState.value = msg.state;
       yourPlayerId.value = msg.yourPlayerId;
+      if (
+        selectedEnemyId.value &&
+        !msg.state.enemies.some((e) => e.id === selectedEnemyId.value)
+      ) {
+        selectedEnemyId.value = null;
+      }
     } else if (msg.type === "error") {
       lastError.value = msg.message;
     }
@@ -343,6 +427,27 @@ onUnmounted(() => {
     <p v-if="lastError" class="error">{{ lastError }}</p>
 
     <div v-if="gameState" class="board-display">
+      <div v-if="props.role === 'gm'" class="gm-toolbar">
+        <button
+          type="button"
+          class="gm-btn"
+          :class="{ active: addEnemyMode }"
+          @click="
+            addEnemyMode = !addEnemyMode;
+            if (addEnemyMode) selectedEnemyId = null;
+          "
+        >
+          Add enemy
+        </button>
+        <button
+          type="button"
+          class="gm-btn"
+          :disabled="!selectedEnemyId"
+          @click="removeSelectedEnemy"
+        >
+          Remove
+        </button>
+      </div>
       <div ref="viewportEl" class="board-viewport" @wheel.prevent="onWheel">
         <div class="board-stage" :style="stageStyle">
           <div class="board-wrap">
@@ -358,15 +463,24 @@ onUnmounted(() => {
                   props.role === 'player' &&
                   isWalkable(getTile(c.x, c.y)) &&
                   isAdjacentToYou(c.x, c.y) &&
-                  !playerAt(c.x, c.y),
+                  !playerAt(c.x, c.y) &&
+                  !enemyAt(c.x, c.y),
+                'gm-movable':
+                  props.role === 'gm' &&
+                  !!selectedEnemyId &&
+                  isAdjacentToSelectedEnemy(c.x, c.y) &&
+                  isEmptyWalkable(c.x, c.y),
+                'gm-add-target':
+                  props.role === 'gm' && addEnemyMode && isEmptyWalkable(c.x, c.y),
               }"
               :disabled="
-                props.role !== 'player' ||
-                !isWalkable(getTile(c.x, c.y)) ||
-                !isAdjacentToYou(c.x, c.y) ||
-                !!playerAt(c.x, c.y)
+                props.role === 'player' &&
+                (!isWalkable(getTile(c.x, c.y)) ||
+                  !isAdjacentToYou(c.x, c.y) ||
+                  !!playerAt(c.x, c.y) ||
+                  !!enemyAt(c.x, c.y))
               "
-              @click="tryMove(c.x, c.y)"
+              @click="onCellClick(c.x, c.y)"
               @mouseenter="hoveredKey = c.key"
               @mouseleave="hoveredKey = null"
             >
@@ -375,6 +489,12 @@ onUnmounted(() => {
                 <span class="tooltip-row">Terrain: {{ getTile(c.x, c.y)!.terrain.join(", ") }}</span>
                 <span class="tooltip-row">Elevation: {{ getTile(c.x, c.y)!.elevation }}</span>
               </div>
+              <span
+                v-if="enemyAt(c.x, c.y)"
+                class="piece enemy"
+                :class="{ selected: enemyAt(c.x, c.y)!.id === selectedEnemyId }"
+                :title="enemyAt(c.x, c.y)!.name ?? 'Enemy'"
+              />
               <span
                 v-if="playerAt(c.x, c.y)"
                 class="piece"
@@ -414,6 +534,33 @@ onUnmounted(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  gap: 0.5rem;
+}
+.gm-toolbar {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+.gm-btn {
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  background: #21262d;
+  color: #e6edf3;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.gm-btn:hover:not(:disabled) {
+  background: #30363d;
+  border-color: #388bfd66;
+}
+.gm-btn.active {
+  background: #388bfd33;
+  border-color: #388bfd;
+}
+.gm-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 .board-viewport {
   flex: 1;
@@ -451,8 +598,12 @@ onUnmounted(() => {
 .cell.cover { background: #2d4a3e; }
 .cell.uneasy { background: #3d3520; }
 .cell.movable:not(:disabled) { cursor: pointer; outline: 1px dashed #388bfd66; }
+.cell.gm-movable { cursor: pointer; outline: 1px dashed #f8514966; }
+.cell.gm-add-target { cursor: pointer; outline: 1px dashed #3fb95066; }
 .cell:disabled:not(.impassable):not(.obstacle):not(.void) { opacity: 0.85; }
 .piece { position: absolute; inset: 4px; border-radius: 50%; display: block; z-index: 1; }
+.piece.enemy { background: hsl(0 70% 45%); z-index: 0; }
+.piece.enemy.selected { outline: 2px solid #fff; }
 .tile-tooltip {
   position: absolute;
   bottom: calc(100% + 4px);

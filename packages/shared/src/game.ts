@@ -1,20 +1,28 @@
-import type { GameState, Player } from "./types.js";
+import type { Enemy, GameState, Player } from "./types.js";
 import { isWalkable, tileAt } from "./map.js";
+
+function isOccupiedByPlayer(state: GameState, x: number, y: number): boolean {
+  return state.players.some((p) => p.x === x && p.y === y);
+}
+
+function isOccupiedByEnemy(state: GameState, x: number, y: number): boolean {
+  return state.enemies.some((e) => e.x === x && e.y === y);
+}
+
+function isOccupied(state: GameState, x: number, y: number): boolean {
+  return isOccupiedByPlayer(state, x, y) || isOccupiedByEnemy(state, x, y);
+}
 
 export function findSpawn(state: GameState): { x: number; y: number } | null {
   for (let y = 1; y < state.height - 1; y++) {
     for (let x = 1; x < state.width - 1; x++) {
       const tile = tileAt(state.tiles, x, y);
       if (!isWalkable(tile)) continue;
-      if (state.players.some((p) => p.x === x && p.y === y)) continue;
+      if (isOccupied(state, x, y)) continue;
       return { x, y };
     }
   }
   return null;
-}
-
-function isOccupied(state: GameState, x: number, y: number): boolean {
-  return state.players.some((p) => p.x === x && p.y === y);
 }
 
 export function validateMove(
@@ -50,6 +58,70 @@ export function applyMove(
   if (!player) return;
   player.x = toX;
   player.y = toY;
+}
+
+export function validateEnemyMove(
+  state: GameState,
+  enemyId: string,
+  toX: number,
+  toY: number
+): string | null {
+  const enemy = state.enemies.find((e) => e.id === enemyId);
+  if (!enemy) return "Unknown enemy";
+
+  if (toX < 0 || toY < 0 || toX >= state.width || toY >= state.height) {
+    return "Out of bounds";
+  }
+  if (!isWalkable(tileAt(state.tiles, toX, toY))) return "Blocked";
+
+  const dx = Math.abs(toX - enemy.x);
+  const dy = Math.abs(toY - enemy.y);
+  if (dx + dy !== 1) return "Must move to an adjacent tile";
+
+  if (isOccupiedByPlayer(state, toX, toY)) return "Tile occupied";
+  if (state.enemies.some((e) => e.id !== enemyId && e.x === toX && e.y === toY)) {
+    return "Tile occupied";
+  }
+
+  return null;
+}
+
+export function applyEnemyMove(
+  state: GameState,
+  enemyId: string,
+  toX: number,
+  toY: number
+): void {
+  const enemy = state.enemies.find((e) => e.id === enemyId);
+  if (!enemy) return;
+  enemy.x = toX;
+  enemy.y = toY;
+}
+
+export function validateAddEnemy(
+  state: GameState,
+  x: number,
+  y: number
+): string | null {
+  if (x < 0 || y < 0 || x >= state.width || y >= state.height) {
+    return "Out of bounds";
+  }
+  if (!isWalkable(tileAt(state.tiles, x, y))) return "Blocked";
+  if (isOccupied(state, x, y)) return "Tile occupied";
+  return null;
+}
+
+export function addEnemy(state: GameState, enemy: Enemy): string | null {
+  const err = validateAddEnemy(state, enemy.x, enemy.y);
+  if (err) return err;
+  state.enemies.push(enemy);
+  return null;
+}
+
+export function removeEnemy(state: GameState, enemyId: string): boolean {
+  const before = state.enemies.length;
+  state.enemies = state.enemies.filter((e) => e.id !== enemyId);
+  return state.enemies.length < before;
 }
 
 export function addPlayer(state: GameState, player: Player): boolean {
@@ -115,4 +187,11 @@ export function resolvePlayerForJoin(
   }
 
   return { playerId };
+}
+
+export function normalizeGameState(state: GameState): GameState {
+  if (!state.enemies) {
+    state.enemies = [];
+  }
+  return state;
 }
