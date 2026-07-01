@@ -43,10 +43,10 @@ async function loadSheets() {
       apiFetch("/api/character-sheets"),
       role.value === "gm"
         ? fetch(
-            import.meta.env.DEV
-              ? `http://${location.hostname}:3001/api/player-profiles`
-              : "/api/player-profiles"
-          )
+          import.meta.env.DEV
+            ? `http://${location.hostname}:3001/api/player-profiles`
+            : "/api/player-profiles"
+        )
         : Promise.resolve(null),
     ]);
     if (!sheetsRes.ok) throw new Error("Failed to load character sheets");
@@ -115,14 +115,7 @@ watch(sheetsVersion, () => {
 
 <template>
   <nav class="side-nav">
-    <span class="nav-link active">Game</span>
-
-    <button
-      class="nav-link nav-toggle"
-      :class="{ expanded: sheetsExpanded }"
-      type="button"
-      @click="toggleSheets"
-    >
+    <button class="nav-link nav-toggle" :class="{ expanded: sheetsExpanded }" type="button" @click="toggleSheets">
       Character Sheets
       <span class="chevron" aria-hidden="true">{{ sheetsExpanded ? "▾" : "▸" }}</span>
     </button>
@@ -131,14 +124,8 @@ watch(sheetsVersion, () => {
       <p v-if="loading" class="sublist-muted">Loading…</p>
       <p v-else-if="loadError" class="sublist-error">{{ loadError }}</p>
       <template v-else>
-        <button
-          v-for="sheet in sheets"
-          :key="sheet.id"
-          class="sheet-item"
-          :class="{ selected: selectedSheetId === sheet.id }"
-          type="button"
-          @click="selectSheet(sheet.id)"
-        >
+        <button v-for="sheet in sheets" :key="sheet.id" class="sheet-item"
+          :class="{ selected: selectedSheetId === sheet.id }" type="button" @click="selectSheet(sheet.id)">
           <span class="sheet-name">{{ sheet.name }}</span>
           <span v-if="role === 'gm'" class="sheet-meta">
             {{ profileNameById.get(sheet.player) ?? sheet.player }}
@@ -200,12 +187,9 @@ watch(sheetsVersion, () => {
 
         <div class="modal-actions">
           <button class="cta secondary" type="button" @click="showCreate = false">Cancel</button>
-          <button
-            class="cta"
-            type="button"
+          <button class="cta" type="button"
             :disabled="creating || !createForm.name || !createForm.class || !createForm.armor || !createForm.weapon || (role === 'gm' && !createForm.player)"
-            @click="createSheet"
-          >
+            @click="createSheet">
             {{ creating ? "Creating…" : "Create" }}
           </button>
         </div>

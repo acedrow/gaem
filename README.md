@@ -41,7 +41,7 @@ Requires Node 22 (`nvm use`).
 ```bash
 npm install
 npm run dev          # shared watch + local server (3001) + client (Vite)
-npm run dev:cf       # build client, sync maps, run wrangler dev
+npm run dev:cf       # shared + client watch, sync maps, wrangler dev (hot reload)
 npm run deploy:cf    # build and deploy to Cloudflare (main branch via CI)
 ```
 
