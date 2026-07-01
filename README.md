@@ -1,6 +1,6 @@
-# gaem
+# 
 
-A browser-based tabletop game with a shared grid map, real-time player movement, and character sheet management. Players join as a profile and move on the board; a GM can observe without controlling a token.
+browser based hellpiercers-implementation
 
 ## Packages
 

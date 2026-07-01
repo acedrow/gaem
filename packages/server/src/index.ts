@@ -11,12 +11,12 @@ import type {
   ServerMessage,
 } from "@gaem/shared";
 import {
-  addPlayer,
   applyMove,
   createInitialStateFromMap,
   DEFAULT_MAP_ID,
   parseGameMap,
   removePlayer,
+  resolvePlayerForJoin,
   validateMove,
 } from "@gaem/shared";
 import express from "express";
@@ -237,22 +237,19 @@ wss.on("connection", (ws: WebSocket) => {
         return;
       }
 
-      if (!currentId) {
-        const playerId = randomUUID();
-        const joined = addPlayer(gameState, { id: playerId, x: 0, y: 0 });
-        if (!joined) {
-          sendError(ws, "Board full");
-          return;
-        }
-        socketPlayer.set(ws, playerId);
+      const profile = playerProfiles.get(requestedProfileId);
+      const nickname = profile?.name ?? parsed.nickname;
+      const resolved = resolvePlayerForJoin(gameState, {
+        playerKey: requestedProfileId,
+        nickname,
+        preferredId: currentId,
+        newId: randomUUID(),
+      });
+      if ("error" in resolved) {
+        sendError(ws, "Board full");
+        return;
       }
-
-      const id = socketPlayer.get(ws);
-      if (id) {
-        const p = gameState.players.find((pl) => pl.id === id);
-        const profile = playerProfiles.get(requestedProfileId);
-        if (p) p.nickname = profile?.name ?? parsed.nickname;
-      }
+      socketPlayer.set(ws, resolved.playerId);
       socketProfile.set(ws, requestedProfileId);
       broadcastState();
       return;
@@ -275,11 +272,8 @@ wss.on("connection", (ws: WebSocket) => {
   });
 
   ws.on("close", () => {
-    const id = socketPlayer.get(ws);
-    if (id) removePlayer(gameState, id);
     socketPlayer.delete(ws);
     socketProfile.delete(ws);
-    broadcastState();
   });
 });
 

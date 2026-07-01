@@ -89,7 +89,6 @@ function joinAsSelectedPlayer() {
 
 <template>
   <div class="landing">
-    <h1 class="title">Gaem</h1>
     <p class="subtitle">Choose how you want to join the game.</p>
     <div class="actions">
       <button class="cta" @click="joinAsGm">Join game as GM</button>

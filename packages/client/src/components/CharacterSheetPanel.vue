@@ -8,18 +8,19 @@ import {
   PLAYER_CLASSES,
   PLAYER_WEAPONS,
 } from "@gaem/shared";
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
-import { RouterLink, useRoute, useRouter } from "vue-router";
+import { computed, onUnmounted, ref, watch } from "vue";
 
 import { useApi } from "../composables/useApi.js";
+import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
 import { useSession } from "../composables/useSession.js";
 
 type PlayerProfileOption = PlayerProfile & { isActive?: boolean };
 
-const route = useRoute();
-const router = useRouter();
+const props = defineProps<{ sheetId: string }>();
+
 const { apiFetch, fetchPortraitUrl } = useApi();
 const { role } = useSession();
+const { selectSheet, notifySheetsChanged } = useCharacterSheetSelection();
 
 const sheet = ref<CharacterSheet | null>(null);
 const profiles = ref<PlayerProfileOption[]>([]);
@@ -42,8 +43,6 @@ const selectedClass = computed(() => getClassByName(form.value.class));
 const selectedArmor = computed(() => getArmorByName(form.value.armor));
 const selectedWeapon = computed(() => getWeaponByName(form.value.weapon));
 
-const sheetId = computed(() => route.params.id as string);
-
 async function loadProfiles() {
   if (role.value !== "gm") return;
   const res = await fetch(
@@ -63,14 +62,14 @@ async function loadPortrait() {
     portraitUrl.value = null;
   }
   if (!sheet.value?.portraitKey) return;
-  portraitUrl.value = await fetchPortraitUrl(sheetId.value);
+  portraitUrl.value = await fetchPortraitUrl(props.sheetId);
 }
 
 async function loadSheet() {
   loading.value = true;
   error.value = null;
   try {
-    const res = await apiFetch(`/api/character-sheets/${sheetId.value}`);
+    const res = await apiFetch(`/api/character-sheets/${props.sheetId}`);
     if (!res.ok) throw new Error("Character sheet not found");
     const data = (await res.json()) as { sheet: CharacterSheet };
     sheet.value = data.sheet;
@@ -103,7 +102,7 @@ async function saveSheet() {
     };
     if (role.value === "gm") body.player = form.value.player;
 
-    const res = await apiFetch(`/api/character-sheets/${sheetId.value}`, {
+    const res = await apiFetch(`/api/character-sheets/${props.sheetId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -114,6 +113,7 @@ async function saveSheet() {
     }
     const data = (await res.json()) as { sheet: CharacterSheet };
     sheet.value = data.sheet;
+    notifySheetsChanged();
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Unable to save";
   } finally {
@@ -126,11 +126,12 @@ async function deleteSheet() {
   deleting.value = true;
   error.value = null;
   try {
-    const res = await apiFetch(`/api/character-sheets/${sheetId.value}`, {
+    const res = await apiFetch(`/api/character-sheets/${props.sheetId}`, {
       method: "DELETE",
     });
     if (!res.ok) throw new Error("Failed to delete");
-    await router.push("/character-sheets");
+    notifySheetsChanged();
+    selectSheet(null);
   } catch {
     error.value = "Unable to delete character sheet";
   } finally {
@@ -146,7 +147,7 @@ async function onPortraitSelected(event: Event) {
   uploading.value = true;
   error.value = null;
   try {
-    const res = await apiFetch(`/api/character-sheets/${sheetId.value}/portrait`, {
+    const res = await apiFetch(`/api/character-sheets/${props.sheetId}/portrait`, {
       method: "PUT",
       headers: { "Content-Type": file.type },
       body: file,
@@ -166,31 +167,32 @@ async function onPortraitSelected(event: Event) {
   }
 }
 
-watch(sheetId, loadSheet);
-onMounted(async () => {
-  await loadProfiles();
-  await loadSheet();
-});
+watch(
+  () => props.sheetId,
+  async (id) => {
+    if (!id) return;
+    await loadProfiles();
+    await loadSheet();
+  },
+  { immediate: true }
+);
+
 onUnmounted(() => {
   if (portraitUrl.value) URL.revokeObjectURL(portraitUrl.value);
 });
 </script>
 
 <template>
-  <div class="page">
-    <RouterLink class="back-link" to="/character-sheets">← All sheets</RouterLink>
+  <div class="panel">
+    <div class="panel-header">
+      <h2 class="panel-title">{{ form.name || "Character sheet" }}</h2>
+      <button class="close-btn" type="button" title="Close" @click="selectSheet(null)">×</button>
+    </div>
 
     <p v-if="loading" class="muted">Loading…</p>
     <p v-else-if="error && !sheet" class="error">{{ error }}</p>
 
     <template v-else-if="sheet">
-      <div class="header">
-        <h1 class="title">{{ form.name || "Character sheet" }}</h1>
-        <button class="cta danger" type="button" :disabled="deleting" @click="deleteSheet">
-          {{ deleting ? "Deleting…" : "Delete" }}
-        </button>
-      </div>
-
       <p v-if="error" class="error">{{ error }}</p>
 
       <div class="layout">
@@ -254,25 +256,30 @@ onUnmounted(() => {
             </select>
           </label>
 
-          <button class="cta" type="submit" :disabled="saving">
-            {{ saving ? "Saving…" : "Save changes" }}
-          </button>
+          <div class="form-actions">
+            <button class="cta" type="submit" :disabled="saving">
+              {{ saving ? "Saving…" : "Save" }}
+            </button>
+            <button class="cta danger" type="button" :disabled="deleting" @click="deleteSheet">
+              {{ deleting ? "Deleting…" : "Delete" }}
+            </button>
+          </div>
         </form>
       </div>
 
       <section v-if="selectedClass" class="detail-section">
-        <h2 class="section-title">{{ selectedClass.name }}</h2>
+        <h3 class="section-title">{{ selectedClass.name }}</h3>
         <p class="summary">{{ selectedClass.summary }}</p>
         <p class="body-text">{{ selectedClass.description }}</p>
       </section>
 
       <section v-if="selectedArmor" class="detail-section">
-        <h2 class="section-title">{{ selectedArmor.name }}</h2>
+        <h3 class="section-title">{{ selectedArmor.name }}</h3>
         <p class="summary">{{ selectedArmor.summary }}</p>
       </section>
 
       <section v-if="selectedWeapon" class="detail-section">
-        <h2 class="section-title">{{ selectedWeapon.name }}</h2>
+        <h3 class="section-title">{{ selectedWeapon.name }}</h3>
         <p class="body-text">{{ selectedWeapon.description }}</p>
       </section>
     </template>
@@ -280,41 +287,58 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.page { max-width: 720px; }
-.back-link {
-  display: inline-block;
-  margin-bottom: 1rem;
-  color: #8b949e;
-  text-decoration: none;
-  font-size: 0.9rem;
+.panel {
+  height: 100%;
+  overflow-y: auto;
+  padding: 1rem;
 }
-.back-link:hover { color: #e6edf3; }
-.header {
+
+.panel-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.5rem;
   margin-bottom: 1rem;
 }
-.title {
+
+.panel-title {
   margin: 0;
-  font-size: 1.35rem;
+  font-size: 1.1rem;
   font-weight: 700;
+  line-height: 1.3;
 }
+
+.close-btn {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: #8b949e;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.15rem;
+}
+
+.close-btn:hover {
+  color: #e6edf3;
+}
+
 .layout {
-  display: grid;
-  grid-template-columns: 160px 1fr;
-  gap: 1.25rem;
-  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
 }
+
 .portrait-block {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
+
 .portrait-frame {
-  width: 160px;
-  height: 160px;
+  width: 120px;
+  height: 120px;
   border: 1px solid #30363d;
   border-radius: 10px;
   overflow: hidden;
@@ -322,31 +346,39 @@ onUnmounted(() => {
   display: grid;
   place-items: center;
 }
+
 .portrait {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
+
 .portrait-placeholder {
   color: #8b949e;
   font-size: 0.85rem;
 }
+
 .upload-btn {
+  width: fit-content;
   border: 1px solid #30363d;
   border-radius: 8px;
   background: #161b22;
   color: #e6edf3;
   padding: 0.45rem 0.55rem;
   font-size: 0.85rem;
-  text-align: center;
   cursor: pointer;
 }
-.upload-btn:hover { background: #1f2937; }
+
+.upload-btn:hover {
+  background: #1f2937;
+}
+
 .form {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.65rem;
 }
+
 .field {
   display: flex;
   flex-direction: column;
@@ -354,44 +386,76 @@ onUnmounted(() => {
   font-size: 0.85rem;
   color: #8b949e;
 }
+
 .input {
   border: 1px solid #30363d;
   border-radius: 8px;
   background: #0d1117;
   color: #e6edf3;
-  padding: 0.55rem 0.65rem;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.9rem;
 }
+
+.form-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+}
+
 .cta {
-  align-self: flex-start;
   border: 1px solid #30363d;
-  border-radius: 10px;
+  border-radius: 8px;
   background: #161b22;
   color: #e6edf3;
-  padding: 0.55rem 0.85rem;
+  padding: 0.45rem 0.75rem;
   cursor: pointer;
   font-weight: 600;
+  font-size: 0.85rem;
 }
-.cta:hover { background: #1f2937; }
-.cta:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.cta:hover {
+  background: #1f2937;
+}
+
+.cta:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .danger {
   border-color: #f8514966;
   color: #f85149;
 }
+
 .detail-section {
-  margin-top: 1.25rem;
-  padding-top: 1rem;
+  margin-top: 1rem;
+  padding-top: 0.85rem;
   border-top: 1px solid #30363d;
 }
+
 .section-title {
   margin: 0 0 0.35rem;
-  font-size: 1rem;
+  font-size: 0.95rem;
 }
-.summary { color: #8b949e; margin: 0 0 0.5rem; font-size: 0.9rem; }
-.body-text { margin: 0; font-size: 0.9rem; line-height: 1.5; }
-.muted { color: #8b949e; }
-.error { color: #f85149; }
-@media (max-width: 560px) {
-  .layout { grid-template-columns: 1fr; }
-  .portrait-frame { width: 100%; max-width: 200px; }
+
+.summary {
+  color: #8b949e;
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+}
+
+.body-text {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.muted {
+  color: #8b949e;
+}
+
+.error {
+  color: #f85149;
 }
 </style>

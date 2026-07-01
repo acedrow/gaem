@@ -28,6 +28,7 @@ export type Player = {
   x: number;
   y: number;
   nickname?: string;
+  playerKey?: string;
 };
 
 export type GameState = {

@@ -5,6 +5,7 @@ import {
   createInitialStateFromMap,
   DEFAULT_MAP_ID,
   removePlayer,
+  resolvePlayerForJoin,
   validateMove,
 } from "@gaem/shared";
 
@@ -103,18 +104,20 @@ export class GameRoom {
         return;
       }
       const profile = await getPlayerProfile(this.env, playerKey);
-      let playerId = currentId;
-      if (!playerId) {
-        playerId = crypto.randomUUID();
-        const joined = addPlayer(this.gameState, { id: playerId, x: 0, y: 0 });
-        if (!joined) {
-          this.sendError(ws, "Board full");
-          return;
-        }
+      const nickname = parsed.nickname ?? profile?.name;
+      const resolved = resolvePlayerForJoin(this.gameState, {
+        playerKey,
+        nickname,
+        preferredId: currentId,
+        newId: crypto.randomUUID(),
+      });
+      if ("error" in resolved) {
+        this.sendError(ws, "Board full");
+        return;
       }
+      const playerId = resolved.playerId;
 
       const p = this.gameState.players.find((pl) => pl.id === playerId);
-      if (p) p.nickname = parsed.nickname ?? profile?.name;
       ws.serializeAttachment({ playerId, playerKey } satisfies Attachment);
       if (profile && p?.nickname && p.nickname !== profile.name) {
         await savePlayerProfile(this.env, {
@@ -163,29 +166,27 @@ export class GameRoom {
     const att = ws.deserializeAttachment() as Attachment | null;
     const playerId = att?.playerId;
     const playerKey = att?.playerKey;
-    if (playerId) {
-      const movedPlayer = this.gameState.players.find((pl) => pl.id === playerId);
-      removePlayer(this.gameState, playerId);
-      if (playerKey) {
-        const profile = await getPlayerProfile(this.env, playerKey);
-        if (profile) {
-          await savePlayerProfile(this.env, {
-            ...profile,
-            name: movedPlayer?.nickname ?? profile.name,
-            updatedAt: new Date().toISOString(),
-            data: {
-              ...profile.data,
-              lastSeenAt: new Date().toISOString(),
-            },
-          });
-        }
+    if (playerKey) {
+      const player = playerId
+        ? this.gameState.players.find((pl) => pl.id === playerId)
+        : undefined;
+      const profile = await getPlayerProfile(this.env, playerKey);
+      if (profile) {
+        await savePlayerProfile(this.env, {
+          ...profile,
+          name: player?.nickname ?? profile.name,
+          updatedAt: new Date().toISOString(),
+          data: {
+            ...profile.data,
+            lastSeenAt: new Date().toISOString(),
+          },
+        });
       }
-      ws.serializeAttachment({
-        playerId: null,
-        playerKey: att?.playerKey ?? null,
-      } satisfies Attachment);
-      await this.broadcastState();
     }
+    ws.serializeAttachment({
+      playerId: null,
+      playerKey: att?.playerKey ?? null,
+    } satisfies Attachment);
   }
 
   private sendError(ws: WebSocket, message: string): void {

@@ -62,3 +62,57 @@ export function addPlayer(state: GameState, player: Player): boolean {
 export function removePlayer(state: GameState, playerId: string): void {
   state.players = state.players.filter((p) => p.id !== playerId);
 }
+
+function playerMatchesProfile(
+  player: Player,
+  playerKey: string,
+  nickname?: string
+): boolean {
+  if (player.playerKey === playerKey) return true;
+  return nickname !== undefined && !player.playerKey && player.nickname === nickname;
+}
+
+export function resolvePlayerForJoin(
+  state: GameState,
+  opts: {
+    playerKey: string;
+    nickname?: string;
+    preferredId?: string | null;
+    newId: string;
+  }
+): { playerId: string } | { error: "board_full" } {
+  const { playerKey, nickname, preferredId, newId } = opts;
+  const isMatch = (p: Player) => playerMatchesProfile(p, playerKey, nickname);
+  const matches = state.players.filter(isMatch);
+
+  let playerId: string | null = null;
+  if (preferredId && state.players.some((p) => p.id === preferredId)) {
+    playerId = preferredId;
+  } else if (matches.length > 0) {
+    playerId = matches[0]!.id;
+  }
+
+  if (!playerId) {
+    const joined = addPlayer(state, {
+      id: newId,
+      x: 0,
+      y: 0,
+      playerKey,
+      nickname,
+    });
+    if (!joined) return { error: "board_full" };
+    return { playerId: newId };
+  }
+
+  for (const dup of state.players.filter((p) => p.id !== playerId && isMatch(p))) {
+    removePlayer(state, dup.id);
+  }
+
+  const player = state.players.find((p) => p.id === playerId);
+  if (player) {
+    player.playerKey = playerKey;
+    if (nickname !== undefined) player.nickname = nickname;
+  }
+
+  return { playerId };
+}

@@ -163,7 +163,6 @@ onUnmounted(() => {
 
 <template>
   <header class="header">
-    <h1 class="title">Gaem</h1>
     <p class="meta">
       Mode: <strong>{{ props.role === "gm" ? "GM" : "Player" }}</strong>
       · Status:
