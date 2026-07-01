@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "deploy": "wrangler deploy",
-    "dev": "wrangler dev"
+    "dev": "wrangler dev",
+    "sync-maps": "node scripts/sync-maps.mjs",
+    "sync-maps:local": "node scripts/sync-maps.mjs --local"
   },
   "dependencies": {
     "@gaem/shared": "*"

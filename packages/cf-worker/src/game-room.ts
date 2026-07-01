@@ -1,19 +1,21 @@
-import type { ClientMessage, ServerMessage } from "@gaem/shared";
+import type { ClientMessage, GameState, ServerMessage } from "@gaem/shared";
 import {
   addPlayer,
   applyMove,
-  createInitialState,
+  createInitialStateFromMap,
+  DEFAULT_MAP_ID,
   removePlayer,
   validateMove,
 } from "@gaem/shared";
 
 import type { Env } from "./env.js";
+import { getMap } from "./maps.js";
 import { getPlayerProfile, savePlayerProfile } from "./player-profiles.js";
 
 type Attachment = { playerId: string | null; playerKey: string | null };
 
 export class GameRoom {
-  private gameState = createInitialState();
+  private gameState!: GameState;
   private readonly env: Env;
 
   constructor(
@@ -21,6 +23,10 @@ export class GameRoom {
     env: Env
   ) {
     this.env = env;
+    this.ctx.blockConcurrencyWhile(async () => {
+      const map = await getMap(this.env, DEFAULT_MAP_ID);
+      this.gameState = createInitialStateFromMap(map);
+    });
   }
 
   async fetch(request: Request): Promise<Response> {
