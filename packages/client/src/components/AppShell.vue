@@ -2,6 +2,7 @@
 import { useRouter } from "vue-router";
 
 import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
+import { useGameConnection } from "../composables/useGameConnection.js";
 import { useSession } from "../composables/useSession.js";
 import CharacterSheetPanel from "./CharacterSheetPanel.vue";
 import GameBoard from "./GameBoard.vue";
@@ -10,6 +11,7 @@ import SideNav from "./SideNav.vue";
 const router = useRouter();
 const { role, playerProfile, clearSession } = useSession();
 const { selectedSheetId, sidebarCollapsed, rightPanelCollapsed } = useCharacterSheetSelection();
+const { connection } = useGameConnection();
 
 function leave() {
   clearSession();
@@ -21,13 +23,14 @@ function leave() {
   <div class="app-shell">
     <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
       <div v-show="!sidebarCollapsed" class="sidebar-content">
-        <div class="brand">Gaem</div>
         <SideNav />
-        <div class="session-info">
-          <span class="role-tag">{{ role === "gm" ? "GM" : "Player" }}</span>
-          <span v-if="playerProfile" class="profile-name">{{ playerProfile.name }}</span>
+        <div class="sidebar-footer">
+          <div class="session-info">
+            <span>Player: {{ role === "gm" ? "GM" : playerProfile?.name ?? "—" }}</span>
+            <span>Status: <span :class="['status-pill', connection]">{{ connection }}</span></span>
+          </div>
           <button class="leave-btn" type="button" @click="leave">
-            Leave
+            Leave game
           </button>
         </div>
       </div>
@@ -74,8 +77,7 @@ function leave() {
 <style scoped>
 .app-shell {
   display: flex;
-  min-height: calc(100vh - 3rem);
-  margin: -1.5rem;
+  height: 100vh;
   max-width: none;
 }
 
@@ -109,39 +111,62 @@ function leave() {
   letter-spacing: -0.03em;
 }
 
-.session-info {
-  padding: 0.75rem;
+.sidebar-footer {
+  margin-top: auto;
   border-top: 1px solid #30363d;
+  padding: 0.75rem;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.5rem;
 }
 
-.role-tag {
-  font-size: 0.72rem;
-  color: #d29922;
-  text-transform: uppercase;
-  font-weight: 700;
-}
-
-.profile-name {
+.session-info {
+  display: flex;
+  flex-direction: row;
+  gap: 0.75rem;
+  flex-wrap: wrap;
   font-size: 0.85rem;
   color: #8b949e;
 }
 
+.status-pill {
+  display: inline-block;
+  width: fit-content;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.status-pill.connecting {
+  background: #3d444d;
+  color: #d29922;
+}
+
+.status-pill.connected {
+  background: #23863633;
+  color: #3fb950;
+}
+
+.status-pill.disconnected {
+  background: #f8514933;
+  color: #f85149;
+}
+
 .leave-btn {
-  margin-top: 0.25rem;
-  border: 1px solid #30363d;
+  border: 1px solid #f8514966;
   border-radius: 8px;
-  background: #161b22;
-  color: #e6edf3;
+  background: #f8514922;
+  color: #f85149;
   padding: 0.4rem 0.55rem;
   cursor: pointer;
   font-size: 0.85rem;
 }
 
 .leave-btn:hover {
-  background: #1f2937;
+  background: #f8514933;
+  border-color: #f85149;
 }
 
 .main {
@@ -150,6 +175,7 @@ function leave() {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
 }
 
 .right-panel {

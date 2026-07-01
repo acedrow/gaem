@@ -167,7 +167,10 @@ function joinAsSelectedPlayer() {
   margin-bottom: 0.5rem;
 }
 
-.landing { margin-top: 2rem; }
+.landing {
+  padding: 1.5rem;
+  margin-top: 2rem;
+}
 .subtitle { color: #8b949e; margin-bottom: 1.25rem; }
 .actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
 .cta {

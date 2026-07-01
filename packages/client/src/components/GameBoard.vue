@@ -3,6 +3,8 @@ import type { ClientMessage, GameState, MapTile, ServerMessage } from "@gaem/sha
 import { isWalkable, tileAt } from "@gaem/shared";
 import { computed, onMounted, onUnmounted, ref } from "vue";
 
+import { useGameConnection } from "../composables/useGameConnection.js";
+
 const props = defineProps<{
   role: "gm" | "player";
   playerProfile?: { id: string; name: string } | null;
@@ -14,7 +16,7 @@ const wsUrl =
     ? `ws://${location.hostname}:3001/ws`
     : `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`);
 
-const connection = ref<"connecting" | "open" | "closed">("connecting");
+const { connection } = useGameConnection();
 const gameState = ref<GameState | null>(null);
 const yourPlayerId = ref<string | null>(null);
 const lastError = ref<string | null>(null);
@@ -119,7 +121,7 @@ function connect() {
   socket = new WebSocket(wsUrl);
 
   socket.addEventListener("open", () => {
-    connection.value = "open";
+    connection.value = "connected";
     send({
       type: "join",
       role: props.role,
@@ -129,7 +131,7 @@ function connect() {
   });
 
   socket.addEventListener("close", () => {
-    connection.value = "closed";
+    connection.value = "disconnected";
     socket = null;
   });
 
@@ -158,28 +160,12 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener("keydown", onKeydown);
   socket?.close();
+  connection.value = "disconnected";
 });
 </script>
 
 <template>
-  <header class="header">
-    <p class="meta">
-      Mode: <strong>{{ props.role === "gm" ? "GM" : "Player" }}</strong>
-      · Status:
-      <span :class="['pill', connection]">{{ connection }}</span>
-      <template v-if="yourPlayerId">
-        · You:
-        <code class="id">
-          {{ props.playerProfile?.name ?? `${yourPlayerId.slice(0, 8)}…` }}
-        </code>
-      </template>
-    </p>
-    <p class="hint" v-if="props.role === 'player'">
-      Click an adjacent tile or use arrow keys to move.
-    </p>
-    <p class="hint" v-else>GM is observer mode (no game piece spawned).</p>
-    <p v-if="lastError" class="error">{{ lastError }}</p>
-  </header>
+  <p v-if="lastError" class="error">{{ lastError }}</p>
 
   <div v-if="gameState" class="board-wrap">
     <div class="board" :style="gridStyle">
@@ -229,18 +215,17 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.header { margin-bottom: 1.25rem; }
-.title { margin: 0 0 0.35rem; font-size: 1.75rem; font-weight: 700; letter-spacing: -0.02em; }
-.meta { margin: 0; color: #8b949e; font-size: 0.95rem; }
-.hint { margin: 0.5rem 0 0; color: #6e7681; font-size: 0.875rem; }
-.error { margin: 0.75rem 0 0; color: #f85149; font-size: 0.9rem; }
-.id { color: #79c0ff; font-size: 0.85rem; }
-.pill { display: inline-block; padding: 0.1rem 0.45rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; text-transform: capitalize; }
-.pill.connecting { background: #3d444d; color: #d29922; }
-.pill.open { background: #23863633; color: #3fb950; }
-.pill.closed { background: #f8514933; color: #f85149; }
-.board-wrap { overflow: auto; border-radius: 12px; border: 1px solid #30363d; background: #161b22; padding: 0.75rem; }
-.board { display: grid; gap: 3px; width: min(100%, 520px); aspect-ratio: v-bind(boardAspectRatio); }
+.error { margin: 0 0 0.75rem; color: #f85149; font-size: 0.9rem; }
+.board-wrap {
+  width: fit-content;
+  max-width: 100%;
+  overflow: auto;
+  border-radius: 12px;
+  border: 1px solid #30363d;
+  background: #161b22;
+  padding: 0.75rem;
+}
+.board { display: grid; gap: 3px; width: min(520px, 100vw); aspect-ratio: v-bind(boardAspectRatio); }
 .cell { position: relative; border: none; border-radius: 4px; min-height: 28px; padding: 0; cursor: default; background: #21262d; }
 .cell.impassable { background: #484f58; cursor: not-allowed; }
 .cell.obstacle { background: #6e4c2a; cursor: not-allowed; }
