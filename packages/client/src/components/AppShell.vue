@@ -26,7 +26,8 @@ function leave() {
         <SideNav />
         <div class="sidebar-footer">
           <div class="session-info">
-            <span>Player: {{ role === "gm" ? "GM" : playerProfile?.name ?? "—" }}</span>
+            <span class="role-tag">{{ role === "gm" ? "GM" : "Player" }}</span>
+            <span v-if="role === 'player'">{{ playerProfile?.name ?? "—" }}</span>
             <span>Status: <span :class="['status-pill', connection]">{{ connection }}</span></span>
           </div>
           <button class="leave-btn" type="button" @click="leave">
@@ -127,6 +128,13 @@ function leave() {
   flex-wrap: wrap;
   font-size: 0.85rem;
   color: #8b949e;
+}
+
+.role-tag {
+  font-size: 0.72rem;
+  color: #d29922;
+  text-transform: uppercase;
+  font-weight: 700;
 }
 
 .status-pill {
