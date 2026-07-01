@@ -181,9 +181,9 @@ function leave() {
   flex: 1;
   padding: 1.25rem 1.5rem;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
 }
 
 .right-panel {

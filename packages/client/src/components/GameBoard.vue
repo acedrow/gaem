@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ClientMessage, GameState, MapTile, ServerMessage } from "@gaem/shared";
 import { isWalkable, tileAt } from "@gaem/shared";
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 
 import { useGameConnection } from "../composables/useGameConnection.js";
 
@@ -21,7 +21,14 @@ const gameState = ref<GameState | null>(null);
 const yourPlayerId = ref<string | null>(null);
 const lastError = ref<string | null>(null);
 const hoveredKey = ref<string | null>(null);
+const viewportEl = ref<HTMLElement | null>(null);
+const scale = ref(1);
+const panX = ref(0);
+const panY = ref(0);
 let socket: WebSocket | null = null;
+
+const MIN_SCALE = 0.2;
+const MAX_SCALE = 4;
 
 function hueFromId(id: string): number {
   let h = 0;
@@ -29,14 +36,64 @@ function hueFromId(id: string): number {
   return h % 360;
 }
 
+const boardWidthPx = computed(() => {
+  const s = gameState.value;
+  if (!s) return 520;
+  return Math.max(s.width * 40, 280);
+});
+
 const gridStyle = computed(() => {
   const s = gameState.value;
   if (!s) return {};
   return {
     gridTemplateColumns: `repeat(${s.width}, minmax(0, 1fr))`,
     gridTemplateRows: `repeat(${s.height}, minmax(0, 1fr))`,
+    width: `${boardWidthPx.value}px`,
   };
 });
+
+const stageStyle = computed(() => ({
+  transform: `translate(${panX.value}px, ${panY.value}px) scale(${scale.value})`,
+}));
+
+function fitToView() {
+  const el = viewportEl.value;
+  const s = gameState.value;
+  if (!el || !s) return;
+  const pad = 24;
+  const w = boardWidthPx.value + pad;
+  const h = w * (s.height / s.width) + pad;
+  const vw = el.clientWidth;
+  const vh = el.clientHeight;
+  if (w <= vw && h <= vh) {
+    scale.value = 1;
+    panX.value = (vw - w) / 2;
+    panY.value = (vh - h) / 2;
+  } else {
+    const fit = Math.min((vw - 16) / w, (vh - 16) / h, 1);
+    scale.value = fit;
+    panX.value = (vw - w * fit) / 2;
+    panY.value = (vh - h * fit) / 2;
+  }
+}
+
+function onWheel(e: WheelEvent) {
+  if (!viewportEl.value) return;
+  e.preventDefault();
+  const rect = viewportEl.value.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  if (e.ctrlKey || e.metaKey) {
+    const next = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale.value * Math.exp(-e.deltaY * 0.002)));
+    const ratio = next / scale.value;
+    panX.value = mx - (mx - panX.value) * ratio;
+    panY.value = my - (my - panY.value) * ratio;
+    scale.value = next;
+  } else {
+    panX.value -= e.deltaX;
+    panY.value -= e.deltaY;
+  }
+}
 
 const cells = computed(() => {
   const s = gameState.value;
@@ -152,6 +209,13 @@ function connect() {
   });
 }
 
+watch(
+  () => (gameState.value ? `${gameState.value.width}x${gameState.value.height}` : null),
+  (key) => {
+    if (key) nextTick(fitToView);
+  },
+);
+
 onMounted(() => {
   connect();
   window.addEventListener("keydown", onKeydown);
@@ -165,67 +229,81 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <p v-if="lastError" class="error">{{ lastError }}</p>
+  <div class="game-board">
+    <p v-if="lastError" class="error">{{ lastError }}</p>
 
-  <div v-if="gameState" class="board-wrap">
-    <div class="board" :style="gridStyle">
-      <button
-        v-for="c in cells"
-        :key="c.key"
-        type="button"
-        class="cell"
-        :class="{
-          [terrainClass(getTile(c.x, c.y)) ?? '']: !!terrainClass(getTile(c.x, c.y)),
-          movable:
-            props.role === 'player' &&
-            isWalkable(getTile(c.x, c.y)) &&
-            isAdjacentToYou(c.x, c.y) &&
-            !playerAt(c.x, c.y),
-        }"
-        :disabled="
-          props.role !== 'player' ||
-          !isWalkable(getTile(c.x, c.y)) ||
-          !isAdjacentToYou(c.x, c.y) ||
-          !!playerAt(c.x, c.y)
-        "
-        @click="tryMove(c.x, c.y)"
-        @mouseenter="hoveredKey = c.key"
-        @mouseleave="hoveredKey = null"
-      >
-        <div v-if="hoveredKey === c.key && getTile(c.x, c.y)" class="tile-tooltip">
-          <span class="tooltip-row">({{ c.x }}, {{ c.y }})</span>
-          <span class="tooltip-row">Terrain: {{ getTile(c.x, c.y)!.terrain.join(", ") }}</span>
-          <span class="tooltip-row">Elevation: {{ getTile(c.x, c.y)!.elevation }}</span>
+    <div v-if="gameState" ref="viewportEl" class="board-viewport" @wheel.prevent="onWheel">
+      <div class="board-stage" :style="stageStyle">
+        <div class="board-wrap">
+          <div class="board" :style="gridStyle">
+            <button
+              v-for="c in cells"
+              :key="c.key"
+              type="button"
+              class="cell"
+              :class="{
+                [terrainClass(getTile(c.x, c.y)) ?? '']: !!terrainClass(getTile(c.x, c.y)),
+                movable:
+                  props.role === 'player' &&
+                  isWalkable(getTile(c.x, c.y)) &&
+                  isAdjacentToYou(c.x, c.y) &&
+                  !playerAt(c.x, c.y),
+              }"
+              :disabled="
+                props.role !== 'player' ||
+                !isWalkable(getTile(c.x, c.y)) ||
+                !isAdjacentToYou(c.x, c.y) ||
+                !!playerAt(c.x, c.y)
+              "
+              @click="tryMove(c.x, c.y)"
+              @mouseenter="hoveredKey = c.key"
+              @mouseleave="hoveredKey = null"
+            >
+              <div v-if="hoveredKey === c.key && getTile(c.x, c.y)" class="tile-tooltip">
+                <span class="tooltip-row">({{ c.x }}, {{ c.y }})</span>
+                <span class="tooltip-row">Terrain: {{ getTile(c.x, c.y)!.terrain.join(", ") }}</span>
+                <span class="tooltip-row">Elevation: {{ getTile(c.x, c.y)!.elevation }}</span>
+              </div>
+              <span
+                v-if="playerAt(c.x, c.y)"
+                class="piece"
+                :style="{
+                  background: `hsl(${hueFromId(playerAt(c.x, c.y)!.id)} 70% 45%)`,
+                  outline:
+                    playerAt(c.x, c.y)!.id === yourPlayerId ? '2px solid #fff' : undefined,
+                }"
+                :title="playerAt(c.x, c.y)!.nickname ?? playerAt(c.x, c.y)!.id"
+              />
+            </button>
+          </div>
         </div>
-        <span
-          v-if="playerAt(c.x, c.y)"
-          class="piece"
-          :style="{
-            background: `hsl(${hueFromId(playerAt(c.x, c.y)!.id)} 70% 45%)`,
-            outline:
-              playerAt(c.x, c.y)!.id === yourPlayerId ? '2px solid #fff' : undefined,
-          }"
-          :title="playerAt(c.x, c.y)!.nickname ?? playerAt(c.x, c.y)!.id"
-        />
-      </button>
+      </div>
     </div>
-  </div>
 
-  <p v-else class="loading">Loading board…</p>
+    <p v-else class="loading">Loading board…</p>
+  </div>
 </template>
 
 <style scoped>
+.game-board {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
 .error { margin: 0 0 0.75rem; color: #f85149; font-size: 0.9rem; }
-.board-wrap {
-  width: fit-content;
-  max-width: 100%;
-  overflow: auto;
+.board-viewport {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
   border-radius: 12px;
   border: 1px solid #30363d;
   background: #161b22;
-  padding: 0.75rem;
 }
-.board { display: grid; gap: 3px; width: min(520px, 100vw); aspect-ratio: v-bind(boardAspectRatio); }
+.board-stage { transform-origin: 0 0; will-change: transform; }
+.board-wrap { width: fit-content; padding: 0.75rem; }
+.board { display: grid; gap: 3px; aspect-ratio: v-bind(boardAspectRatio); }
 .cell { position: relative; border: none; border-radius: 4px; min-height: 28px; padding: 0; cursor: default; background: #21262d; }
 .cell.impassable { background: #484f58; cursor: not-allowed; }
 .cell.obstacle { background: #6e4c2a; cursor: not-allowed; }
