@@ -1,7 +1,172 @@
-import type { Enemy, GameState, Player } from "./types.js";
+import type { Enemy, GameState, GaemRole, PhaseAction, Player } from "./types.js";
+import { playerLabel } from "./console.js";
 import { getEnemyMaxHpByName } from "./enemy-data.js";
 import { getClassMaxHp } from "./player-data.js";
 import { isWalkable, tileAt } from "./map.js";
+
+export function createInitialRoundState(): Pick<
+  GameState,
+  "round" | "roundPhase" | "turn" | "actedPlayerIds"
+> {
+  return {
+    round: 1,
+    roundPhase: "startRoundEffects",
+    turn: { role: "gm" },
+    actedPlayerIds: [],
+  };
+}
+
+export function remainingPlayerIds(state: GameState): string[] {
+  return state.players
+    .filter((p) => !state.actedPlayerIds.includes(p.id))
+    .map((p) => p.id);
+}
+
+export function canPlayerMove(state: GameState, playerId: string): boolean {
+  return (
+    state.roundPhase === "playerTurn" &&
+    state.turn?.role === "player" &&
+    state.turn.playerId === playerId
+  );
+}
+
+export function canGmMoveEnemies(state: GameState): boolean {
+  return state.roundPhase === "gmTurn" && state.turn?.role === "gm";
+}
+
+export function enterPlayersChoice(state: GameState): string {
+  const remaining = remainingPlayerIds(state);
+  if (remaining.length === 0) {
+    state.roundPhase = "gmTurn";
+    state.turn = { role: "gm" };
+    return "No players left to act — GM turn";
+  }
+  if (remaining.length === 1) {
+    const playerId = remaining[0]!;
+    state.roundPhase = "playerTurn";
+    state.turn = { role: "player", playerId };
+    const player = state.players.find((p) => p.id === playerId);
+    return `${playerLabel(player!)} took their turn`;
+  }
+  state.roundPhase = "playersChoice";
+  state.turn = null;
+  return "Advanced to players' choice";
+}
+
+export type PhaseActionContext = {
+  role: GaemRole;
+  playerId: string | null;
+};
+
+export function validatePhaseAction(
+  state: GameState,
+  action: PhaseAction,
+  ctx: PhaseActionContext
+): string | null {
+  switch (action) {
+    case "doEffects":
+      if (ctx.role !== "gm") return "Only the game master can do that";
+      if (state.roundPhase !== "startRoundEffects") return "Wrong phase";
+      return null;
+    case "takeTurn":
+      if (ctx.role !== "player" || !ctx.playerId) return "Only players can take a turn";
+      if (state.roundPhase !== "playersChoice") return "Wrong phase";
+      if (state.actedPlayerIds.includes(ctx.playerId)) return "Already acted this round";
+      if (!state.players.some((p) => p.id === ctx.playerId)) return "Unknown player";
+      return null;
+    case "endPlayerTurn":
+      if (ctx.role !== "player" || !ctx.playerId) return "Only players can end their turn";
+      if (state.roundPhase !== "playerTurn") return "Wrong phase";
+      if (state.turn?.role !== "player" || state.turn.playerId !== ctx.playerId) {
+        return "Not your turn";
+      }
+      return null;
+    case "endGmTurn":
+      if (ctx.role !== "gm") return "Only the game master can do that";
+      if (state.roundPhase !== "gmTurn") return "Wrong phase";
+      if (remainingPlayerIds(state).length === 0) return "All players have acted";
+      return null;
+    case "countdownTags":
+      if (ctx.role !== "gm") return "Only the game master can do that";
+      if (state.roundPhase !== "gmTurn") return "Wrong phase";
+      if (remainingPlayerIds(state).length > 0) return "Players still need to act";
+      return null;
+    case "endRound":
+      if (ctx.role !== "gm") return "Only the game master can do that";
+      if (state.roundPhase !== "countdownTags") return "Wrong phase";
+      return null;
+  }
+}
+
+export function applyPhaseAction(
+  state: GameState,
+  action: PhaseAction,
+  ctx: PhaseActionContext
+): string {
+  switch (action) {
+    case "doEffects": {
+      const msg = enterPlayersChoice(state);
+      return `Round ${state.round} — start-of-round effects resolved. ${msg}`;
+    }
+    case "takeTurn": {
+      const playerId = ctx.playerId!;
+      state.roundPhase = "playerTurn";
+      state.turn = { role: "player", playerId };
+      const player = state.players.find((p) => p.id === playerId);
+      return `${playerLabel(player!)} took their turn`;
+    }
+    case "endPlayerTurn": {
+      const playerId = ctx.playerId!;
+      if (!state.actedPlayerIds.includes(playerId)) {
+        state.actedPlayerIds.push(playerId);
+      }
+      state.roundPhase = "gmTurn";
+      state.turn = { role: "gm" };
+      const player = state.players.find((p) => p.id === playerId);
+      return `${playerLabel(player!)} ended their turn`;
+    }
+    case "endGmTurn": {
+      const msg = enterPlayersChoice(state);
+      return `GM ended turn — ${msg}`;
+    }
+    case "countdownTags": {
+      state.roundPhase = "countdownTags";
+      state.turn = { role: "gm" };
+      return "GM started tag countdown";
+    }
+    case "endRound": {
+      const endedRound = state.round;
+      state.round += 1;
+      state.roundPhase = "startRoundEffects";
+      state.turn = { role: "gm" };
+      state.actedPlayerIds = [];
+      return `Round ${endedRound} ended — starting round ${state.round}`;
+    }
+  }
+}
+
+export function turnHolderLabel(state: GameState): string {
+  const turn = state.turn;
+  if (!turn) return "—";
+  if (turn.role === "gm") return "GM";
+  const player = state.players.find((p) => p.id === turn.playerId);
+  return player ? playerLabel(player) : "Player";
+}
+
+export function roundPhaseLabel(phase: GameState["roundPhase"]): string {
+  switch (phase) {
+    case "startRoundEffects":
+      return "Start round effects";
+    case "playersChoice":
+      return "Players' choice";
+    case "playerTurn":
+      return "Player turn";
+    case "gmTurn":
+      return "GM turn";
+    case "countdownTags":
+      return "Countdown tags";
+  }
+}
 
 export function clampHp(hp: number, maxHp: number): number {
   return Math.max(0, Math.min(hp, maxHp));
@@ -48,6 +213,8 @@ export function validateMove(
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return "Unknown player";
 
+  if (!canPlayerMove(state, playerId)) return "Not your turn";
+
   if (toX < 0 || toY < 0 || toX >= state.width || toY >= state.height) {
     return "Out of bounds";
   }
@@ -82,6 +249,8 @@ export function validateEnemyMove(
 ): string | null {
   const enemy = state.enemies.find((e) => e.id === enemyId);
   if (!enemy) return "Unknown enemy";
+
+  if (!canGmMoveEnemies(state)) return "Not GM turn";
 
   if (toX < 0 || toY < 0 || toX >= state.width || toY >= state.height) {
     return "Out of bounds";
@@ -234,6 +403,7 @@ export function resolvePlayerForJoin(
       { className }
     );
     if (!joined) return { error: "board_full" };
+    state.actedPlayerIds.push(newId);
     return { playerId: newId };
   }
 
@@ -266,6 +436,18 @@ export function normalizeGameState(state: GameState): GameState {
   }
   if (!state.enemies) {
     state.enemies = [];
+  }
+  if (state.round === undefined) {
+    state.round = 1;
+  }
+  if (!state.roundPhase) {
+    state.roundPhase = "startRoundEffects";
+  }
+  if (state.turn === undefined) {
+    state.turn = { role: "gm" };
+  }
+  if (!state.actedPlayerIds) {
+    state.actedPlayerIds = [];
   }
   for (const player of state.players) {
     const maxHp = getPlayerMaxHp(player);

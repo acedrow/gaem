@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { PhaseAction } from "@gaem/shared";
+import { remainingPlayerIds, roundPhaseLabel, turnHolderLabel } from "@gaem/shared";
 import { computed } from "vue";
 import { useRouter } from "vue-router";
 
@@ -14,13 +16,64 @@ const router = useRouter();
 const { role, playerProfile, clearSession } = useSession();
 const { sidebarCollapsed } = useCharacterSheetSelection();
 const { connection } = useGameConnection();
-const { gameState } = useGameState();
+const { gameState, yourPlayerId, send } = useGameState();
 
 const mapName = computed(() => gameState.value?.mapName ?? gameState.value?.mapId ?? null);
+
+const roundStatus = computed(() => {
+  const s = gameState.value;
+  if (!s) return null;
+  return {
+    round: s.round,
+    phase: roundPhaseLabel(s.roundPhase),
+    turn: turnHolderLabel(s),
+  };
+});
+
+const phaseAction = computed((): { label: string; action: PhaseAction } | null => {
+  const s = gameState.value;
+  if (!s || !role.value) return null;
+
+  if (s.roundPhase === "startRoundEffects" && role.value === "gm") {
+    return { label: "Do effects", action: "doEffects" };
+  }
+  if (
+    s.roundPhase === "playersChoice" &&
+    role.value === "player" &&
+    yourPlayerId.value &&
+    !s.actedPlayerIds.includes(yourPlayerId.value)
+  ) {
+    return { label: "Take turn", action: "takeTurn" };
+  }
+  if (
+    s.roundPhase === "playerTurn" &&
+    role.value === "player" &&
+    yourPlayerId.value &&
+    s.turn?.role === "player" &&
+    s.turn.playerId === yourPlayerId.value
+  ) {
+    return { label: "End turn", action: "endPlayerTurn" };
+  }
+  if (s.roundPhase === "gmTurn" && role.value === "gm") {
+    if (remainingPlayerIds(s).length > 0) {
+      return { label: "End turn", action: "endGmTurn" };
+    }
+    return { label: "Countdown tags", action: "countdownTags" };
+  }
+  if (s.roundPhase === "countdownTags" && role.value === "gm") {
+    return { label: "End round", action: "endRound" };
+  }
+  return null;
+});
 
 function leave() {
   clearSession();
   router.push("/");
+}
+
+function onPhaseAction() {
+  if (!phaseAction.value) return;
+  send({ type: "phaseAction", action: phaseAction.value.action });
 }
 </script>
 
@@ -51,8 +104,19 @@ function leave() {
     </aside>
 
     <main class="main">
-      <header v-if="mapName" class="center-header">
+      <header v-if="gameState" class="center-header">
         <h1 class="map-title">{{ mapName }}</h1>
+        <p v-if="roundStatus" class="round-status">
+          Round {{ roundStatus.round }} · {{ roundStatus.phase }} · {{ roundStatus.turn }}
+        </p>
+        <button
+          v-if="phaseAction"
+          class="phase-action-btn"
+          type="button"
+          @click="onPhaseAction"
+        >
+          {{ phaseAction.label }}
+        </button>
       </header>
       <GameBoard
         v-if="role"
@@ -180,6 +244,9 @@ function leave() {
 
 .center-header {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
 .map-title {
@@ -188,6 +255,33 @@ function leave() {
   font-weight: 700;
   line-height: 1.3;
   letter-spacing: -0.02em;
+  flex-shrink: 0;
+}
+
+.round-status {
+  margin: 0;
+  flex: 1;
+  font-size: 0.9rem;
+  color: #8b949e;
+  text-align: center;
+}
+
+.phase-action-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  border: 1px solid #388bfd66;
+  border-radius: 8px;
+  background: #388bfd22;
+  color: #58a6ff;
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.phase-action-btn:hover {
+  background: #388bfd33;
+  border-color: #58a6ff;
 }
 
 .panel-toggle {

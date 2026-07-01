@@ -201,5 +201,9 @@ export function createInitialStateFromMap(map: GameMap): GameState {
       ...e,
       hp: getEnemyMaxHpByName(e.name),
     })),
+    round: 1,
+    roundPhase: "startRoundEffects",
+    turn: { role: "gm" },
+    actedPlayerIds: [],
   };
 }

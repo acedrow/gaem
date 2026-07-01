@@ -19,6 +19,7 @@ import {
   addEnemy,
   applyEnemyMove,
   applyMove,
+  applyPhaseAction,
   characterTargetLabel,
   createInitialStateFromMap,
   DEFAULT_MAP_ID,
@@ -32,6 +33,7 @@ import {
   syncPlayerSheet,
   validateEnemyMove,
   validateMove,
+  validatePhaseAction,
 } from "@gaem/shared";
 import express from "express";
 import { WebSocketServer, type WebSocket } from "ws";
@@ -472,6 +474,24 @@ wss.on("connection", (ws: WebSocket) => {
         actorForSocket(ws),
         `set ${sheet?.name ?? "Character"} class to ${parsed.class}`,
       );
+      broadcastState();
+      return;
+    }
+
+    if (parsed.type === "phaseAction") {
+      const role = socketRole.get(ws);
+      if (!role) {
+        sendError(ws, "Not joined");
+        return;
+      }
+      const ctx = { role, playerId: socketPlayer.get(ws) ?? null };
+      const err = validatePhaseAction(gameState, parsed.action, ctx);
+      if (err) {
+        sendError(ws, err);
+        return;
+      }
+      const message = applyPhaseAction(gameState, parsed.action, ctx);
+      broadcastConsole(actorForSocket(ws), message);
       broadcastState();
       return;
     }

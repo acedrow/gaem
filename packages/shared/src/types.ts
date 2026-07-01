@@ -51,6 +51,28 @@ export type Player = {
   hp?: number;
 };
 
+export const ROUND_PHASES = [
+  "startRoundEffects",
+  "playersChoice",
+  "playerTurn",
+  "gmTurn",
+  "countdownTags",
+] as const;
+
+export type RoundPhase = (typeof ROUND_PHASES)[number];
+
+export type TurnHolder =
+  | { role: "gm" }
+  | { role: "player"; playerId: string };
+
+export type PhaseAction =
+  | "doEffects"
+  | "takeTurn"
+  | "endPlayerTurn"
+  | "endGmTurn"
+  | "countdownTags"
+  | "endRound";
+
 export type GameState = {
   mapId: string;
   mapName: string;
@@ -60,6 +82,10 @@ export type GameState = {
   players: Player[];
   enemies: Enemy[];
   terrainObjects?: TerrainObject[];
+  round: number;
+  roundPhase: RoundPhase;
+  turn: TurnHolder | null;
+  actedPlayerIds: string[];
 };
 
 /**
@@ -111,4 +137,5 @@ export type ClientMessage =
   | { type: "addEnemy"; x: number; y: number; name?: string }
   | { type: "removeEnemy"; enemyId: string }
   | { type: "setPlayerHp"; playerId: string; hp: number }
-  | { type: "syncPlayerSheet"; characterSheetId: string; class: string };
+  | { type: "syncPlayerSheet"; characterSheetId: string; class: string }
+  | { type: "phaseAction"; action: PhaseAction };

@@ -4,6 +4,7 @@ import {
   addPlayer,
   applyEnemyMove,
   applyMove,
+  applyPhaseAction,
   characterTargetLabel,
   createInitialStateFromMap,
   DEFAULT_MAP_ID,
@@ -16,6 +17,7 @@ import {
   syncPlayerSheet,
   validateEnemyMove,
   validateMove,
+  validatePhaseAction,
 } from "@gaem/shared";
 
 import type { Env } from "./env.js";
@@ -282,6 +284,24 @@ export class GameRoom {
       }
       const actor = await this.actorForSocket(ws);
       this.broadcastConsole(actor, `set ${sheet?.name ?? "Character"} class to ${parsed.class}`);
+      await this.broadcastState();
+      return;
+    }
+
+    if (parsed.type === "phaseAction") {
+      if (!att?.role) {
+        this.sendError(ws, "Not joined");
+        return;
+      }
+      const ctx = { role: att.role, playerId: att.playerId };
+      const err = validatePhaseAction(this.gameState, parsed.action, ctx);
+      if (err) {
+        this.sendError(ws, err);
+        return;
+      }
+      const message = applyPhaseAction(this.gameState, parsed.action, ctx);
+      const actor = await this.actorForSocket(ws);
+      await this.broadcastConsole(actor, message);
       await this.broadcastState();
       return;
     }

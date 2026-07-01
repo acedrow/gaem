@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ClientMessage, Enemy, MapTile, Player, ServerMessage, TerrainObject } from "@gaem/shared";
-import { getEnemyMaxHp, getPlayerMaxHp, isWalkable, tileAt } from "@gaem/shared";
+import { canGmMoveEnemies, canPlayerMove, getEnemyMaxHp, getPlayerMaxHp, isWalkable, tileAt } from "@gaem/shared";
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 
 import { useBoardSelection } from "../composables/useBoardSelection.js";
@@ -310,6 +310,7 @@ function tryMove(x: number, y: number) {
   lastError.value = null;
   if (props.role !== "player") return;
   if (!yourPlayerId.value || !gameState.value) return;
+  if (!canPlayerMove(gameState.value, yourPlayerId.value)) return;
   if (!isAdjacentToYou(x, y)) return;
   if (enemyAt(x, y)) return;
   send({ type: "move", x, y });
@@ -363,7 +364,11 @@ function onGmCellClick(x: number, y: number) {
       clearBoardSelection();
       return;
     }
-    if (isAdjacentToSelectedEnemy(x, y) && isEmptyWalkable(x, y)) {
+    if (
+      canGmMoveEnemies(s) &&
+      isAdjacentToSelectedEnemy(x, y) &&
+      isEmptyWalkable(x, y)
+    ) {
       send({ type: "moveEnemy", enemyId: selected, x, y });
       return;
     }
@@ -525,12 +530,17 @@ onUnmounted(() => {
                 [terrainClass(getTile(c.x, c.y)) ?? '']: !!terrainClass(getTile(c.x, c.y)),
                 movable:
                   props.role === 'player' &&
+                  !!yourPlayerId &&
+                  !!gameState &&
+                  canPlayerMove(gameState, yourPlayerId) &&
                   isWalkable(getTile(c.x, c.y)) &&
                   isAdjacentToYou(c.x, c.y) &&
                   !playerAt(c.x, c.y) &&
                   !enemyAt(c.x, c.y),
                 'gm-movable':
                   props.role === 'gm' &&
+                  !!gameState &&
+                  canGmMoveEnemies(gameState) &&
                   !!selectedEnemyId &&
                   isAdjacentToSelectedEnemy(c.x, c.y) &&
                   isEmptyWalkable(c.x, c.y),
