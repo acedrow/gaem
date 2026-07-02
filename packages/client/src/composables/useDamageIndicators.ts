@@ -1,0 +1,70 @@
+import type { GameState } from "@gaem/shared";
+import { getEnemyMaxHp, getPlayerMaxHp } from "@gaem/shared";
+import type { Ref } from "vue";
+import { onUnmounted, ref, watch } from "vue";
+
+export type DamageIndicator = {
+  id: string;
+  x: number;
+  y: number;
+  amount: number;
+};
+
+const DURATION_MS = 3000;
+
+function snapshotUnitHp(state: GameState): Map<string, { hp: number; x: number; y: number }> {
+  const m = new Map<string, { hp: number; x: number; y: number }>();
+  for (const p of state.players) {
+    m.set(`p:${p.id}`, { hp: p.hp ?? getPlayerMaxHp(p), x: p.x, y: p.y });
+  }
+  for (const e of state.enemies) {
+    m.set(`e:${e.id}`, { hp: e.hp ?? getEnemyMaxHp(e), x: e.x, y: e.y });
+  }
+  return m;
+}
+
+export function useDamageIndicators(gameState: Ref<GameState | null>) {
+  const indicators = ref<DamageIndicator[]>([]);
+  let prev: Map<string, { hp: number; x: number; y: number }> | null = null;
+  const timers = new Set<ReturnType<typeof setTimeout>>();
+
+  function dismiss(id: string) {
+    indicators.value = indicators.value.filter((i) => i.id !== id);
+  }
+
+  function addIndicator(x: number, y: number, amount: number) {
+    const id = crypto.randomUUID();
+    indicators.value = [...indicators.value, { id, x, y, amount }];
+    const timer = setTimeout(() => {
+      dismiss(id);
+      timers.delete(timer);
+    }, DURATION_MS);
+    timers.add(timer);
+  }
+
+  watch(gameState, (state) => {
+    if (!state) {
+      prev = null;
+      return;
+    }
+    const next = snapshotUnitHp(state);
+    if (!prev) {
+      prev = next;
+      return;
+    }
+    for (const [key, cur] of next) {
+      const old = prev.get(key);
+      if (!old) continue;
+      const delta = old.hp - cur.hp;
+      if (delta > 0) addIndicator(cur.x, cur.y, delta);
+    }
+    prev = next;
+  });
+
+  onUnmounted(() => {
+    for (const timer of timers) clearTimeout(timer);
+    timers.clear();
+  });
+
+  return { indicators };
+}

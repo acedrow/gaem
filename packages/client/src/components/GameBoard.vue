@@ -34,6 +34,7 @@ import { useBoardActionMode } from "../composables/useBoardActionMode.js";
 import { useCombatActions } from "../composables/useCombatActions.js";
 import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useBoardViewport } from "../composables/useBoardViewport.js";
+import { useDamageIndicators } from "../composables/useDamageIndicators.js";
 import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
 import { useCharacterSheets } from "../composables/useCharacterSheets.js";
 import { useEnemySpawnSelection } from "../composables/useEnemySpawnSelection.js";
@@ -73,6 +74,7 @@ const selectedPlayerId = computed(() =>
   boardSelection.value?.kind === "player" ? boardSelection.value.id : null,
 );
 const { gameState, yourPlayerId } = useGameState();
+const { indicators: damageIndicators } = useDamageIndicators(gameState);
 const { sheets, loadSheets } = useCharacterSheets();
 const boardPlayers = computed(() => gameState.value?.players);
 const { portraitUrlFor } = usePortraitCache(sheets, boardPlayers);
@@ -511,6 +513,24 @@ const tooltipStyle = computed(() => {
     transform: "translate(-50%, calc(-100% - 6px))",
   };
 });
+
+function damageIndicatorStyle(x: number, y: number) {
+  const s = gameState.value;
+  if (!s) return undefined;
+  const gridW = boardWidthPx.value;
+  const gridH = gridW * (s.height / s.width);
+  const cellW = (gridW - (s.width - 1) * BOARD_CELL_GAP) / s.width;
+  const cellH = (gridH - (s.height - 1) * BOARD_CELL_GAP) / s.height;
+  const centerX = BOARD_WRAP_PAD + x * (cellW + BOARD_CELL_GAP) + cellW / 2;
+  const centerY = BOARD_WRAP_PAD + y * (cellH + BOARD_CELL_GAP) + cellH / 2;
+  const tokenBottomOffset = ((cellH - 8) / 2) * scale.value;
+  return {
+    left: `${panX.value + centerX * scale.value}px`,
+    top: `${panY.value + centerY * scale.value}px`,
+    transform: "translate(-50%, -50%)",
+    "--damage-rise": `${tokenBottomOffset}px`,
+  };
+}
 
 function playerLabel(player: Player): string {
   return player.nickname ?? player.id;
@@ -1176,6 +1196,15 @@ onUnmounted(() => {
             </span>
           </div>
         </div>
+
+        <div
+          v-for="indicator in damageIndicators"
+          :key="indicator.id"
+          class="damage-indicator"
+          :style="damageIndicatorStyle(indicator.x, indicator.y)"
+        >
+          <span class="damage-indicator-text">-{{ indicator.amount }}</span>
+        </div>
       </div>
       <button v-if="isTransformed" class="reset-zoom-btn" type="button" @click="fitToView">
         Reset zoom
@@ -1269,6 +1298,42 @@ onUnmounted(() => {
   position: absolute;
   white-space: nowrap;
   z-index: 3;
+}
+
+.damage-indicator {
+  position: absolute;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.damage-indicator-text {
+  display: inline-block;
+  font-size: 1.7rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-danger);
+  text-shadow: 0 1px 2px #0d1117cc;
+  opacity: 0;
+  animation: damage-indicator 3s ease-in-out forwards;
+}
+
+@keyframes damage-indicator {
+  0% {
+    opacity: 0;
+    transform: translateY(var(--damage-rise, 10px));
+  }
+  12% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  75% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(0);
+  }
 }
 
 .tooltip-section + .tooltip-section {

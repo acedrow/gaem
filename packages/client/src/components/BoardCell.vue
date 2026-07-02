@@ -122,7 +122,7 @@ const scaledEnemyEffects = computed(
       :style="enemyPieceStyle(cell.enemyAnchor)"
       @click.stop="emit('enemyClick')"
     >
-      <span v-if="cell.turnEnded" class="turn-ended-mark" aria-hidden="true">×</span>
+      <span v-if="cell.turnEnded" class="turn-ended-mark" aria-hidden="true"></span>
     </span>
     <span
       v-if="cell.player"
@@ -144,7 +144,7 @@ const scaledEnemyEffects = computed(
         alt=""
         class="portrait-img"
       />
-      <span v-if="cell.turnEnded" class="turn-ended-mark" aria-hidden="true">×</span>
+      <span v-if="cell.turnEnded" class="turn-ended-mark" aria-hidden="true"></span>
     </span>
     <div v-if="effectEntries.length" class="effect-badges" :style="effectBadgeStyle(cell.enemyAnchor)">
       <span
@@ -263,14 +263,27 @@ const scaledEnemyEffects = computed(
 .turn-ended-mark {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
-  background: #01040955;
-  font-size: 1.35rem;
-  font-weight: 800;
-  line-height: 1;
-  color: #f85149dd;
   pointer-events: none;
+}
+
+.turn-ended-mark::before,
+.turn-ended-mark::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 4px;
+  background: #000;
+  transform-origin: center;
+}
+
+.turn-ended-mark::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.turn-ended-mark::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
 }
 
 .piece.player-piece {
