@@ -3,12 +3,15 @@ import type { PlayerProfile } from "@gaem/shared";
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 
+import { useApi } from "../composables/useApi.js";
 import { useSession } from "../composables/useSession.js";
+import ModalDialog from "../components/ModalDialog.vue";
 
 type PlayerProfileOption = PlayerProfile & { isActive?: boolean };
 
 const router = useRouter();
 const { startSession } = useSession();
+const { apiFetch } = useApi();
 
 const showProfileModal = ref(false);
 const profiles = ref<PlayerProfileOption[]>([]);
@@ -17,10 +20,6 @@ const newProfileName = ref("");
 const loadingProfiles = ref(false);
 const creatingProfile = ref(false);
 const profileError = ref<string | null>(null);
-
-const apiBase = computed(() =>
-  import.meta.env.DEV ? `http://${location.hostname}:3001` : ""
-);
 
 const selectedProfile = computed(() => {
   if (!selectedProfileId.value) return null;
@@ -31,7 +30,7 @@ async function loadProfiles() {
   loadingProfiles.value = true;
   profileError.value = null;
   try {
-    const res = await fetch(`${apiBase.value}/api/player-profiles`);
+    const res = await apiFetch("/api/player-profiles");
     if (!res.ok) throw new Error("Failed to load profiles");
     const data = (await res.json()) as { profiles: PlayerProfileOption[] };
     profiles.value = data.profiles;
@@ -57,7 +56,7 @@ async function createProfile() {
   creatingProfile.value = true;
   profileError.value = null;
   try {
-    const res = await fetch(`${apiBase.value}/api/player-profiles`, {
+    const res = await apiFetch("/api/player-profiles", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name }),

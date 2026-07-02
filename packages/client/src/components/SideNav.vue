@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { CharacterSheet, PlayerProfile } from "@gaem/shared";
-import { PLAYER_ARMOR, PLAYER_CLASSES, PLAYER_WEAPONS } from "@gaem/shared";
 import { computed, ref, watch } from "vue";
 
 import { useApi } from "../composables/useApi.js";
@@ -10,10 +9,12 @@ import { activeTab } from "../composables/useGameConsole.js";
 import type { DataCategory } from "../composables/useInfoDataSelection.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import { useSession } from "../composables/useSession.js";
+import CharacterSheetFormFields from "./CharacterSheetFormFields.vue";
+import ModalDialog from "./ModalDialog.vue";
 
 type PlayerProfileOption = PlayerProfile & { isActive?: boolean };
 
-const { apiFetch } = useApi();
+const { apiFetch, fetchPlayerProfiles } = useApi();
 const { role } = useSession();
 const { selectedSheetId, sheetsExpanded, sheetsVersion, rightPanelCollapsed, selectSheet } =
   useCharacterSheetSelection();
@@ -46,21 +47,14 @@ async function loadSheets() {
   loading.value = true;
   loadError.value = null;
   try {
-    const profilesUrl = import.meta.env.DEV
-      ? `http://${location.hostname}:3001/api/player-profiles`
-      : "/api/player-profiles";
-    const [sheetsRes, profilesRes] = await Promise.all([
+    const [sheetsRes, profilesList] = await Promise.all([
       apiFetch("/api/character-sheets"),
-      fetch(profilesUrl),
+      fetchPlayerProfiles(),
     ]);
     if (!sheetsRes.ok) throw new Error("Failed to load character sheets");
     const sheetsData = (await sheetsRes.json()) as { sheets: CharacterSheet[] };
     sheets.value = sheetsData.sheets;
-
-    if (profilesRes.ok) {
-      const profilesData = (await profilesRes.json()) as { profiles: PlayerProfileOption[] };
-      profiles.value = profilesData.profiles;
-    }
+    profiles.value = profilesList;
   } catch {
     loadError.value = "Unable to load sheets";
   } finally {
@@ -199,65 +193,27 @@ watch(sheetsVersion, () => {
       </button>
     </div>
 
-    <div v-if="showCreate" class="modal-backdrop" @click.self="showCreate = false">
-      <div class="modal">
-        <h2 class="modal-title">New character sheet</h2>
+    <ModalDialog :open="showCreate" title="New character sheet" @close="showCreate = false">
+      <CharacterSheetFormFields
+        v-model="createForm"
+        :profiles="profiles"
+        show-player
+      />
 
-        <label class="field">
-          <span>Player profile</span>
-          <select v-model="createForm.player" class="input">
-            <option value="" disabled>Select player</option>
-            <option v-for="p in profiles" :key="p.id" :value="p.id">{{ p.name }}</option>
-          </select>
-        </label>
+      <p v-if="createError" class="sublist-error">{{ createError }}</p>
 
-        <label class="field">
-          <span>Name</span>
-          <input v-model="createForm.name" class="input" type="text" />
-        </label>
-
-        <label class="field">
-          <span>Class</span>
-          <select v-model="createForm.class" class="input">
-            <option value="" disabled>Select class</option>
-            <option v-for="c in PLAYER_CLASSES" :key="c.name" :value="c.name">
-              {{ c.name }}
-            </option>
-          </select>
-        </label>
-
-        <label class="field">
-          <span>Armor</span>
-          <select v-model="createForm.armor" class="input">
-            <option value="" disabled>Select armor</option>
-            <option v-for="a in PLAYER_ARMOR" :key="a.name" :value="a.name">
-              {{ a.name }}
-            </option>
-          </select>
-        </label>
-
-        <label class="field">
-          <span>Weapon</span>
-          <select v-model="createForm.weapon" class="input">
-            <option value="" disabled>Select weapon</option>
-            <option v-for="w in PLAYER_WEAPONS" :key="w.name" :value="w.name">
-              {{ w.name }}
-            </option>
-          </select>
-        </label>
-
-        <p v-if="createError" class="sublist-error">{{ createError }}</p>
-
-        <div class="modal-actions">
-          <button class="cta secondary" type="button" @click="showCreate = false">Cancel</button>
-          <button class="cta" type="button"
-            :disabled="creating || !createForm.player || !createForm.name || !createForm.class || !createForm.armor || !createForm.weapon"
-            @click="createSheet">
-            {{ creating ? "Creating…" : "Create" }}
-          </button>
-        </div>
-      </div>
-    </div>
+      <template #actions>
+        <button class="cta secondary" type="button" @click="showCreate = false">Cancel</button>
+        <button
+          class="cta"
+          type="button"
+          :disabled="creating || !createForm.player || !createForm.name || !createForm.class || !createForm.armor || !createForm.weapon"
+          @click="createSheet"
+        >
+          {{ creating ? "Creating…" : "Create" }}
+        </button>
+      </template>
+    </ModalDialog>
   </nav>
 </template>
 

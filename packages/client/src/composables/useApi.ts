@@ -1,12 +1,15 @@
+import type { PlayerProfile } from "@gaem/shared";
 import { computed } from "vue";
 
 import { useSession } from "./useSession.js";
+
+type PlayerProfileOption = PlayerProfile & { isActive?: boolean };
 
 export function useApi() {
   const { apiHeaders } = useSession();
 
   const apiBase = computed(() =>
-    import.meta.env.DEV ? `http://${location.hostname}:3001` : ""
+    import.meta.env.DEV ? `http://${location.hostname}:3001` : "",
   );
 
   async function apiFetch(path: string, init: RequestInit = {}) {
@@ -17,6 +20,13 @@ export function useApi() {
     return fetch(`${apiBase.value}${path}`, { ...init, headers });
   }
 
+  async function fetchPlayerProfiles(): Promise<PlayerProfileOption[]> {
+    const res = await apiFetch("/api/player-profiles");
+    if (!res.ok) return [];
+    const data = (await res.json()) as { profiles: PlayerProfileOption[] };
+    return data.profiles;
+  }
+
   async function fetchPortraitUrl(sheetId: string): Promise<string | null> {
     const res = await apiFetch(`/api/character-sheets/${sheetId}/portrait`);
     if (!res.ok) return null;
@@ -24,5 +34,5 @@ export function useApi() {
     return URL.createObjectURL(blob);
   }
 
-  return { apiBase, apiFetch, fetchPortraitUrl };
+  return { apiBase, apiFetch, fetchPlayerProfiles, fetchPortraitUrl };
 }

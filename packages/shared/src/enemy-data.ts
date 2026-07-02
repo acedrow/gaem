@@ -26,20 +26,24 @@ type EnemyFaction = {
 
 const ENEMY_FACTIONS = [paracletusJson] as EnemyFaction[];
 
+const ENEMY_LISTING_BY_KEY = new Map<string, EnemyListing>();
+
+for (const faction of ENEMY_FACTIONS) {
+  for (const enemy of faction.enemies) {
+    ENEMY_LISTING_BY_KEY.set(enemy.name.trim().toLowerCase(), enemy);
+    if (enemy.codename) {
+      ENEMY_LISTING_BY_KEY.set(enemy.codename.trim().toLowerCase(), enemy);
+    }
+  }
+}
+
 export function listEnemyListings(): EnemyListing[] {
   return ENEMY_FACTIONS.flatMap((faction) => faction.enemies);
 }
 
 function findEnemyListing(name: string | undefined): EnemyListing | undefined {
   if (!name) return undefined;
-  const normalized = name.trim().toLowerCase();
-  for (const faction of ENEMY_FACTIONS) {
-    for (const enemy of faction.enemies) {
-      if (enemy.name.toLowerCase() === normalized) return enemy;
-      if (enemy.codename?.toLowerCase() === normalized) return enemy;
-    }
-  }
-  return undefined;
+  return ENEMY_LISTING_BY_KEY.get(name.trim().toLowerCase());
 }
 
 export function getEnemyListingByName(name: string | undefined): EnemyListing | undefined {
@@ -65,6 +69,7 @@ export function enemyFootprintTiles(
   y: number,
   scale: number,
 ): { x: number; y: number }[] {
+  if (scale <= 1) return [{ x, y }];
   const tiles: { x: number; y: number }[] = [];
   for (let dy = 0; dy < scale; dy++) {
     for (let dx = 0; dx < scale; dx++) {

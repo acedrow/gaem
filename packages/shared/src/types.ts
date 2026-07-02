@@ -14,6 +14,7 @@ export type MapTile = {
   y: number;
   terrain: TerrainType[];
   elevation: number;
+  walkable?: boolean;
 };
 
 export type Enemy = {

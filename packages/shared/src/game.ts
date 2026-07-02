@@ -1,8 +1,54 @@
-import type { Enemy, GameState, GaemRole, PhaseAction, Player, TurnHolder } from "./types.js";
+import type { Enemy, GameState, GaemRole, PhaseAction, Player, TerrainObject, TurnHolder } from "./types.js";
 import { playerLabel } from "./console.js";
-import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles, enemyOccupiesTile } from "./enemy-data.js";
+import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles } from "./enemy-data.js";
 import { getClassMaxHp } from "./player-data.js";
-import { isWalkable, tileAt } from "./map.js";
+import { coordKey, isFootprintInBounds, isInBounds, isWalkable, tileAt } from "./map.js";
+import { isOrthogonallyAdjacent } from "./patterns.js";
+
+export type BoardOccupancy = {
+  playerByKey: Map<string, Player>;
+  enemyByKey: Map<string, Enemy>;
+  enemyAnchorByKey: Map<string, Enemy>;
+  terrainObjectsByKey: Map<string, TerrainObject[]>;
+};
+
+export function buildBoardOccupancy(state: GameState): BoardOccupancy {
+  const playerByKey = new Map<string, Player>();
+  for (const player of state.players) {
+    playerByKey.set(coordKey(player.x, player.y), player);
+  }
+
+  const enemyByKey = new Map<string, Enemy>();
+  const enemyAnchorByKey = new Map<string, Enemy>();
+  for (const enemy of state.enemies) {
+    enemyAnchorByKey.set(coordKey(enemy.x, enemy.y), enemy);
+    const scale = getEnemyScale(enemy);
+    for (const tile of enemyFootprintTiles(enemy.x, enemy.y, scale)) {
+      enemyByKey.set(coordKey(tile.x, tile.y), enemy);
+    }
+  }
+
+  const terrainObjectsByKey = new Map<string, TerrainObject[]>();
+  for (const object of state.terrainObjects ?? []) {
+    const key = coordKey(object.x, object.y);
+    const list = terrainObjectsByKey.get(key);
+    if (list) list.push(object);
+    else terrainObjectsByKey.set(key, [object]);
+  }
+
+  return { playerByKey, enemyByKey, enemyAnchorByKey, terrainObjectsByKey };
+}
+
+export function isTileOccupied(
+  state: GameState,
+  x: number,
+  y: number,
+  occupancy?: BoardOccupancy,
+): boolean {
+  const occ = occupancy ?? buildBoardOccupancy(state);
+  const key = coordKey(x, y);
+  return occ.playerByKey.has(key) || occ.enemyByKey.has(key);
+}
 
 export function createInitialRoundState(): Pick<
   GameState,
@@ -39,16 +85,13 @@ function resetToRoundStart(state: GameState): void {
 
 function resetToCombatStart(state: GameState): void {
   state.round = 1;
-  state.roundPhase = "deployment";
-  state.turn = { role: "gm" };
-  state.actedPlayerIds = [];
+  resetToRoundStart(state);
   state.turnLog = [];
 }
 
 export function remainingPlayerIds(state: GameState): string[] {
-  return state.players
-    .filter((p) => !state.actedPlayerIds.includes(p.id))
-    .map((p) => p.id);
+  const acted = new Set(state.actedPlayerIds);
+  return state.players.filter((p) => !acted.has(p.id)).map((p) => p.id);
 }
 
 export function canPlayerMove(state: GameState, playerId: string): boolean {
@@ -70,6 +113,31 @@ export function canGmMoveEnemies(state: GameState): boolean {
   return state.roundPhase === "gmTurn" && state.turn?.role === "gm";
 }
 
+function beginPlayerTurn(state: GameState, playerId: string): string {
+  state.roundPhase = "playerTurn";
+  state.turn = { role: "player", playerId };
+  recordTurn(state, { role: "player", playerId });
+  const player = state.players.find((p) => p.id === playerId);
+  return `${playerLabel(player!)} took their turn`;
+}
+
+function finishPlayerTurn(state: GameState, playerId: string, suffix = "ended their turn"): string {
+  if (!state.actedPlayerIds.includes(playerId)) {
+    state.actedPlayerIds.push(playerId);
+  }
+  state.roundPhase = "gmTurn";
+  state.turn = { role: "gm" };
+  const player = state.players.find((p) => p.id === playerId);
+  return `${playerLabel(player!)} ${suffix}`;
+}
+
+function advanceRound(state: GameState): string {
+  const endedRound = state.round;
+  state.round += 1;
+  resetToRoundStart(state);
+  return `Round ${endedRound} ended — starting round ${state.round}`;
+}
+
 export function enterPlayersChoice(state: GameState): string {
   const remaining = remainingPlayerIds(state);
   if (remaining.length === 0) {
@@ -78,12 +146,7 @@ export function enterPlayersChoice(state: GameState): string {
     return "No players left to act — GM turn";
   }
   if (remaining.length === 1) {
-    const playerId = remaining[0]!;
-    state.roundPhase = "playerTurn";
-    state.turn = { role: "player", playerId };
-    recordTurn(state, { role: "player", playerId });
-    const player = state.players.find((p) => p.id === playerId);
-    return `${playerLabel(player!)} took their turn`;
+    return beginPlayerTurn(state, remaining[0]!);
   }
   state.roundPhase = "playersChoice";
   state.turn = null;
@@ -98,7 +161,7 @@ export type PhaseActionContext = {
 export function validatePhaseAction(
   state: GameState,
   action: PhaseAction,
-  ctx: PhaseActionContext
+  ctx: PhaseActionContext,
 ): string | null {
   switch (action) {
     case "doEffects":
@@ -149,7 +212,7 @@ export function validatePhaseAction(
 export function applyPhaseAction(
   state: GameState,
   action: PhaseAction,
-  ctx: PhaseActionContext
+  ctx: PhaseActionContext,
 ): string {
   switch (action) {
     case "doEffects": {
@@ -157,24 +220,10 @@ export function applyPhaseAction(
       const msg = enterPlayersChoice(state);
       return `Round ${state.round} — start-of-round effects resolved. ${msg}`;
     }
-    case "takeTurn": {
-      const playerId = ctx.playerId!;
-      state.roundPhase = "playerTurn";
-      state.turn = { role: "player", playerId };
-      recordTurn(state, { role: "player", playerId });
-      const player = state.players.find((p) => p.id === playerId);
-      return `${playerLabel(player!)} took their turn`;
-    }
-    case "endPlayerTurn": {
-      const playerId = ctx.playerId!;
-      if (!state.actedPlayerIds.includes(playerId)) {
-        state.actedPlayerIds.push(playerId);
-      }
-      state.roundPhase = "gmTurn";
-      state.turn = { role: "gm" };
-      const player = state.players.find((p) => p.id === playerId);
-      return `${playerLabel(player!)} ended their turn`;
-    }
+    case "takeTurn":
+      return beginPlayerTurn(state, ctx.playerId!);
+    case "endPlayerTurn":
+      return finishPlayerTurn(state, ctx.playerId!);
     case "endGmTurn": {
       recordTurn(state, { role: "gm" });
       const msg = enterPlayersChoice(state);
@@ -186,22 +235,13 @@ export function applyPhaseAction(
       state.turn = { role: "gm" };
       return "GM started tag countdown";
     }
-    case "endRound": {
-      const endedRound = state.round;
-      state.round += 1;
-      resetToRoundStart(state);
-      return `Round ${endedRound} ended — starting round ${state.round}`;
-    }
+    case "endRound":
+    case "gmEndRound":
+      return advanceRound(state);
     case "resetRound": {
       clearCurrentRoundTurnLog(state);
       resetToRoundStart(state);
       return `Round ${state.round} reset`;
-    }
-    case "gmEndRound": {
-      const endedRound = state.round;
-      state.round += 1;
-      resetToRoundStart(state);
-      return `Round ${endedRound} ended — starting round ${state.round}`;
     }
     case "gmEndTurn": {
       switch (state.roundPhase) {
@@ -220,14 +260,7 @@ export function applyPhaseAction(
         }
         case "playerTurn": {
           if (state.turn?.role !== "player") return "No player turn in progress";
-          const playerId = state.turn.playerId;
-          if (!state.actedPlayerIds.includes(playerId)) {
-            state.actedPlayerIds.push(playerId);
-          }
-          state.roundPhase = "gmTurn";
-          state.turn = { role: "gm" };
-          const player = state.players.find((p) => p.id === playerId);
-          return `${playerLabel(player!)} turn ended (GM)`;
+          return finishPlayerTurn(state, state.turn.playerId, "turn ended (GM)");
         }
         case "gmTurn": {
           if (remainingPlayerIds(state).length > 0) {
@@ -292,6 +325,10 @@ export function clampHp(hp: number, maxHp: number): number {
   return Math.max(0, Math.min(hp, maxHp));
 }
 
+export function normalizeHp(hp: number | undefined, maxHp: number): number {
+  return clampHp(hp ?? maxHp, maxHp);
+}
+
 export function getPlayerMaxHp(player: Player): number {
   return getClassMaxHp(player.class);
 }
@@ -300,12 +337,29 @@ export function getEnemyMaxHp(enemy: Enemy): number {
   return getEnemyMaxHpByName(enemy.name);
 }
 
-function isOccupiedByPlayer(state: GameState, x: number, y: number): boolean {
-  return state.players.some((p) => p.x === x && p.y === y);
+function normalizeEnemies(enemies: Enemy[]): void {
+  for (const enemy of enemies) {
+    if (enemy.scale == null) {
+      enemy.scale = getEnemyScaleByName(enemy.name);
+    }
+    enemy.hp = normalizeHp(enemy.hp, getEnemyMaxHp(enemy));
+  }
 }
 
-function isOccupiedByEnemy(state: GameState, x: number, y: number): boolean {
-  return state.enemies.some((e) => enemyOccupiesTile(e, x, y));
+function normalizePlayers(players: Player[]): void {
+  for (const player of players) {
+    player.hp = normalizeHp(player.hp, getPlayerMaxHp(player));
+  }
+}
+
+function isOccupiedByPlayer(state: GameState, x: number, y: number, occupancy?: BoardOccupancy): boolean {
+  const occ = occupancy ?? buildBoardOccupancy(state);
+  return occ.playerByKey.has(coordKey(x, y));
+}
+
+function isOccupiedByEnemy(state: GameState, x: number, y: number, occupancy?: BoardOccupancy): boolean {
+  const occ = occupancy ?? buildBoardOccupancy(state);
+  return occ.enemyByKey.has(coordKey(x, y));
 }
 
 export function validateEnemyFootprint(
@@ -314,31 +368,34 @@ export function validateEnemyFootprint(
   y: number,
   scale: number,
   excludeEnemyId?: string,
+  occupancy?: BoardOccupancy,
 ): string | null {
   if (scale < 1) return "Invalid scale";
-  if (x < 0 || y < 0 || x + scale > state.width || y + scale > state.height) {
+  if (!isFootprintInBounds(x, y, scale, state.width, state.height)) {
     return "Out of bounds";
   }
+  const occ = occupancy ?? buildBoardOccupancy(state);
   for (const tile of enemyFootprintTiles(x, y, scale)) {
     if (!isWalkable(tileAt(state.tiles, tile.x, tile.y))) return "Blocked";
-    if (isOccupiedByPlayer(state, tile.x, tile.y)) return "Tile occupied";
-    if (state.enemies.some((e) => e.id !== excludeEnemyId && enemyOccupiesTile(e, tile.x, tile.y))) {
-      return "Tile occupied";
-    }
+    const key = coordKey(tile.x, tile.y);
+    if (occ.playerByKey.has(key)) return "Tile occupied";
+    const enemy = occ.enemyByKey.get(key);
+    if (enemy && enemy.id !== excludeEnemyId) return "Tile occupied";
   }
   return null;
 }
 
-function isOccupied(state: GameState, x: number, y: number): boolean {
-  return isOccupiedByPlayer(state, x, y) || isOccupiedByEnemy(state, x, y);
+function isOccupied(state: GameState, x: number, y: number, occupancy?: BoardOccupancy): boolean {
+  return isOccupiedByPlayer(state, x, y, occupancy) || isOccupiedByEnemy(state, x, y, occupancy);
 }
 
 export function findSpawn(state: GameState): { x: number; y: number } | null {
+  const occupancy = buildBoardOccupancy(state);
   for (let y = 1; y < state.height - 1; y++) {
     for (let x = 1; x < state.width - 1; x++) {
       const tile = tileAt(state.tiles, x, y);
       if (!isWalkable(tile)) continue;
-      if (isOccupied(state, x, y)) continue;
+      if (isOccupied(state, x, y, occupancy)) continue;
       return { x, y };
     }
   }
@@ -349,25 +406,25 @@ export function validateMove(
   state: GameState,
   playerId: string,
   toX: number,
-  toY: number
+  toY: number,
 ): string | null {
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return "Unknown player";
 
   if (!canPlayerMove(state, playerId)) return "Not your turn";
 
-  if (toX < 0 || toY < 0 || toX >= state.width || toY >= state.height) {
+  if (!isInBounds(toX, toY, state.width, state.height)) {
     return "Out of bounds";
   }
   if (!isWalkable(tileAt(state.tiles, toX, toY))) return "Blocked";
 
   if (state.roundPhase !== "deployment") {
-    const dx = Math.abs(toX - player.x);
-    const dy = Math.abs(toY - player.y);
-    if (dx + dy !== 1) return "Must move to an adjacent tile";
+    if (!isOrthogonallyAdjacent({ x: player.x, y: player.y }, { x: toX, y: toY })) {
+      return "Must move to an adjacent tile";
+    }
   }
 
-  if (isOccupied(state, toX, toY)) return "Tile occupied";
+  if (isTileOccupied(state, toX, toY)) return "Tile occupied";
 
   return null;
 }
@@ -376,7 +433,7 @@ export function applyMove(
   state: GameState,
   playerId: string,
   toX: number,
-  toY: number
+  toY: number,
 ): void {
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return;
@@ -388,16 +445,16 @@ export function validateEnemyMove(
   state: GameState,
   enemyId: string,
   toX: number,
-  toY: number
+  toY: number,
 ): string | null {
   const enemy = state.enemies.find((e) => e.id === enemyId);
   if (!enemy) return "Unknown enemy";
 
   if (!canGmMoveEnemies(state)) return "Not GM turn";
 
-  const dx = Math.abs(toX - enemy.x);
-  const dy = Math.abs(toY - enemy.y);
-  if (dx + dy !== 1) return "Must move to an adjacent tile";
+  if (!isOrthogonallyAdjacent({ x: enemy.x, y: enemy.y }, { x: toX, y: toY })) {
+    return "Must move to an adjacent tile";
+  }
 
   return validateEnemyFootprint(state, toX, toY, getEnemyScale(enemy), enemyId);
 }
@@ -406,7 +463,7 @@ export function applyEnemyMove(
   state: GameState,
   enemyId: string,
   toX: number,
-  toY: number
+  toY: number,
 ): void {
   const enemy = state.enemies.find((e) => e.id === enemyId);
   if (!enemy) return;
@@ -431,7 +488,7 @@ export function addEnemy(state: GameState, enemy: Enemy): string | null {
   state.enemies.push({
     ...enemy,
     scale,
-    hp: clampHp(enemy.hp ?? maxHp, maxHp),
+    hp: normalizeHp(enemy.hp, maxHp),
   });
   return null;
 }
@@ -445,7 +502,7 @@ export function removeEnemy(state: GameState, enemyId: string): boolean {
 export function addPlayer(
   state: GameState,
   player: Player,
-  opts?: { className?: string }
+  opts?: { className?: string },
 ): boolean {
   const spawn = findSpawn(state);
   if (!spawn) return false;
@@ -456,7 +513,7 @@ export function addPlayer(
     x: spawn.x,
     y: spawn.y,
     ...(className !== undefined ? { class: className } : {}),
-    hp: clampHp(player.hp ?? maxHp, maxHp),
+    hp: normalizeHp(player.hp, maxHp),
   });
   return true;
 }
@@ -468,7 +525,7 @@ export function removePlayer(state: GameState, playerId: string): void {
 function playerMatchesProfile(
   player: Player,
   playerKey: string,
-  nickname?: string
+  nickname?: string,
 ): boolean {
   if (player.playerKey === playerKey) return true;
   return nickname !== undefined && !player.playerKey && player.nickname === nickname;
@@ -477,7 +534,7 @@ function playerMatchesProfile(
 export function setPlayerHp(
   state: GameState,
   playerId: string,
-  hp: number
+  hp: number,
 ): string | null {
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return "Unknown player";
@@ -488,12 +545,12 @@ export function setPlayerHp(
 export function syncPlayerSheet(
   state: GameState,
   characterSheetId: string,
-  className: string
+  className: string,
 ): string | null {
   const player = state.players.find((p) => p.characterSheetId === characterSheetId);
   if (!player) return "Player not on board";
   player.class = className;
-  player.hp = clampHp(player.hp ?? getClassMaxHp(className), getClassMaxHp(className));
+  player.hp = normalizeHp(player.hp, getClassMaxHp(className));
   return null;
 }
 
@@ -506,7 +563,7 @@ export function resolvePlayerForJoin(
     newId: string;
     className?: string;
     characterSheetId?: string;
-  }
+  },
 ): { playerId: string } | { error: "board_full" } {
   const { playerKey, nickname, preferredId, newId, className, characterSheetId } = opts;
   const isMatch = (p: Player) => playerMatchesProfile(p, playerKey, nickname);
@@ -531,7 +588,7 @@ export function resolvePlayerForJoin(
         characterSheetId,
         hp: getClassMaxHp(className),
       },
-      { className }
+      { className },
     );
     if (!joined) return { error: "board_full" };
     state.actedPlayerIds.push(newId);
@@ -550,11 +607,7 @@ export function resolvePlayerForJoin(
     if (className !== undefined) {
       const maxHp = getClassMaxHp(className);
       player.class = className;
-      if (player.hp === undefined) {
-        player.hp = maxHp;
-      } else {
-        player.hp = clampHp(player.hp, maxHp);
-      }
+      player.hp = normalizeHp(player.hp, maxHp);
     }
   }
 
@@ -586,24 +639,14 @@ export function normalizeGameState(state: GameState): GameState {
   if (state.enforceTurns === undefined) {
     state.enforceTurns = true;
   }
-  for (const player of state.players) {
-    const maxHp = getPlayerMaxHp(player);
-    if (player.hp === undefined) {
-      player.hp = maxHp;
-    } else {
-      player.hp = clampHp(player.hp, maxHp);
+  for (const tile of state.tiles) {
+    if (tile.walkable === undefined) {
+      tile.walkable = !tile.terrain.some((t) =>
+        t === "impassable" || t === "obstacle" || t === "void",
+      );
     }
   }
-  for (const enemy of state.enemies) {
-    if (enemy.scale == null) {
-      enemy.scale = getEnemyScaleByName(enemy.name);
-    }
-    const maxHp = getEnemyMaxHp(enemy);
-    if (enemy.hp === undefined) {
-      enemy.hp = maxHp;
-    } else {
-      enemy.hp = clampHp(enemy.hp, maxHp);
-    }
-  }
+  normalizePlayers(state.players);
+  normalizeEnemies(state.enemies);
   return state;
 }

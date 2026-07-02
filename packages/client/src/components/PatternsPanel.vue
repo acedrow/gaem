@@ -5,10 +5,14 @@ import { computed } from "vue";
 
 import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { usePatternSelection } from "../composables/usePatternSelection.js";
+import NumberStepper from "./NumberStepper.vue";
+import PanelShell from "./PanelShell.vue";
+import SegmentedControl from "./SegmentedControl.vue";
 
 const { closeRightPanel } = useBoardSelection();
 const {
   selectedPatternId,
+  selectedPattern,
   patternSize,
   patternDirection,
   wallLopsidedExtra,
@@ -16,15 +20,12 @@ const {
   isDrawing,
   selectPattern,
   clampSize,
+  clampModifierValue,
   adjustPatternSize,
   adjustModifierValue,
   setModifierValue,
   resetDrawing,
 } = usePatternSelection();
-
-const selectedPattern = computed(() =>
-  TARGETING_PATTERNS.find((p) => p.id === selectedPatternId.value) ?? null,
-);
 
 const directions: { id: PatternDirection; label: string }[] = [
   { id: "n", label: "N" },
@@ -55,18 +56,13 @@ function onModifierInput(id: keyof PatternModifierValues, value: number) {
     <div class="controls-block">
       <div class="size-bar">
         <span class="size-label">Size</span>
-        <div class="stepper">
-          <button type="button" class="step-btn" @click="adjustPatternSize(-1)">−</button>
-          <input
-            v-model.number="patternSize"
-            type="number"
-            class="step-input"
-            min="1"
-            :max="selectedPattern?.size.max ?? 20"
-            @change="patternSize = clampSize(patternSize)"
-          />
-          <button type="button" class="step-btn" @click="adjustPatternSize(1)">+</button>
-        </div>
+        <NumberStepper
+          v-model="patternSize"
+          :min="1"
+          :max="selectedPattern?.size.max ?? 20"
+          :clamp="clampSize"
+          @adjust="adjustPatternSize"
+        />
         <button
           v-if="isDrawing"
           type="button"
@@ -87,33 +83,15 @@ function onModifierInput(id: keyof PatternModifierValues, value: number) {
           <span class="size-label">{{ modifier.name }}</span>
           <span class="label-tooltip">{{ modifier.description }}</span>
         </span>
-        <div class="stepper">
-          <button
-            type="button"
-            class="step-btn"
-            :disabled="!!(selectedPattern && !modifierApplies(modifier.id))"
-            @click="adjustModifierValue(modifier.id as keyof PatternModifierValues, -1)"
-          >
-            −
-          </button>
-          <input
-            :value="modifierValues[modifier.id as keyof PatternModifierValues]"
-            type="number"
-            class="step-input"
-            :min="modifier.size.min"
-            :max="modifier.size.max"
-            :disabled="!!(selectedPattern && !modifierApplies(modifier.id))"
-            @change="onModifierInput(modifier.id as keyof PatternModifierValues, Number(($event.target as HTMLInputElement).value))"
-          />
-          <button
-            type="button"
-            class="step-btn"
-            :disabled="!!(selectedPattern && !modifierApplies(modifier.id))"
-            @click="adjustModifierValue(modifier.id as keyof PatternModifierValues, 1)"
-          >
-            +
-          </button>
-        </div>
+        <NumberStepper
+          :model-value="modifierValues[modifier.id as keyof PatternModifierValues]"
+          :min="modifier.size.min"
+          :max="modifier.size.max"
+          :disabled="!!(selectedPattern && !modifierApplies(modifier.id))"
+          :clamp="(v) => clampModifierValue(modifier.id as keyof PatternModifierValues, v)"
+          @update:model-value="setModifierValue(modifier.id as keyof PatternModifierValues, $event)"
+          @adjust="adjustModifierValue(modifier.id as keyof PatternModifierValues, $event)"
+        />
       </div>
 
     </div>

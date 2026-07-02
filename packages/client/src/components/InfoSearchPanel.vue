@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import type { CharacterSheet } from "@gaem/shared";
 import { computed, onMounted, ref, watch } from "vue";
 
-import { useApi } from "../composables/useApi.js";
 import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
+import { useCharacterSheets } from "../composables/useCharacterSheets.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import { useSession } from "../composables/useSession.js";
 import {
@@ -14,18 +13,24 @@ import {
 } from "../lib/game-data-search.js";
 
 const query = ref("");
-const sheets = ref<CharacterSheet[]>([]);
+const debouncedQuery = ref("");
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-const { apiFetch } = useApi();
-const { role } = useSession();
+const { isGm } = useSession();
 const { clearBoardSelection } = useBoardSelection();
 const { selectDataFocus } = useInfoDataSelection();
-const { rightPanelCollapsed, selectSheet, sheetsVersion } = useCharacterSheetSelection();
+const { rightPanelCollapsed, selectSheet } = useCharacterSheetSelection();
+const { sheets, loadSheets } = useCharacterSheets();
 
-const isGm = computed(() => role.value === "gm");
+watch(query, (value) => {
+  if (debounceTimer) clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => {
+    debouncedQuery.value = value;
+  }, 150);
+});
 
 const results = computed(() =>
-  searchGameData(query.value, {
+  searchGameData(debouncedQuery.value, {
     includeEnemies: isGm.value,
     characterSheets: sheets.value,
   }),
@@ -43,17 +48,6 @@ const hint = computed(() =>
     : "Search classes, armor, weapons, and character sheets by name or keyword.",
 );
 
-async function loadSheets() {
-  try {
-    const res = await apiFetch("/api/character-sheets");
-    if (!res.ok) return;
-    const data = (await res.json()) as { sheets: CharacterSheet[] };
-    sheets.value = data.sheets;
-  } catch {
-    sheets.value = [];
-  }
-}
-
 function onSelect(result: GameDataSearchResult) {
   if (result.kind === "characterSheet" && result.sheetId) {
     clearBoardSelection();
@@ -64,8 +58,9 @@ function onSelect(result: GameDataSearchResult) {
   rightPanelCollapsed.value = false;
 }
 
-onMounted(loadSheets);
-watch(sheetsVersion, loadSheets);
+onMounted(() => {
+  void loadSheets();
+});
 </script>
 
 <template>
@@ -106,73 +101,59 @@ watch(sheetsVersion, loadSheets);
   gap: 0.75rem;
   padding: 1rem;
   height: 100%;
-  min-height: 0;
+  overflow-y: auto;
 }
 
 .search-label {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  flex-shrink: 0;
 }
 
 .search-label-text {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #8b949e;
+  color: var(--color-muted);
 }
 
 .search-input {
-  width: 100%;
-  border: 1px solid #30363d;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #0d1117;
-  color: #e6edf3;
-  padding: 0.6rem 0.75rem;
+  background: var(--color-bg);
+  color: var(--color-text);
+  padding: 0.55rem 0.75rem;
   font-size: 0.9rem;
-  font-family: inherit;
-}
-
-.search-input:focus {
-  outline: none;
-  border-color: #388bfd;
-}
-
-.search-input::placeholder {
-  color: #6e7681;
 }
 
 .results {
   list-style: none;
   margin: 0;
   padding: 0;
-  overflow-y: auto;
-  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.35rem;
 }
 
 .result-btn {
   width: 100%;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 0.15rem;
-  padding: 0.55rem 0.65rem;
-  border: 1px solid transparent;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: transparent;
-  color: #e6edf3;
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: 0.55rem 0.75rem;
   text-align: left;
   cursor: pointer;
-  font-family: inherit;
 }
 
 .result-btn:hover {
-  background: #161b22;
-  border-color: #30363d;
+  background: var(--color-surface-hover);
+  border-color: var(--color-accent-muted);
 }
 
 .result-name {
@@ -182,33 +163,21 @@ watch(sheetsVersion, loadSheets);
 
 .result-meta {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--color-muted);
 }
 
 .result-kind {
-  font-size: 0.72rem;
-  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: #388bfd;
 }
 
-.result-subtitle {
-  font-size: 0.78rem;
-  color: #8b949e;
-}
-
-.hint,
-.empty {
+.empty,
+.hint {
   margin: 0;
   font-size: 0.85rem;
-  line-height: 1.5;
-  color: #6e7681;
-}
-
-.empty {
-  color: #8b949e;
+  color: var(--color-muted);
+  line-height: 1.45;
 }
 </style>

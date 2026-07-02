@@ -22,7 +22,7 @@ type EditableField = "name" | "class" | "armor" | "weapon" | "player";
 
 const props = defineProps<{ sheetId: string }>();
 
-const { apiFetch, fetchPortraitUrl } = useApi();
+const { apiFetch, fetchPortraitUrl, fetchPlayerProfiles } = useApi();
 const { role, playerProfile } = useSession();
 const { gameState, send } = useGameState();
 const { selectSheet, notifySheetsChanged } = useCharacterSheetSelection();
@@ -88,15 +88,7 @@ const selectedProfileName = computed(
 
 async function loadProfiles() {
   if (role.value !== "gm") return;
-  const res = await fetch(
-    import.meta.env.DEV
-      ? `http://${location.hostname}:3001/api/player-profiles`
-      : "/api/player-profiles"
-  );
-  if (res.ok) {
-    const data = (await res.json()) as { profiles: PlayerProfileOption[] };
-    profiles.value = data.profiles;
-  }
+  profiles.value = await fetchPlayerProfiles();
 }
 
 async function loadPortrait() {

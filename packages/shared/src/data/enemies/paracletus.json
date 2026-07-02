@@ -153,6 +153,42 @@
       "hp": 50,
       "scale": 1,
       "special": "At the end of the round, Paracletus Loom gains a Charge. On the GM's turn, they may spend 1 Charge to spawn a Paracletus minion, or 5 Charges to spawn a miniboss."
+    },
+    {
+      "name": "Stain Flower",
+      "description": "In corrupting the Fibonacci sequence with Paraclesal mathematics, seeds injected into the battlefield can bloom into viable stand-ins for lower level demons. Swarms including a Stain Flower will notice an empty presence in the Contagion Mind that merely echoes the units it is linked with.",
+      "tags": ["Fortification", "Immobile", "Obstacle"],
+      "hp": 10,
+      "scale": 1,
+      "speed": 0,
+      "special": "These pods count as part of a Swarm when next to any minions without joining them. They cannot move or take any action, and have 1 HP."
+    },
+    {
+      "name": "Stain Geyser",
+      "description": "By adjusting the flow of subterranean stain rivers, they may bore upwards into a geyser on the surface. The stain travels through the earth in a helix pattern, erupting in an efficient and beautiful fractal array.",
+      "tags": ["Fortification", "Immobile", "Obstacle"],
+      "hp": 30,
+      "scale": 1,
+      "speed": 0,
+      "special": "Draw a 4x4 square around Stain Geyser. This area is stained while the Stain Geyser exists."
+    },
+    {
+      "name": "Creep Station",
+      "description": "By using a modified version of the transpatial superequation, the Contagion Mind links two Paraclesal cubes on the battlefield. When boarded, the occupants of one cube will safely be launched to a linked cube at a high speed.",
+      "tags": ["Fortification", "Carrier", "Manned"],
+      "hp": 50,
+      "scale": 2,
+      "speed": 0,
+      "special": "Draw a line of squares between any two Creep Stations. This line cannot pass through any obstacles or void tiles. Any unit may board on one Creep Station and arrive at a connected Creep Station at the beginning of their next turn. Units on the line while the Creep Station is being used take 10 damage."
+    },
+    {
+      "name": "Bubbling Presence",
+      "description": "A bubble made out of stain, containing a lightweight gas that can redisperse into stain when popped. It accepts a single command before being excised from the Contagion Mind.",
+      "tags": ["Fortification", "Cover", "Moving"],
+      "hp": 1,
+      "scale": 1,
+      "speed": 4,
+      "special": "Creates a bubble of stain that drifts in a single direction. If it hits an obstacle, unit, or is attacked, it bursts, deals 3 damage in Burst:1, and creates stain in every targetted tile."
     }
   ]
 }

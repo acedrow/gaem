@@ -42,6 +42,7 @@ function persist() {
 
 export function useSession() {
   const isActive = computed(() => role.value !== null);
+  const isGm = computed(() => role.value === "gm");
 
   function startSession(r: GaemRole, profile: PlayerProfile | null) {
     role.value = r;
@@ -69,6 +70,7 @@ export function useSession() {
     role,
     playerProfile,
     isActive,
+    isGm,
     startSession,
     clearSession,
     apiHeaders,

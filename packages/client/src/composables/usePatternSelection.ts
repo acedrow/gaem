@@ -140,10 +140,6 @@ export function usePatternSelection() {
     return true;
   }
 
-  function toggleDrawnTile(coord: BoardCoord, width: number, height: number) {
-    tryExtendDrawing(coord, width, height);
-  }
-
   watch(selectedPatternId, () => {
     drawnTiles.value = [];
     patternHoverOrigin.value = null;
@@ -175,6 +171,5 @@ export function usePatternSelection() {
     setPatternHoverOrigin,
     resetDrawing,
     tryExtendDrawing,
-    toggleDrawnTile,
   };
 }

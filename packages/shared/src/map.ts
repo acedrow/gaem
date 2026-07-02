@@ -5,30 +5,63 @@ import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprint
 const BLOCKING_TERRAIN = new Set<TerrainType>(["impassable", "obstacle", "void"]);
 const TERRAIN_SET = new Set<string>(TERRAIN_TYPES);
 
-function tileKey(x: number, y: number): string {
+export function coordKey(x: number, y: number): string {
   return `${x},${y}`;
+}
+
+export function boardCellKey(x: number, y: number): string {
+  return `${x}-${y}`;
+}
+
+export function isInBounds(x: number, y: number, width: number, height: number): boolean {
+  return x >= 0 && y >= 0 && x < width && y < height;
+}
+
+export function isFootprintInBounds(
+  x: number,
+  y: number,
+  scale: number,
+  width: number,
+  height: number,
+): boolean {
+  return x >= 0 && y >= 0 && x + scale <= width && y + scale <= height;
 }
 
 export function buildTileIndex(tiles: MapTile[]): Map<string, MapTile> {
   const index = new Map<string, MapTile>();
   for (const tile of tiles) {
-    index.set(tileKey(tile.x, tile.y), tile);
+    index.set(coordKey(tile.x, tile.y), tile);
   }
   return index;
+}
+
+let cachedTiles: MapTile[] | null = null;
+let cachedIndex: Map<string, MapTile> | null = null;
+
+function getTileIndex(tiles: MapTile[]): Map<string, MapTile> {
+  if (cachedTiles === tiles && cachedIndex) return cachedIndex;
+  cachedIndex = buildTileIndex(tiles);
+  cachedTiles = tiles;
+  return cachedIndex;
 }
 
 export function tileAt(
   tiles: MapTile[] | Map<string, MapTile>,
   x: number,
-  y: number
+  y: number,
 ): MapTile | undefined {
-  if (tiles instanceof Map) return tiles.get(tileKey(x, y));
-  return buildTileIndex(tiles).get(tileKey(x, y));
+  if (tiles instanceof Map) return tiles.get(coordKey(x, y));
+  return getTileIndex(tiles).get(coordKey(x, y));
+}
+
+export function computeWalkable(tile: MapTile): boolean {
+  return !tile.terrain.some((t) => BLOCKING_TERRAIN.has(t));
 }
 
 export function isWalkable(tile: MapTile | undefined): boolean {
   if (!tile) return false;
-  return !tile.terrain.some((t) => BLOCKING_TERRAIN.has(t));
+  if (tile.walkable !== undefined) return tile.walkable;
+  return computeWalkable(tile);
 }
 
 export function parseGameMap(raw: unknown): GameMap {
@@ -76,11 +109,11 @@ export function parseGameMap(raw: unknown): GameMap {
     if (!Number.isInteger(x) || !Number.isInteger(y)) {
       throw new Error("Tile x and y must be integers");
     }
-    if ((x as number) < 0 || (x as number) >= w || (y as number) < 0 || (y as number) >= h) {
+    if (!isInBounds(x as number, y as number, w, h)) {
       throw new Error(`Tile (${x}, ${y}) is out of bounds`);
     }
 
-    const key = tileKey(x as number, y as number);
+    const key = coordKey(x as number, y as number);
     if (seen.has(key)) {
       throw new Error(`Duplicate tile at (${x}, ${y})`);
     }
@@ -108,12 +141,14 @@ export function parseGameMap(raw: unknown): GameMap {
       throw new Error(`Tile (${x}, ${y}) elevation must be an integer from -3 to 3`);
     }
 
-    tiles.push({
+    const tile: MapTile = {
       x: x as number,
       y: y as number,
       terrain,
       elevation: elevation as number,
-    });
+    };
+    tile.walkable = computeWalkable(tile);
+    tiles.push(tile);
   }
 
   const enemies = parseMapEnemies(obj.enemies, w, h);
@@ -179,10 +214,10 @@ function parseMapEnemies(raw: unknown, width: number, height: number): Enemy[] |
         : getEnemyScaleByName(name as string | undefined);
 
     for (const tile of enemyFootprintTiles(x as number, y as number, scale)) {
-      if (tile.x < 0 || tile.x >= width || tile.y < 0 || tile.y >= height) {
+      if (!isInBounds(tile.x, tile.y, width, height)) {
         throw new Error(`Enemy ${id} footprint at (${x}, ${y}) is out of bounds`);
       }
-      const posKey = tileKey(tile.x, tile.y);
+      const posKey = coordKey(tile.x, tile.y);
       if (seenPositions.has(posKey)) {
         throw new Error(`Enemy footprints overlap at (${tile.x}, ${tile.y})`);
       }
@@ -202,6 +237,12 @@ function parseMapEnemies(raw: unknown, width: number, height: number): Enemy[] |
 }
 
 export function createInitialStateFromMap(map: GameMap): GameState {
+  const enemies = (map.enemies ?? []).map((e) => ({
+    ...e,
+    scale: getEnemyScale(e),
+    hp: getEnemyMaxHpByName(e.name),
+  }));
+
   return {
     mapId: map.id,
     mapName: map.name ?? map.id,
@@ -209,11 +250,7 @@ export function createInitialStateFromMap(map: GameMap): GameState {
     height: map.height,
     tiles: map.tiles,
     players: [],
-    enemies: (map.enemies ?? []).map((e) => ({
-      ...e,
-      scale: getEnemyScale(e),
-      hp: getEnemyMaxHpByName(e.name),
-    })),
+    enemies,
     round: 1,
     roundPhase: "deployment",
     turn: { role: "gm" },

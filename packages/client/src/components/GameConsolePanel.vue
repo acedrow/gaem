@@ -3,6 +3,8 @@ import { nextTick, ref, watch } from "vue";
 
 import { useApi } from "../composables/useApi.js";
 import { useGameConsole } from "../composables/useGameConsole.js";
+import NumberStepper from "./NumberStepper.vue";
+import SegmentedControl from "./SegmentedControl.vue";
 
 const { entries, activeTab } = useGameConsole();
 const { apiFetch } = useApi();
@@ -87,53 +89,27 @@ watch(activeTab, (tab) => {
     </div>
 
     <form class="dice-bar" @submit.prevent="rollDice">
-      <div class="stepper">
-        <button type="button" class="step-btn" :disabled="rolling" @click="adjustQuantity(-1)">−</button>
-        <input
-          v-model.number="quantity"
-          type="number"
-          class="step-input"
-          min="1"
-          max="100"
-          :disabled="rolling"
-          @change="quantity = clampQuantity(quantity)"
-        />
-        <button type="button" class="step-btn" :disabled="rolling" @click="adjustQuantity(1)">+</button>
-      </div>
+      <NumberStepper
+        v-model="quantity"
+        :min="1"
+        :max="100"
+        :disabled="rolling"
+        :clamp="clampQuantity"
+        @adjust="adjustQuantity"
+      />
 
-      <div class="dice-type">
-        <button
-          type="button"
-          class="dice-btn"
-          :class="{ active: diceMax === 6 }"
-          :disabled="rolling"
-          @click="diceMax = 6"
-        >
-          d6
-        </button>
-        <button
-          type="button"
-          class="dice-btn"
-          :class="{ active: diceMax === 10 }"
-          :disabled="rolling"
-          @click="diceMax = 10"
-        >
-          d10
-        </button>
-      </div>
+      <SegmentedControl
+        v-model="diceMax"
+        :disabled="rolling"
+        :options="[
+          { value: 6, label: 'd6' },
+          { value: 10, label: 'd10' },
+        ]"
+      />
 
       <span class="plus-icon" aria-hidden="true">+</span>
 
-      <div class="stepper">
-        <button type="button" class="step-btn" :disabled="rolling" @click="adjustBonus(-1)">−</button>
-        <input
-          v-model.number="bonus"
-          type="number"
-          class="step-input"
-          :disabled="rolling"
-        />
-        <button type="button" class="step-btn" :disabled="rolling" @click="adjustBonus(1)">+</button>
-      </div>
+      <NumberStepper v-model="bonus" :disabled="rolling" @adjust="adjustBonus" />
 
       <button type="submit" class="roll-btn" :disabled="rolling">
         {{ rolling ? "…" : "Roll" }}

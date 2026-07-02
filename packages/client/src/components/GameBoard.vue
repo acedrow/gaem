@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import type { ClientMessage, Enemy, MapTile, Player, ServerMessage, TerrainObject } from "@gaem/shared";
+import type { Enemy, MapTile, Player, TerrainObject } from "@gaem/shared";
 import {
+  boardCellKey,
+  buildBoardOccupancy,
   canGmMoveEnemies,
   canPlayerMove,
+  coordKey,
   coordsToKeySet,
   drawableExpansionOptions,
   enemyFootprintTiles,
-  enemyOccupiesTile,
   fixedPatternTilesInBounds,
   getEnemyMaxHp,
   getEnemyScale,
@@ -17,16 +19,17 @@ import {
   tileAt,
   validateEnemyFootprint,
 } from "@gaem/shared";
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 
 import { useBoardSelection } from "../composables/useBoardSelection.js";
+import { useBoardViewport } from "../composables/useBoardViewport.js";
 import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
-import { appendConsoleEntry, setConsoleEntries } from "../composables/useGameConsole.js";
-import { useGameConnection } from "../composables/useGameConnection.js";
-import { useGameState } from "../composables/useGameState.js";
 import { useEnemySpawnSelection } from "../composables/useEnemySpawnSelection.js";
+import { useGameSocket } from "../composables/useGameSocket.js";
+import { useGameState } from "../composables/useGameState.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import { usePatternSelection } from "../composables/usePatternSelection.js";
+import BoardCell, { type CellRenderState } from "./BoardCell.vue";
 import BoardContextMenu, { type BoardContextMenuItem } from "./BoardContextMenu.vue";
 
 const props = defineProps<{
@@ -40,7 +43,6 @@ const wsUrl =
     ? `ws://${location.hostname}:3001/ws`
     : `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`);
 
-const { connection } = useGameConnection();
 const { selectedSheetId } = useCharacterSheetSelection();
 const {
   boardSelection,
@@ -51,7 +53,7 @@ const {
   isPlayerSelected,
   isEnemySelected,
 } = useBoardSelection();
-const { gameState, yourPlayerId, setGameState, registerSend, clearGameState } = useGameState();
+const { gameState, yourPlayerId } = useGameState();
 const { dataCategory } = useInfoDataSelection();
 const { selectedSpawnEnemyName, clearSpawnEnemySelection } = useEnemySpawnSelection();
 const {
@@ -65,9 +67,12 @@ const {
   isDrawablePattern,
   tryExtendDrawing,
   cyclePatternDirection,
+  setPatternHoverOrigin,
 } = usePatternSelection();
+
 const lastError = ref<string | null>(null);
 const hoveredKey = ref<string | null>(null);
+const hoveredCell = ref<{ x: number; y: number } | null>(null);
 const draggingDeploy = ref(false);
 const contextMenu = ref<{
   open: boolean;
@@ -77,35 +82,56 @@ const contextMenu = ref<{
   enemyId?: string;
 }>({ open: false, x: 0, y: 0, items: [] });
 const viewportEl = ref<HTMLElement | null>(null);
-const scale = ref(1);
-const panX = ref(0);
-const panY = ref(0);
-const fitScale = ref(1);
-const fitPanX = ref(0);
-const fitPanY = ref(0);
-let socket: WebSocket | null = null;
-
-const BOARD_PAD = 24;
-const ZOOM_MAX_FACTOR = 4;
-const PAN_MIN_VISIBLE_FRACTION = 0.2;
-
-function clampPanAxis(pan: number, scaledSize: number, viewportSize: number): number {
-  const minVisible = Math.min(
-    scaledSize * PAN_MIN_VISIBLE_FRACTION,
-    viewportSize * PAN_MIN_VISIBLE_FRACTION,
-  );
-  return Math.min(viewportSize - minVisible, Math.max(minVisible - scaledSize, pan));
-}
-function hueFromId(id: string): number {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  return h % 360;
-}
 
 const boardWidthPx = computed(() => {
   const s = gameState.value;
   if (!s) return 520;
   return Math.max(s.width * 40, 280);
+});
+
+const hasGameState = computed(() => !!gameState.value);
+const boardWidth = computed(() => gameState.value?.width ?? 1);
+const boardHeight = computed(() => gameState.value?.height ?? 1);
+
+const {
+  stageStyle,
+  isTransformed,
+  fitToView,
+  onWheel,
+  observeViewport,
+  disconnect: disconnectViewport,
+} = useBoardViewport(
+  viewportEl,
+  boardWidthPx,
+  hasGameState,
+  boardHeight,
+  boardWidth,
+);
+
+const playerProfileRef = computed(() => props.playerProfile ?? null);
+
+const { send, connect, disconnect: disconnectSocket } = useGameSocket({
+  wsUrl,
+  role: computed(() => props.role),
+  playerProfile: playerProfileRef,
+  selectedSheetId,
+  onError: (message) => {
+    lastError.value = message;
+  },
+  onSelectionInvalidated: (msg) => {
+    const selection = boardSelection.value;
+    if (
+      selection?.kind === "enemy" &&
+      !msg.state.enemies.some((e) => e.id === selection.id)
+    ) {
+      clearBoardSelection();
+    } else if (
+      selection?.kind === "player" &&
+      !msg.state.players.some((p) => p.id === selection.id)
+    ) {
+      clearBoardSelection();
+    }
+  },
 });
 
 const gridStyle = computed(() => {
@@ -118,148 +144,24 @@ const gridStyle = computed(() => {
   };
 });
 
-const stageStyle = computed(() => ({
-  transform: `translate(${panX.value}px, ${panY.value}px) scale(${scale.value})`,
-  "--board-scale": String(scale.value),
-}));
-
-const isTransformed = computed(
-  () =>
-    Math.abs(scale.value - fitScale.value) > 0.005 ||
-    Math.abs(panX.value - fitPanX.value) > 1 ||
-    Math.abs(panY.value - fitPanY.value) > 1,
-);
-
-function getBoardSize() {
-  const s = gameState.value;
-  if (!s) return { w: 544, h: 544 };
-  const innerW = boardWidthPx.value;
-  const innerH = innerW * (s.height / s.width);
-  return { w: innerW + BOARD_PAD, h: innerH + BOARD_PAD };
-}
-
-function computeFitTransform(vw: number, vh: number) {
-  const { w, h } = getBoardSize();
-  const s = Math.min(vw / w, vh / h);
-  return { scale: s, panX: (vw - w * s) / 2, panY: (vh - h * s) / 2 };
-}
-
-function updateFitState() {
-  const el = viewportEl.value;
-  if (!el) return;
-  const fit = computeFitTransform(el.clientWidth, el.clientHeight);
-  fitScale.value = fit.scale;
-  fitPanX.value = fit.panX;
-  fitPanY.value = fit.panY;
-}
-
-function clampView() {
-  const el = viewportEl.value;
-  if (!el) return;
-  const minS = fitScale.value;
-  const maxS = fitScale.value * ZOOM_MAX_FACTOR;
-  scale.value = Math.min(maxS, Math.max(minS, scale.value));
-  const { w, h } = getBoardSize();
-  const scaledW = w * scale.value;
-  const scaledH = h * scale.value;
-  const vw = el.clientWidth;
-  const vh = el.clientHeight;
-  panX.value = clampPanAxis(panX.value, scaledW, vw);
-  panY.value = clampPanAxis(panY.value, scaledH, vh);
-}
-
-function fitToView() {
-  const el = viewportEl.value;
-  if (!el || !gameState.value) return;
-  const fit = computeFitTransform(el.clientWidth, el.clientHeight);
-  scale.value = fit.scale;
-  panX.value = fit.panX;
-  panY.value = fit.panY;
-  fitScale.value = fit.scale;
-  fitPanX.value = fit.panX;
-  fitPanY.value = fit.panY;
-}
-
-const resizeObserver = new ResizeObserver(() => {
-  const wasFit = !isTransformed.value;
-  nextTick(() => {
-    if (wasFit) fitToView();
-    else {
-      updateFitState();
-      clampView();
-    }
-  });
-});
-
-let wheelFrame = 0;
-let pendingPanDx = 0;
-let pendingPanDy = 0;
-let pendingZoom: { deltaY: number; mx: number; my: number } | null = null;
-
-function applyWheelUpdate() {
-  wheelFrame = 0;
-  const el = viewportEl.value;
-  if (!el) {
-    pendingPanDx = 0;
-    pendingPanDy = 0;
-    pendingZoom = null;
-    return;
-  }
-
-  if (pendingZoom) {
-    const { deltaY, mx, my } = pendingZoom;
-    pendingZoom = null;
-    const minS = fitScale.value;
-    const maxS = fitScale.value * ZOOM_MAX_FACTOR;
-    const next = Math.min(maxS, Math.max(minS, scale.value * Math.exp(-deltaY * 0.005)));
-    const ratio = next / scale.value;
-    panX.value = mx - (mx - panX.value) * ratio;
-    panY.value = my - (my - panY.value) * ratio;
-    scale.value = next;
-    clampView();
-    return;
-  }
-
-  const dx = pendingPanDx;
-  const dy = pendingPanDy;
-  pendingPanDx = 0;
-  pendingPanDy = 0;
-  if (dx === 0 && dy === 0) return;
-
-  panX.value -= dx;
-  panY.value -= dy;
-  clampView();
-}
-
-function onWheel(e: WheelEvent) {
-  if (!viewportEl.value) return;
-  e.preventDefault();
-
-  if (e.ctrlKey || e.metaKey) {
-    const rect = viewportEl.value.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
-    if (pendingZoom) pendingZoom.deltaY += e.deltaY;
-    else pendingZoom = { deltaY: e.deltaY, mx, my };
-    pendingZoom.mx = mx;
-    pendingZoom.my = my;
-    pendingPanDx = 0;
-    pendingPanDy = 0;
-  } else {
-    pendingPanDx += e.deltaX;
-    pendingPanDy += e.deltaY;
-  }
-
-  if (!wheelFrame) wheelFrame = requestAnimationFrame(applyWheelUpdate);
-}
+const cellsCache = shallowRef<{ x: number; y: number; key: string }[]>([]);
+const cellsCacheKey = ref<string | null>(null);
 
 const cells = computed(() => {
   const s = gameState.value;
   if (!s) return [] as { x: number; y: number; key: string }[];
+  const key = `${s.width}x${s.height}`;
+  if (cellsCacheKey.value === key && cellsCache.value.length > 0) {
+    return cellsCache.value;
+  }
   const out: { x: number; y: number; key: string }[] = [];
   for (let y = 0; y < s.height; y++) {
-    for (let x = 0; x < s.width; x++) out.push({ x, y, key: `${x}-${y}` });
+    for (let x = 0; x < s.width; x++) {
+      out.push({ x, y, key: boardCellKey(x, y) });
+    }
   }
+  cellsCache.value = out;
+  cellsCacheKey.value = key;
   return out;
 });
 
@@ -273,6 +175,13 @@ const patternPreviewActive = computed(
   () => dataCategory.value === "patterns" && !!selectedPatternId.value,
 );
 
+const patternOrigin = computed(() => {
+  if (!hoveredKey.value) return null;
+  const [x, y] = hoveredKey.value.split("-").map(Number);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x, y };
+});
+
 const patternPrimaryKeys = computed(() => {
   if (!patternPreviewActive.value || !gameState.value) return new Set<string>();
 
@@ -281,15 +190,13 @@ const patternPrimaryKeys = computed(() => {
     return coordsToKeySet(drawnTiles.value);
   }
 
-  const origin = hoveredKey.value;
+  const origin = patternOrigin.value;
   if (!origin) return new Set<string>();
-  const [x, y] = origin.split("-").map(Number);
-  if (!Number.isFinite(x) || !Number.isFinite(y)) return new Set<string>();
 
   return coordsToKeySet(
     fixedPatternTilesInBounds(
       selectedPatternId.value!,
-      { x, y },
+      origin,
       patternSize.value,
       patternDirection.value,
       gameState.value.width,
@@ -311,14 +218,12 @@ const patternRecoilKeys = computed(() => {
   if (modifierValues.value.recoil <= 0) return new Set<string>();
   if (!selectedPattern.value?.directional) return new Set<string>();
 
-  const origin = hoveredKey.value;
+  const origin = patternOrigin.value;
   if (!origin) return new Set<string>();
-  const [x, y] = origin.split("-").map(Number);
-  if (!Number.isFinite(x) || !Number.isFinite(y)) return new Set<string>();
 
   return coordsToKeySet(
     recoilTilesInBounds(
-      { x, y },
+      origin,
       modifierValues.value.recoil,
       patternDirection.value,
       gameState.value.width,
@@ -344,24 +249,6 @@ const patternSecondaryKeys = computed(() => {
   );
 });
 
-function isPatternPrimary(x: number, y: number): boolean {
-  return patternPrimaryKeys.value.has(`${x},${y}`);
-}
-
-function isPatternSecondary(x: number, y: number): boolean {
-  return patternSecondaryKeys.value.has(`${x},${y}`);
-}
-
-function isPatternRecoil(x: number, y: number): boolean {
-  return patternRecoilKeys.value.has(`${x},${y}`);
-}
-
-function getTile(x: number, y: number): MapTile | undefined {
-  const s = gameState.value;
-  if (!s) return undefined;
-  return tileAt(s.tiles, x, y);
-}
-
 function terrainClass(tile: MapTile | undefined): string | null {
   if (!tile) return null;
   if (tile.terrain.includes("impassable")) return "impassable";
@@ -372,42 +259,132 @@ function terrainClass(tile: MapTile | undefined): string | null {
   return null;
 }
 
-function playerAt(x: number, y: number) {
-  return gameState.value?.players.find((p) => p.x === x && p.y === y);
+function hueFromId(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return h % 360;
 }
 
-function playersAt(x: number, y: number): Player[] {
-  return gameState.value?.players.filter((p) => p.x === x && p.y === y) ?? [];
-}
-
-function enemyAt(x: number, y: number) {
-  return gameState.value?.enemies.find((e) => enemyOccupiesTile(e, x, y));
-}
-
-function enemyAnchorAt(x: number, y: number) {
-  const enemy = enemyAt(x, y);
-  return enemy && enemy.x === x && enemy.y === y ? enemy : undefined;
-}
-
-function enemiesAt(x: number, y: number): Enemy[] {
-  return gameState.value?.enemies.filter((e) => enemyOccupiesTile(e, x, y)) ?? [];
-}
-
-function enemyPieceStyle(enemy: Enemy): Record<string, string> {
+const gmEnemyMoveTargetKeys = computed(() => {
+  const keys = new Set<string>();
+  const s = gameState.value;
+  const id = selectedEnemyId.value;
+  if (!s || !id || !canGmMoveEnemies(s)) return keys;
+  const enemy = s.enemies.find((e) => e.id === id);
+  if (!enemy) return keys;
   const scale = getEnemyScale(enemy);
-  if (scale <= 1) return {};
-  const gap = 3;
-  const inset = 8;
-  return {
-    width: `calc(${scale * 100}% + ${(scale - 1) * gap}px - ${inset}px)`,
-    height: `calc(${scale * 100}% + ${(scale - 1) * gap}px - ${inset}px)`,
-    inset: "4px auto auto 4px",
-  };
-}
+  const deltas = [
+    { dx: 0, dy: -1 },
+    { dx: 0, dy: 1 },
+    { dx: -1, dy: 0 },
+    { dx: 1, dy: 0 },
+  ];
+  for (const { dx, dy } of deltas) {
+    const anchorX = enemy.x + dx;
+    const anchorY = enemy.y + dy;
+    if (validateEnemyFootprint(s, anchorX, anchorY, scale, id, occupancy.value) !== null) {
+      continue;
+    }
+    for (const tile of enemyFootprintTiles(anchorX, anchorY, scale)) {
+      keys.add(boardCellKey(tile.x, tile.y));
+    }
+  }
+  return keys;
+});
 
-function terrainObjectsAt(x: number, y: number): TerrainObject[] {
-  return gameState.value?.terrainObjects?.filter((o) => o.x === x && o.y === y) ?? [];
-}
+const gmSpawnableKeys = computed(() => {
+  const keys = new Set<string>();
+  const s = gameState.value;
+  const spawnName = selectedSpawnEnemyName.value;
+  if (!s || !spawnName) return keys;
+  const scale = getEnemyScaleByName(spawnName);
+  for (const c of cells.value) {
+    if (validateEnemyFootprint(s, c.x, c.y, scale, undefined, occupancy.value) === null) {
+      keys.add(c.key);
+    }
+  }
+  return keys;
+});
+
+const occupancy = computed(() =>
+  gameState.value ? buildBoardOccupancy(gameState.value) : null,
+);
+
+const yourPlayer = computed(() => {
+  const s = gameState.value;
+  const id = yourPlayerId.value;
+  if (!s || !id) return undefined;
+  return s.players.find((p) => p.id === id);
+});
+
+const cellStateByKey = computed(() => {
+  const map = new Map<string, CellRenderState>();
+  const s = gameState.value;
+  const occ = occupancy.value;
+  if (!s || !occ) return map;
+
+  const playerCanMove =
+    props.role === "player" &&
+    !!yourPlayerId.value &&
+    canPlayerMove(s, yourPlayerId.value);
+  const isDeployment = s.roundPhase === "deployment";
+  const me = yourPlayer.value;
+
+  for (const c of cells.value) {
+    const tile = tileAt(s.tiles, c.x, c.y);
+    const player = occ.playerByKey.get(coordKey(c.x, c.y));
+    const enemy = occ.enemyByKey.get(coordKey(c.x, c.y));
+    const enemyAnchor = occ.enemyAnchorByKey.get(coordKey(c.x, c.y));
+
+    const adjacent =
+      me != null && Math.abs(c.x - me.x) + Math.abs(c.y - me.y) === 1;
+
+    map.set(c.key, {
+      terrainClass: terrainClass(tile),
+      movable:
+        playerCanMove &&
+        !isDeployment &&
+        isWalkable(tile) &&
+        adjacent &&
+        !player &&
+        !enemy,
+      deployable:
+        isDeployment &&
+        props.role === "player" &&
+        !!yourPlayerId.value &&
+        isWalkable(tile) &&
+        !player &&
+        !enemy,
+      gmMovable: props.role === "gm" && gmEnemyMoveTargetKeys.value.has(c.key),
+      gmSpawnable: props.role === "gm" && gmSpawnableKeys.value.has(c.key),
+      patternPrimary: patternPrimaryKeys.value.has(coordKey(c.x, c.y)),
+      patternSecondary: patternSecondaryKeys.value.has(coordKey(c.x, c.y)),
+      patternRecoil: patternRecoilKeys.value.has(coordKey(c.x, c.y)),
+      tile,
+      player,
+      enemyAnchor,
+    });
+  }
+  return map;
+});
+
+const tooltipData = computed(() => {
+  const cell = hoveredCell.value;
+  const s = gameState.value;
+  const occ = occupancy.value;
+  if (!cell || !s || !occ) return null;
+  const key = coordKey(cell.x, cell.y);
+  const tile = tileAt(s.tiles, cell.x, cell.y);
+  if (!tile) return null;
+  return {
+    x: cell.x,
+    y: cell.y,
+    tile,
+    players: occ.playerByKey.has(key) ? [occ.playerByKey.get(key)!] : [],
+    enemies: occ.enemyByKey.has(key) ? [occ.enemyByKey.get(key)!] : [],
+    objects: occ.terrainObjectsByKey.get(key) ?? [],
+  };
+});
 
 function playerLabel(player: Player): string {
   return player.nickname ?? player.id;
@@ -426,47 +403,6 @@ function formatHp(current: number | undefined, max: number): string {
   return max > 0 ? `${hp}/${max}` : String(hp);
 }
 
-function getSelectedEnemyMoveTargets(): { anchorX: number; anchorY: number }[] {
-  const s = gameState.value;
-  const id = selectedEnemyId.value;
-  if (!s || !id || !canGmMoveEnemies(s)) return [];
-  const enemy = s.enemies.find((e) => e.id === id);
-  if (!enemy) return [];
-
-  const scale = getEnemyScale(enemy);
-  const deltas = [
-    { dx: 0, dy: -1 },
-    { dx: 0, dy: 1 },
-    { dx: -1, dy: 0 },
-    { dx: 1, dy: 0 },
-  ];
-  const targets: { anchorX: number; anchorY: number }[] = [];
-  for (const { dx, dy } of deltas) {
-    const anchorX = enemy.x + dx;
-    const anchorY = enemy.y + dy;
-    if (validateEnemyFootprint(s, anchorX, anchorY, scale, id) === null) {
-      targets.push({ anchorX, anchorY });
-    }
-  }
-  return targets;
-}
-
-const gmEnemyMoveTargetKeys = computed(() => {
-  const keys = new Set<string>();
-  const s = gameState.value;
-  const id = selectedEnemyId.value;
-  if (!s || !id) return keys;
-  const enemy = s.enemies.find((e) => e.id === id);
-  if (!enemy) return keys;
-  const scale = getEnemyScale(enemy);
-  for (const { anchorX, anchorY } of getSelectedEnemyMoveTargets()) {
-    for (const tile of enemyFootprintTiles(anchorX, anchorY, scale)) {
-      keys.add(`${tile.x}-${tile.y}`);
-    }
-  }
-  return keys;
-});
-
 function gmEnemyMoveAnchorAt(x: number, y: number): { x: number; y: number } | null {
   const s = gameState.value;
   const id = selectedEnemyId.value;
@@ -474,7 +410,18 @@ function gmEnemyMoveAnchorAt(x: number, y: number): { x: number; y: number } | n
   const enemy = s.enemies.find((e) => e.id === id);
   if (!enemy) return null;
   const scale = getEnemyScale(enemy);
-  for (const { anchorX, anchorY } of getSelectedEnemyMoveTargets()) {
+  const deltas = [
+    { dx: 0, dy: -1 },
+    { dx: 0, dy: 1 },
+    { dx: -1, dy: 0 },
+    { dx: 1, dy: 0 },
+  ];
+  for (const { dx, dy } of deltas) {
+    const anchorX = enemy.x + dx;
+    const anchorY = enemy.y + dy;
+    if (validateEnemyFootprint(s, anchorX, anchorY, scale, id, occupancy.value ?? undefined) !== null) {
+      continue;
+    }
     for (const tile of enemyFootprintTiles(anchorX, anchorY, scale)) {
       if (tile.x === x && tile.y === y) return { x: anchorX, y: anchorY };
     }
@@ -482,36 +429,31 @@ function gmEnemyMoveAnchorAt(x: number, y: number): { x: number; y: number } | n
   return null;
 }
 
-function isGmSpawnable(x: number, y: number): boolean {
-  const s = gameState.value;
-  const spawnName = selectedSpawnEnemyName.value;
-  if (!s || !spawnName) return false;
-  return validateEnemyFootprint(s, x, y, getEnemyScaleByName(spawnName)) === null;
-}
-
-function isAdjacentToYou(x: number, y: number): boolean {
-  const id = yourPlayerId.value;
-  const s = gameState.value;
-  if (!id || !s) return false;
-  const me = s.players.find((p) => p.id === id);
-  if (!me) return false;
-  return Math.abs(x - me.x) + Math.abs(y - me.y) === 1;
-}
-
-function isDeployable(x: number, y: number): boolean {
-  const s = gameState.value;
-  if (!s || s.roundPhase !== "deployment" || props.role !== "player" || !yourPlayerId.value) {
-    return false;
+function selectOccupantAt(x: number, y: number): boolean {
+  const occ = occupancy.value;
+  if (!occ) return false;
+  const key = coordKey(x, y);
+  const player = occ.playerByKey.get(key);
+  if (player) {
+    selectBoardPlayer(player.id, player.characterSheetId);
+    return true;
   }
-  return (
-    isWalkable(getTile(x, y)) &&
-    !playerAt(x, y) &&
-    !enemyAt(x, y)
-  );
+  const enemy = occ.enemyByKey.get(key);
+  if (enemy) {
+    selectBoardEnemy(enemy.id);
+    return true;
+  }
+  return false;
 }
 
-function send(msg: ClientMessage) {
-  if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(msg));
+function arrowTarget(key: string, origin: { x: number; y: number }): { x: number; y: number } | null {
+  const map: Record<string, { x: number; y: number }> = {
+    ArrowUp: { x: origin.x, y: origin.y - 1 },
+    ArrowDown: { x: origin.x, y: origin.y + 1 },
+    ArrowLeft: { x: origin.x - 1, y: origin.y },
+    ArrowRight: { x: origin.x + 1, y: origin.y },
+  };
+  return map[key] ?? null;
 }
 
 function tryMove(x: number, y: number) {
@@ -520,9 +462,14 @@ function tryMove(x: number, y: number) {
   if (!yourPlayerId.value || !gameState.value) return;
   if (!canPlayerMove(gameState.value, yourPlayerId.value)) return;
   const deploying = gameState.value.roundPhase === "deployment";
-  if (!deploying && !isAdjacentToYou(x, y)) return;
-  if (!deploying && enemyAt(x, y)) return;
-  if (deploying && !isDeployable(x, y)) return;
+  const cell = cellStateByKey.value.get(boardCellKey(x, y));
+  if (!deploying && !cell?.movable && !cell?.deployable) {
+    const me = yourPlayer.value;
+    if (!me || Math.abs(x - me.x) + Math.abs(y - me.y) !== 1) return;
+    const occ = occupancy.value;
+    if (occ?.enemyByKey.has(coordKey(x, y))) return;
+  }
+  if (deploying && !cell?.deployable) return;
   send({ type: "move", x, y });
 }
 
@@ -558,26 +505,9 @@ function onDeployPointerUp(e: PointerEvent) {
   tryMove(x, y);
 }
 
-function onPlayerTokenClick(player: Player) {
-  selectBoardPlayer(player.id, player.characterSheetId);
-}
-
-function onEnemyTokenClick(enemy: Enemy) {
-  selectBoardEnemy(enemy.id);
-}
-
 function onPlayerCellClick(x: number, y: number) {
   lastError.value = null;
-  const player = playerAt(x, y);
-  if (player) {
-    selectBoardPlayer(player.id, player.characterSheetId);
-    return;
-  }
-  const enemy = enemyAt(x, y);
-  if (enemy) {
-    selectBoardEnemy(enemy.id);
-    return;
-  }
+  if (selectOccupantAt(x, y)) return;
   clearBoardSelection();
   tryMove(x, y);
 }
@@ -587,8 +517,7 @@ function tryMoveSelectedEnemy(x: number, y: number): boolean {
   const s = gameState.value;
   const selected = selectedEnemyId.value;
   if (!s || !selected) return false;
-  const selectedEnemy = s.enemies.find((e) => e.id === selected);
-  if (!selectedEnemy) {
+  if (!s.enemies.some((e) => e.id === selected)) {
     clearBoardSelection();
     return false;
   }
@@ -605,26 +534,25 @@ function onGmCellClick(x: number, y: number) {
   const s = gameState.value;
   if (!s) return;
 
-  const player = playerAt(x, y);
-  if (player) {
-    selectBoardPlayer(player.id, player.characterSheetId);
-    return;
-  }
-
-  const enemy = enemyAt(x, y);
-  if (enemy) {
-    selectBoardEnemy(enemy.id);
-    return;
-  }
+  if (selectOccupantAt(x, y)) return;
 
   const spawnName = selectedSpawnEnemyName.value;
-  if (spawnName && validateEnemyFootprint(s, x, y, getEnemyScaleByName(spawnName)) === null) {
+  if (
+    spawnName &&
+    validateEnemyFootprint(
+      s,
+      x,
+      y,
+      getEnemyScaleByName(spawnName),
+      undefined,
+      occupancy.value ?? undefined,
+    ) === null
+  ) {
     send({ type: "addEnemy", x, y, name: spawnName });
     return;
   }
 
   if (tryMoveSelectedEnemy(x, y)) return;
-
   clearBoardSelection();
 }
 
@@ -641,6 +569,18 @@ function onCellClick(x: number, y: number) {
   else onPlayerCellClick(x, y);
 }
 
+function onCellHover(x: number, y: number, key: string) {
+  hoveredKey.value = key;
+  hoveredCell.value = { x, y };
+  setPatternHoverOrigin({ x, y });
+}
+
+function onCellUnhover() {
+  hoveredKey.value = null;
+  hoveredCell.value = null;
+  setPatternHoverOrigin(null);
+}
+
 function onViewportClick(e: MouseEvent) {
   closeContextMenu();
   if ((e.target as HTMLElement).closest(".cell")) return;
@@ -650,7 +590,7 @@ function onViewportClick(e: MouseEvent) {
 function onBoardDisplayClick(e: MouseEvent) {
   closeContextMenu();
   const target = e.target as HTMLElement;
-  if (target.closest(".board-viewport, .reset-zoom-btn")) return;
+  if (target.closest(".board-viewport, .reset-zoom-btn, .board-tooltip")) return;
   clearBoardSelection();
 }
 
@@ -673,12 +613,11 @@ function closeContextMenu() {
 
 function buildContextMenuItems(x: number, y: number): BoardContextMenuItem[] {
   const items: BoardContextMenuItem[] = [];
-  const enemy = enemyAt(x, y);
-
+  const occ = occupancy.value;
+  const enemy = occ?.enemyByKey.get(coordKey(x, y));
   if (props.role === "gm" && enemy) {
     items.push({ id: "remove-enemy", label: "Remove enemy", danger: true });
   }
-
   return items;
 }
 
@@ -702,7 +641,8 @@ function onBoardContextMenu(e: MouseEvent) {
     return;
   }
 
-  const enemy = enemyAt(x, y);
+  const occ = occupancy.value;
+  const enemy = occ?.enemyByKey.get(coordKey(x, y));
   if (enemy) selectBoardEnemy(enemy.id);
 
   contextMenu.value = {
@@ -718,7 +658,6 @@ function onContextMenuSelect(id: string) {
   if (id === "remove-enemy" && contextMenu.value.enemyId) {
     removeEnemyById(contextMenu.value.enemyId);
   }
-
   closeContextMenu();
 }
 
@@ -735,12 +674,10 @@ function onKeydown(e: KeyboardEvent) {
     }
   }
 
-  if (contextMenu.value.open) {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      closeContextMenu();
-      return;
-    }
+  if (contextMenu.value.open && e.key === "Escape") {
+    e.preventDefault();
+    closeContextMenu();
+    return;
   }
 
   if (props.role === "gm") {
@@ -762,13 +699,7 @@ function onKeydown(e: KeyboardEvent) {
     if (selected && s) {
       const enemy = s.enemies.find((e) => e.id === selected);
       if (enemy) {
-        const map: Record<string, { x: number; y: number }> = {
-          ArrowUp: { x: enemy.x, y: enemy.y - 1 },
-          ArrowDown: { x: enemy.x, y: enemy.y + 1 },
-          ArrowLeft: { x: enemy.x - 1, y: enemy.y },
-          ArrowRight: { x: enemy.x + 1, y: enemy.y },
-        };
-        const t = map[e.key];
+        const t = arrowTarget(e.key, enemy);
         if (t) {
           e.preventDefault();
           tryMoveSelectedEnemy(t.x, t.y);
@@ -777,77 +708,13 @@ function onKeydown(e: KeyboardEvent) {
     }
     return;
   }
-  const id = yourPlayerId.value;
-  const s = gameState.value;
-  if (!id || !s) return;
-  const me = s.players.find((p) => p.id === id);
-  if (!me) return;
 
-  const map: Record<string, { x: number; y: number }> = {
-    ArrowUp: { x: me.x, y: me.y - 1 },
-    ArrowDown: { x: me.x, y: me.y + 1 },
-    ArrowLeft: { x: me.x - 1, y: me.y },
-    ArrowRight: { x: me.x + 1, y: me.y },
-  };
-  const t = map[e.key];
+  const me = yourPlayer.value;
+  if (!me) return;
+  const t = arrowTarget(e.key, me);
   if (!t) return;
   e.preventDefault();
   tryMove(t.x, t.y);
-}
-
-function connect() {
-  connection.value = "connecting";
-  lastError.value = null;
-  socket = new WebSocket(wsUrl);
-  registerSend(send);
-
-  socket.addEventListener("open", () => {
-    connection.value = "connected";
-    send({
-      type: "join",
-      role: props.role,
-      playerKey: props.role === "player" ? props.playerProfile?.id : undefined,
-      nickname: props.role === "player" ? props.playerProfile?.name : undefined,
-      characterSheetId:
-        props.role === "player" ? selectedSheetId.value ?? undefined : undefined,
-    });
-  });
-
-  socket.addEventListener("close", () => {
-    connection.value = "disconnected";
-    socket = null;
-  });
-
-  socket.addEventListener("message", (ev) => {
-    let msg: ServerMessage;
-    try {
-      msg = JSON.parse(String(ev.data)) as ServerMessage;
-    } catch {
-      lastError.value = "Invalid message from server";
-      return;
-    }
-    if (msg.type === "state") {
-      setGameState(msg.state, msg.yourPlayerId);
-      const selection = boardSelection.value;
-      if (
-        selection?.kind === "enemy" &&
-        !msg.state.enemies.some((e) => e.id === selection.id)
-      ) {
-        clearBoardSelection();
-      } else if (
-        selection?.kind === "player" &&
-        !msg.state.players.some((p) => p.id === selection.id)
-      ) {
-        clearBoardSelection();
-      }
-    } else if (msg.type === "consoleSync") {
-      setConsoleEntries(msg.entries);
-    } else if (msg.type === "console") {
-      appendConsoleEntry(msg.entry);
-    } else if (msg.type === "error") {
-      lastError.value = msg.message;
-    }
-  });
 }
 
 watch(
@@ -863,17 +730,13 @@ onMounted(() => {
 });
 
 watch(viewportEl, (el, prev) => {
-  if (prev) resizeObserver.unobserve(prev);
-  if (el) resizeObserver.observe(el);
+  observeViewport(el, prev);
 });
 
 onUnmounted(() => {
-  if (wheelFrame) cancelAnimationFrame(wheelFrame);
   window.removeEventListener("keydown", onKeydown);
-  resizeObserver.disconnect();
-  socket?.close();
-  clearGameState();
-  connection.value = "disconnected";
+  disconnectViewport();
+  disconnectSocket();
 });
 </script>
 
@@ -892,100 +755,65 @@ onUnmounted(() => {
         <div class="board-stage" :style="stageStyle">
           <div class="board-wrap">
             <div class="board" :style="gridStyle">
-            <button
-              v-for="c in cells"
-              :key="c.key"
-              type="button"
-              class="cell"
-              :data-cell-x="c.x"
-              :data-cell-y="c.y"
-              :class="{
-                [terrainClass(getTile(c.x, c.y)) ?? '']: !!terrainClass(getTile(c.x, c.y)),
-                movable:
-                  props.role === 'player' &&
-                  !!yourPlayerId &&
-                  !!gameState &&
-                  canPlayerMove(gameState, yourPlayerId) &&
-                  gameState.roundPhase !== 'deployment' &&
-                  isWalkable(getTile(c.x, c.y)) &&
-                  isAdjacentToYou(c.x, c.y) &&
-                  !playerAt(c.x, c.y) &&
-                  !enemyAt(c.x, c.y),
-                deployable: isDeployable(c.x, c.y),
-                'gm-movable':
-                  props.role === 'gm' &&
-                  gmEnemyMoveTargetKeys.has(c.key),
-                'gm-spawnable':
-                  props.role === 'gm' &&
-                  isGmSpawnable(c.x, c.y),
-                'pattern-primary': isPatternPrimary(c.x, c.y),
-                'pattern-secondary': isPatternSecondary(c.x, c.y),
-                'pattern-recoil': isPatternRecoil(c.x, c.y),
-              }"
-              @click="onCellClick(c.x, c.y)"
-              @mouseenter="hoveredKey = c.key"
-              @mouseleave="hoveredKey = null"
-            >
-              <div v-if="hoveredKey === c.key && getTile(c.x, c.y)" class="tile-tooltip">
-                <div class="tooltip-section">
-                  <span class="tooltip-row">({{ c.x }}, {{ c.y }})</span>
-                  <span class="tooltip-row">Terrain: {{ getTile(c.x, c.y)!.terrain.join(", ") }}</span>
-                  <span class="tooltip-row">Elevation: {{ getTile(c.x, c.y)!.elevation }}</span>
-                </div>
-                <div v-if="playersAt(c.x, c.y).length" class="tooltip-section">
-                  <span class="tooltip-heading">Players</span>
-                  <span
-                    v-for="player in playersAt(c.x, c.y)"
-                    :key="player.id"
-                    class="tooltip-row"
-                  >
-                    {{ playerLabel(player) }} · HP {{ formatHp(player.hp, getPlayerMaxHp(player)) }}
-                  </span>
-                </div>
-                <div v-if="enemiesAt(c.x, c.y).length" class="tooltip-section">
-                  <span class="tooltip-heading">Enemies</span>
-                  <span
-                    v-for="enemy in enemiesAt(c.x, c.y)"
-                    :key="enemy.id"
-                    class="tooltip-row"
-                  >
-                    {{ enemyLabel(enemy) }} · HP {{ formatHp(enemy.hp, getEnemyMaxHp(enemy)) }}
-                  </span>
-                </div>
-                <div v-if="terrainObjectsAt(c.x, c.y).length" class="tooltip-section">
-                  <span class="tooltip-heading">Objects</span>
-                  <span
-                    v-for="object in terrainObjectsAt(c.x, c.y)"
-                    :key="object.id"
-                    class="tooltip-row"
-                  >
-                    {{ terrainObjectLabel(object) }}
-                  </span>
-                </div>
-              </div>
-              <span
-                v-if="enemyAnchorAt(c.x, c.y)"
-                class="piece enemy"
-                :class="{ selected: isEnemySelected(enemyAnchorAt(c.x, c.y)!.id) }"
-                :style="enemyPieceStyle(enemyAnchorAt(c.x, c.y)!)"
-                @click.stop="onEnemyTokenClick(enemyAnchorAt(c.x, c.y)!)"
+              <BoardCell
+                v-for="c in cells"
+                :key="c.key"
+                v-memo="[c.key, cellStateByKey.get(c.key), hoveredKey === c.key, draggingDeploy]"
+                :x="c.x"
+                :y="c.y"
+                :cell="cellStateByKey.get(c.key)!"
+                :is-hovered="hoveredKey === c.key"
+                :dragging-deploy="draggingDeploy"
+                :can-drag-deploy="!!cellStateByKey.get(c.key)?.player && canDragDeploy(cellStateByKey.get(c.key)!.player!)"
+                :is-player-selected="!!cellStateByKey.get(c.key)?.player && isPlayerSelected(cellStateByKey.get(c.key)!.player!.id)"
+                :is-enemy-selected="!!cellStateByKey.get(c.key)?.enemyAnchor && isEnemySelected(cellStateByKey.get(c.key)!.enemyAnchor!.id)"
+                :player-hue="cellStateByKey.get(c.key)?.player ? hueFromId(cellStateByKey.get(c.key)!.player!.id) : null"
+                @click="onCellClick(c.x, c.y)"
+                @hover="onCellHover(c.x, c.y, c.key)"
+                @unhover="onCellUnhover"
+                @player-click="selectBoardPlayer(cellStateByKey.get(c.key)!.player!.id, cellStateByKey.get(c.key)!.player!.characterSheetId)"
+                @enemy-click="selectBoardEnemy(cellStateByKey.get(c.key)!.enemyAnchor!.id)"
+                @deploy-pointer-down="onDeployPointerDown($event, cellStateByKey.get(c.key)!.player!)"
               />
-              <span
-                v-if="playerAt(c.x, c.y)"
-                class="piece player-piece"
-                :class="{
-                  selected: isPlayerSelected(playerAt(c.x, c.y)!.id),
-                  draggable: canDragDeploy(playerAt(c.x, c.y)!),
-                  dragging: draggingDeploy && canDragDeploy(playerAt(c.x, c.y)!),
-                }"
-                :style="{
-                  background: `hsl(${hueFromId(playerAt(c.x, c.y)!.id)} 70% 45%)`,
-                }"
-                @click.stop="onPlayerTokenClick(playerAt(c.x, c.y)!)"
-                @pointerdown.stop="onDeployPointerDown($event, playerAt(c.x, c.y)!)"
-              />
-            </button>
             </div>
+          </div>
+        </div>
+
+        <div v-if="tooltipData" class="board-tooltip popover-tooltip">
+          <div class="tooltip-section">
+            <span class="tooltip-row">({{ tooltipData.x }}, {{ tooltipData.y }})</span>
+            <span class="tooltip-row">Terrain: {{ tooltipData.tile.terrain.join(", ") }}</span>
+            <span class="tooltip-row">Elevation: {{ tooltipData.tile.elevation }}</span>
+          </div>
+          <div v-if="tooltipData.players.length" class="tooltip-section">
+            <span class="tooltip-heading">Players</span>
+            <span
+              v-for="player in tooltipData.players"
+              :key="player.id"
+              class="tooltip-row"
+            >
+              {{ playerLabel(player) }} · HP {{ formatHp(player.hp, getPlayerMaxHp(player)) }}
+            </span>
+          </div>
+          <div v-if="tooltipData.enemies.length" class="tooltip-section">
+            <span class="tooltip-heading">Enemies</span>
+            <span
+              v-for="enemy in tooltipData.enemies"
+              :key="enemy.id"
+              class="tooltip-row"
+            >
+              {{ enemyLabel(enemy) }} · HP {{ formatHp(enemy.hp, getEnemyMaxHp(enemy)) }}
+            </span>
+          </div>
+          <div v-if="tooltipData.objects.length" class="tooltip-section">
+            <span class="tooltip-heading">Objects</span>
+            <span
+              v-for="object in tooltipData.objects"
+              :key="object.id"
+              class="tooltip-row"
+            >
+              {{ terrainObjectLabel(object) }}
+            </span>
           </div>
         </div>
       </div>
@@ -1015,7 +843,7 @@ onUnmounted(() => {
   min-height: 0;
   width: 100%;
 }
-.error { margin: 0 0 0.75rem; color: #f85149; font-size: 0.9rem; }
+
 .board-display {
   position: relative;
   flex: 1;
@@ -1024,88 +852,79 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 0.5rem;
 }
+
 .board-viewport {
+  position: relative;
   flex: 1;
   min-height: 0;
   overflow: hidden;
   border-radius: 12px;
-  border: 1px solid #30363d;
-  background: #161b22;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
 }
+
 .reset-zoom-btn {
   position: absolute;
   bottom: 0.75rem;
   left: 50%;
   transform: translateX(-50%);
   z-index: 2;
-  border: 1px solid #30363d;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   background: #0d1117ee;
-  color: #e6edf3;
+  color: var(--color-text);
   padding: 0.35rem 0.75rem;
   font-size: 0.8rem;
   cursor: pointer;
 }
+
 .reset-zoom-btn:hover {
-  background: #161b22;
-  border-color: #388bfd66;
+  background: var(--color-surface);
+  border-color: var(--color-accent-muted);
 }
-.board-stage { transform-origin: 0 0; will-change: transform; }
-.board-wrap { width: fit-content; padding: 0.75rem; }
-.board { display: grid; gap: 3px; aspect-ratio: v-bind(boardAspectRatio); }
-.cell { position: relative; border: none; border-radius: 4px; min-height: 28px; padding: 0; cursor: default; background: #21262d; }
-.cell.impassable { background: #484f58; cursor: not-allowed; }
-.cell.obstacle { background: #6e4c2a; cursor: not-allowed; }
-.cell.void { background: #0d1117; cursor: not-allowed; }
-.cell.cover { background: #2d4a3e; }
-.cell.uneasy { background: #3d3520; }
-.cell.movable { cursor: pointer; outline: 1px dashed #388bfd66; }
-.cell.deployable { cursor: pointer; outline: 1px dashed #3fb95066; }
-.cell.gm-movable { cursor: pointer; outline: 1px dashed #f8514966; }
-.cell.gm-spawnable { cursor: crosshair; outline: 1px dashed #a371f766; }
-.cell.pattern-primary { outline: 2px solid #a371f7; background: #a371f722; }
-.cell.pattern-secondary { outline: 1px dashed #a371f799; background: #a371f711; cursor: pointer; }
-.cell.pattern-recoil { outline: 1px dashed #d2992266; background: #d2992211; }
-.piece { position: absolute; inset: 4px; border-radius: 50%; display: block; z-index: 1; }
-.piece.player-piece { cursor: pointer; z-index: 2; }
-.piece.player-piece.draggable { cursor: grab; }
-.piece.player-piece.dragging { cursor: grabbing; }
-.piece.enemy { background: hsl(0 70% 45%); z-index: 1; }
-.piece.selected { outline: 2px solid #fff; }
-.tile-tooltip {
+
+.board-stage {
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.board-wrap {
+  width: fit-content;
+  padding: 0.75rem;
+}
+
+.board {
+  display: grid;
+  gap: 3px;
+  aspect-ratio: v-bind(boardAspectRatio);
+}
+
+.board-tooltip {
   position: absolute;
-  bottom: calc(100% + 4px);
+  top: 0.75rem;
   left: 50%;
-  transform: translateX(-50%) scale(calc(1 / var(--board-scale, 1)));
-  transform-origin: bottom center;
-  z-index: 2;
-  min-width: 120px;
-  max-width: 220px;
-  padding: 0.35rem 0.5rem;
-  border-radius: 6px;
-  border: 1px solid #30363d;
-  background: #0d1117;
-  color: #e6edf3;
-  font-size: 0.7rem;
-  line-height: 1.4;
+  transform: translateX(-50%);
   white-space: nowrap;
-  pointer-events: none;
-  box-shadow: 0 4px 12px #01040966;
+  z-index: 3;
 }
+
 .tooltip-section + .tooltip-section {
   margin-top: 0.35rem;
   padding-top: 0.35rem;
-  border-top: 1px solid #30363d;
+  border-top: 1px solid var(--color-border);
 }
+
 .tooltip-heading {
   display: block;
   margin-bottom: 0.15rem;
-  color: #8b949e;
+  color: var(--color-muted);
   font-size: 0.62rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
-.tooltip-row { display: block; }
-.loading { color: #8b949e; }
+
+.tooltip-row {
+  display: block;
+}
 </style>

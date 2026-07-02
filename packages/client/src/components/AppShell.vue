@@ -289,27 +289,6 @@ function onPhaseAction() {
 }
 
 .panel-toggle {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 1;
-  width: 1.25rem;
-  height: 2.5rem;
-  padding: 0;
-  border: 1px solid #30363d;
-  background: #161b22;
-  color: #8b949e;
-  font-size: 0.65rem;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.panel-toggle:hover {
-  color: #e6edf3;
-  background: #1f2937;
-}
-
-.sidebar-toggle {
   right: -0.625rem;
   border-radius: 0 6px 6px 0;
 }

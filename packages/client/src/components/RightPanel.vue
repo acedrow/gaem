@@ -93,7 +93,7 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
       </div>
 
       <div class="tab-body">
-        <GameConsolePanel v-show="activeTab === 'console'" />
+        <GameConsolePanel v-if="activeTab === 'console'" />
         <div v-show="activeTab === 'info'" class="info-pane">
           <EnemyInfoPanel
             v-if="boardSelection?.kind === 'enemy'"
@@ -136,7 +136,7 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
           />
           <InfoSearchPanel v-else />
         </div>
-        <TurnOrderPanel v-show="activeTab === 'turnOrder'" />
+        <TurnOrderPanel v-if="activeTab === 'turnOrder'" />
       </div>
     </template>
   </aside>
@@ -216,27 +216,6 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
 }
 
 .panel-toggle {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 1;
-  width: 1.25rem;
-  height: 2.5rem;
-  padding: 0;
-  border: 1px solid #30363d;
-  background: #161b22;
-  color: #8b949e;
-  font-size: 0.65rem;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.panel-toggle:hover {
-  color: #e6edf3;
-  background: #1f2937;
-}
-
-.right-toggle {
   left: -0.625rem;
   border-radius: 6px 0 0 6px;
 }
