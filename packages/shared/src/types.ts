@@ -134,6 +134,7 @@ export type GameState = {
   actedPlayerIds: string[];
   turnLog: RoundTurnLog[];
   enforceTurns?: boolean;
+  showReversals?: boolean;
   combat?: CombatState;
   damageEvents?: DamageEvent[];
 };
@@ -211,4 +212,5 @@ export type ClientMessage =
       target: { kind: "player" | "enemy"; id: string };
     }
   | { type: "phaseAction"; action: PhaseAction }
-  | { type: "setEnforceTurns"; enforceTurns: boolean };
+  | { type: "setEnforceTurns"; enforceTurns: boolean }
+  | { type: "setShowReversals"; showReversals: boolean };

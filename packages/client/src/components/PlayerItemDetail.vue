@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { PlayerArmor, PlayerClass, PlayerWeapon } from "@gaem/shared";
+import { computed } from "vue";
 
+import { useGameState } from "../composables/useGameState.js";
 import AbilityBlock from "./AbilityBlock.vue";
 import RuleText from "./RuleText.vue";
 import WeaponPatternDiagram from "./WeaponPatternDiagram.vue";
@@ -9,6 +11,9 @@ defineProps<{
   item: PlayerClass | PlayerArmor | PlayerWeapon;
   kind: "classes" | "armor" | "weapons";
 }>();
+
+const { gameState } = useGameState();
+const showReversals = computed(() => gameState.value?.showReversals !== false);
 </script>
 
 <template>
@@ -62,7 +67,7 @@ defineProps<{
       :content="(item as PlayerArmor).armorAction"
       tier-label="Armor action"
     />
-    <p v-if="(item as PlayerArmor).reversal" class="item-ability">
+    <p v-if="showReversals && (item as PlayerArmor).reversal" class="item-ability">
       <span class="ability-label">
         Reversal ({{ (item as PlayerArmor).reversal!.charges }} charges)
       </span>

@@ -326,6 +326,24 @@ export class GameRoom {
       return;
     }
 
+    if (parsed.type === "setShowReversals") {
+      if (att?.role !== "gm") {
+        this.sendError(ws, "Only the game master can do that");
+        return;
+      }
+      this.gameState.showReversals = parsed.showReversals;
+      if (!parsed.showReversals && this.gameState.combat) {
+        this.gameState.combat.pendingReaction = null;
+      }
+      const actor = await this.actorForSocket(ws);
+      await this.broadcastConsole(
+        actor,
+        parsed.showReversals ? "Reversals shown" : "Reversals hidden",
+      );
+      await this.broadcastState();
+      return;
+    }
+
     const combatCtx = { role: att?.role ?? "player", playerId: att?.playerId ?? null };
     const combatResult = handleCombatMessage(this.gameState, parsed, combatCtx);
     if (combatResult.handled) {

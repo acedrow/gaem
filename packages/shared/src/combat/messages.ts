@@ -440,7 +440,12 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
       if (action.targetPlayerId && state.combat) {
         const target = state.players.find((p) => p.id === action.targetPlayerId);
         const armor = target ? getArmorByName(target.armor ?? "") : undefined;
-        if (target && armor?.reversal && (target.reversalCharges ?? 0) > 0) {
+        if (
+          state.showReversals !== false &&
+          target &&
+          armor?.reversal &&
+          (target.reversalCharges ?? 0) > 0
+        ) {
           state.combat.pendingReaction = {
             playerId: target.id,
             sourceEnemyId: enemy.id,
@@ -560,6 +565,7 @@ export function validateAssistedOutcome(_state: GameState, _outcome: AssistedOut
 export { applyAssistedOutcome };
 
 export function validateTriggerReversal(state: GameState, playerId: string): string | null {
+  if (state.showReversals === false) return "Reversals disabled";
   const reaction = state.combat?.pendingReaction;
   if (!reaction || reaction.playerId !== playerId) return "No reversal pending";
   const player = state.players.find((p) => p.id === playerId);
@@ -583,6 +589,7 @@ export function applyTriggerReversal(state: GameState, playerId: string): string
 }
 
 export function validateDeclineReversal(state: GameState, playerId: string): string | null {
+  if (state.showReversals === false) return "Reversals disabled";
   const reaction = state.combat?.pendingReaction;
   if (!reaction || reaction.playerId !== playerId) return "No reversal pending";
   return null;

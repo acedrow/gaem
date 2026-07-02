@@ -261,5 +261,6 @@ export function createInitialStateFromMap(map: GameMap): GameState {
     actedPlayerIds: [],
     turnLog: [],
     enforceTurns: true,
+    showReversals: true,
   };
 }

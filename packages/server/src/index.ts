@@ -516,6 +516,23 @@ wss.on("connection", (ws: WebSocket) => {
       return;
     }
 
+    if (parsed.type === "setShowReversals") {
+      if (socketRole.get(ws) !== "gm") {
+        sendError(ws, "Only the game master can do that");
+        return;
+      }
+      gameState.showReversals = parsed.showReversals;
+      if (!parsed.showReversals && gameState.combat) {
+        gameState.combat.pendingReaction = null;
+      }
+      broadcastConsole(
+        actorForSocket(ws),
+        parsed.showReversals ? "Reversals shown" : "Reversals hidden",
+      );
+      broadcastState();
+      return;
+    }
+
     const combatCtx = { role: role ?? "player", playerId: socketPlayer.get(ws) ?? null };
 
     const combatResult = handleCombatMessage(gameState, parsed, combatCtx);

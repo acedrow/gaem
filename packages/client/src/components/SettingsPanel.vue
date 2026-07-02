@@ -1,7 +1,19 @@
 <script setup lang="ts">
-import { usePlayerSettings } from "../composables/usePlayerSettings.js";
+import { computed } from "vue";
 
+import { useGameState } from "../composables/useGameState.js";
+import { usePlayerSettings } from "../composables/usePlayerSettings.js";
+import { useSession } from "../composables/useSession.js";
+
+const { isGm } = useSession();
+const { gameState, send } = useGameState();
 const { showHealthBars, showConnectionsInConsole } = usePlayerSettings();
+
+const showReversals = computed(() => gameState.value?.showReversals !== false);
+
+function setShowReversals(value: boolean) {
+  send({ type: "setShowReversals", showReversals: value });
+}
 </script>
 
 <template>
@@ -38,6 +50,24 @@ const { showHealthBars, showConnectionsInConsole } = usePlayerSettings();
           <span class="toggle-thumb" />
         </button>
       </label>
+
+      <template v-if="isGm">
+        <h3 class="settings-section-heading">GM Settings</h3>
+
+        <label class="setting-row">
+          <span class="setting-label">Show reversals</span>
+          <button
+            type="button"
+            role="switch"
+            class="toggle"
+            :class="{ on: showReversals }"
+            :aria-checked="showReversals"
+            @click="setShowReversals(!showReversals)"
+          >
+            <span class="toggle-thumb" />
+          </button>
+        </label>
+      </template>
     </div>
   </div>
 </template>
@@ -69,6 +99,15 @@ const { showHealthBars, showConnectionsInConsole } = usePlayerSettings();
   flex-direction: column;
   gap: 0.75rem;
   padding: 1rem;
+}
+
+.settings-section-heading {
+  margin: 0.5rem 0 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8b949e;
 }
 
 .setting-row {

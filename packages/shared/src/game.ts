@@ -823,6 +823,9 @@ export function normalizeGameState(state: GameState): GameState {
   if (state.enforceTurns === undefined) {
     state.enforceTurns = true;
   }
+  if (state.showReversals === undefined) {
+    state.showReversals = true;
+  }
   if (!state.combat && state.roundPhase !== "deployment") {
     state.combat = createDefaultCombatState(state.players.length);
   }

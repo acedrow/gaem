@@ -4,11 +4,15 @@ import { computed } from "vue";
 import { getClassMaxHp, getEffectSummary } from "@gaem/shared";
 
 import { useCombatActions } from "../composables/useCombatActions.js";
+import { useGameState } from "../composables/useGameState.js";
 import HpBar from "./HpBar.vue";
 
 const props = defineProps<{
   playerId?: string;
 }>();
+
+const { gameState } = useGameState();
+const showReversals = computed(() => gameState.value?.showReversals !== false);
 
 const {
   activePlayer,
@@ -38,7 +42,7 @@ function pillTitle(token: string) {
     />
     <div class="stats">
       <span v-if="activePlayer.speed != null" class="stat">Speed {{ budget?.movementRemaining ?? activePlayer.speed }}/{{ activePlayer.speed }}</span>
-      <span v-if="activePlayer.reversalCharges != null" class="stat">
+      <span v-if="showReversals && activePlayer.reversalCharges != null" class="stat">
         Reversal {{ activePlayer.reversalCharges }}
       </span>
       <span v-if="activePlayer.equipmentUses != null" class="stat">
@@ -55,7 +59,7 @@ function pillTitle(token: string) {
         {{ pill }}
       </span>
     </div>
-    <div v-if="pendingReaction" class="reversal-prompt panel">
+    <div v-if="showReversals && pendingReaction" class="reversal-prompt panel">
       <p class="reversal-label">{{ pendingReaction.label }}?</p>
       <p class="reversal-trigger">{{ pendingReaction.trigger }}</p>
       <div class="reversal-actions">
