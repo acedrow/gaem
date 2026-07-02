@@ -10,6 +10,11 @@ const { role } = useSession();
 const { gameState, send } = useGameState();
 
 const round = computed(() => gameState.value?.round ?? null);
+const enforceTurns = computed(() => gameState.value?.enforceTurns !== false);
+
+function setEnforceTurns(value: boolean) {
+  send({ type: "setEnforceTurns", enforceTurns: value });
+}
 
 const roundGroups = computed(() => {
   const s = gameState.value;
@@ -39,6 +44,19 @@ function sendGmAction(action: PhaseAction) {
     </header>
 
     <div v-if="role === 'gm'" class="gm-controls">
+      <label class="enforce-turns">
+        <span class="enforce-label">Enforce turns</span>
+        <button
+          type="button"
+          role="switch"
+          class="toggle"
+          :class="{ on: enforceTurns }"
+          :aria-checked="enforceTurns"
+          @click="setEnforceTurns(!enforceTurns)"
+        >
+          <span class="toggle-thumb" />
+        </button>
+      </label>
       <button type="button" class="control-btn" @click="sendGmAction('resetCombat')">
         Reset combat
       </button>
@@ -97,9 +115,56 @@ function sendGmAction(action: PhaseAction) {
   flex-shrink: 0;
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1rem;
   border-bottom: 1px solid #30363d;
+}
+
+.enforce-turns {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-right: 0.25rem;
+}
+
+.enforce-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #e6edf3;
+  white-space: nowrap;
+}
+
+.toggle {
+  position: relative;
+  width: 2.25rem;
+  height: 1.25rem;
+  border: 1px solid #484f58;
+  border-radius: 999px;
+  background: #21262d;
+  padding: 0;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.toggle.on {
+  background: #238636;
+  border-color: #2ea043;
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background: #e6edf3;
+  transition: transform 0.15s;
+}
+
+.toggle.on .toggle-thumb {
+  transform: translateX(1rem);
 }
 
 .control-btn {

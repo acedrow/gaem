@@ -99,6 +99,7 @@ export type GameState = {
   turn: TurnHolder | null;
   actedPlayerIds: string[];
   turnLog: RoundTurnLog[];
+  enforceTurns?: boolean;
 };
 
 /**
@@ -151,4 +152,5 @@ export type ClientMessage =
   | { type: "removeEnemy"; enemyId: string }
   | { type: "setPlayerHp"; playerId: string; hp: number }
   | { type: "syncPlayerSheet"; characterSheetId: string; class: string }
-  | { type: "phaseAction"; action: PhaseAction };
+  | { type: "phaseAction"; action: PhaseAction }
+  | { type: "setEnforceTurns"; enforceTurns: boolean };

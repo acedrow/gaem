@@ -219,5 +219,6 @@ export function createInitialStateFromMap(map: GameMap): GameState {
     turn: { role: "gm" },
     actedPlayerIds: [],
     turnLog: [],
+    enforceTurns: true,
   };
 }

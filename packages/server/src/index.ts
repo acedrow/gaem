@@ -478,6 +478,20 @@ wss.on("connection", (ws: WebSocket) => {
       return;
     }
 
+    if (parsed.type === "setEnforceTurns") {
+      if (socketRole.get(ws) !== "gm") {
+        sendError(ws, "Only the game master can do that");
+        return;
+      }
+      gameState.enforceTurns = parsed.enforceTurns;
+      broadcastConsole(
+        actorForSocket(ws),
+        parsed.enforceTurns ? "Enforce turns enabled" : "Enforce turns disabled",
+      );
+      broadcastState();
+      return;
+    }
+
     if (parsed.type === "phaseAction") {
       const role = socketRole.get(ws);
       if (!role) {

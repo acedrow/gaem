@@ -288,6 +288,21 @@ export class GameRoom {
       return;
     }
 
+    if (parsed.type === "setEnforceTurns") {
+      if (att?.role !== "gm") {
+        this.sendError(ws, "Only the game master can do that");
+        return;
+      }
+      this.gameState.enforceTurns = parsed.enforceTurns;
+      const actor = await this.actorForSocket(ws);
+      await this.broadcastConsole(
+        actor,
+        parsed.enforceTurns ? "Enforce turns enabled" : "Enforce turns disabled",
+      );
+      await this.broadcastState();
+      return;
+    }
+
     if (parsed.type === "phaseAction") {
       if (!att?.role) {
         this.sendError(ws, "Not joined");

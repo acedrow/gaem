@@ -52,6 +52,9 @@ export function remainingPlayerIds(state: GameState): string[] {
 }
 
 export function canPlayerMove(state: GameState, playerId: string): boolean {
+  if (state.enforceTurns === false) {
+    return state.players.some((p) => p.id === playerId);
+  }
   if (state.roundPhase === "deployment") {
     return state.round === 1 && state.players.some((p) => p.id === playerId);
   }
@@ -63,6 +66,7 @@ export function canPlayerMove(state: GameState, playerId: string): boolean {
 }
 
 export function canGmMoveEnemies(state: GameState): boolean {
+  if (state.enforceTurns === false) return true;
   return state.roundPhase === "gmTurn" && state.turn?.role === "gm";
 }
 
@@ -578,6 +582,9 @@ export function normalizeGameState(state: GameState): GameState {
   }
   if (!state.turnLog) {
     state.turnLog = [];
+  }
+  if (state.enforceTurns === undefined) {
+    state.enforceTurns = true;
   }
   for (const player of state.players) {
     const maxHp = getPlayerMaxHp(player);
