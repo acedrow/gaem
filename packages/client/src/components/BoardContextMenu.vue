@@ -58,9 +58,9 @@ const emit = defineEmits<{
   min-width: 140px;
   padding: 0.25rem;
   border-radius: 0;
-  border: 1px solid #30363d;
-  background: #161b22;
-  box-shadow: 0 8px 24px #01040999;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-menu);
 }
 .menu-item {
   display: block;
@@ -68,19 +68,19 @@ const emit = defineEmits<{
   border: none;
   border-radius: 0;
   background: transparent;
-  color: #e6edf3;
+  color: var(--color-text);
   padding: 0.4rem 0.65rem;
   font-size: 0.85rem;
   text-align: left;
   cursor: pointer;
 }
 .menu-item:hover {
-  background: #21262d;
+  background: var(--color-surface-raised);
 }
 .menu-item.danger {
-  color: #f85149;
+  color: var(--color-danger);
 }
 .menu-item.danger:hover {
-  background: #f8514922;
+  background: var(--color-danger-subtle-bg);
 }
 </style>

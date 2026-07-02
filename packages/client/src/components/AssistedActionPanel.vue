@@ -130,6 +130,6 @@ function applyPending(pendingId: string, reject = false) {
 }
 
 .action-btn.reject {
-  color: #f85149;
+  color: var(--color-danger);
 }
 </style>

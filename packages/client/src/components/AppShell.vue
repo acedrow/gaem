@@ -167,8 +167,8 @@ function onPhaseAction() {
   flex-direction: column;
   width: 12rem;
   flex-shrink: 0;
-  border-right: 1px solid #30363d;
-  background: #0d1117;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-bg);
 }
 
 .sidebar-content {
@@ -188,7 +188,7 @@ function onPhaseAction() {
 
 .sidebar-footer {
   margin-top: auto;
-  border-top: 1px solid #30363d;
+  border-top: 1px solid var(--color-border);
   padding: 0.75rem;
   display: flex;
   flex-direction: column;
@@ -201,12 +201,12 @@ function onPhaseAction() {
   gap: 0.75rem;
   flex-wrap: wrap;
   font-size: 0.85rem;
-  color: #8b949e;
+  color: var(--color-muted);
 }
 
 .role-tag {
   font-size: 0.72rem;
-  color: #d29922;
+  color: var(--color-warning);
   text-transform: uppercase;
   font-weight: 700;
 }
@@ -222,33 +222,33 @@ function onPhaseAction() {
 }
 
 .status-pill.connecting {
-  background: #3d444d;
-  color: #d29922;
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
 }
 
 .status-pill.connected {
-  background: #23863633;
-  color: #3fb950;
+  background: var(--color-success-muted-bg);
+  color: var(--color-success);
 }
 
 .status-pill.disconnected {
-  background: #f8514933;
-  color: #f85149;
+  background: var(--color-danger-hover-bg);
+  color: var(--color-danger);
 }
 
 .leave-btn {
-  border: 1px solid #f8514966;
+  border: 1px solid var(--color-danger-muted-border);
   border-radius: 8px;
-  background: #f8514922;
-  color: #f85149;
+  background: var(--color-danger-subtle-bg);
+  color: var(--color-danger);
   padding: 0.4rem 0.55rem;
   cursor: pointer;
   font-size: 0.85rem;
 }
 
 .leave-btn:hover {
-  background: #f8514933;
-  border-color: #f85149;
+  background: var(--color-danger-hover-bg);
+  border-color: var(--color-danger);
 }
 
 .main {
@@ -282,17 +282,17 @@ function onPhaseAction() {
   margin: 0;
   flex: 1;
   font-size: 0.9rem;
-  color: #8b949e;
+  color: var(--color-muted);
   text-align: center;
 }
 
 .phase-action-btn {
   margin-left: auto;
   flex-shrink: 0;
-  border: 1px solid #388bfd66;
+  border: 1px solid var(--color-accent-muted);
   border-radius: 8px;
-  background: #388bfd22;
-  color: #58a6ff;
+  background: var(--color-accent-subtle-bg);
+  color: var(--color-accent-bright);
   padding: 0.2rem 0.75rem;
   cursor: pointer;
   font-size: 0.85rem;
@@ -300,7 +300,7 @@ function onPhaseAction() {
 }
 
 .phase-action-btn:hover {
-  background: #388bfd33;
-  border-color: #58a6ff;
+  background: var(--color-accent-hover-bg);
+  border-color: var(--color-accent-bright);
 }
 </style>

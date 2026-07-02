@@ -112,7 +112,7 @@ function sendGmAction(action: PhaseAction) {
 .panel-header {
   flex-shrink: 0;
   padding: 1rem 1rem 0.75rem;
-  border-bottom: 1px solid #30363d;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .round-heading {
@@ -123,7 +123,7 @@ function sendGmAction(action: PhaseAction) {
 }
 
 .round-heading.muted {
-  color: #8b949e;
+  color: var(--color-muted);
 }
 
 .gm-controls {
@@ -132,7 +132,7 @@ function sendGmAction(action: PhaseAction) {
   flex-direction: column;
   gap: 0.65rem;
   padding: 0.75rem 1rem;
-  border-bottom: 1px solid #30363d;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .gm-controls-main,
@@ -145,7 +145,7 @@ function sendGmAction(action: PhaseAction) {
 
 .gm-controls-danger {
   padding-top: 0.65rem;
-  border-top: 1px solid #30363d;
+  border-top: 1px solid var(--color-border);
 }
 
 .enforce-turns {
@@ -158,7 +158,7 @@ function sendGmAction(action: PhaseAction) {
 .enforce-label {
   font-size: 0.8rem;
   font-weight: 600;
-  color: #e6edf3;
+  color: var(--color-text);
   white-space: nowrap;
 }
 
@@ -166,17 +166,17 @@ function sendGmAction(action: PhaseAction) {
   position: relative;
   width: 2.25rem;
   height: 1.25rem;
-  border: 1px solid #484f58;
+  border: 1px solid var(--color-border-strong);
   border-radius: 999px;
-  background: #21262d;
+  background: var(--color-surface-raised);
   padding: 0;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
 
 .toggle.on {
-  background: #238636;
-  border-color: #2ea043;
+  background: var(--color-success-dark);
+  border-color: var(--color-success-bright);
 }
 
 .toggle-thumb {
@@ -186,7 +186,7 @@ function sendGmAction(action: PhaseAction) {
   width: 1rem;
   height: 1rem;
   border-radius: 50%;
-  background: #e6edf3;
+  background: var(--color-text);
   transition: transform 0.15s;
 }
 
@@ -195,10 +195,10 @@ function sendGmAction(action: PhaseAction) {
 }
 
 .control-btn {
-  border: 1px solid #388bfd66;
+  border: 1px solid var(--color-accent-muted);
   border-radius: 8px;
-  background: #388bfd22;
-  color: #58a6ff;
+  background: var(--color-accent-subtle-bg);
+  color: var(--color-accent-bright);
   padding: 0.35rem 0.65rem;
   cursor: pointer;
   font-size: 0.8rem;
@@ -206,8 +206,8 @@ function sendGmAction(action: PhaseAction) {
 }
 
 .control-btn:hover:not(:disabled) {
-  background: #388bfd33;
-  border-color: #58a6ff;
+  background: var(--color-accent-hover-bg);
+  border-color: var(--color-accent-bright);
 }
 
 .control-btn:disabled {
@@ -216,14 +216,14 @@ function sendGmAction(action: PhaseAction) {
 }
 
 .control-btn.danger {
-  border-color: #f8514966;
-  background: #f8514922;
-  color: #f85149;
+  border-color: var(--color-danger-muted-border);
+  background: var(--color-danger-subtle-bg);
+  color: var(--color-danger);
 }
 
 .control-btn.danger:hover:not(:disabled) {
-  background: #f8514933;
-  border-color: #f85149;
+  background: var(--color-danger-hover-bg);
+  border-color: var(--color-danger);
 }
 
 .history {
@@ -235,7 +235,7 @@ function sendGmAction(action: PhaseAction) {
 
 .empty {
   margin: 0;
-  color: #8b949e;
+  color: var(--color-muted);
   font-size: 0.9rem;
 }
 
@@ -249,7 +249,7 @@ function sendGmAction(action: PhaseAction) {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #8b949e;
+  color: var(--color-muted);
 }
 
 .turn-list {
@@ -262,10 +262,10 @@ function sendGmAction(action: PhaseAction) {
   padding: 0.35rem 0.5rem;
   border-radius: 6px;
   font-size: 0.9rem;
-  color: #e6edf3;
+  color: var(--color-text);
 }
 
 .turn-item:nth-child(odd) {
-  background: #161b22;
+  background: var(--color-surface);
 }
 </style>

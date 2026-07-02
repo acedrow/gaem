@@ -68,7 +68,7 @@ const currentHp = computed(() => player.value?.hp ?? 0);
   flex-shrink: 0;
   border: none;
   background: transparent;
-  color: #8b949e;
+  color: var(--color-muted);
   font-size: 1.4rem;
   line-height: 1;
   cursor: pointer;
@@ -76,18 +76,18 @@ const currentHp = computed(() => player.value?.hp ?? 0);
 }
 
 .close-btn:hover {
-  color: #e6edf3;
+  color: var(--color-text);
 }
 
 .meta {
   margin: 0;
   font-size: 0.9rem;
-  color: #c9d1d9;
+  color: var(--color-text-secondary);
 }
 
 .muted {
   margin: 0.5rem 0 0;
-  color: #8b949e;
+  color: var(--color-muted);
   font-size: 0.85rem;
 }
 </style>

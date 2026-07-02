@@ -165,8 +165,8 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
   flex-direction: column;
   width: 22rem;
   flex-shrink: 0;
-  border-left: 1px solid #30363d;
-  background: #0d1117;
+  border-left: 1px solid var(--color-border);
+  background: var(--color-bg);
   overflow: hidden;
 }
 
@@ -178,7 +178,7 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
 .tabs {
   display: flex;
   flex-shrink: 0;
-  border-bottom: 1px solid #30363d;
+  border-bottom: 1px solid var(--color-border);
   padding: 0 0.5rem;
 }
 
@@ -190,7 +190,7 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
   border: none;
   border-bottom: 2px solid transparent;
   background: transparent;
-  color: #8b949e;
+  color: var(--color-muted);
   padding: 0.65rem 0.5rem;
   cursor: pointer;
   margin-bottom: -1px;
@@ -202,12 +202,12 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
 }
 
 .tab:hover {
-  color: #e6edf3;
+  color: var(--color-text);
 }
 
 .tab.active {
-  color: #e6edf3;
-  border-bottom-color: #388bfd;
+  color: var(--color-text);
+  border-bottom-color: var(--color-accent);
 }
 
 .tab-body {

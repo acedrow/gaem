@@ -187,7 +187,7 @@ function onModifierInput(id: keyof PatternModifierValues, value: number) {
   flex-shrink: 0;
   border: none;
   background: transparent;
-  color: #8b949e;
+  color: var(--color-muted);
   font-size: 1.4rem;
   line-height: 1;
   cursor: pointer;
@@ -195,7 +195,7 @@ function onModifierInput(id: keyof PatternModifierValues, value: number) {
 }
 
 .close-btn:hover {
-  color: #e6edf3;
+  color: var(--color-text);
 }
 
 .size-bar,
@@ -222,7 +222,7 @@ function onModifierInput(id: keyof PatternModifierValues, value: number) {
 .size-label {
   font-size: 0.75rem;
   font-weight: 600;
-  color: #8b949e;
+  color: var(--color-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   min-width: 2.25rem;
@@ -246,16 +246,16 @@ function onModifierInput(id: keyof PatternModifierValues, value: number) {
   max-width: 220px;
   padding: 0.45rem 0.55rem;
   border-radius: 6px;
-  border: 1px solid #30363d;
-  background: #0d1117;
-  color: #e6edf3;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
   font-size: 0.75rem;
   font-weight: 400;
   line-height: 1.45;
   text-transform: none;
   letter-spacing: normal;
   white-space: normal;
-  box-shadow: 0 4px 12px #01040966;
+  box-shadow: var(--shadow-popover);
   pointer-events: none;
 }
 
@@ -268,9 +268,9 @@ function onModifierInput(id: keyof PatternModifierValues, value: number) {
   width: 1.75rem;
   height: 1.75rem;
   padding: 0;
-  border: 1px solid #30363d;
-  background: #21262d;
-  color: #c9d1d9;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+  color: var(--color-text-secondary);
   font-size: 1rem;
   line-height: 1;
   cursor: pointer;
@@ -285,8 +285,8 @@ function onModifierInput(id: keyof PatternModifierValues, value: number) {
 }
 
 .step-btn:hover:not(:disabled) {
-  background: #30363d;
-  color: #e6edf3;
+  background: var(--color-border);
+  color: var(--color-text);
 }
 
 .step-btn:disabled {
@@ -298,11 +298,11 @@ function onModifierInput(id: keyof PatternModifierValues, value: number) {
   width: 2.25rem;
   height: 1.75rem;
   padding: 0;
-  border: 1px solid #30363d;
+  border: 1px solid var(--color-border);
   border-left: none;
   border-right: none;
-  background: #0d1117;
-  color: #e6edf3;
+  background: var(--color-bg);
+  color: var(--color-text);
   font-size: 0.85rem;
   text-align: center;
   font-variant-numeric: tabular-nums;
@@ -323,18 +323,18 @@ function onModifierInput(id: keyof PatternModifierValues, value: number) {
 .reset-btn {
   margin-left: auto;
   padding: 0.3rem 0.55rem;
-  border: 1px solid #30363d;
+  border: 1px solid var(--color-border);
   border-radius: 6px;
-  background: #21262d;
-  color: #8b949e;
+  background: var(--color-surface-raised);
+  color: var(--color-muted);
   font-size: 0.75rem;
   cursor: pointer;
   font-family: inherit;
 }
 
 .reset-btn:hover {
-  color: #e6edf3;
-  background: #30363d;
+  color: var(--color-text);
+  background: var(--color-border);
 }
 
 .dir-group {
@@ -344,9 +344,9 @@ function onModifierInput(id: keyof PatternModifierValues, value: number) {
 
 .dir-btn {
   padding: 0.3rem 0.55rem;
-  border: 1px solid #30363d;
-  background: #21262d;
-  color: #8b949e;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+  color: var(--color-muted);
   font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
@@ -366,14 +366,14 @@ function onModifierInput(id: keyof PatternModifierValues, value: number) {
 }
 
 .dir-btn:hover {
-  color: #e6edf3;
-  background: #30363d;
+  color: var(--color-text);
+  background: var(--color-border);
 }
 
 .dir-btn.active {
-  background: #388bfd;
-  border-color: #388bfd;
-  color: #fff;
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
 }
 
 .dir-bar {
@@ -384,8 +384,8 @@ function onModifierInput(id: keyof PatternModifierValues, value: number) {
   margin-left: auto;
   font-size: 0.65rem;
   font-weight: 600;
-  color: #6e7681;
-  border: 1px solid #30363d;
+  color: var(--color-muted-subtle);
+  border: 1px solid var(--color-border);
   border-radius: 4px;
   padding: 0.15rem 0.35rem;
   font-family: inherit;
@@ -404,12 +404,12 @@ function onModifierInput(id: keyof PatternModifierValues, value: number) {
 }
 
 .pattern-item {
-  border: 1px solid #21262d;
+  border: 1px solid var(--color-surface-raised);
   border-radius: 0;
 }
 
 .pattern-item.selected {
-  border-color: #388bfd66;
+  border-color: var(--color-accent-muted);
 }
 
 .pattern-header {
@@ -420,19 +420,19 @@ function onModifierInput(id: keyof PatternModifierValues, value: number) {
   width: 100%;
   padding: 0.55rem 0.65rem;
   border: none;
-  background: #161b22;
-  color: #e6edf3;
+  background: var(--color-surface);
+  color: var(--color-text);
   text-align: left;
   cursor: pointer;
   font-family: inherit;
 }
 
 .pattern-item.selected .pattern-header {
-  background: #1c2128;
+  background: var(--color-surface-hover);
 }
 
 .pattern-header:hover {
-  background: #1c2128;
+  background: var(--color-surface-hover);
 }
 
 .pattern-name {
@@ -446,8 +446,8 @@ function onModifierInput(id: keyof PatternModifierValues, value: number) {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #8b949e;
-  border: 1px solid #30363d;
+  color: var(--color-muted);
+  border: 1px solid var(--color-border);
   border-radius: 4px;
   padding: 0.1rem 0.35rem;
 }
@@ -455,9 +455,9 @@ function onModifierInput(id: keyof PatternModifierValues, value: number) {
 .pattern-description {
   margin: 0;
   padding: 0.65rem 0.75rem 0.75rem;
-  border-top: 1px solid #21262d;
+  border-top: 1px solid var(--color-surface-raised);
   font-size: 0.82rem;
   line-height: 1.45;
-  color: #c9d1d9;
+  color: var(--color-text-secondary);
 }
 </style>

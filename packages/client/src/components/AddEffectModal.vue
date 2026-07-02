@@ -169,8 +169,8 @@ function clearEffects() {
   margin-bottom: 0.75rem;
   padding: 0.45rem 0.85rem;
   border-radius: 6px;
-  border: 1px solid #f8514966;
-  background: #f8514922;
+  border: 1px solid var(--color-danger-muted-border);
+  background: var(--color-danger-subtle-bg);
   color: var(--color-danger);
   font-size: 0.85rem;
   font-family: inherit;
@@ -179,7 +179,7 @@ function clearEffects() {
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: #f8514933;
+  background: var(--color-danger-hover-bg);
   border-color: var(--color-danger);
 }
 
@@ -206,7 +206,7 @@ function clearEffects() {
 .btn-primary {
   border: 1px solid var(--color-accent);
   background: var(--color-accent);
-  color: #fff;
+  color: var(--color-on-accent);
 }
 
 .btn-primary:disabled {

@@ -239,7 +239,7 @@ watch(sheetsVersion, () => {
   justify-content: space-between;
   padding: 0.5rem 0.65rem;
   border-radius: 0;
-  color: #8b949e;
+  color: var(--color-muted);
   text-decoration: none;
   font-weight: 600;
   font-size: 0.9rem;
@@ -247,9 +247,9 @@ watch(sheetsVersion, () => {
 }
 
 .nav-link.active {
-  color: #e6edf3;
-  background: #161b22;
-  border-color: #30363d;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border-color: var(--color-border);
 }
 
 .nav-toggle {
@@ -262,13 +262,13 @@ watch(sheetsVersion, () => {
 
 .nav-toggle:hover,
 .nav-toggle.expanded {
-  color: #e6edf3;
-  background: #161b22;
+  color: var(--color-text);
+  background: var(--color-surface);
 }
 
 .chevron {
   font-size: 1.5rem;
-  color: #8b949e;
+  color: var(--color-muted);
 }
 
 .sheet-sublist {
@@ -287,7 +287,7 @@ watch(sheetsVersion, () => {
   border: 1px solid transparent;
   border-radius: 0;
   background: transparent;
-  color: #8b949e;
+  color: var(--color-muted);
   text-align: left;
   cursor: pointer;
   font-family: inherit;
@@ -295,14 +295,14 @@ watch(sheetsVersion, () => {
 }
 
 .sheet-item:hover {
-  color: #e6edf3;
-  background: #161b22;
+  color: var(--color-text);
+  background: var(--color-surface);
 }
 
 .sheet-item.selected {
-  color: #e6edf3;
-  background: #161b22;
-  border-color: #30363d;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border-color: var(--color-border);
 }
 
 .sheet-name {
@@ -311,30 +311,30 @@ watch(sheetsVersion, () => {
 
 .sheet-meta {
   font-size: 0.75rem;
-  color: #6e7681;
+  color: var(--color-muted-subtle);
 }
 
 .sublist-muted {
   margin: 0;
   padding: 0.25rem 0.55rem;
   font-size: 0.8rem;
-  color: #6e7681;
+  color: var(--color-muted-subtle);
 }
 
 .sublist-error {
   margin: 0;
   padding: 0.25rem 0.55rem;
   font-size: 0.8rem;
-  color: #f85149;
+  color: var(--color-danger);
 }
 
 .new-sheet-btn {
   margin-top: 0.25rem;
   padding: 0.35rem 0.55rem;
-  border: 1px dashed #30363d;
+  border: 1px dashed var(--color-border);
   border-radius: 0;
   background: transparent;
-  color: #8b949e;
+  color: var(--color-muted);
   font-size: 0.8rem;
   cursor: pointer;
   font-family: inherit;
@@ -342,14 +342,14 @@ watch(sheetsVersion, () => {
 }
 
 .new-sheet-btn:hover {
-  color: #e6edf3;
-  border-color: #388bfd;
+  color: var(--color-text);
+  border-color: var(--color-accent);
 }
 
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--color-overlay-scrim);
   display: grid;
   place-items: center;
   padding: 1rem;
@@ -358,8 +358,8 @@ watch(sheetsVersion, () => {
 
 .modal {
   width: min(480px, 100%);
-  background: #0f1419;
-  border: 1px solid #30363d;
+  background: var(--color-bg-body);
+  border: 1px solid var(--color-border);
   border-radius: 12px;
   padding: 1rem;
 }
@@ -375,14 +375,14 @@ watch(sheetsVersion, () => {
   gap: 0.25rem;
   margin-bottom: 0.75rem;
   font-size: 0.85rem;
-  color: #8b949e;
+  color: var(--color-muted);
 }
 
 .input {
-  border: 1px solid #30363d;
+  border: 1px solid var(--color-border);
   border-radius: 0;
-  background: #0d1117;
-  color: #e6edf3;
+  background: var(--color-bg);
+  color: var(--color-text);
   padding: 0.55rem 0.65rem;
 }
 
@@ -394,17 +394,17 @@ watch(sheetsVersion, () => {
 }
 
 .cta {
-  border: 1px solid #30363d;
+  border: 1px solid var(--color-border);
   border-radius: 10px;
-  background: #161b22;
-  color: #e6edf3;
+  background: var(--color-surface);
+  color: var(--color-text);
   padding: 0.55rem 0.85rem;
   cursor: pointer;
   font-weight: 600;
 }
 
 .cta:hover {
-  background: #1f2937;
+  background: var(--color-surface-alt);
 }
 
 .cta:disabled {
@@ -413,6 +413,6 @@ watch(sheetsVersion, () => {
 }
 
 .secondary {
-  background: #0d1117;
+  background: var(--color-bg);
 }
 </style>

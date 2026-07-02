@@ -218,7 +218,7 @@ function endEnemyTurn() {
 }
 
 .stat.exhausted {
-  color: #f85149;
+  color: var(--color-danger);
 }
 
 .stats {
@@ -232,7 +232,7 @@ function endEnemyTurn() {
   margin: 0;
   font-size: 0.82rem;
   line-height: 1.45;
-  color: #c9d1d9;
+  color: var(--color-text-secondary);
 }
 
 .ability-text {
@@ -264,14 +264,14 @@ function endEnemyTurn() {
   padding: 0.25rem 0.55rem;
   border-radius: 6px;
   border: 1px solid var(--color-accent-muted);
-  background: #388bfd22;
+  background: var(--color-accent-subtle-bg);
   color: var(--color-accent);
   cursor: pointer;
   font-weight: 600;
 }
 
 .use-attack-btn:hover {
-  background: #388bfd33;
+  background: var(--color-accent-hover-bg);
 }
 
 .position {

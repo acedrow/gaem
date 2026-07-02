@@ -189,8 +189,8 @@ function pickMode(next: typeof mode.value) {
 }
 
 .action-btn.active {
-  border-color: var(--color-accent, #58a6ff);
-  background: rgba(88, 166, 255, 0.12);
+  border-color: var(--color-accent-bright);
+  background: var(--color-accent-tint-bg);
 }
 
 .action-btn.small {

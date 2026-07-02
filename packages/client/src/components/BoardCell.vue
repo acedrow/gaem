@@ -211,12 +211,12 @@ const enemyHp = computed(() => {
 }
 
 .cell.impassable {
-  background: #484f58;
+  background: var(--color-border-strong);
   cursor: not-allowed;
 }
 
 .cell.obstacle {
-  background: #6e4c2a;
+  background: var(--color-tile-difficult);
   cursor: not-allowed;
 }
 
@@ -226,11 +226,11 @@ const enemyHp = computed(() => {
 }
 
 .cell.cover {
-  background: #2d4a3e;
+  background: var(--color-tile-grass);
 }
 
 .cell.uneasy {
-  background: #3d3520;
+  background: var(--color-tile-sand);
 }
 
 .cell.movable {
@@ -240,33 +240,33 @@ const enemyHp = computed(() => {
 
 .cell.deployable {
   cursor: pointer;
-  outline: 1px dashed #3fb95066;
+  outline: 1px dashed var(--color-success-outline);
 }
 
 .cell.gm-movable {
   cursor: pointer;
-  outline: 1px dashed #f8514966;
+  outline: 1px dashed var(--color-danger-muted-border);
 }
 
 .cell.gm-spawnable {
   cursor: crosshair;
-  outline: 1px dashed #a371f766;
+  outline: 1px dashed var(--color-purple-outline);
 }
 
 .cell.pattern-primary {
   outline: 2px solid var(--color-purple);
-  background: #a371f722;
+  background: var(--color-purple-subtle-bg);
 }
 
 .cell.pattern-secondary {
-  outline: 1px dashed #a371f799;
-  background: #a371f711;
+  outline: 1px dashed var(--color-purple-outline-strong);
+  background: var(--color-purple-faint-bg);
   cursor: pointer;
 }
 
 .cell.pattern-recoil {
-  outline: 1px dashed #d2992266;
-  background: #d2992211;
+  outline: 1px dashed var(--color-warning-outline);
+  background: var(--color-warning-faint-bg);
 }
 
 .cell.scaled-enemy-effects {
@@ -302,7 +302,7 @@ const enemyHp = computed(() => {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: rgba(0, 0, 0, 0.48);
+  background: var(--color-overlay-label);
   pointer-events: none;
   z-index: 1;
 }
@@ -318,7 +318,7 @@ const enemyHp = computed(() => {
   font-weight: 900;
   font-style: italic;
   color: var(--color-muted);
-  text-shadow: 0 0 2px #0008, 0 1px 2px #0006;
+  text-shadow: var(--shadow-text-strong);
   line-height: 1;
   animation: turn-ended-zzz-float 2.4s ease-in-out infinite;
 }
@@ -368,7 +368,7 @@ const enemyHp = computed(() => {
 }
 
 .piece.selected {
-  outline: 2px solid #fff;
+  outline: 2px solid var(--color-on-accent);
 }
 
 .token-hp-bar {

@@ -1275,7 +1275,7 @@ onUnmounted(() => {
   z-index: 2;
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #0d1117ee;
+  background: var(--color-bg-board);
   color: var(--color-text);
   padding: 0.35rem 0.75rem;
   font-size: 0.8rem;
@@ -1321,7 +1321,7 @@ onUnmounted(() => {
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   color: var(--color-danger);
-  text-shadow: 0 1px 2px #0d1117cc;
+  text-shadow: var(--shadow-text);
   opacity: 0;
   animation: damage-indicator 3s ease-in-out forwards;
 }

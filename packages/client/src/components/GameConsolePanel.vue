@@ -142,7 +142,7 @@ onMounted(() => {
 
 .empty {
   padding: 1rem;
-  color: #8b949e;
+  color: var(--color-muted);
   font-size: 0.85rem;
 }
 
@@ -161,7 +161,7 @@ onMounted(() => {
   padding: 0.35rem 0;
   font-size: 0.8rem;
   line-height: 1.4;
-  border-bottom: 1px solid #21262d;
+  border-bottom: 1px solid var(--color-surface-raised);
 }
 
 .entry:last-child {
@@ -170,14 +170,14 @@ onMounted(() => {
 
 .time {
   flex-shrink: 0;
-  color: #6e7681;
+  color: var(--color-muted-subtle);
   font-size: 0.72rem;
   font-variant-numeric: tabular-nums;
   padding-top: 0.1rem;
 }
 
 .message {
-  color: #c9d1d9;
+  color: var(--color-text-secondary);
   min-width: 0;
 }
 
@@ -186,11 +186,11 @@ onMounted(() => {
 }
 
 .actor.gm {
-  color: #3fb950;
+  color: var(--color-success);
 }
 
 .actor.player {
-  color: #388bfd;
+  color: var(--color-accent);
 }
 
 .dice-bar {
@@ -203,8 +203,8 @@ onMounted(() => {
   gap: 0.5rem;
   row-gap: 0.5rem;
   padding: 0.6rem 0.75rem;
-  border-top: 1px solid #30363d;
-  background: #161b22;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
 }
 
 .stepper {
@@ -218,9 +218,9 @@ onMounted(() => {
   width: 1.75rem;
   height: 1.75rem;
   padding: 0;
-  border: 1px solid #30363d;
-  background: #21262d;
-  color: #c9d1d9;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+  color: var(--color-text-secondary);
   font-size: 1rem;
   line-height: 1;
   cursor: pointer;
@@ -235,8 +235,8 @@ onMounted(() => {
 }
 
 .step-btn:hover:not(:disabled) {
-  background: #30363d;
-  color: #e6edf3;
+  background: var(--color-border);
+  color: var(--color-text);
 }
 
 .step-btn:disabled {
@@ -248,11 +248,11 @@ onMounted(() => {
   width: 2.25rem;
   height: 1.75rem;
   padding: 0;
-  border: 1px solid #30363d;
+  border: 1px solid var(--color-border);
   border-left: none;
   border-right: none;
-  background: #0d1117;
-  color: #e6edf3;
+  background: var(--color-bg);
+  color: var(--color-text);
   font-size: 0.85rem;
   text-align: center;
   font-variant-numeric: tabular-nums;
@@ -278,9 +278,9 @@ onMounted(() => {
 
 .dice-btn {
   padding: 0.3rem 0.55rem;
-  border: 1px solid #30363d;
-  background: #21262d;
-  color: #8b949e;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+  color: var(--color-muted);
   font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
@@ -296,14 +296,14 @@ onMounted(() => {
 }
 
 .dice-btn:hover:not(:disabled) {
-  color: #e6edf3;
-  background: #30363d;
+  color: var(--color-text);
+  background: var(--color-border);
 }
 
 .dice-btn.active {
-  background: #388bfd;
-  border-color: #388bfd;
-  color: #fff;
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
 }
 
 .dice-btn:disabled {
@@ -315,7 +315,7 @@ onMounted(() => {
   flex-shrink: 0;
   font-size: 1.35rem;
   font-weight: 300;
-  color: #6e7681;
+  color: var(--color-muted-subtle);
   line-height: 1;
   user-select: none;
   pointer-events: none;
@@ -324,10 +324,10 @@ onMounted(() => {
 .roll-btn {
   margin-left: auto;
   padding: 0.35rem 0.85rem;
-  border: 1px solid #238636;
+  border: 1px solid var(--color-success-dark);
   border-radius: 6px;
-  background: #238636;
-  color: #fff;
+  background: var(--color-success-dark);
+  color: var(--color-on-accent);
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
@@ -335,8 +335,8 @@ onMounted(() => {
 }
 
 .roll-btn:hover:not(:disabled) {
-  background: #2ea043;
-  border-color: #2ea043;
+  background: var(--color-success-bright);
+  border-color: var(--color-success-bright);
 }
 
 .roll-btn:disabled {

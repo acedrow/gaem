@@ -84,7 +84,7 @@ function setShowReversals(value: boolean) {
 .panel-header {
   flex-shrink: 0;
   padding: 1rem 1rem 0.75rem;
-  border-bottom: 1px solid #30363d;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .panel-heading {
@@ -107,7 +107,7 @@ function setShowReversals(value: boolean) {
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #8b949e;
+  color: var(--color-muted);
 }
 
 .setting-row {
@@ -120,7 +120,7 @@ function setShowReversals(value: boolean) {
 .setting-label {
   font-size: 0.85rem;
   font-weight: 600;
-  color: #e6edf3;
+  color: var(--color-text);
 }
 
 .toggle {
@@ -128,17 +128,17 @@ function setShowReversals(value: boolean) {
   flex-shrink: 0;
   width: 2.25rem;
   height: 1.25rem;
-  border: 1px solid #484f58;
+  border: 1px solid var(--color-border-strong);
   border-radius: 999px;
-  background: #21262d;
+  background: var(--color-surface-raised);
   padding: 0;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
 
 .toggle.on {
-  background: #238636;
-  border-color: #2ea043;
+  background: var(--color-success-dark);
+  border-color: var(--color-success-bright);
 }
 
 .toggle-thumb {
@@ -148,7 +148,7 @@ function setShowReversals(value: boolean) {
   width: calc(1.25rem - 4px);
   height: calc(1.25rem - 4px);
   border-radius: 50%;
-  background: #e6edf3;
+  background: var(--color-text);
   transition: transform 0.15s;
 }
 

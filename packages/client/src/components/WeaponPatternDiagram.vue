@@ -179,19 +179,19 @@ const displayGrid = computed(() => {
 }
 
 .pattern-cell.attack {
-  background: #d4843a;
-  border-color: #a86524;
+  background: var(--color-pattern-orange);
+  border-color: var(--color-pattern-orange-dark);
 }
 
 .pattern-cell.heal {
-  background: #58a6ff;
-  border-color: #388bfd;
+  background: var(--color-accent-bright);
+  border-color: var(--color-accent);
 }
 
 .pattern-cell.origin {
-  background: #3fb950;
-  border-color: #2ea043;
-  color: #0d1117;
+  background: var(--color-success);
+  border-color: var(--color-success-bright);
+  color: var(--color-on-dark);
 }
 
 .origin-mark {

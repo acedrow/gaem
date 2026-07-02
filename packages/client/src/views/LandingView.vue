@@ -170,24 +170,24 @@ function joinAsSelectedPlayer() {
   padding: 1.5rem;
   margin-top: 2rem;
 }
-.subtitle { color: #8b949e; margin-bottom: 1.25rem; }
+.subtitle { color: var(--color-muted); margin-bottom: 1.25rem; }
 .actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
 .cta {
-  border: 1px solid #30363d;
+  border: 1px solid var(--color-border);
   border-radius: 10px;
-  background: #161b22;
-  color: #e6edf3;
+  background: var(--color-surface);
+  color: var(--color-text);
   padding: 0.65rem 1rem;
   cursor: pointer;
   font-weight: 600;
 }
-.cta:hover { background: #1f2937; }
+.cta:hover { background: var(--color-surface-alt); }
 .cta:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--color-overlay-scrim);
   display: grid;
   place-items: center;
   padding: 1rem;
@@ -195,8 +195,8 @@ function joinAsSelectedPlayer() {
 
 .modal {
   width: min(560px, 100%);
-  background: #0f1419;
-  border: 1px solid #30363d;
+  background: var(--color-bg-body);
+  border: 1px solid var(--color-border);
   border-radius: 12px;
   padding: 1rem;
 }
@@ -220,16 +220,16 @@ function joinAsSelectedPlayer() {
   align-items: center;
   justify-content: space-between;
   text-align: left;
-  border: 1px solid #30363d;
-  background: #161b22;
-  color: #e6edf3;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
   border-radius: 0;
   padding: 0.5rem 0.65rem;
   cursor: pointer;
 }
 
 .profile-item.active {
-  border-color: #388bfd;
+  border-color: var(--color-accent);
 }
 
 .profile-item.inactive {
@@ -238,8 +238,8 @@ function joinAsSelectedPlayer() {
 
 .tag {
   font-size: 0.72rem;
-  color: #d29922;
-  border: 1px solid #30363d;
+  color: var(--color-warning);
+  border: 1px solid var(--color-border);
   border-radius: 999px;
   padding: 0.1rem 0.45rem;
 }
@@ -253,10 +253,10 @@ function joinAsSelectedPlayer() {
 
 .name-input {
   flex: 1 1 220px;
-  border: 1px solid #30363d;
+  border: 1px solid var(--color-border);
   border-radius: 0;
-  background: #0d1117;
-  color: #e6edf3;
+  background: var(--color-bg);
+  color: var(--color-text);
   padding: 0.55rem 0.65rem;
 }
 
@@ -268,11 +268,11 @@ function joinAsSelectedPlayer() {
 }
 
 .secondary {
-  background: #0d1117;
+  background: var(--color-bg);
 }
 
-.muted { color: #8b949e; }
-.error { color: #f85149; margin: 0.5rem 0; }
+.muted { color: var(--color-muted); }
+.error { color: var(--color-danger); margin: 0.5rem 0; }
 
 .loading-row {
   display: inline-flex;
@@ -284,8 +284,8 @@ function joinAsSelectedPlayer() {
   width: 0.9rem;
   height: 0.9rem;
   border-radius: 50%;
-  border: 2px solid #30363d;
-  border-top-color: #3fb950;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-success);
   animation: spin 0.7s linear infinite;
 }
 

@@ -520,7 +520,7 @@ onUnmounted(() => {
   flex-shrink: 0;
   border: none;
   background: transparent;
-  color: #8b949e;
+  color: var(--color-muted);
   font-size: 1.4rem;
   line-height: 1;
   cursor: pointer;
@@ -528,7 +528,7 @@ onUnmounted(() => {
 }
 
 .close-btn:hover {
-  color: #e6edf3;
+  color: var(--color-text);
 }
 
 .layout {
@@ -547,10 +547,10 @@ onUnmounted(() => {
   position: relative;
   width: 120px;
   height: 120px;
-  border: 1px solid #30363d;
+  border: 1px solid var(--color-border);
   border-radius: 10px;
   overflow: hidden;
-  background: #161b22;
+  background: var(--color-surface);
   display: grid;
   place-items: center;
 }
@@ -567,7 +567,7 @@ onUnmounted(() => {
 }
 
 .portrait-placeholder {
-  color: #8b949e;
+  color: var(--color-muted);
   font-size: 0.85rem;
 }
 
@@ -580,17 +580,17 @@ onUnmounted(() => {
   width: 1.65rem;
   height: 1.65rem;
   border-radius: 6px;
-  border: 1px solid #30363d;
-  background: #0d1117dd;
-  color: #e6edf3;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-translucent);
+  color: var(--color-text);
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.15s ease;
 }
 
 .portrait-edit-btn:hover {
-  background: #161b22;
-  color: #58a6ff;
+  background: var(--color-surface);
+  color: var(--color-accent-bright);
 }
 
 .portrait-edit-btn.uploading {
@@ -612,7 +612,7 @@ onUnmounted(() => {
   margin: 0;
   font-size: 0.8rem;
   font-weight: 600;
-  color: #8b949e;
+  color: var(--color-muted);
 }
 
 .fields {
@@ -632,12 +632,12 @@ onUnmounted(() => {
 
 .field-label {
   flex-shrink: 0;
-  color: #8b949e;
+  color: var(--color-muted);
   font-weight: 500;
 }
 
 .field-value {
-  color: #e6edf3;
+  color: var(--color-text);
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -648,10 +648,10 @@ onUnmounted(() => {
 .field-input {
   flex: 1;
   min-width: 0;
-  border: 1px solid #388bfd;
+  border: 1px solid var(--color-accent);
   border-radius: 0;
-  background: #0d1117;
-  color: #e6edf3;
+  background: var(--color-bg);
+  color: var(--color-text);
   padding: 0.2rem 0.45rem;
   font: inherit;
   font-size: 0.9rem;
@@ -666,14 +666,14 @@ onUnmounted(() => {
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: #8b949e;
+  color: var(--color-muted);
   cursor: pointer;
   padding: 0;
 }
 
 .edit-btn:hover {
-  color: #58a6ff;
-  background: #21262d;
+  color: var(--color-accent-bright);
+  background: var(--color-surface-raised);
 }
 
 .edit-btn .icon {
@@ -683,10 +683,10 @@ onUnmounted(() => {
 }
 
 .cta {
-  border: 1px solid #30363d;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #161b22;
-  color: #e6edf3;
+  background: var(--color-surface);
+  color: var(--color-text);
   padding: 0.45rem 0.75rem;
   cursor: pointer;
   font-weight: 600;
@@ -694,7 +694,7 @@ onUnmounted(() => {
 }
 
 .cta:hover {
-  background: #1f2937;
+  background: var(--color-surface-alt);
 }
 
 .cta:disabled {
@@ -703,15 +703,15 @@ onUnmounted(() => {
 }
 
 .danger {
-  border-color: #f8514966;
-  color: #f85149;
+  border-color: var(--color-danger-muted-border);
+  color: var(--color-danger);
 }
 
 .muted {
-  color: #8b949e;
+  color: var(--color-muted);
 }
 
 .error {
-  color: #f85149;
+  color: var(--color-danger);
 }
 </style>

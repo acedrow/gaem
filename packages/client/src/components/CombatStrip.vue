@@ -101,16 +101,16 @@ function pillTitle(token: string) {
   font-size: 0.7rem;
   padding: 0.12rem 0.4rem;
   border-radius: 999px;
-  background: rgba(248, 81, 73, 0.15);
-  border: 1px solid rgba(248, 81, 73, 0.35);
-  color: #ffb4af;
+  background: var(--color-danger-tint-bg);
+  border: 1px solid var(--color-danger-tint-border);
+  color: var(--color-danger-light);
 }
 
 .reversal-prompt {
   padding: 0.5rem;
   border-radius: 8px;
-  background: rgba(88, 166, 255, 0.08);
-  border: 1px solid rgba(88, 166, 255, 0.25);
+  background: var(--color-accent-tint-bg-faint);
+  border: 1px solid var(--color-accent-tint-border);
 }
 
 .reversal-label {

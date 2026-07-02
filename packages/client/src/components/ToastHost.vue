@@ -54,7 +54,7 @@ const { toasts } = useToasts();
 }
 
 .toast.error {
-  border-color: #f8514966;
+  border-color: var(--color-danger-muted-border);
   color: var(--color-danger);
 }
 

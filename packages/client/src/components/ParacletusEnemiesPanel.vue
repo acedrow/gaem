@@ -132,7 +132,7 @@ function toggle(name: string) {
   flex-shrink: 0;
   border: none;
   background: transparent;
-  color: #8b949e;
+  color: var(--color-muted);
   font-size: 1.4rem;
   line-height: 1;
   cursor: pointer;
@@ -140,13 +140,13 @@ function toggle(name: string) {
 }
 
 .close-btn:hover {
-  color: #e6edf3;
+  color: var(--color-text);
 }
 
 .spawn-hint {
   margin: 0 0 0.65rem;
   font-size: 0.8rem;
-  color: #58a6ff;
+  color: var(--color-accent-bright);
   flex-shrink: 0;
 }
 
@@ -163,7 +163,7 @@ function toggle(name: string) {
 }
 
 .list-card.selected {
-  border-color: #388bfd66;
+  border-color: var(--color-accent-muted);
 }
 
 .header-main {
@@ -191,8 +191,8 @@ function toggle(name: string) {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #8b949e;
-  border: 1px solid #30363d;
+  color: var(--color-muted);
+  border: 1px solid var(--color-border);
   border-radius: 4px;
   padding: 0.1rem 0.35rem;
 }
@@ -240,7 +240,7 @@ function toggle(name: string) {
   margin: 0.5rem 0 0;
   font-size: 0.82rem;
   line-height: 1.45;
-  color: #c9d1d9;
+  color: var(--color-text-secondary);
 }
 
 .spawn-btn {
@@ -261,7 +261,7 @@ function toggle(name: string) {
 }
 
 .spawn-btn.active {
-  border-color: #388bfd66;
-  color: #58a6ff;
+  border-color: var(--color-accent-muted);
+  color: var(--color-accent-bright);
 }
 </style>
