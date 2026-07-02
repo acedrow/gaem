@@ -14,7 +14,6 @@ import {
   getEnemyMaxHp,
   getEnemyScale,
   getEnemyScaleByName,
-  getEffectSummary,
   getPlayerMaxHp,
   getWeaponAttackSpec,
   isRangeTargetAttack,
@@ -539,8 +538,7 @@ function effectEntries(stacks?: EffectStacks) {
 }
 
 function effectTooltipLabel(id: string, stacks: number): string {
-  const summary = getEffectSummary(id);
-  return summary ? `${id}: ${stacks} — ${summary}` : `${id}: ${stacks}`;
+  return `${id}: ${stacks}`;
 }
 
 function gmEnemyMoveAnchorAt(x: number, y: number): { x: number; y: number } | null {

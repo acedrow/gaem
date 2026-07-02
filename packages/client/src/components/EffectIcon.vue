@@ -54,16 +54,12 @@ const iconPath = computed(() => effect.value?.icon ?? "M2 8 H14");
   position: absolute;
   top: -3px;
   right: -4px;
-  min-width: 10px;
-  padding: 0 2px;
-  border-radius: 4px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
   font-size: 0.55rem;
   font-weight: 700;
   line-height: 1.2;
   text-align: center;
   font-variant-numeric: tabular-nums;
   color: var(--color-text);
+  opacity: 0.5;
 }
 </style>
