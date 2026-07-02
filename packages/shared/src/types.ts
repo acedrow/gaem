@@ -52,6 +52,7 @@ export type Player = {
 };
 
 export const ROUND_PHASES = [
+  "deployment",
   "startRoundEffects",
   "playersChoice",
   "playerTurn",
@@ -62,7 +63,7 @@ export const ROUND_PHASES = [
 export type RoundPhase = (typeof ROUND_PHASES)[number];
 
 export type TurnHolder =
-  | { role: "gm" }
+  | { role: "gm"; gmPhase?: "startRoundEffects" | "countdownTags" }
   | { role: "player"; playerId: string };
 
 export type PhaseAction =
@@ -71,7 +72,17 @@ export type PhaseAction =
   | "endPlayerTurn"
   | "endGmTurn"
   | "countdownTags"
-  | "endRound";
+  | "endRound"
+  | "resetRound"
+  | "gmEndRound"
+  | "gmEndTurn"
+  | "endDeployment"
+  | "resetCombat";
+
+export type RoundTurnLog = {
+  round: number;
+  turns: TurnHolder[];
+};
 
 export type GameState = {
   mapId: string;
@@ -86,6 +97,7 @@ export type GameState = {
   roundPhase: RoundPhase;
   turn: TurnHolder | null;
   actedPlayerIds: string[];
+  turnLog: RoundTurnLog[];
 };
 
 /**

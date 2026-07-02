@@ -6,3 +6,5 @@ export * from "./map.js";
 export * from "./game.js";
 export * from "./player-data.js";
 export * from "./enemy-data.js";
+export * from "./pattern-data.js";
+export * from "./patterns.js";

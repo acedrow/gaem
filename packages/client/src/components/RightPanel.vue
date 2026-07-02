@@ -13,6 +13,8 @@ import GameDataDetailPanel from "./GameDataDetailPanel.vue";
 import InfoSearchPanel from "./InfoSearchPanel.vue";
 import PlayerBoardPanel from "./PlayerBoardPanel.vue";
 import PlayerDataPanel from "./PlayerDataPanel.vue";
+import PatternsPanel from "./PatternsPanel.vue";
+import TurnOrderPanel from "./TurnOrderPanel.vue";
 
 const { selectedSheetId, rightPanelCollapsed } = useCharacterSheetSelection();
 const { boardSelection } = useBoardSelection();
@@ -107,6 +109,10 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
             :key="`${dataFocus.kind}:${dataFocus.name}`"
             :focus="dataFocus"
           />
+          <PatternsPanel
+            v-else-if="dataCategory === 'patterns'"
+            key="patterns"
+          />
           <PlayerDataPanel
             v-else-if="dataCategory"
             :key="dataCategory"
@@ -119,9 +125,7 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
           />
           <InfoSearchPanel v-else />
         </div>
-        <div v-show="activeTab === 'turnOrder'" class="turn-order-pane">
-          <p class="turn-order-empty">No turn order set.</p>
-        </div>
+        <TurnOrderPanel v-show="activeTab === 'turnOrder'" />
       </div>
     </template>
   </aside>
@@ -198,21 +202,6 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
   display: flex;
   flex-direction: column;
   overflow: hidden;
-}
-
-.turn-order-pane {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  padding: 1rem;
-}
-
-.turn-order-empty {
-  margin: 0;
-  color: #8b949e;
-  font-size: 0.9rem;
 }
 
 .panel-toggle {

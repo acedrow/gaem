@@ -180,6 +180,14 @@ watch(sheetsVersion, () => {
       >
         <span class="sheet-name">Weapons</span>
       </button>
+      <button
+        class="sheet-item"
+        :class="{ selected: dataCategory === 'patterns' }"
+        type="button"
+        @click="onSelectData('patterns')"
+      >
+        <span class="sheet-name">Patterns</span>
+      </button>
     </div>
 
     <div v-if="showCreate" class="modal-backdrop" @click.self="showCreate = false">

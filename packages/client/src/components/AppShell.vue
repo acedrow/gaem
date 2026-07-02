@@ -34,6 +34,9 @@ const phaseAction = computed((): { label: string; action: PhaseAction } | null =
   const s = gameState.value;
   if (!s || !role.value) return null;
 
+  if (s.roundPhase === "deployment" && role.value === "gm") {
+    return { label: "End deployment", action: "endDeployment" };
+  }
   if (s.roundPhase === "startRoundEffects" && role.value === "gm") {
     return { label: "Do effects", action: "doEffects" };
   }

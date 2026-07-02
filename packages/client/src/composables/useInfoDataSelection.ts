@@ -1,6 +1,8 @@
 import { ref } from "vue";
 
-export type DataCategory = "armor" | "classes" | "weapons";
+import { usePatternSelection } from "./usePatternSelection.js";
+
+export type DataCategory = "armor" | "classes" | "weapons" | "patterns";
 export type DataFocusKind = DataCategory | "enemy";
 
 export type DataFocus = {
@@ -13,7 +15,10 @@ const dataFocus = ref<DataFocus | null>(null);
 const dataExpanded = ref(false);
 
 export function useInfoDataSelection() {
+  const { clearPatternSelection } = usePatternSelection();
+
   function selectDataCategory(category: DataCategory) {
+    if (category !== "patterns") clearPatternSelection();
     dataCategory.value = category;
     dataFocus.value = null;
   }
@@ -26,6 +31,7 @@ export function useInfoDataSelection() {
   function clearDataCategory() {
     dataCategory.value = null;
     dataFocus.value = null;
+    clearPatternSelection();
   }
 
   return {

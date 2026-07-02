@@ -1,4 +1,4 @@
-import type { Enemy, GameState, GaemRole, PhaseAction, Player } from "./types.js";
+import type { Enemy, GameState, GaemRole, PhaseAction, Player, TurnHolder } from "./types.js";
 import { playerLabel } from "./console.js";
 import { getEnemyMaxHpByName } from "./enemy-data.js";
 import { getClassMaxHp } from "./player-data.js";
@@ -6,14 +6,43 @@ import { isWalkable, tileAt } from "./map.js";
 
 export function createInitialRoundState(): Pick<
   GameState,
-  "round" | "roundPhase" | "turn" | "actedPlayerIds"
+  "round" | "roundPhase" | "turn" | "actedPlayerIds" | "turnLog"
 > {
   return {
     round: 1,
-    roundPhase: "startRoundEffects",
+    roundPhase: "deployment",
     turn: { role: "gm" },
     actedPlayerIds: [],
+    turnLog: [],
   };
+}
+
+function recordTurn(state: GameState, holder: GameState["turn"] & object): void {
+  if (!holder) return;
+  let roundEntry = state.turnLog.find((e) => e.round === state.round);
+  if (!roundEntry) {
+    roundEntry = { round: state.round, turns: [] };
+    state.turnLog.push(roundEntry);
+  }
+  roundEntry.turns.push(holder);
+}
+
+function clearCurrentRoundTurnLog(state: GameState): void {
+  state.turnLog = state.turnLog.filter((e) => e.round !== state.round);
+}
+
+function resetToRoundStart(state: GameState): void {
+  state.roundPhase = state.round === 1 ? "deployment" : "startRoundEffects";
+  state.turn = { role: "gm" };
+  state.actedPlayerIds = [];
+}
+
+function resetToCombatStart(state: GameState): void {
+  state.round = 1;
+  state.roundPhase = "deployment";
+  state.turn = { role: "gm" };
+  state.actedPlayerIds = [];
+  state.turnLog = [];
 }
 
 export function remainingPlayerIds(state: GameState): string[] {
@@ -23,6 +52,9 @@ export function remainingPlayerIds(state: GameState): string[] {
 }
 
 export function canPlayerMove(state: GameState, playerId: string): boolean {
+  if (state.roundPhase === "deployment") {
+    return state.round === 1 && state.players.some((p) => p.id === playerId);
+  }
   return (
     state.roundPhase === "playerTurn" &&
     state.turn?.role === "player" &&
@@ -45,6 +77,7 @@ export function enterPlayersChoice(state: GameState): string {
     const playerId = remaining[0]!;
     state.roundPhase = "playerTurn";
     state.turn = { role: "player", playerId };
+    recordTurn(state, { role: "player", playerId });
     const player = state.players.find((p) => p.id === playerId);
     return `${playerLabel(player!)} took their turn`;
   }
@@ -95,6 +128,17 @@ export function validatePhaseAction(
       if (ctx.role !== "gm") return "Only the game master can do that";
       if (state.roundPhase !== "countdownTags") return "Wrong phase";
       return null;
+    case "resetRound":
+    case "gmEndRound":
+    case "gmEndTurn":
+    case "resetCombat":
+      if (ctx.role !== "gm") return "Only the game master can do that";
+      return null;
+    case "endDeployment":
+      if (ctx.role !== "gm") return "Only the game master can do that";
+      if (state.roundPhase !== "deployment") return "Wrong phase";
+      if (state.round !== 1) return "Deployment only happens at the start of round 1";
+      return null;
   }
 }
 
@@ -105,6 +149,7 @@ export function applyPhaseAction(
 ): string {
   switch (action) {
     case "doEffects": {
+      recordTurn(state, { role: "gm", gmPhase: "startRoundEffects" });
       const msg = enterPlayersChoice(state);
       return `Round ${state.round} — start-of-round effects resolved. ${msg}`;
     }
@@ -112,6 +157,7 @@ export function applyPhaseAction(
       const playerId = ctx.playerId!;
       state.roundPhase = "playerTurn";
       state.turn = { role: "player", playerId };
+      recordTurn(state, { role: "player", playerId });
       const player = state.players.find((p) => p.id === playerId);
       return `${playerLabel(player!)} took their turn`;
     }
@@ -126,10 +172,12 @@ export function applyPhaseAction(
       return `${playerLabel(player!)} ended their turn`;
     }
     case "endGmTurn": {
+      recordTurn(state, { role: "gm" });
       const msg = enterPlayersChoice(state);
       return `GM ended turn — ${msg}`;
     }
     case "countdownTags": {
+      recordTurn(state, { role: "gm", gmPhase: "countdownTags" });
       state.roundPhase = "countdownTags";
       state.turn = { role: "gm" };
       return "GM started tag countdown";
@@ -137,10 +185,69 @@ export function applyPhaseAction(
     case "endRound": {
       const endedRound = state.round;
       state.round += 1;
+      resetToRoundStart(state);
+      return `Round ${endedRound} ended — starting round ${state.round}`;
+    }
+    case "resetRound": {
+      clearCurrentRoundTurnLog(state);
+      resetToRoundStart(state);
+      return `Round ${state.round} reset`;
+    }
+    case "gmEndRound": {
+      const endedRound = state.round;
+      state.round += 1;
+      resetToRoundStart(state);
+      return `Round ${endedRound} ended — starting round ${state.round}`;
+    }
+    case "gmEndTurn": {
+      switch (state.roundPhase) {
+        case "deployment":
+          return "Deployment in progress";
+        case "startRoundEffects": {
+          recordTurn(state, { role: "gm", gmPhase: "startRoundEffects" });
+          const msg = enterPlayersChoice(state);
+          return `GM ended turn — ${msg}`;
+        }
+        case "playersChoice": {
+          state.roundPhase = "gmTurn";
+          state.turn = { role: "gm" };
+          recordTurn(state, { role: "gm" });
+          return "GM ended turn — GM turn";
+        }
+        case "playerTurn": {
+          if (state.turn?.role !== "player") return "No player turn in progress";
+          const playerId = state.turn.playerId;
+          if (!state.actedPlayerIds.includes(playerId)) {
+            state.actedPlayerIds.push(playerId);
+          }
+          state.roundPhase = "gmTurn";
+          state.turn = { role: "gm" };
+          const player = state.players.find((p) => p.id === playerId);
+          return `${playerLabel(player!)} turn ended (GM)`;
+        }
+        case "gmTurn": {
+          if (remainingPlayerIds(state).length > 0) {
+            recordTurn(state, { role: "gm" });
+            const msg = enterPlayersChoice(state);
+            return `GM ended turn — ${msg}`;
+          }
+          recordTurn(state, { role: "gm", gmPhase: "countdownTags" });
+          state.roundPhase = "countdownTags";
+          state.turn = { role: "gm" };
+          return "GM ended turn — countdown tags";
+        }
+        case "countdownTags":
+          return "Countdown tags in progress";
+      }
+    }
+    case "endDeployment": {
       state.roundPhase = "startRoundEffects";
       state.turn = { role: "gm" };
-      state.actedPlayerIds = [];
-      return `Round ${endedRound} ended — starting round ${state.round}`;
+      return "Deployment ended — start round effects";
+    }
+    case "resetCombat": {
+      resetToCombatStart(state);
+      return "Combat reset — deployment";
     }
   }
 }
@@ -148,13 +255,22 @@ export function applyPhaseAction(
 export function turnHolderLabel(state: GameState): string {
   const turn = state.turn;
   if (!turn) return "—";
-  if (turn.role === "gm") return "GM";
-  const player = state.players.find((p) => p.id === turn.playerId);
+  return formatTurnHolder(state, turn);
+}
+
+export function formatTurnHolder(state: GameState, holder: TurnHolder): string {
+  if (holder.role === "gm") {
+    if (holder.gmPhase) return roundPhaseLabel(holder.gmPhase);
+    return "GM";
+  }
+  const player = state.players.find((p) => p.id === holder.playerId);
   return player ? playerLabel(player) : "Player";
 }
 
 export function roundPhaseLabel(phase: GameState["roundPhase"]): string {
   switch (phase) {
+    case "deployment":
+      return "Deployment";
     case "startRoundEffects":
       return "Start round effects";
     case "playersChoice":
@@ -220,9 +336,11 @@ export function validateMove(
   }
   if (!isWalkable(tileAt(state.tiles, toX, toY))) return "Blocked";
 
-  const dx = Math.abs(toX - player.x);
-  const dy = Math.abs(toY - player.y);
-  if (dx + dy !== 1) return "Must move to an adjacent tile";
+  if (state.roundPhase !== "deployment") {
+    const dx = Math.abs(toX - player.x);
+    const dy = Math.abs(toY - player.y);
+    if (dx + dy !== 1) return "Must move to an adjacent tile";
+  }
 
   if (isOccupied(state, toX, toY)) return "Tile occupied";
 
@@ -441,13 +559,16 @@ export function normalizeGameState(state: GameState): GameState {
     state.round = 1;
   }
   if (!state.roundPhase) {
-    state.roundPhase = "startRoundEffects";
+    state.roundPhase = state.round === 1 ? "deployment" : "startRoundEffects";
   }
   if (state.turn === undefined) {
     state.turn = { role: "gm" };
   }
   if (!state.actedPlayerIds) {
     state.actedPlayerIds = [];
+  }
+  if (!state.turnLog) {
+    state.turnLog = [];
   }
   for (const player of state.players) {
     const maxHp = getPlayerMaxHp(player);

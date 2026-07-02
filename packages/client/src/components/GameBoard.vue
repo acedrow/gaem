@@ -1,6 +1,17 @@
 <script setup lang="ts">
 import type { ClientMessage, Enemy, MapTile, Player, ServerMessage, TerrainObject } from "@gaem/shared";
-import { canGmMoveEnemies, canPlayerMove, getEnemyMaxHp, getPlayerMaxHp, isWalkable, tileAt } from "@gaem/shared";
+import {
+  canGmMoveEnemies,
+  canPlayerMove,
+  coordsToKeySet,
+  drawableExpansionOptions,
+  fixedPatternTilesInBounds,
+  getEnemyMaxHp,
+  getPlayerMaxHp,
+  isWalkable,
+  recoilTilesInBounds,
+  tileAt,
+} from "@gaem/shared";
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 
 import { useBoardSelection } from "../composables/useBoardSelection.js";
@@ -8,6 +19,8 @@ import { useCharacterSheetSelection } from "../composables/useCharacterSheetSele
 import { appendConsoleEntry, setConsoleEntries } from "../composables/useGameConsole.js";
 import { useGameConnection } from "../composables/useGameConnection.js";
 import { useGameState } from "../composables/useGameState.js";
+import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
+import { usePatternSelection } from "../composables/usePatternSelection.js";
 
 const props = defineProps<{
   role: "gm" | "player";
@@ -32,8 +45,22 @@ const {
   isEnemySelected,
 } = useBoardSelection();
 const { gameState, yourPlayerId, setGameState, registerSend, clearGameState } = useGameState();
+const { dataCategory } = useInfoDataSelection();
+const {
+  selectedPatternId,
+  selectedPattern,
+  patternSize,
+  patternDirection,
+  wallLopsidedExtra,
+  modifierValues,
+  drawnTiles,
+  isDrawablePattern,
+  tryExtendDrawing,
+  cyclePatternDirection,
+} = usePatternSelection();
 const lastError = ref<string | null>(null);
 const hoveredKey = ref<string | null>(null);
+const draggingDeploy = ref(false);
 const viewportEl = ref<HTMLElement | null>(null);
 const scale = ref(1);
 const panX = ref(0);
@@ -227,6 +254,93 @@ const boardAspectRatio = computed(() => {
   return `${s.width} / ${s.height}`;
 });
 
+const patternPreviewActive = computed(
+  () => dataCategory.value === "patterns" && !!selectedPatternId.value,
+);
+
+const patternPrimaryKeys = computed(() => {
+  if (!patternPreviewActive.value || !gameState.value) return new Set<string>();
+
+  if (isDrawablePattern.value) {
+    if (drawnTiles.value.length === 0) return new Set<string>();
+    return coordsToKeySet(drawnTiles.value);
+  }
+
+  const origin = hoveredKey.value;
+  if (!origin) return new Set<string>();
+  const [x, y] = origin.split("-").map(Number);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return new Set<string>();
+
+  return coordsToKeySet(
+    fixedPatternTilesInBounds(
+      selectedPatternId.value!,
+      { x, y },
+      patternSize.value,
+      patternDirection.value,
+      gameState.value.width,
+      gameState.value.height,
+      {
+        ringGap:
+          selectedPatternId.value === "ring" && modifierValues.value.range > 0
+            ? modifierValues.value.range
+            : (selectedPattern.value?.defaultRange ?? 1),
+        lopsidedExtra: wallLopsidedExtra.value,
+        modifiers: modifierValues.value,
+      },
+    ),
+  );
+});
+
+const patternRecoilKeys = computed(() => {
+  if (!patternPreviewActive.value || !gameState.value) return new Set<string>();
+  if (modifierValues.value.recoil <= 0) return new Set<string>();
+  if (!selectedPattern.value?.directional) return new Set<string>();
+
+  const origin = hoveredKey.value;
+  if (!origin) return new Set<string>();
+  const [x, y] = origin.split("-").map(Number);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return new Set<string>();
+
+  return coordsToKeySet(
+    recoilTilesInBounds(
+      { x, y },
+      modifierValues.value.recoil,
+      patternDirection.value,
+      gameState.value.width,
+      gameState.value.height,
+    ),
+  );
+});
+
+const patternSecondaryKeys = computed(() => {
+  if (!patternPreviewActive.value || !isDrawablePattern.value || !gameState.value) {
+    return new Set<string>();
+  }
+  if (drawnTiles.value.length === 0 || drawnTiles.value.length >= patternSize.value) {
+    return new Set<string>();
+  }
+  return coordsToKeySet(
+    drawableExpansionOptions(
+      drawnTiles.value,
+      patternSize.value,
+      gameState.value.width,
+      gameState.value.height,
+    ),
+  );
+});
+
+function isPatternPrimary(x: number, y: number): boolean {
+  return patternPrimaryKeys.value.has(`${x},${y}`);
+}
+
+function isPatternSecondary(x: number, y: number): boolean {
+  return patternSecondaryKeys.value.has(`${x},${y}`);
+}
+
+function isPatternRecoil(x: number, y: number): boolean {
+  return patternRecoilKeys.value.has(`${x},${y}`);
+}
+
 function getTile(x: number, y: number): MapTile | undefined {
   const s = gameState.value;
   if (!s) return undefined;
@@ -302,6 +416,18 @@ function isAdjacentToYou(x: number, y: number): boolean {
   return Math.abs(x - me.x) + Math.abs(y - me.y) === 1;
 }
 
+function isDeployable(x: number, y: number): boolean {
+  const s = gameState.value;
+  if (!s || s.roundPhase !== "deployment" || props.role !== "player" || !yourPlayerId.value) {
+    return false;
+  }
+  return (
+    isWalkable(getTile(x, y)) &&
+    !playerAt(x, y) &&
+    !enemyAt(x, y)
+  );
+}
+
 function send(msg: ClientMessage) {
   if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(msg));
 }
@@ -311,9 +437,43 @@ function tryMove(x: number, y: number) {
   if (props.role !== "player") return;
   if (!yourPlayerId.value || !gameState.value) return;
   if (!canPlayerMove(gameState.value, yourPlayerId.value)) return;
-  if (!isAdjacentToYou(x, y)) return;
-  if (enemyAt(x, y)) return;
+  const deploying = gameState.value.roundPhase === "deployment";
+  if (!deploying && !isAdjacentToYou(x, y)) return;
+  if (!deploying && enemyAt(x, y)) return;
+  if (deploying && !isDeployable(x, y)) return;
   send({ type: "move", x, y });
+}
+
+function canDragDeploy(player: Player): boolean {
+  return (
+    props.role === "player" &&
+    !!yourPlayerId.value &&
+    player.id === yourPlayerId.value &&
+    !!gameState.value &&
+    gameState.value.roundPhase === "deployment"
+  );
+}
+
+function onDeployPointerDown(e: PointerEvent, player: Player) {
+  if (!canDragDeploy(player)) return;
+  draggingDeploy.value = true;
+  const onUp = (ev: PointerEvent) => {
+    window.removeEventListener("pointerup", onUp);
+    onDeployPointerUp(ev);
+  };
+  window.addEventListener("pointerup", onUp);
+}
+
+function onDeployPointerUp(e: PointerEvent) {
+  if (!draggingDeploy.value) return;
+  draggingDeploy.value = false;
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const cell = el?.closest("[data-cell-x]") as HTMLElement | null;
+  if (!cell) return;
+  const x = Number(cell.dataset.cellX);
+  const y = Number(cell.dataset.cellY);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+  tryMove(x, y);
 }
 
 function onPlayerTokenClick(player: Player) {
@@ -377,7 +537,15 @@ function onGmCellClick(x: number, y: number) {
   clearBoardSelection();
 }
 
+function tryPatternCellClick(x: number, y: number): boolean {
+  if (!patternPreviewActive.value || !isDrawablePattern.value) return false;
+  const s = gameState.value;
+  if (!s) return false;
+  return tryExtendDrawing({ x, y }, s.width, s.height);
+}
+
 function onCellClick(x: number, y: number) {
+  if (tryPatternCellClick(x, y)) return;
   if (props.role === "gm") onGmCellClick(x, y);
   else onPlayerCellClick(x, y);
 }
@@ -401,6 +569,18 @@ function removeSelectedEnemy() {
 }
 
 function onKeydown(e: KeyboardEvent) {
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+    return;
+  }
+
+  if (e.key === "r" || e.key === "R") {
+    if (patternPreviewActive.value && selectedPattern.value?.directional) {
+      e.preventDefault();
+      cyclePatternDirection();
+      return;
+    }
+  }
+
   if (props.role === "gm") {
     if (e.key === "Escape") {
       clearBoardSelection();
@@ -526,6 +706,8 @@ onUnmounted(() => {
               :key="c.key"
               type="button"
               class="cell"
+              :data-cell-x="c.x"
+              :data-cell-y="c.y"
               :class="{
                 [terrainClass(getTile(c.x, c.y)) ?? '']: !!terrainClass(getTile(c.x, c.y)),
                 movable:
@@ -533,10 +715,12 @@ onUnmounted(() => {
                   !!yourPlayerId &&
                   !!gameState &&
                   canPlayerMove(gameState, yourPlayerId) &&
+                  gameState.roundPhase !== 'deployment' &&
                   isWalkable(getTile(c.x, c.y)) &&
                   isAdjacentToYou(c.x, c.y) &&
                   !playerAt(c.x, c.y) &&
                   !enemyAt(c.x, c.y),
+                deployable: isDeployable(c.x, c.y),
                 'gm-movable':
                   props.role === 'gm' &&
                   !!gameState &&
@@ -544,6 +728,9 @@ onUnmounted(() => {
                   !!selectedEnemyId &&
                   isAdjacentToSelectedEnemy(c.x, c.y) &&
                   isEmptyWalkable(c.x, c.y),
+                'pattern-primary': isPatternPrimary(c.x, c.y),
+                'pattern-secondary': isPatternSecondary(c.x, c.y),
+                'pattern-recoil': isPatternRecoil(c.x, c.y),
               }"
               @click="onCellClick(c.x, c.y)"
               @mouseenter="hoveredKey = c.key"
@@ -595,11 +782,16 @@ onUnmounted(() => {
               <span
                 v-if="playerAt(c.x, c.y)"
                 class="piece player-piece"
-                :class="{ selected: isPlayerSelected(playerAt(c.x, c.y)!.id) }"
+                :class="{
+                  selected: isPlayerSelected(playerAt(c.x, c.y)!.id),
+                  draggable: canDragDeploy(playerAt(c.x, c.y)!),
+                  dragging: draggingDeploy && canDragDeploy(playerAt(c.x, c.y)!),
+                }"
                 :style="{
                   background: `hsl(${hueFromId(playerAt(c.x, c.y)!.id)} 70% 45%)`,
                 }"
                 @click.stop="onPlayerTokenClick(playerAt(c.x, c.y)!)"
+                @pointerdown.stop="onDeployPointerDown($event, playerAt(c.x, c.y)!)"
               />
             </button>
             </div>
@@ -668,9 +860,15 @@ onUnmounted(() => {
 .cell.cover { background: #2d4a3e; }
 .cell.uneasy { background: #3d3520; }
 .cell.movable { cursor: pointer; outline: 1px dashed #388bfd66; }
+.cell.deployable { cursor: pointer; outline: 1px dashed #3fb95066; }
 .cell.gm-movable { cursor: pointer; outline: 1px dashed #f8514966; }
+.cell.pattern-primary { outline: 2px solid #a371f7; background: #a371f722; }
+.cell.pattern-secondary { outline: 1px dashed #a371f799; background: #a371f711; cursor: pointer; }
+.cell.pattern-recoil { outline: 1px dashed #d2992266; background: #d2992211; }
 .piece { position: absolute; inset: 4px; border-radius: 50%; display: block; z-index: 1; }
 .piece.player-piece { cursor: pointer; z-index: 2; }
+.piece.player-piece.draggable { cursor: grab; }
+.piece.player-piece.dragging { cursor: grabbing; }
 .piece.enemy { background: hsl(0 70% 45%); z-index: 0; }
 .piece.selected { outline: 2px solid #fff; }
 .tile-tooltip {
