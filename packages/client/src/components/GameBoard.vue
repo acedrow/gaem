@@ -53,6 +53,10 @@ const {
   isPlayerSelected,
   isEnemySelected,
 } = useBoardSelection();
+
+const selectedPlayerId = computed(() =>
+  boardSelection.value?.kind === "player" ? boardSelection.value.id : null,
+);
 const { gameState, yourPlayerId } = useGameState();
 const { dataCategory } = useInfoDataSelection();
 const { selectedSpawnEnemyName, clearSpawnEnemySelection } = useEnemySpawnSelection();
@@ -758,7 +762,14 @@ onUnmounted(() => {
               <BoardCell
                 v-for="c in cells"
                 :key="c.key"
-                v-memo="[c.key, cellStateByKey.get(c.key), hoveredKey === c.key, draggingDeploy]"
+                v-memo="[
+                  c.key,
+                  cellStateByKey.get(c.key),
+                  hoveredKey === c.key,
+                  draggingDeploy,
+                  selectedPlayerId === cellStateByKey.get(c.key)?.player?.id,
+                  selectedEnemyId === cellStateByKey.get(c.key)?.enemyAnchor?.id,
+                ]"
                 :x="c.x"
                 :y="c.y"
                 :cell="cellStateByKey.get(c.key)!"

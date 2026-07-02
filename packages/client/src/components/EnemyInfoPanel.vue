@@ -57,7 +57,6 @@ const notFound = computed(() => !listing.value && !activeEnemy.value);
 
         <div v-if="listing" class="stats">
           <span v-if="!showHpBar" class="stat">HP: {{ listing.hp }}</span>
-          <span v-if="listing.codename" class="stat">Codename: {{ listing.codename }}</span>
           <span v-if="listing.crown != null" class="stat">Crown: {{ listing.crown }}</span>
           <span v-if="listing.scale != null || activeEnemy" class="stat">Scale: {{ enemyScale }}</span>
           <span v-if="listing.speed != null" class="stat">Speed: {{ listing.speed }}</span>
@@ -70,12 +69,12 @@ const notFound = computed(() => !listing.value && !activeEnemy.value);
         </div>
       </template>
 
-      <p v-if="listing?.description" class="description">{{ listing.description }}</p>
-      <p v-else class="muted">No description available.</p>
+      <p v-if="listing?.codename" class="codename"><em>{{ listing.codename }}</em></p>
+      <p v-if="listing?.description" class="description"><em>{{ listing.description }}</em></p>
+      <p v-else-if="!listing?.codename" class="muted">No description available.</p>
 
-      <div v-if="!isGm && listing" class="stats">
-        <span v-if="listing.codename" class="stat">Codename: {{ listing.codename }}</span>
-        <span v-if="listing.speed != null" class="stat">Speed {{ listing.speed }}</span>
+      <div v-if="!isGm && listing?.speed != null" class="stats">
+        <span class="stat">Speed {{ listing.speed }}</span>
       </div>
 
       <template v-if="isGm && listing">
@@ -111,6 +110,12 @@ const notFound = computed(() => !listing.value && !activeEnemy.value);
   display: flex;
   flex-direction: column;
   gap: 1rem;
+}
+
+.codename {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-muted);
 }
 
 .description {

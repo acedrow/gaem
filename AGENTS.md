@@ -36,7 +36,7 @@ Do **not** commit, push, or open PRs unless the user explicitly asks.
 - **WebSocket** `/ws` — clients receive `GameState`; server applies `validateMove` / `applyMove` / phase actions from shared package.
 - **REST** — player profiles, character sheets, portraits, dice rolls. Auth via `X-Gaem-Role` and `X-Gaem-Player-Key` (see `useSession` / `useApi`).
 - **Maps** — `packages/maps/*.json`, synced to KV for cf-worker deploy.
-- **Static game data** — JSON under `packages/shared/src/data/` (enemies, player gear, patterns). Code imports from `src/data/` only; do not edit the duplicate `packages/shared/data/` tree.
+- **Static game data** — JSON under `packages/shared/src/data/` (enemies, player gear, patterns). Code imports from `src/data/` only.
 
 `HELLPIERCERS v1.02.pdf` (gitignored) is the Hellpiercers rulebook — the design reference when clarifying rules or transcribing data into code.
 
@@ -71,7 +71,7 @@ npm run rulebook -- --search "fortification" --context 200
 
 1. Run `npm run rulebook:setup` if `scripts/rulebook/.venv` is missing.
 2. Search or pull the relevant page(s) from the PDF — don't guess stats from memory.
-3. Add data to `packages/shared/src/data/` (not the duplicate `packages/shared/data/` tree).
+3. Add data to `packages/shared/src/data/`.
 4. Match existing JSON field names and tag casing in sibling entries.
 
 Direct invocation (same as `npm run rulebook -- …`):

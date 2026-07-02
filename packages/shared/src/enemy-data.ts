@@ -7,6 +7,7 @@ export type EnemyListing = {
   codename?: string;
   title?: string;
   description?: string;
+  summary?: string;
   hp: number;
   agnosiaHp?: number;
   crown?: number;

@@ -49,15 +49,19 @@ function viewEnemyDetails(name: string) {
               <span v-for="tag in enemy.tags" :key="tag" class="enemy-tag">{{ tag }}</span>
             </span>
           </button>
-          <div v-if="selectedSpawnEnemyName === enemy.name" class="enemy-body">
-            <p v-if="enemy.description" class="enemy-description">{{ enemy.description }}</p>
-            <button
-              type="button"
-              class="view-details-btn"
-              @click.stop="viewEnemyDetails(enemy.name)"
-            >
-              View details
-            </button>
+          <div class="enemy-body">
+            <p v-if="enemy.summary" class="enemy-summary">{{ enemy.summary }}</p>
+            <template v-if="selectedSpawnEnemyName === enemy.name">
+              <p v-if="enemy.codename" class="enemy-codename"><em>{{ enemy.codename }}</em></p>
+              <p v-if="enemy.description" class="enemy-description"><em>{{ enemy.description }}</em></p>
+              <button
+                type="button"
+                class="view-details-btn"
+                @click.stop="viewEnemyDetails(enemy.name)"
+              >
+                View details
+              </button>
+            </template>
           </div>
         </article>
       </div>
@@ -181,12 +185,25 @@ function viewEnemyDetails(name: string) {
 }
 
 .enemy-body {
-  padding: 0.65rem 0.75rem 0.75rem;
+  padding: 0.55rem 0.75rem 0.75rem;
   border-top: 1px solid #21262d;
 }
 
+.enemy-summary {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--color-text);
+}
+
+.enemy-codename {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+
 .enemy-description {
-  margin: 0 0 0.5rem;
+  margin: 0.25rem 0 0.5rem;
   font-size: 0.82rem;
   line-height: 1.45;
   color: #c9d1d9;
