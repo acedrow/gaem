@@ -208,7 +208,7 @@ export function applyPlayerAction(
       if (isRangeTargetAttack(spec) && action.targetEnemyId) {
         const enemy = state.enemies.find((e) => e.id === action.targetEnemyId)!;
         const { total, detail } = resolveAttackDamage(spec, action.damageRoll);
-        applyDamageToEnemy(enemy, total);
+        applyDamageToEnemy(enemy, total, state);
         applyEffectStacks(enemy, spec.effects ?? []);
         result = {
           damage: total,
@@ -416,13 +416,13 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
         const target = state.players.find((p) => p.id === action.targetPlayerId);
         if (target) {
           const dmg = action.damage ?? parsed.damage;
-          applyDamageToPlayer(target, dmg);
+          applyDamageToPlayer(target, dmg, state);
           if (parsed.effects) applyEffectStacks(target, parsed.effects);
           msg += ` → ${playerLabel(target)} for ${dmg}`;
         }
       } else if (action.damage && action.targetPlayerId) {
         const target = state.players.find((p) => p.id === action.targetPlayerId)!;
-        applyDamageToPlayer(target, action.damage);
+        applyDamageToPlayer(target, action.damage, state);
         msg += ` → ${playerLabel(target)} for ${action.damage}`;
       } else {
         addPendingAction(

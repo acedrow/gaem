@@ -113,6 +113,12 @@ export type RoundTurnLog = {
   turns: TurnHolder[];
 };
 
+export type DamageEvent = {
+  x: number;
+  y: number;
+  amount: number;
+};
+
 export type GameState = {
   mapId: string;
   mapName: string;
@@ -129,6 +135,7 @@ export type GameState = {
   turnLog: RoundTurnLog[];
   enforceTurns?: boolean;
   combat?: CombatState;
+  damageEvents?: DamageEvent[];
 };
 
 /**

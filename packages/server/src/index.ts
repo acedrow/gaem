@@ -255,6 +255,7 @@ function broadcastState(): void {
     };
     ws.send(JSON.stringify(msg));
   }
+  delete gameState.damageEvents;
 }
 
 function actorForAuth(auth: { role: GaemRole; playerKey: string | null }): ConsoleActor {

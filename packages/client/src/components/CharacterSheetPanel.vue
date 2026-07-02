@@ -12,6 +12,7 @@ import {
 import { computed, nextTick, onUnmounted, ref, watch } from "vue";
 
 import CombatStrip from "./CombatStrip.vue";
+import HpBar from "./HpBar.vue";
 import SheetGearFieldRow from "./SheetGearFieldRow.vue";
 import { useApi } from "../composables/useApi.js";
 import { useBoardSelection } from "../composables/useBoardSelection.js";
@@ -47,9 +48,6 @@ const form = ref({
   weapon: "",
 });
 const editingField = ref<EditableField | null>(null);
-const editingHp = ref(false);
-const hpDraft = ref(0);
-const hpInputEl = ref<HTMLInputElement | null>(null);
 const fieldInputEl = ref<HTMLInputElement | HTMLSelectElement | null>(null);
 const classFieldEl = ref<InstanceType<typeof SheetGearFieldRow> | null>(null);
 const armorFieldEl = ref<InstanceType<typeof SheetGearFieldRow> | null>(null);
@@ -65,23 +63,8 @@ const boardPlayer = computed(() =>
   gameState.value?.players.find((p) => p.characterSheetId === props.sheetId)
 );
 
-const HP_MEDIUM_THRESHOLD = 0.5;
-const HP_LOW_THRESHOLD = 0.25;
-
 const maxHp = computed(() => getClassMaxHp(form.value.class));
 const currentHp = computed(() => boardPlayer.value?.hp ?? 0);
-const hpPercent = computed(() => {
-  if (maxHp.value <= 0) return 0;
-  const hp = Math.min(currentHp.value, maxHp.value);
-  return Math.max(0, Math.min(100, (hp / maxHp.value) * 100));
-});
-const hpBarLevel = computed(() => {
-  if (maxHp.value <= 0) return "high";
-  const ratio = Math.min(currentHp.value, maxHp.value) / maxHp.value;
-  if (ratio < HP_LOW_THRESHOLD) return "low";
-  if (ratio < HP_MEDIUM_THRESHOLD) return "medium";
-  return "high";
-});
 
 const selectedClass = computed(() => getClassByName(form.value.class));
 const selectedArmor = computed(() => getArmorByName(form.value.armor));
@@ -256,29 +239,9 @@ async function onPortraitSelected(event: Event) {
   }
 }
 
-function startHpEdit() {
+function commitHp(hp: number) {
   if (!canEdit.value || !boardPlayer.value) return;
-  hpDraft.value = currentHp.value;
-  editingHp.value = true;
-  nextTick(() => {
-    hpInputEl.value?.focus();
-    hpInputEl.value?.select();
-  });
-}
-
-function commitHpEdit() {
-  if (!editingHp.value) return;
-  editingHp.value = false;
-  if (!canEdit.value || !boardPlayer.value) return;
-  const hp = Math.trunc(hpDraft.value);
-  if (!Number.isFinite(hp)) return;
-  if (hp === currentHp.value) return;
   send({ type: "setPlayerHp", playerId: boardPlayer.value.id, hp });
-}
-
-function cancelHpEdit() {
-  editingHp.value = false;
-  hpDraft.value = currentHp.value;
 }
 
 watch(
@@ -336,38 +299,13 @@ onUnmounted(() => {
             </label>
           </div>
 
-          <div class="hp-bar-block">
-            <div class="hp-bar-header">
-              <span class="hp-bar-label">HP</span>
-              <span class="hp-bar-values">
-                <input
-                  v-if="editingHp"
-                  ref="hpInputEl"
-                  v-model.number="hpDraft"
-                  class="hp-inline-input"
-                  type="number"
-                  min="0"
-                  :max="maxHp"
-                  @blur="commitHpEdit"
-                  @keydown.enter.prevent="commitHpEdit"
-                  @keydown.esc.prevent="cancelHpEdit"
-                />
-                <button
-                  v-else-if="canEdit && boardPlayer"
-                  type="button"
-                  class="hp-current hp-editable"
-                  @click="startHpEdit"
-                >
-                  {{ currentHp }}
-                </button>
-                <span v-else class="hp-current">{{ currentHp }}</span>
-                <span class="hp-max"> / {{ maxHp }}</span>
-              </span>
-            </div>
-            <div class="hp-bar-track">
-              <div class="hp-bar-fill" :class="hpBarLevel" :style="{ width: `${hpPercent}%` }" />
-            </div>
-          </div>
+          <HpBar
+            class="portrait-hp-bar"
+            :current-hp="currentHp"
+            :max-hp="maxHp"
+            :editable="canEdit && !!boardPlayer"
+            @commit="commitHp"
+          />
 
           <p v-if="speed != null" class="speed-stat">Speed {{ speed }}</p>
         </div>
@@ -666,96 +604,8 @@ onUnmounted(() => {
   fill: currentColor;
 }
 
-.hp-bar-block {
+.portrait-hp-bar {
   width: 120px;
-}
-
-.hp-bar-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 0.35rem;
-}
-
-.hp-bar-label {
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #8b949e;
-}
-
-.hp-bar-values {
-  display: inline-flex;
-  align-items: baseline;
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-
-.hp-current {
-  color: #e6edf3;
-}
-
-.hp-editable {
-  border: none;
-  background: transparent;
-  color: #e6edf3;
-  font: inherit;
-  font-weight: 600;
-  padding: 0;
-  cursor: pointer;
-  border-bottom: 1px dashed #388bfd66;
-}
-
-.hp-editable:hover {
-  color: #58a6ff;
-  border-bottom-color: #58a6ff;
-}
-
-.hp-max {
-  color: #8b949e;
-  font-weight: 500;
-}
-
-.hp-inline-input {
-  width: 2.75rem;
-  border: 1px solid #388bfd;
-  border-radius: 4px;
-  background: #0d1117;
-  color: #e6edf3;
-  font: inherit;
-  font-weight: 600;
-  padding: 0 0.2rem;
-  text-align: right;
-  -moz-appearance: textfield;
-}
-
-.hp-inline-input::-webkit-outer-spin-button,
-.hp-inline-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-.hp-bar-track {
-  height: 0.55rem;
-  border-radius: 999px;
-  background: #21262d;
-  overflow: hidden;
-}
-
-.hp-bar-fill {
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, #238636, #3fb950);
-  transition: width 0.2s ease, background 0.2s ease;
-}
-
-.hp-bar-fill.medium {
-  background: linear-gradient(90deg, #9e6a03, #d29922);
-}
-
-.hp-bar-fill.low {
-  background: linear-gradient(90deg, #8b1e1e, #f85149);
 }
 
 .speed-stat {

@@ -42,13 +42,13 @@ export function applyAssistedOutcome(state: GameState, outcome: AssistedOutcome)
   if (outcome.damageByEnemyId) {
     for (const [enemyId, damage] of Object.entries(outcome.damageByEnemyId)) {
       const enemy = state.enemies.find((e) => e.id === enemyId);
-      if (enemy) applyDamageToEnemy(enemy, damage);
+      if (enemy) applyDamageToEnemy(enemy, damage, state);
     }
   }
   if (outcome.damageByPlayerId) {
     for (const [playerId, damage] of Object.entries(outcome.damageByPlayerId)) {
       const player = state.players.find((p) => p.id === playerId);
-      if (player) applyDamageToPlayer(player, damage);
+      if (player) applyDamageToPlayer(player, damage, state);
     }
   }
   if (outcome.healByPlayerId) {

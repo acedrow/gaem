@@ -485,7 +485,9 @@ export class GameRoom {
   }
 
   private async broadcastState(): Promise<void> {
-    await this.ctx.storage.put(GAME_STATE_KEY, this.gameState);
+    const stored = structuredClone(this.gameState);
+    delete stored.damageEvents;
+    await this.ctx.storage.put(GAME_STATE_KEY, stored);
     const snapshot = structuredClone(this.gameState);
     for (const socket of this.ctx.getWebSockets()) {
       const att = socket.deserializeAttachment() as Attachment | null;
@@ -497,6 +499,7 @@ export class GameRoom {
       };
       socket.send(JSON.stringify(msg));
     }
+    delete this.gameState.damageEvents;
   }
 
   private activeProfileIds(): string[] {

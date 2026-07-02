@@ -30,7 +30,6 @@ const { gameState, send } = useGameState();
 const { closeRightPanel } = useBoardSelection();
 const { goBackFromDataFocus } = useInfoDataSelection();
 
-const hpDraft = ref<number | "">("");
 const attackModalOpen = ref(false);
 const attackModalIndex = ref(0);
 
@@ -46,7 +45,11 @@ const displayName = computed(() => listing.value?.name ?? activeEnemy.value?.nam
 const maxHp = computed(() =>
   activeEnemy.value ? getEnemyMaxHp(activeEnemy.value) : listing.value?.hp ?? 0,
 );
-const currentHp = computed(() => activeEnemy.value?.hp ?? 0);
+const currentHp = computed(() => {
+  const enemy = activeEnemy.value;
+  if (!enemy) return 0;
+  return enemy.hp ?? getEnemyMaxHp(enemy);
+});
 const showHpBar = computed(() => isGm.value && !!activeEnemy.value);
 
 const enemyScale = computed(() => {
@@ -84,10 +87,10 @@ function openAttackModal(index: number) {
   attackModalOpen.value = true;
 }
 
-function setHp() {
+function commitHp(hp: number) {
   const enemy = activeEnemy.value;
-  if (!enemy || hpDraft.value === "") return;
-  send({ type: "setEnemyHp", enemyId: enemy.id, hp: Number(hpDraft.value) });
+  if (!enemy) return;
+  send({ type: "setEnemyHp", enemyId: enemy.id, hp });
 }
 
 function endEnemyTurn() {
@@ -107,17 +110,16 @@ function endEnemyTurn() {
   >
     <div v-if="!notFound" class="panel-body">
       <template v-if="isGm">
-        <HpBar v-if="showHpBar" :current-hp="currentHp" :max-hp="maxHp" />
+        <HpBar
+          v-if="showHpBar"
+          :current-hp="currentHp"
+          :max-hp="maxHp"
+          editable
+          @commit="commitHp"
+        />
 
-        <div v-if="activeEnemy" class="hp-edit">
-          <input v-model="hpDraft" type="number" min="0" :max="maxHp" class="hp-input" placeholder="HP" />
-          <button type="button" class="action-btn" @click="setHp">Set HP</button>
-          <button
-            v-if="showGmCombatUi && !activeEnemy.exhausted"
-            type="button"
-            class="action-btn end-turn-btn"
-            @click="endEnemyTurn"
-          >
+        <div v-if="showGmCombatUi && activeEnemy && !activeEnemy.exhausted" class="enemy-actions">
+          <button type="button" class="action-btn end-turn-btn" @click="endEnemyTurn">
             End turn
           </button>
         </div>
@@ -283,24 +285,15 @@ function endEnemyTurn() {
   font-size: 0.85rem;
 }
 
-.hp-edit {
+.enemy-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
-  align-items: center;
 }
 
 .end-turn-btn {
   border-color: var(--color-accent-muted);
   color: var(--color-accent);
-}
-
-.hp-input {
-  padding: 0.25rem 0.4rem;
-  border-radius: 4px;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text);
 }
 
 .action-btn {

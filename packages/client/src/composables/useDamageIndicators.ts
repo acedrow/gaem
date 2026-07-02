@@ -47,18 +47,22 @@ export function useDamageIndicators(gameState: Ref<GameState | null>) {
       prev = null;
       return;
     }
-    const next = snapshotUnitHp(state);
-    if (!prev) {
+    if (state.damageEvents?.length) {
+      for (const evt of state.damageEvents) {
+        addIndicator(evt.x, evt.y, evt.amount);
+      }
+    } else if (prev) {
+      const next = snapshotUnitHp(state);
+      for (const [key, cur] of next) {
+        const old = prev.get(key);
+        if (!old) continue;
+        const delta = old.hp - cur.hp;
+        if (delta > 0) addIndicator(cur.x, cur.y, delta);
+      }
       prev = next;
       return;
     }
-    for (const [key, cur] of next) {
-      const old = prev.get(key);
-      if (!old) continue;
-      const delta = old.hp - cur.hp;
-      if (delta > 0) addIndicator(cur.x, cur.y, delta);
-    }
-    prev = next;
+    prev = snapshotUnitHp(state);
   });
 
   onUnmounted(() => {

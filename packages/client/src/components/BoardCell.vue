@@ -139,7 +139,10 @@ const enemyHp = computed(() => {
       :style="enemyPieceStyle(cell.enemyAnchor)"
       @click.stop="emit('enemyClick')"
     >
-      <span v-if="cell.turnEnded" class="turn-ended-mark" aria-hidden="true"></span>
+      <span v-if="cell.turnEnded" class="turn-ended-shade" aria-hidden="true"></span>
+      <span v-if="cell.turnEnded" class="turn-ended-zzz" aria-hidden="true">
+        <span class="z z1">z</span><span class="z z2">z</span><span class="z z3">z</span>
+      </span>
       <HpBar
         v-if="showEnemyHealthBars && enemyHp"
         class="token-hp-bar"
@@ -168,7 +171,10 @@ const enemyHp = computed(() => {
         alt=""
         class="portrait-img"
       />
-      <span v-if="cell.turnEnded" class="turn-ended-mark" aria-hidden="true"></span>
+      <span v-if="cell.turnEnded && !cell.playerPortraitUrl" class="turn-ended-shade" aria-hidden="true"></span>
+      <span v-if="cell.turnEnded" class="turn-ended-zzz" aria-hidden="true">
+        <span class="z z1">z</span><span class="z z2">z</span><span class="z z3">z</span>
+      </span>
       <HpBar
         v-if="showHealthBars && playerHp"
         class="token-hp-bar"
@@ -273,7 +279,7 @@ const enemyHp = computed(() => {
   border-radius: 50%;
   display: block;
   z-index: 1;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .piece.has-portrait {
@@ -285,36 +291,62 @@ const enemyHp = computed(() => {
   height: 100%;
   object-fit: cover;
   display: block;
+  border-radius: 50%;
 }
 
-.piece.turn-ended {
+.piece.turn-ended .portrait-img {
   filter: brightness(0.42) saturate(0.65);
 }
 
-.turn-ended-mark {
+.turn-ended-shade {
   position: absolute;
   inset: 0;
+  border-radius: inherit;
+  background: rgba(0, 0, 0, 0.48);
   pointer-events: none;
+  z-index: 1;
 }
 
-.turn-ended-mark::before,
-.turn-ended-mark::after {
-  content: "";
+.turn-ended-zzz {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 100%;
-  height: 4px;
-  background: #000;
-  transform-origin: center;
+  top: -3px;
+  left: -1px;
+  z-index: 3;
+  display: flex;
+  align-items: flex-end;
+  pointer-events: none;
+  font-weight: 900;
+  font-style: italic;
+  color: var(--color-muted);
+  text-shadow: 0 0 2px #0008, 0 1px 2px #0006;
+  line-height: 1;
+  animation: turn-ended-zzz-float 2.4s ease-in-out infinite;
 }
 
-.turn-ended-mark::before {
-  transform: translate(-50%, -50%) rotate(45deg);
+.turn-ended-zzz .z1 {
+  font-size: 0.62rem;
 }
 
-.turn-ended-mark::after {
-  transform: translate(-50%, -50%) rotate(-45deg);
+.turn-ended-zzz .z2 {
+  font-size: 0.48rem;
+  margin-bottom: 1px;
+}
+
+.turn-ended-zzz .z3 {
+  font-size: 0.36rem;
+  margin-bottom: 2px;
+}
+
+@keyframes turn-ended-zzz-float {
+  0%,
+  100% {
+    transform: translate(0, 0);
+    opacity: 0.88;
+  }
+  50% {
+    transform: translate(1px, -3px);
+    opacity: 1;
+  }
 }
 
 .piece.player-piece {
@@ -344,7 +376,7 @@ const enemyHp = computed(() => {
   bottom: 0;
   left: 0;
   right: 0;
-  z-index: 1;
+  z-index: 2;
   pointer-events: none;
 }
 

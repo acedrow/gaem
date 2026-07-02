@@ -134,19 +134,27 @@ export function resolveAttackDamage(
   return parseAndRollDamage(spec.damage);
 }
 
-export function applyDamageToEnemy(enemy: Enemy, damage: number): number {
+export function applyDamageToEnemy(enemy: Enemy, damage: number, state?: GameState): number {
   const maxHp = getEnemyMaxHp(enemy);
   const before = enemy.hp ?? maxHp;
   const adjusted = applyBleedBonus(damage, enemy.effects);
   enemy.hp = clampHp(before - adjusted, maxHp);
+  if (state) {
+    if (!state.damageEvents) state.damageEvents = [];
+    state.damageEvents.push({ x: enemy.x, y: enemy.y, amount: adjusted });
+  }
   return adjusted;
 }
 
-export function applyDamageToPlayer(player: Player, damage: number): number {
+export function applyDamageToPlayer(player: Player, damage: number, state?: GameState): number {
   const maxHp = getPlayerMaxHp(player);
   const before = player.hp ?? maxHp;
   const adjusted = applyBleedBonus(damage, player.effects);
   player.hp = clampHp(before - adjusted, maxHp);
+  if (state) {
+    if (!state.damageEvents) state.damageEvents = [];
+    state.damageEvents.push({ x: player.x, y: player.y, amount: adjusted });
+  }
   return adjusted;
 }
 
@@ -164,7 +172,7 @@ export function applyAttackToEnemies(
   for (const target of targets) {
     const enemy = state.enemies.find((e) => e.id === target.enemyId);
     if (!enemy) continue;
-    applyDamageToEnemy(enemy, total);
+    applyDamageToEnemy(enemy, total, state);
     applyEffectStacks(enemy, effects);
   }
   return { damage: total, detail, targets, effects };
