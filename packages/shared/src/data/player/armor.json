@@ -6,6 +6,7 @@
     "speed": 7,
     "specialMovement": "Condensed Dimensional Theorem — You can move diagonally.",
     "armorAction": "Formless — Select an adjacent enemy unit or Swarm. Move into any free space adjacent to them.",
+    "armorActionStructured": { "tier": "support", "kind": "teleport_adjacent" },
     "reversal": {
       "description": "\"It fled the rotunda after the first charges went off. Streaked like lightning, like light. It moved like a spider-web, everywhere at once, in that second the entire universe was Malakbel, and its word was the universe. We grew a sun in its heart, and watched its voice burn.\"",
       "charges": 6,
@@ -20,6 +21,7 @@
     "speed": 4,
     "specialMovement": "Assisted Launch — When you start your turn adjacent to a wall or an allied unit, you may move in the opposite direction for free until you collide with an enemy, special environment tile, wall, friendly unit, or other obstacle. This free movement ends adjacent to the obstacle. When you begin adjacent to more than one wall or allied unit, you decide which to launch from, if any.",
     "armorAction": "Hasaphet's Palm — Target an adjacent creature and Push:1, Push:2, or Push:3 with equal Recoil.",
+    "armorActionStructured": { "tier": "support", "kind": "push_recoil", "push": 3 },
     "reversal": {
       "description": "\"She was the only one who came at us after the demiurge fell. She held aloft a burnished sword, you could see her body straining against the physics of the world, sapped of divinity, and silver draining from her form. In one hand she held the blooded body of a man to her lips. It did not save her.\"",
       "charges": 5,

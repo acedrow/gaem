@@ -1,3 +1,15 @@
+import type {
+  ActionBudget,
+  AssistedOutcome,
+  CombatState,
+  EffectStacks,
+  GmEnemyAction,
+  PlayerAction,
+} from "./combat/types.js";
+
+export type { ActionBudget, AssistedOutcome, CombatState, EffectStacks, GmEnemyAction, PlayerAction };
+export type { PendingAction, PendingReaction, WeaponAttackSpec, StructuredArmorAction } from "./combat/types.js";
+
 export const TERRAIN_TYPES = [
   "standard",
   "uneasy",
@@ -15,6 +27,7 @@ export type MapTile = {
   terrain: TerrainType[];
   elevation: number;
   walkable?: boolean;
+  tileEffects?: EffectStacks;
 };
 
 export type Enemy = {
@@ -24,6 +37,9 @@ export type Enemy = {
   name?: string;
   hp?: number;
   scale?: number;
+  effects?: EffectStacks;
+  exhausted?: boolean;
+  agnosiaTriggered?: boolean;
 };
 
 export type TerrainObject = {
@@ -50,7 +66,15 @@ export type Player = {
   playerKey?: string;
   characterSheetId?: string;
   class?: string;
+  armor?: string;
+  weapon?: string;
+  speed?: number;
   hp?: number;
+  equipmentUses?: number;
+  reversalCharges?: number;
+  actionBudget?: ActionBudget;
+  effects?: EffectStacks;
+  counters?: Record<string, number>;
 };
 
 export const ROUND_PHASES = [
@@ -101,6 +125,7 @@ export type GameState = {
   actedPlayerIds: string[];
   turnLog: RoundTurnLog[];
   enforceTurns?: boolean;
+  combat?: CombatState;
 };
 
 /**
@@ -148,10 +173,28 @@ export type ClientMessage =
       characterSheetId?: string;
     }
   | { type: "move"; x: number; y: number }
+  | { type: "movePath"; path: { x: number; y: number }[] }
   | { type: "moveEnemy"; enemyId: string; x: number; y: number }
   | { type: "addEnemy"; x: number; y: number; name?: string }
   | { type: "removeEnemy"; enemyId: string }
   | { type: "setPlayerHp"; playerId: string; hp: number }
-  | { type: "syncPlayerSheet"; characterSheetId: string; class: string }
+  | { type: "setEnemyHp"; enemyId: string; hp: number }
+  | {
+      type: "syncPlayerSheet";
+      characterSheetId: string;
+      class: string;
+      armor?: string;
+      weapon?: string;
+    }
+  | { type: "playerAction"; action: PlayerAction }
+  | { type: "gmEnemyAction"; action: GmEnemyAction }
+  | { type: "applyAssistedOutcome"; outcome: AssistedOutcome }
+  | { type: "triggerReversal" }
+  | { type: "declineReversal" }
+  | {
+      type: "applyEffect";
+      target: { kind: "player" | "enemy"; id: string };
+      effects: string[];
+    }
   | { type: "phaseAction"; action: PhaseAction }
   | { type: "setEnforceTurns"; enforceTurns: boolean };

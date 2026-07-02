@@ -1,0 +1,42 @@
+[
+  {
+    "id": "Bleed",
+    "summary": "Attacks against this unit deal +1 damage per stack. −1 stack at end of turn."
+  },
+  {
+    "id": "Slow",
+    "summary": "Movement costs are doubled. −1 stack at end of turn."
+  },
+  {
+    "id": "Blazing",
+    "summary": "1 damage at start of turn; spreads to adjacent units. −1 stack at end of turn if no adjacent Blazing."
+  },
+  {
+    "id": "Healing",
+    "summary": "Restore HP equal to stacks at end of turn."
+  },
+  {
+    "id": "Pin",
+    "summary": "Cannot move. −1 stack at end of turn."
+  },
+  {
+    "id": "Aegis",
+    "summary": "May fly over terrain without provoke for up to stacks of movement. −1 stack at end of turn."
+  },
+  {
+    "id": "Shock",
+    "summary": "Actions count one tier higher (Aux→Support→Main→blocked). −1 stack at end of turn."
+  },
+  {
+    "id": "Bound",
+    "summary": "Cannot inflict effects on others. −1 stack at end of turn."
+  },
+  {
+    "id": "Countdown",
+    "summary": "Triggers when stacks reach 0. −1 stack at end of round."
+  },
+  {
+    "id": "Lingering",
+    "summary": "Tile effect: hazard remains on the square."
+  }
+]

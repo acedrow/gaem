@@ -11,6 +11,7 @@ import {
 } from "@gaem/shared";
 import { computed, nextTick, onUnmounted, ref, watch } from "vue";
 
+import CombatStrip from "./CombatStrip.vue";
 import { useApi } from "../composables/useApi.js";
 import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
@@ -154,6 +155,8 @@ async function saveSheet() {
         type: "syncPlayerSheet",
         characterSheetId: props.sheetId,
         class: form.value.class,
+        armor: form.value.armor,
+        weapon: form.value.weapon,
       });
     }
   } catch (e) {
@@ -301,6 +304,7 @@ onUnmounted(() => {
     <p v-else-if="error && !sheet" class="error">{{ error }}</p>
 
     <div v-else-if="sheet" class="panel-body">
+      <CombatStrip v-if="boardPlayer" :player-id="boardPlayer.id" />
       <p v-if="error" class="error">{{ error }}</p>
 
       <div class="layout">

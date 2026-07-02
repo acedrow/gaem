@@ -6,6 +6,7 @@ import { useCharacterSheetSelection } from "../composables/useCharacterSheetSele
 import { activeTab } from "../composables/useGameConsole.js";
 import { useGameState } from "../composables/useGameState.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
+import AssistedActionPanel from "./AssistedActionPanel.vue";
 import CharacterSheetPanel from "./CharacterSheetPanel.vue";
 import EnemyInfoPanel from "./EnemyInfoPanel.vue";
 import GameConsolePanel from "./GameConsolePanel.vue";
@@ -137,6 +138,7 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
           <InfoSearchPanel v-else />
         </div>
         <TurnOrderPanel v-if="activeTab === 'turnOrder'" />
+        <AssistedActionPanel v-if="activeTab === 'console'" />
       </div>
     </template>
   </aside>

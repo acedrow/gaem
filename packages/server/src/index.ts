@@ -24,6 +24,7 @@ import {
   createInitialStateFromMap,
   DEFAULT_MAP_ID,
   enemyLabel,
+  handleCombatMessage,
   normalizeGameState,
   parseGameMap,
   removeEnemy,
@@ -135,15 +136,27 @@ function hasProfile(id: string): boolean {
 function resolveSheetForJoin(
   playerKey: string,
   characterSheetId?: string
-): { className?: string; characterSheetId?: string } {
+): { className?: string; characterSheetId?: string; armor?: string; weapon?: string } {
   if (characterSheetId) {
     const sheet = characterSheets.get(characterSheetId);
     if (sheet?.player === playerKey) {
-      return { className: sheet.class, characterSheetId: sheet.id };
+      return {
+        className: sheet.class,
+        characterSheetId: sheet.id,
+        armor: sheet.armor,
+        weapon: sheet.weapon,
+      };
     }
   }
   const sheet = [...characterSheets.values()].find((s) => s.player === playerKey);
-  return sheet ? { className: sheet.class, characterSheetId: sheet.id } : {};
+  return sheet
+    ? {
+        className: sheet.class,
+        characterSheetId: sheet.id,
+        armor: sheet.armor,
+        weapon: sheet.weapon,
+      }
+    : {};
 }
 
 function canSetPlayerHp(
@@ -373,6 +386,8 @@ wss.on("connection", (ws: WebSocket) => {
         newId: randomUUID(),
         className: sheetJoin.className,
         characterSheetId: sheetJoin.characterSheetId,
+        armor: sheetJoin.armor,
+        weapon: sheetJoin.weapon,
       });
       if ("error" in resolved) {
         sendError(ws, "Board full");
@@ -465,7 +480,13 @@ wss.on("connection", (ws: WebSocket) => {
         return;
       }
       const sheet = characterSheets.get(parsed.characterSheetId);
-      const err = syncPlayerSheet(gameState, parsed.characterSheetId, parsed.class);
+      const err = syncPlayerSheet(
+        gameState,
+        parsed.characterSheetId,
+        parsed.class,
+        parsed.armor,
+        parsed.weapon,
+      );
       if (err) {
         sendError(ws, err);
         return;
@@ -492,8 +513,20 @@ wss.on("connection", (ws: WebSocket) => {
       return;
     }
 
+    const combatCtx = { role: role ?? "player", playerId: socketPlayer.get(ws) ?? null };
+
+    const combatResult = handleCombatMessage(gameState, parsed, combatCtx);
+    if (combatResult.handled) {
+      if ("error" in combatResult) {
+        sendError(ws, combatResult.error);
+        return;
+      }
+      broadcastConsole(actorForSocket(ws), combatResult.message);
+      broadcastState();
+      return;
+    }
+
     if (parsed.type === "phaseAction") {
-      const role = socketRole.get(ws);
       if (!role) {
         sendError(ws, "Not joined");
         return;
@@ -514,6 +547,22 @@ wss.on("connection", (ws: WebSocket) => {
       const id = socketPlayer.get(ws);
       if (!id) {
         sendError(ws, "Only players can move");
+        return;
+      }
+      if (gameState.roundPhase === "playerTurn") {
+        const result = handleCombatMessage(
+          gameState,
+          { type: "movePath", path: [{ x: parsed.x, y: parsed.y }] },
+          { role: role ?? "player", playerId: id },
+        );
+        if (result.handled && "error" in result) {
+          sendError(ws, result.error);
+          return;
+        }
+        if (result.handled && "message" in result) {
+          broadcastConsole(actorForSocket(ws), result.message);
+          broadcastState();
+        }
         return;
       }
       const err = validateMove(gameState, id, parsed.x, parsed.y);

@@ -170,6 +170,8 @@ export function useBoardViewport(
 
   return {
     scale,
+    panX,
+    panY,
     stageStyle,
     isTransformed,
     fitToView,

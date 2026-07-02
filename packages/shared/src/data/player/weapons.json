@@ -2,6 +2,7 @@
   {
     "name": "Ten Thousand Year Reign Shattering Blade",
     "description": "Taken from Abraxas's broken hands and plunged into the heart of his lover. The first of Divine Humanity's purified weapons is said to know the 18 hymns of tyrant-woe, and it scalds the air in the presence of crowned heads.",
+    "attack": { "patternId": "line", "size": 3, "damage": "4+2D10" },
     "activeAbility": "Roaming Strikes — You take a powerful riposte stance. Until your next move or attack, you gain Armor:2 and Compel:1 and you may not use any Reversal abilities. Enemy attacks against you grant 1 stack of Retaliation while you are in this stance. When you end your turn with stacks of Retaliation, but aren't in this stance, you lose 1 stack of it. On any of your turns following this one when you have at least Retaliation:1, you may make an attack with Charge, Arc:X, where X is your starting Speed plus your stacks of Retaliation. When making this attack, you may spend Retaliation to modify the attack. You may gain 1 modifier per 1 stack of Retaliation spent, with no restrictions on duplicate effects: You gain Aegis:1 before your attack; your attack gains the Breaker tag; your attack gains Bleed:1; your attack gains Lingering:1; your attack gains Push:2; your attack gains +1 Damage; you may make one square in your pattern Uneasy after your attack.",
     "passiveAbility": "Eight-Folded Four-Fold Tetragram — When you kill an enemy with this weapon, you may move into the empty space and perform a regular attack as a free action."
   },
@@ -26,6 +27,7 @@
   {
     "name": "Heaven Burning Sword",
     "description": "Zubana ascended first among the stars, and her rage claimed a million barren planets before it was quelled. Awakening the heavens to the brutality inflicted in their false name can only lead to righteous fury and immolating flame. Now her fury, and that of her three sisters, is set to a task worthy of its nuclear flame.",
+    "attack": { "patternId": "line", "size": 3, "damage": "6" },
     "activeAbility": "Unfolding — As an Aux Action, charge the Heaven Burning Sword. Its level increases by 1 to a maximum of 3.",
     "passiveAbility": "Allogenetic Tactics — The Heaven Burning Sword resets to Level 1 after every attack. Level 1: Damage 6. Level 2: Damage 15. Level 3: Damage 25."
   },
@@ -44,6 +46,7 @@
   {
     "name": "Love Without Consideration",
     "description": "\"First, we ascended ourselves. Second, we etched the patterns of awakening on the coils of flame, so that our oldest ally might join us in eternity\"",
+    "attack": { "patternId": "range", "size": 1, "range": 4, "damage": "10", "effects": ["Blazing:2"] },
     "activeAbility": "Hungry Flame — Target one enemy within Range:4. Deal damage and inflict Blazing:2 on that target and any adjacent enemies.",
     "passiveAbility": "Persistent Will — Every time you fire this weapon, select exactly three tiles of its attack pattern. They gain Lingering:1."
   },
@@ -74,6 +77,7 @@
   {
     "name": "Duty Before Indulgence",
     "description": "\"Humanity, now clad in bronze, repeated the cycle of pain and forged the first crowns with the bodies of their enemies.\"",
+    "attack": { "patternId": "line", "size": 4, "damage": "8", "effects": ["Bleed:2"] },
     "activeAbility": "Saturn's Lament — Apply Bleed:2 to every enemy in your target area.",
     "passiveAbility": "Gigantomachy Relitigated — When you use your movement, you can spend 1 Speed to move adjacent to any creature with Bleed. Reduce their Bleed by 1."
   }

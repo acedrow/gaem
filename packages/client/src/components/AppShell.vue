@@ -8,6 +8,8 @@ import { useCharacterSheetSelection } from "../composables/useCharacterSheetSele
 import { useGameConnection } from "../composables/useGameConnection.js";
 import { useGameState } from "../composables/useGameState.js";
 import { useSession } from "../composables/useSession.js";
+import ActionBar from "./ActionBar.vue";
+import GmActionBar from "./GmActionBar.vue";
 import GameBoard from "./GameBoard.vue";
 import RightPanel from "./RightPanel.vue";
 import SideNav from "./SideNav.vue";
@@ -120,6 +122,8 @@ function onPhaseAction() {
         >
           {{ phaseAction.label }}
         </button>
+        <ActionBar />
+        <GmActionBar />
       </header>
       <GameBoard
         v-if="role"

@@ -9,6 +9,7 @@ import {
   createInitialStateFromMap,
   DEFAULT_MAP_ID,
   enemyLabel,
+  handleCombatMessage,
   normalizeGameState,
   removeEnemy,
   removePlayer,
@@ -34,16 +35,28 @@ async function resolveSheetForJoin(
   env: Env,
   playerKey: string,
   characterSheetId?: string
-): Promise<{ className?: string; characterSheetId?: string }> {
+): Promise<{ className?: string; characterSheetId?: string; armor?: string; weapon?: string }> {
   if (characterSheetId) {
     const sheet = await getCharacterSheet(env, characterSheetId);
     if (sheet?.player === playerKey) {
-      return { className: sheet.class, characterSheetId: sheet.id };
+      return {
+        className: sheet.class,
+        characterSheetId: sheet.id,
+        armor: sheet.armor,
+        weapon: sheet.weapon,
+      };
     }
   }
   const sheets = await listCharacterSheets(env);
   const sheet = sheets.find((s) => s.player === playerKey);
-  return sheet ? { className: sheet.class, characterSheetId: sheet.id } : {};
+  return sheet
+    ? {
+        className: sheet.class,
+        characterSheetId: sheet.id,
+        armor: sheet.armor,
+        weapon: sheet.weapon,
+      }
+    : {};
 }
 
 function canSetPlayerHp(
@@ -180,6 +193,8 @@ export class GameRoom {
         newId: crypto.randomUUID(),
         className: sheetJoin.className,
         characterSheetId: sheetJoin.characterSheetId,
+        armor: sheetJoin.armor,
+        weapon: sheetJoin.weapon,
       });
       if ("error" in resolved) {
         this.sendError(ws, "Board full");
@@ -277,7 +292,13 @@ export class GameRoom {
         return;
       }
       const sheet = await getCharacterSheet(this.env, parsed.characterSheetId);
-      const err = syncPlayerSheet(this.gameState, parsed.characterSheetId, parsed.class);
+      const err = syncPlayerSheet(
+        this.gameState,
+        parsed.characterSheetId,
+        parsed.class,
+        parsed.armor,
+        parsed.weapon,
+      );
       if (err) {
         this.sendError(ws, err);
         return;
@@ -299,6 +320,19 @@ export class GameRoom {
         actor,
         parsed.enforceTurns ? "Enforce turns enabled" : "Enforce turns disabled",
       );
+      await this.broadcastState();
+      return;
+    }
+
+    const combatCtx = { role: att?.role ?? "player", playerId: att?.playerId ?? null };
+    const combatResult = handleCombatMessage(this.gameState, parsed, combatCtx);
+    if (combatResult.handled) {
+      if ("error" in combatResult) {
+        this.sendError(ws, combatResult.error);
+        return;
+      }
+      const actor = await this.actorForSocket(ws);
+      await this.broadcastConsole(actor, combatResult.message);
       await this.broadcastState();
       return;
     }
@@ -325,6 +359,23 @@ export class GameRoom {
       const id = att?.playerId;
       if (!id) {
         this.sendError(ws, "Only players can move");
+        return;
+      }
+      if (this.gameState.roundPhase === "playerTurn") {
+        const result = handleCombatMessage(
+          this.gameState,
+          { type: "movePath", path: [{ x: parsed.x, y: parsed.y }] },
+          { role: att?.role ?? "player", playerId: id },
+        );
+        if (result.handled && "error" in result) {
+          this.sendError(ws, result.error);
+          return;
+        }
+        if (result.handled && "message" in result) {
+          const actor = await this.actorForSocket(ws);
+          await this.broadcastConsole(actor, result.message);
+          await this.broadcastState();
+        }
         return;
       }
       const err = validateMove(this.gameState, id, parsed.x, parsed.y);

@@ -14,13 +14,18 @@ import {
   getEnemyScale,
   getEnemyScaleByName,
   getPlayerMaxHp,
+  getWeaponAttackSpec,
   isWalkable,
+  manhattanDistance,
+  previewPlayerAttack,
   recoilTilesInBounds,
   tileAt,
   validateEnemyFootprint,
 } from "@gaem/shared";
 import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 
+import { useBoardActionMode } from "../composables/useBoardActionMode.js";
+import { useCombatActions } from "../composables/useCombatActions.js";
 import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useBoardViewport } from "../composables/useBoardViewport.js";
 import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
@@ -74,6 +79,17 @@ const {
   setPatternHoverOrigin,
 } = usePatternSelection();
 
+const {
+  mode: boardActionMode,
+  attackDirection,
+  pendingTargetEnemyId,
+  pendingTargetPlayerId,
+  armorLanding,
+  armorPush,
+  clearMode: clearBoardActionMode,
+} = useBoardActionMode();
+const { sendPlayerAction, sendMovePath } = useCombatActions();
+
 const lastError = ref<string | null>(null);
 const hoveredKey = ref<string | null>(null);
 const hoveredCell = ref<{ x: number; y: number } | null>(null);
@@ -98,6 +114,9 @@ const boardWidth = computed(() => gameState.value?.width ?? 1);
 const boardHeight = computed(() => gameState.value?.height ?? 1);
 
 const {
+  scale,
+  panX,
+  panY,
   stageStyle,
   isTransformed,
   fitToView,
@@ -215,6 +234,20 @@ const patternPrimaryKeys = computed(() => {
       },
     ),
   );
+});
+
+const combatAttackKeys = computed(() => {
+  if (boardActionMode.value !== "attack" || !gameState.value || !yourPlayer.value) {
+    return new Set<string>();
+  }
+  const spec = getWeaponAttackSpec(yourPlayer.value.weapon);
+  if (spec?.patternId === "range") return new Set<string>();
+  const tiles = previewPlayerAttack(
+    gameState.value,
+    yourPlayer.value.id,
+    attackDirection.value,
+  );
+  return coordsToKeySet(tiles);
 });
 
 const patternRecoilKeys = computed(() => {
@@ -361,7 +394,7 @@ const cellStateByKey = computed(() => {
         !enemy,
       gmMovable: props.role === "gm" && gmEnemyMoveTargetKeys.value.has(c.key),
       gmSpawnable: props.role === "gm" && gmSpawnableKeys.value.has(c.key),
-      patternPrimary: patternPrimaryKeys.value.has(coordKey(c.x, c.y)),
+      patternPrimary: patternPrimaryKeys.value.has(coordKey(c.x, c.y)) || combatAttackKeys.value.has(coordKey(c.x, c.y)),
       patternSecondary: patternSecondaryKeys.value.has(coordKey(c.x, c.y)),
       patternRecoil: patternRecoilKeys.value.has(coordKey(c.x, c.y)),
       tile,
@@ -387,6 +420,27 @@ const tooltipData = computed(() => {
     players: occ.playerByKey.has(key) ? [occ.playerByKey.get(key)!] : [],
     enemies: occ.enemyByKey.has(key) ? [occ.enemyByKey.get(key)!] : [],
     objects: occ.terrainObjectsByKey.get(key) ?? [],
+  };
+});
+
+const BOARD_CELL_GAP = 3;
+const BOARD_WRAP_PAD = 12;
+
+const tooltipStyle = computed(() => {
+  const cell = hoveredCell.value;
+  const s = gameState.value;
+  if (!cell || !s) return null;
+  const gridW = boardWidthPx.value;
+  const gridH = gridW * (s.height / s.width);
+  const cellW = (gridW - (s.width - 1) * BOARD_CELL_GAP) / s.width;
+  const cellH = (gridH - (s.height - 1) * BOARD_CELL_GAP) / s.height;
+  const cellLeft = BOARD_WRAP_PAD + cell.x * (cellW + BOARD_CELL_GAP);
+  const cellTop = BOARD_WRAP_PAD + cell.y * (cellH + BOARD_CELL_GAP);
+  const centerX = cellLeft + cellW / 2;
+  return {
+    left: `${panX.value + centerX * scale.value}px`,
+    top: `${panY.value + cellTop * scale.value}px`,
+    transform: "translate(-50%, calc(-100% - 6px))",
   };
 });
 
@@ -509,8 +563,96 @@ function onDeployPointerUp(e: PointerEvent) {
   tryMove(x, y);
 }
 
+function handleCombatCellClick(x: number, y: number): boolean {
+  const m = boardActionMode.value;
+  if (!m || !yourPlayer.value || !gameState.value) return false;
+  const occ = occupancy.value;
+  if (!occ) return false;
+  const key = coordKey(x, y);
+  const enemy = occ.enemyByKey.get(key);
+  const player = occ.playerByKey.get(key);
+  const me = yourPlayer.value;
+
+  if (m === "move") {
+    sendMovePath([{ x, y }]);
+    return true;
+  }
+  if (m === "attack") {
+    const spec = getWeaponAttackSpec(me.weapon);
+    if (spec?.patternId === "range" && enemy) {
+      const range = spec.range ?? 1;
+      if (manhattanDistance(me, enemy) <= range) {
+        sendPlayerAction({ action: "attack", direction: attackDirection.value, targetEnemyId: enemy.id });
+        clearBoardActionMode();
+        return true;
+      }
+    }
+    sendPlayerAction({ action: "attack", direction: attackDirection.value });
+    clearBoardActionMode();
+    return true;
+  }
+  if (m === "shove") {
+    if (enemy && Math.abs(x - me.x) + Math.abs(y - me.y) === 1) {
+      sendPlayerAction({ action: "shove", targetEnemyId: enemy.id });
+      clearBoardActionMode();
+      return true;
+    }
+    if (player && player.id !== me.id && Math.abs(x - me.x) + Math.abs(y - me.y) === 1) {
+      sendPlayerAction({ action: "shove", targetPlayerId: player.id });
+      clearBoardActionMode();
+      return true;
+    }
+    return true;
+  }
+  if (m === "sprint") {
+    sendPlayerAction({ action: "sprint", path: [{ x, y }] });
+    clearBoardActionMode();
+    return true;
+  }
+  if (m === "armorTeleport") {
+    if (!pendingTargetEnemyId.value && enemy && Math.abs(x - me.x) + Math.abs(y - me.y) === 1) {
+      pendingTargetEnemyId.value = enemy.id;
+      return true;
+    }
+    if (pendingTargetEnemyId.value && !enemy && !player) {
+      sendPlayerAction({
+        action: "armorAction",
+        targetEnemyId: pendingTargetEnemyId.value,
+        landingX: x,
+        landingY: y,
+      });
+      clearBoardActionMode();
+      return true;
+    }
+    return true;
+  }
+  if (m === "armorPush") {
+    if (enemy && Math.abs(x - me.x) + Math.abs(y - me.y) === 1) {
+      sendPlayerAction({ action: "armorAction", targetEnemyId: enemy.id, push: armorPush.value });
+      clearBoardActionMode();
+      return true;
+    }
+    if (player && player.id !== me.id && Math.abs(x - me.x) + Math.abs(y - me.y) === 1) {
+      sendPlayerAction({ action: "armorAction", targetPlayerId: player.id, push: armorPush.value });
+      clearBoardActionMode();
+      return true;
+    }
+    return true;
+  }
+  if (m === "rez") {
+    if (player && player.id !== me.id && (player.hp ?? 0) <= 0) {
+      sendPlayerAction({ action: "rez", targetPlayerId: player.id });
+      clearBoardActionMode();
+      return true;
+    }
+    return true;
+  }
+  return false;
+}
+
 function onPlayerCellClick(x: number, y: number) {
   lastError.value = null;
+  if (handleCombatCellClick(x, y)) return;
   if (selectOccupantAt(x, y)) return;
   clearBoardSelection();
   tryMove(x, y);
@@ -790,7 +932,7 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <div v-if="tooltipData" class="board-tooltip popover-tooltip">
+        <div v-if="tooltipData" class="board-tooltip popover-tooltip" :style="tooltipStyle ?? undefined">
           <div class="tooltip-section">
             <span class="tooltip-row">({{ tooltipData.x }}, {{ tooltipData.y }})</span>
             <span class="tooltip-row">Terrain: {{ tooltipData.tile.terrain.join(", ") }}</span>
@@ -813,7 +955,7 @@ onUnmounted(() => {
               :key="enemy.id"
               class="tooltip-row"
             >
-              {{ enemyLabel(enemy) }} · HP {{ formatHp(enemy.hp, getEnemyMaxHp(enemy)) }}
+              {{ enemyLabel(enemy) }}<template v-if="props.role === 'gm'"> · HP {{ formatHp(enemy.hp, getEnemyMaxHp(enemy)) }}</template>
             </span>
           </div>
           <div v-if="tooltipData.objects.length" class="tooltip-section">
@@ -912,9 +1054,6 @@ onUnmounted(() => {
 
 .board-tooltip {
   position: absolute;
-  top: 0.75rem;
-  left: 50%;
-  transform: translateX(-50%);
   white-space: nowrap;
   z-index: 3;
 }

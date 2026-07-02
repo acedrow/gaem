@@ -1,7 +1,10 @@
 import type { Enemy, GameState, GaemRole, PhaseAction, Player, TerrainObject, TurnHolder } from "./types.js";
 import { playerLabel } from "./console.js";
+import { createDefaultActionBudget, createDefaultCombatState } from "./combat/types.js";
+import { tickRoundCountdowns, tickUnitEndOfTurn } from "./combat/effects.js";
+import { resetEnemyExhaustion } from "./combat/enemy.js";
 import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles } from "./enemy-data.js";
-import { getClassMaxHp } from "./player-data.js";
+import { applyLoadoutToPlayer, getClassMaxHp, getArmorSpeed } from "./player-data.js";
 import { coordKey, isFootprintInBounds, isInBounds, isWalkable, tileAt } from "./map.js";
 import { isOrthogonallyAdjacent } from "./patterns.js";
 
@@ -118,6 +121,10 @@ function beginPlayerTurn(state: GameState, playerId: string): string {
   state.turn = { role: "player", playerId };
   recordTurn(state, { role: "player", playerId });
   const player = state.players.find((p) => p.id === playerId);
+  if (player) {
+    const speed = player.speed ?? getArmorSpeed(player.armor);
+    player.actionBudget = createDefaultActionBudget(speed);
+  }
   return `${playerLabel(player!)} took their turn`;
 }
 
@@ -125,14 +132,21 @@ function finishPlayerTurn(state: GameState, playerId: string, suffix = "ended th
   if (!state.actedPlayerIds.includes(playerId)) {
     state.actedPlayerIds.push(playerId);
   }
+  const player = state.players.find((p) => p.id === playerId);
+  if (player) tickUnitEndOfTurn(player);
   state.roundPhase = "gmTurn";
   state.turn = { role: "gm" };
-  const player = state.players.find((p) => p.id === playerId);
   return `${playerLabel(player!)} ${suffix}`;
 }
 
 function advanceRound(state: GameState): string {
   const endedRound = state.round;
+  tickRoundCountdowns(state);
+  resetEnemyExhaustion(state);
+  if (state.combat) {
+    state.combat.pendingReaction = null;
+    state.combat.activeEnemyId = null;
+  }
   state.round += 1;
   resetToRoundStart(state);
   return `Round ${endedRound} ended — starting round ${state.round}`;
@@ -280,6 +294,13 @@ export function applyPhaseAction(
     case "endDeployment": {
       state.roundPhase = "startRoundEffects";
       state.turn = { role: "gm" };
+      if (!state.combat) {
+        state.combat = createDefaultCombatState(state.players.length);
+      }
+      for (const player of state.players) {
+        if (player.speed == null) player.speed = getArmorSpeed(player.armor);
+        if (player.equipmentUses === undefined) player.equipmentUses = 1;
+      }
       return "Deployment ended — start round effects";
     }
     case "resetCombat": {
@@ -502,19 +523,29 @@ export function removeEnemy(state: GameState, enemyId: string): boolean {
 export function addPlayer(
   state: GameState,
   player: Player,
-  opts?: { className?: string },
+  opts?: { className?: string; armor?: string; weapon?: string },
 ): boolean {
   const spawn = findSpawn(state);
   if (!spawn) return false;
   const className = opts?.className ?? player.class;
+  const armor = opts?.armor ?? player.armor;
+  const weapon = opts?.weapon ?? player.weapon;
   const maxHp = getClassMaxHp(className);
-  state.players.push({
+  const entry: Player = {
     ...player,
     x: spawn.x,
     y: spawn.y,
     ...(className !== undefined ? { class: className } : {}),
+    ...(armor !== undefined ? { armor } : {}),
+    ...(weapon !== undefined ? { weapon } : {}),
     hp: normalizeHp(player.hp, maxHp),
-  });
+  };
+  if (className && armor && weapon) {
+    applyLoadoutToPlayer(entry, { className, armor, weapon });
+  } else if (armor) {
+    entry.speed = getArmorSpeed(armor);
+  }
+  state.players.push(entry);
   return true;
 }
 
@@ -546,11 +577,16 @@ export function syncPlayerSheet(
   state: GameState,
   characterSheetId: string,
   className: string,
+  armor?: string,
+  weapon?: string,
 ): string | null {
   const player = state.players.find((p) => p.characterSheetId === characterSheetId);
   if (!player) return "Player not on board";
-  player.class = className;
-  player.hp = normalizeHp(player.hp, getClassMaxHp(className));
+  applyLoadoutToPlayer(player, {
+    className,
+    armor: armor ?? player.armor ?? "",
+    weapon: weapon ?? player.weapon ?? "",
+  });
   return null;
 }
 
@@ -563,9 +599,11 @@ export function resolvePlayerForJoin(
     newId: string;
     className?: string;
     characterSheetId?: string;
+    armor?: string;
+    weapon?: string;
   },
 ): { playerId: string } | { error: "board_full" } {
-  const { playerKey, nickname, preferredId, newId, className, characterSheetId } = opts;
+  const { playerKey, nickname, preferredId, newId, className, characterSheetId, armor, weapon } = opts;
   const isMatch = (p: Player) => playerMatchesProfile(p, playerKey, nickname);
   const matches = state.players.filter(isMatch);
 
@@ -586,9 +624,12 @@ export function resolvePlayerForJoin(
         playerKey,
         nickname,
         characterSheetId,
+        class: className,
+        armor,
+        weapon,
         hp: getClassMaxHp(className),
       },
-      { className },
+      { className, armor, weapon },
     );
     if (!joined) return { error: "board_full" };
     state.actedPlayerIds.push(newId);
@@ -605,9 +646,17 @@ export function resolvePlayerForJoin(
     if (nickname !== undefined) player.nickname = nickname;
     if (characterSheetId !== undefined) player.characterSheetId = characterSheetId;
     if (className !== undefined) {
-      const maxHp = getClassMaxHp(className);
-      player.class = className;
-      player.hp = normalizeHp(player.hp, maxHp);
+      applyLoadoutToPlayer(player, {
+        className,
+        armor: armor ?? player.armor ?? "",
+        weapon: weapon ?? player.weapon ?? "",
+      });
+    } else if (armor !== undefined || weapon !== undefined) {
+      applyLoadoutToPlayer(player, {
+        className: player.class ?? "",
+        armor: armor ?? player.armor ?? "",
+        weapon: weapon ?? player.weapon ?? "",
+      });
     }
   }
 
@@ -638,6 +687,17 @@ export function normalizeGameState(state: GameState): GameState {
   }
   if (state.enforceTurns === undefined) {
     state.enforceTurns = true;
+  }
+  if (!state.combat && state.roundPhase !== "deployment") {
+    state.combat = createDefaultCombatState(state.players.length);
+  }
+  const playerTurn = state.turn?.role === "player" ? state.turn : null;
+  if (state.roundPhase === "playerTurn" && playerTurn) {
+    const activePlayer = state.players.find((p) => p.id === playerTurn.playerId);
+    if (activePlayer && !activePlayer.actionBudget) {
+      const speed = activePlayer.speed ?? getArmorSpeed(activePlayer.armor);
+      if (speed) activePlayer.actionBudget = createDefaultActionBudget(speed);
+    }
   }
   for (const tile of state.tiles) {
     if (tile.walkable === undefined) {
