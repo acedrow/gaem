@@ -10,6 +10,7 @@ import AssistedActionPanel from "./AssistedActionPanel.vue";
 import CharacterSheetPanel from "./CharacterSheetPanel.vue";
 import EnemyInfoPanel from "./EnemyInfoPanel.vue";
 import GameConsolePanel from "./GameConsolePanel.vue";
+import EffectsPanel from "./EffectsPanel.vue";
 import GameDataDetailPanel from "./GameDataDetailPanel.vue";
 import InfoSearchPanel from "./InfoSearchPanel.vue";
 import PlayerBoardPanel from "./PlayerBoardPanel.vue";
@@ -125,8 +126,12 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
             v-else-if="dataCategory === 'paracletus'"
             key="paracletus"
           />
+          <EffectsPanel
+            v-else-if="dataCategory === 'effects'"
+            key="effects"
+          />
           <PlayerDataPanel
-            v-else-if="dataCategory"
+            v-else-if="dataCategory === 'armor' || dataCategory === 'classes' || dataCategory === 'weapons'"
             :key="dataCategory"
             :category="dataCategory"
           />

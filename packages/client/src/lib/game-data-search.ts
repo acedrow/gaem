@@ -5,6 +5,7 @@ import {
   PLAYER_ARMOR,
   PLAYER_CLASSES,
   PLAYER_WEAPONS,
+  RULE_EFFECTS,
 } from "@gaem/shared";
 
 import type { DataFocusKind } from "../composables/useInfoDataSelection.js";
@@ -68,6 +69,12 @@ const PLAYER_DATA_INDEX: SearchEntry[] = [
       abilityTextToPlain(item.activeAbility),
       abilityTextToPlain(item.passiveAbility),
     ),
+  })),
+  ...RULE_EFFECTS.map((item) => ({
+    kind: "effects" as const,
+    name: item.id,
+    subtitle: item.summary,
+    haystack: haystack(item.id, item.summary, item.description),
   })),
 ];
 
@@ -148,6 +155,7 @@ export function kindLabel(kind: GameDataSearchResultKind): string {
   if (kind === "classes") return "Class";
   if (kind === "armor") return "Armor";
   if (kind === "weapons") return "Weapon";
+  if (kind === "effects") return "Effect";
   if (kind === "characterSheet") return "Character sheet";
   return "Enemy";
 }

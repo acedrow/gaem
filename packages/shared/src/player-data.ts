@@ -1,8 +1,9 @@
 import armorJson from "./data/player/armor.json" with { type: "json" };
 import classesJson from "./data/player/classes.json" with { type: "json" };
 import weaponsJson from "./data/player/weapons.json" with { type: "json" };
-import effectsJson from "./data/rules/effects.json" with { type: "json" };
 import type { Player } from "./types.js";
+import { RULE_EFFECTS, getEffectSummary as getEffectSummaryFromData } from "./effects-data.js";
+import type { RuleEffect } from "./effects-data.js";
 import type { StructuredArmorAction, WeaponAttackSpec } from "./combat/types.js";
 import type { AbilityText } from "./rule-text.js";
 
@@ -26,12 +27,12 @@ export type PlayerWeapon = Omit<WeaponJson, "activeAbility" | "passiveAbility"> 
   passiveAbility?: AbilityText;
   attack?: WeaponAttackSpec;
 };
-export type EffectGlossaryEntry = (typeof effectsJson)[number];
+export type EffectGlossaryEntry = RuleEffect;
 
 export const PLAYER_CLASSES = classesJson as PlayerClass[];
 export const PLAYER_ARMOR = armorJson as PlayerArmor[];
 export const PLAYER_WEAPONS = weaponsJson as PlayerWeapon[];
-export const EFFECT_GLOSSARY = effectsJson as EffectGlossaryEntry[];
+export const EFFECT_GLOSSARY = RULE_EFFECTS;
 
 const classNames = new Set(PLAYER_CLASSES.map((c) => c.name));
 const armorNames = new Set(PLAYER_ARMOR.map((a) => a.name));
@@ -81,9 +82,7 @@ function normalizePlayerHp(player: Player): number {
   return Math.max(0, Math.min(current, maxHp));
 }
 
-export function getEffectSummary(effectId: string): string | undefined {
-  return EFFECT_GLOSSARY.find((e) => e.id === effectId)?.summary;
-}
+export { getEffectSummaryFromData as getEffectSummary };
 
 export function validateCharacterSheetRefs(fields: {
   class?: string;

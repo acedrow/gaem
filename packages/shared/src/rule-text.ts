@@ -1,4 +1,4 @@
-import effectsJson from "./data/rules/effects.json" with { type: "json" };
+import { RULE_EFFECTS } from "./effects-data.js";
 
 export type AbilitySection = {
   title?: string;
@@ -14,7 +14,7 @@ export type StructuredAbility = {
 
 export type AbilityText = string | StructuredAbility;
 
-const EFFECT_IDS = (effectsJson as { id: string }[]).map((e) => e.id);
+const EFFECT_IDS = RULE_EFFECTS.map((e) => e.id);
 
 const EXTRA_EFFECT_NAMES = [
   "Retaliation",

@@ -1,3 +1,4 @@
+import { getEffectStacking } from "../effects-data.js";
 import type { EffectStacks, GameState, MapTile, Player, Enemy } from "../types.js";
 
 export function parseEffectToken(token: string): { id: string; stacks: number } | null {
@@ -11,7 +12,12 @@ export function applyEffectStacks(target: { effects?: EffectStacks }, tokens: st
   for (const token of tokens) {
     const parsed = parseEffectToken(token);
     if (!parsed) continue;
-    target.effects[parsed.id] = (target.effects[parsed.id] ?? 0) + parsed.stacks;
+    const current = target.effects[parsed.id] ?? 0;
+    if (getEffectStacking(parsed.id) === "max") {
+      target.effects[parsed.id] = Math.max(current, parsed.stacks);
+    } else {
+      target.effects[parsed.id] = current + parsed.stacks;
+    }
   }
 }
 

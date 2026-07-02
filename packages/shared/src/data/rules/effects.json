@@ -1,42 +1,177 @@
 [
   {
-    "id": "Bleed",
-    "summary": "Attacks against this unit deal +1 damage per stack. −1 stack at end of turn."
+    "id": "Aegis",
+    "summary": "May fly over terrain for up to stacks of movement each turn. −1 stack at end of turn.",
+    "description": "This unit may count as Flying for a number of squares of their movement up to their stacks of Aegis each turn. Flying units move over all types of terrain unimpeded, are treated as having +1 Elevation, and do not Provoke. Aegis-affected units may choose to spend their Aegis flight at any point during their movement. Aegis does not change a unit's Speed and does not count as adding spaces of movement, only modifying existing movement. Remove 1 stack at the end of the affected unit's turn.",
+    "stacking": "add",
+    "icon": "M8 1 L3 5 V9 Q3 14 8 15 Q13 14 13 9 V5 Z M8 6 V10"
   },
   {
-    "id": "Slow",
-    "summary": "Movement costs are doubled. −1 stack at end of turn."
+    "id": "Armor",
+    "summary": "−1 damage from each instance of damage. −1 stack at end of turn.",
+    "description": "This unit takes -1 damage from each instance of damage. Remove 1 stack at the end of the affected unit's turn.",
+    "stacking": "add",
+    "icon": "M8 2 L2 5 V9 Q2 13 8 14 Q14 13 14 9 V5 Z"
   },
   {
     "id": "Blazing",
-    "summary": "1 damage at start of turn; spreads to adjacent units. −1 stack at end of turn if no adjacent Blazing."
+    "summary": "1 damage at start of turn; spreads to adjacent units. Keep highest stacks only. −1 stack at end of turn if no adjacent Blazing.",
+    "description": "This unit takes 1 damage at the start of each turn. Blazing spreads: any unit who begins a turn adjacent to a unit with Blazing gains Blazing:1 and immediately takes its 1 damage. Additional Blazing does not add to existing Blazing—keep the highest number of stacks from any one source and ignore all others. Remove 1 stack at the end of the affected unit's turn, but only if there are no units adjacent to it.",
+    "stacking": "max",
+    "icon": "M8 14 Q5 10 6 7 Q7 9 8 6 Q9 9 10 7 Q11 10 8 14 Z M8 4 L8 2"
   },
   {
-    "id": "Healing",
-    "summary": "Restore HP equal to stacks at end of turn."
-  },
-  {
-    "id": "Pin",
-    "summary": "Cannot move. −1 stack at end of turn."
-  },
-  {
-    "id": "Aegis",
-    "summary": "May fly over terrain without provoke for up to stacks of movement. −1 stack at end of turn."
-  },
-  {
-    "id": "Shock",
-    "summary": "Actions count one tier higher (Aux→Support→Main→blocked). −1 stack at end of turn."
+    "id": "Bleed",
+    "summary": "Attacks against this unit deal +1 damage per stack. −1 stack at end of turn.",
+    "description": "All attacks against this target deal an additional 1 damage. Remove 1 stack at the end of the affected unit's turn.",
+    "stacking": "add",
+    "icon": "M8 2 Q11 6 10 10 Q9 13 8 14 Q7 13 6 10 Q5 6 8 2 Z"
   },
   {
     "id": "Bound",
-    "summary": "Cannot inflict effects on others. −1 stack at end of turn."
+    "summary": "Cannot inflict Effects on other creatures. −1 stack at end of turn.",
+    "description": "This unit cannot inflict Effects on other creatures. Actions otherwise function as normal. Remove 1 stack at the end of the affected unit's turn.",
+    "stacking": "add",
+    "icon": "M5 8 A3 3 0 1 1 11 8 M5 8 A3 3 0 1 0 11 8"
+  },
+  {
+    "id": "Breaker",
+    "summary": "Allows targeting individual creatures within Swarms.",
+    "description": "Allows the targeting of individual creatures within Swarms, enabling attacks to disrupt the Swarm by destroying or pushing a single member away from the host. See page 99.",
+    "stacking": "add",
+    "icon": "M4 4 L12 12 M12 4 L4 12 M8 2 L8 6 M8 10 L8 14"
+  },
+  {
+    "id": "Broken",
+    "summary": "All attacks deal maximum damage. −1 stack after each attack.",
+    "description": "All attacks against this target deal maximum damage. Remove 1 stack after each attack against the affected unit.",
+    "stacking": "add",
+    "icon": "M8 2 L10 6 L14 6 L11 9 L12 13 L8 11 L4 13 L5 9 L2 6 L6 6 Z"
+  },
+  {
+    "id": "Compel",
+    "summary": "Forces enemies within range (stacks) to attack this unit. −1 stack after each attack against it.",
+    "description": "This unit forces enemies within a range equal to its stacks to attack it during their turn, if able. Compel:1 affects all units that start their turns adjacent or become adjacent and each additional stack increases the range by 1 square. Remove 1 stack after each attack against the affected unit.",
+    "stacking": "add",
+    "icon": "M8 3 A5 5 0 1 0 8 13 A5 5 0 1 0 8 3 Z M8 6 A2 2 0 1 0 8 10 A2 2 0 1 0 8 6 Z"
   },
   {
     "id": "Countdown",
-    "summary": "Triggers when stacks reach 0. −1 stack at end of round."
+    "summary": "Triggers when stacks reach 0. −1 stack at end of round.",
+    "description": "Countdown does nothing until the Effect ends, at which point it triggers a special effect based on the source of the Countdown. Remove 1 stack at the end of the round.",
+    "stacking": "add",
+    "icon": "M8 3 A5 5 0 1 0 8 13 A5 5 0 1 0 8 3 Z M8 5 L8 8 L10 10"
+  },
+  {
+    "id": "Enrage",
+    "summary": "Must attack units with Compel if possible. −1 stack at end of turn.",
+    "description": "This unit must attack a unit with Compel if possible, including attacking an ally. It can only take attacks that do not target a unit with Compel after making an attack that does, unless no unit has Compel. Remove 1 stack at the end of the affected unit's turn.",
+    "stacking": "add",
+    "icon": "M8 2 L10 6 L14 7 L11 10 L12 14 L8 12 L4 14 L5 10 L2 7 L6 6 Z"
+  },
+  {
+    "id": "Haste",
+    "summary": "One additional Action of any type per turn. −1 stack after the extra action.",
+    "description": "This unit may make one additional Action of any type during their turn. Remove 1 stack after the additional action has been taken.",
+    "stacking": "add",
+    "icon": "M3 8 L13 8 M10 5 L13 8 L10 11"
+  },
+  {
+    "id": "Healing",
+    "summary": "Restore HP equal to stacks at end of turn.",
+    "description": "This unit restores HP equal to their Healing value at the end of their turn. When this Effect is applied to a tile, a unit standing on it is considered to have the Effect at the tile's number of stacks. A unit buffed with Healing:2 will restore 2 HP at the end of their turn regardless of where they move; a Healing:3 tile will then also restore 3 HP to that unit if they end their turn on that tile. These Healing Effects resolve separately if a unit is subject to both. This cannot increase a unit's max health beyond its default max HP. Remove 1 stack from each source of healing at the end of the affected unit's turn.",
+    "stacking": "add",
+    "icon": "M8 4 V12 M4 8 H12"
+  },
+  {
+    "id": "Fortified",
+    "summary": "HELLPIERCER on this tile at turn start removes it and restores 2 Reversal Charges.",
+    "description": "When a HELLPIERCER unit begins its turn on a tile with Fortified, remove the Effect and restore 2 Reversal Charges to that unit.",
+    "stacking": "add",
+    "icon": "M3 12 V7 L8 4 L13 7 V12 H3 Z M6 12 V9 H10 V12"
   },
   {
     "id": "Lingering",
-    "summary": "Tile effect: hazard remains on the square."
+    "summary": "Tile hazard: units moving onto it take the attack's effects and damage.",
+    "description": "Lingering attacks create Lingering tiles on any square they did not target a unit or affect the battlefield already. When a unit moves onto a Lingering tile, it recieves the same effects and damage of the initial attack. Remove 1 stack at the end of the attacking unit's turn and remove all damage squares after Lingering expires.",
+    "stacking": "add",
+    "icon": "M4 10 Q6 6 8 8 Q10 6 12 10 Q10 12 8 11 Q6 12 4 10 Z"
+  },
+  {
+    "id": "Pain Aura",
+    "summary": "Scale:2 field deals 1 damage to units ending turn within it. −1 stack at end of turn.",
+    "description": "This unit projects a Scale:2 field around them that causes 1 damage to any units ending their turn within it, regardless of allegiance. Remove 1 stack at the end of the affected unit's turn.",
+    "stacking": "add",
+    "icon": "M8 8 M4 8 A4 4 0 1 0 12 8 A4 4 0 1 0 4 8 M8 8 A2 2 0 1 0 8 8"
+  },
+  {
+    "id": "Piercing",
+    "summary": "Ignores cover; shoots through walls up to stack value.",
+    "description": "This unit or attack ignores cover and may shoot through objects or walls blocking Line of Sight up to the value of Piercing (Piercing:2 allows an attack to penetrate through 2 squares of wall).",
+    "stacking": "add",
+    "icon": "M2 8 H14 M10 5 L14 8 L10 11"
+  },
+  {
+    "id": "Pin",
+    "summary": "Cannot move or Sprint. −1 stack at end of turn.",
+    "description": "This unit cannot move or Sprint. Remove 1 stack at the end of the affected unit's turn.",
+    "stacking": "add",
+    "icon": "M8 2 L8 10 M6 10 H10 M8 10 L8 14"
+  },
+  {
+    "id": "Poison",
+    "summary": "1 HP damage per stack at end of turn, then −1 stack.",
+    "description": "This unit takes 1 HP damage per stack at the end of their turn. After Poison's damage is dealt, remove 1 stack of Poison.",
+    "stacking": "add",
+    "icon": "M8 3 Q11 7 10 11 Q8 13 6 11 Q5 7 8 3 Z M7 8 H9"
+  },
+  {
+    "id": "Pull",
+    "summary": "Move target toward source until stacks depleted or collision.",
+    "description": "Move the target toward the source of Pull until stacks are depleted or until the target collides with the source of the Pull. Unlike Push, Pulls cannot cause collision damage.",
+    "stacking": "add",
+    "icon": "M13 8 H5 M8 5 L5 8 L8 11"
+  },
+  {
+    "id": "Push",
+    "summary": "Move target away from attack origin by X spaces; collision damage for blocked spaces.",
+    "description": "Move the target away from the attack's origin by X spaces. Push:3 from an attacker to the east moves the target 3 spaces to the west. When a pushed target is unable to move some (or all) of the distance due to an obstructing unit, wall, or other impassable feature, the target takes 1 damage for each space they are unable to move. The obstruction is pushed 1 square if it is something able to be pushed. Map edges stop movement unless it is more interesting or narratively appropriate not to.",
+    "stacking": "add",
+    "icon": "M3 8 H11 M8 5 L11 8 L8 11"
+  },
+  {
+    "id": "Seeking",
+    "summary": "Ignores negative elevation penalties.",
+    "description": "This unit or attack ignores negative elevation penalties.",
+    "stacking": "add",
+    "icon": "M8 3 L10 7 L14 7 L11 10 L12 14 L8 12 L4 14 L5 10 L2 7 L6 7 Z M8 6 A1.5 1.5 0 1 0 8 9 A1.5 1.5 0 1 0 8 6 Z"
+  },
+  {
+    "id": "Shaded",
+    "summary": "Burst:fog of war hides enemies unless adjacent. Scale = stacks. −1 stack at end of turn.",
+    "description": "Creatures with Shaded:1+ are surrounded by a Burst:1 \"fog of war\" effect, hiding enemies and their movements from players. Players can only see enemies within a Shaded zone if they are adjacent to them. Shaded zones move with the unit or affected space unless stated otherwise. Each additional stack of Shaded increases the scale of the burst to the same number. Remove 1 stack at the end of the affected unit's turn.",
+    "stacking": "add",
+    "icon": "M3 9 Q5 6 8 8 Q11 6 13 9 Q11 12 8 11 Q5 12 3 9 Z M5 7 Q6 5 8 6 M11 7 Q10 5 8 6"
+  },
+  {
+    "id": "Shock",
+    "summary": "Actions count one tier higher (Aux→Support→Main→blocked). −1 stack at end of turn.",
+    "description": "This unit's actions are treated as one tier higher than their action type—Aux Actions count as Support Action, Support Actions count as Main Actions, and Main Actions are impossible. Remove 1 stack at the end of the affected unit's turn.",
+    "stacking": "add",
+    "icon": "M8 2 L5 9 H7 L6 14 L11 7 H9 L12 2 Z"
+  },
+  {
+    "id": "Slow",
+    "summary": "Movement costs are doubled. −1 stack at end of turn.",
+    "description": "This unit's movement costs are doubled. Remove 1 stack at the end of the affected unit's turn.",
+    "stacking": "add",
+    "icon": "M8 3 A5 5 0 1 0 8 13 A5 5 0 1 0 8 3 Z M8 5 L8 8 L10 10"
+  },
+  {
+    "id": "Transference",
+    "summary": "Heals for HP equal to damage inflicted. −1 stack at end of turn.",
+    "description": "This unit heals itself, or this attack heals the attacker, for HP equal to any damage they inflict. Remove 1 stack at the end of the affected unit's turn.",
+    "stacking": "add",
+    "icon": "M4 6 L8 4 L12 6 L8 8 Z M4 10 L8 12 L12 10 L8 8 Z"
   }
 ]

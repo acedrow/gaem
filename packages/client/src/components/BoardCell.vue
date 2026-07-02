@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import type { Enemy, MapTile, Player } from "@gaem/shared";
-import { getEnemyScale } from "@gaem/shared";
+import type { EffectStacks, Enemy, MapTile, Player } from "@gaem/shared";
+import { getEnemyScale, getEffectSummary } from "@gaem/shared";
+import { computed } from "vue";
+
+import EffectIcon from "./EffectIcon.vue";
 
 export type CellRenderState = {
   terrainClass: string | null;
@@ -14,7 +17,10 @@ export type CellRenderState = {
   tile: MapTile | undefined;
   player: Player | undefined;
   enemyAnchor: Enemy | undefined;
+  effectStacks?: EffectStacks;
 };
+
+const MAX_VISIBLE_EFFECTS = 4;
 
 const props = defineProps<{
   x: number;
@@ -36,6 +42,25 @@ const emit = defineEmits<{
   enemyClick: [];
   deployPointerDown: [event: PointerEvent];
 }>();
+
+const effectEntries = computed(() => {
+  const stacks = props.cell.effectStacks;
+  if (!stacks) return [];
+  return Object.entries(stacks)
+    .filter(([, v]) => v > 0)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([id, stacks]) => ({ id, stacks }));
+});
+
+const visibleEffects = computed(() => effectEntries.value.slice(0, MAX_VISIBLE_EFFECTS));
+const overflowCount = computed(() =>
+  Math.max(0, effectEntries.value.length - MAX_VISIBLE_EFFECTS),
+);
+
+function effectTitle(id: string, stacks: number): string {
+  const summary = getEffectSummary(id);
+  return summary ? `${id}:${stacks} — ${summary}` : `${id}:${stacks}`;
+}
 
 function enemyPieceStyle(enemy: Enemy): Record<string, string> {
   const scale = getEnemyScale(enemy);
@@ -89,6 +114,19 @@ function enemyPieceStyle(enemy: Enemy): Record<string, string> {
       @click.stop="emit('playerClick')"
       @pointerdown.stop="emit('deployPointerDown', $event)"
     />
+    <div v-if="effectEntries.length" class="effect-badges">
+      <span
+        v-for="effect in visibleEffects"
+        :key="effect.id"
+        class="effect-badge"
+        :title="effectTitle(effect.id, effect.stacks)"
+      >
+        <EffectIcon :effect-id="effect.id" :stacks="effect.stacks" :size="12" show-stacks />
+      </span>
+      <span v-if="overflowCount > 0" class="effect-overflow" :title="`${overflowCount} more effects`">
+        +{{ overflowCount }}
+      </span>
+    </div>
   </button>
 </template>
 
@@ -190,5 +228,39 @@ function enemyPieceStyle(enemy: Enemy): Record<string, string> {
 
 .piece.selected {
   outline: 2px solid #fff;
+}
+
+.effect-badges {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  pointer-events: none;
+}
+
+.effect-badge {
+  display: flex;
+  padding: 1px;
+  border-radius: 3px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  pointer-events: auto;
+}
+
+.effect-overflow {
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  font-size: 0.5rem;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--color-muted);
+  pointer-events: auto;
 }
 </style>

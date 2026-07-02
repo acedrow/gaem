@@ -41,6 +41,7 @@ import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import { usePatternSelection } from "../composables/usePatternSelection.js";
 import BoardCell, { type CellRenderState } from "./BoardCell.vue";
 import BoardContextMenu, { type BoardContextMenuItem } from "./BoardContextMenu.vue";
+import AddEffectModal from "./AddEffectModal.vue";
 
 const props = defineProps<{
   role: "gm" | "player";
@@ -106,7 +107,10 @@ const contextMenu = ref<{
   y: number;
   items: BoardContextMenuItem[];
   enemyId?: string;
+  playerId?: string;
 }>({ open: false, x: 0, y: 0, items: [] });
+const effectModalOpen = ref(false);
+const effectModalTarget = ref<{ kind: "player" | "enemy"; id: string } | null>(null);
 const viewportEl = ref<HTMLElement | null>(null);
 
 const boardWidthPx = computed(() => {
@@ -447,6 +451,7 @@ const cellStateByKey = computed(() => {
       tile,
       player,
       enemyAnchor,
+      effectStacks: player?.effects ?? enemyAnchor?.effects,
     });
   }
   return map;
@@ -838,12 +843,18 @@ function closeContextMenu() {
   contextMenu.value.open = false;
   contextMenu.value.items = [];
   contextMenu.value.enemyId = undefined;
+  contextMenu.value.playerId = undefined;
 }
 
 function buildContextMenuItems(x: number, y: number): BoardContextMenuItem[] {
   const items: BoardContextMenuItem[] = [];
   const occ = occupancy.value;
-  const enemy = occ?.enemyByKey.get(coordKey(x, y));
+  const key = coordKey(x, y);
+  const player = occ?.playerByKey.get(key);
+  const enemy = occ?.enemyByKey.get(key);
+  if (player || enemy) {
+    items.push({ id: "add-effect", label: "Add effect" });
+  }
   if (props.role === "gm" && enemy) {
     items.push({ id: "remove-enemy", label: "Remove enemy", danger: true });
   }
@@ -871,8 +882,11 @@ function onBoardContextMenu(e: MouseEvent) {
   }
 
   const occ = occupancy.value;
-  const enemy = occ?.enemyByKey.get(coordKey(x, y));
+  const key = coordKey(x, y);
+  const player = occ?.playerByKey.get(key);
+  const enemy = occ?.enemyByKey.get(key);
   if (enemy) selectBoardEnemy(enemy.id);
+  else if (player) selectBoardPlayer(player.id, player.characterSheetId);
 
   contextMenu.value = {
     open: true,
@@ -880,10 +894,23 @@ function onBoardContextMenu(e: MouseEvent) {
     y: e.clientY,
     items,
     enemyId: enemy?.id,
+    playerId: player?.id,
   };
 }
 
 function onContextMenuSelect(id: string) {
+  if (id === "add-effect") {
+    const enemyId = contextMenu.value.enemyId;
+    const playerId = contextMenu.value.playerId;
+    if (enemyId) {
+      effectModalTarget.value = { kind: "enemy", id: enemyId };
+    } else if (playerId) {
+      effectModalTarget.value = { kind: "player", id: playerId };
+    }
+    effectModalOpen.value = true;
+    closeContextMenu();
+    return;
+  }
   if (id === "remove-enemy" && contextMenu.value.enemyId) {
     removeEnemyById(contextMenu.value.enemyId);
   }
@@ -1060,6 +1087,12 @@ onUnmounted(() => {
       :items="contextMenu.items"
       @select="onContextMenuSelect"
       @close="closeContextMenu"
+    />
+
+    <AddEffectModal
+      :open="effectModalOpen"
+      :target="effectModalTarget"
+      @close="effectModalOpen = false"
     />
   </div>
 </template>

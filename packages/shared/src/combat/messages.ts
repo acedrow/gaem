@@ -41,7 +41,8 @@ import {
   parseEnemyAttackString,
   resolveAttackDamage,
 } from "./attack.js";
-import { applyEffectStacks } from "./effects.js";
+import { applyEffectStacks, parseEffectToken } from "./effects.js";
+import { isKnownEffectId } from "../effects-data.js";
 import { createPendingAction, addPendingAction, applyAssistedOutcome } from "./pending.js";
 import { markEnemyExhausted, setActiveEnemy } from "./enemy.js";
 import { enemyLabel, playerLabel } from "../console.js";
@@ -492,6 +493,11 @@ export function validateApplyEffect(
   if (target.kind === "player" && !state.players.some((p) => p.id === target.id)) return "Unknown player";
   if (target.kind === "enemy" && !state.enemies.some((e) => e.id === target.id)) return "Unknown enemy";
   if (!effects.length) return "No effects";
+  for (const token of effects) {
+    const parsed = parseEffectToken(token);
+    if (!parsed) return `Invalid effect token: ${token}`;
+    if (!isKnownEffectId(parsed.id)) return `Unknown effect: ${parsed.id}`;
+  }
   return null;
 }
 

@@ -10,6 +10,7 @@ const DATA_CATEGORIES = new Set<DataCategory>([
   "armor",
   "classes",
   "weapons",
+  "effects",
   "patterns",
   "paracletus",
 ]);

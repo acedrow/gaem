@@ -1,0 +1,69 @@
+<script setup lang="ts">
+import { getEffectById } from "@gaem/shared";
+import { computed } from "vue";
+
+const props = withDefaults(
+  defineProps<{
+    effectId: string;
+    stacks?: number;
+    size?: number;
+    showStacks?: boolean;
+  }>(),
+  {
+    size: 16,
+    showStacks: false,
+  },
+);
+
+const effect = computed(() => getEffectById(props.effectId));
+const iconPath = computed(() => effect.value?.icon ?? "M2 8 H14");
+</script>
+
+<template>
+  <span
+    class="effect-icon"
+    :class="{ 'has-stacks': showStacks && stacks != null && stacks > 0 }"
+    :style="{ width: `${size}px`, height: `${size}px` }"
+  >
+    <svg
+      :width="size"
+      :height="size"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.25"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path :d="iconPath" />
+    </svg>
+    <span v-if="showStacks && stacks != null && stacks > 0" class="stack-badge">{{ stacks }}</span>
+  </span>
+</template>
+
+<style scoped>
+.effect-icon {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--color-text);
+}
+
+.stack-badge {
+  position: absolute;
+  top: -3px;
+  right: -4px;
+  min-width: 10px;
+  padding: 0 2px;
+  border-radius: 4px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  font-size: 0.55rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+</style>
