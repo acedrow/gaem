@@ -80,6 +80,49 @@ function clearCurrentRoundTurnLog(state: GameState): void {
   state.turnLog = state.turnLog.filter((e) => e.round !== state.round);
 }
 
+function lastRoundTurn(state: GameState): TurnHolder | null {
+  const turns = state.turnLog.find((e) => e.round === state.round)?.turns;
+  if (!turns?.length) return null;
+  return turns[turns.length - 1]!;
+}
+
+function popLastRoundTurn(state: GameState): TurnHolder | null {
+  const entry = state.turnLog.find((e) => e.round === state.round);
+  if (!entry?.turns.length) return null;
+  return entry.turns.pop() ?? null;
+}
+
+function resetPlayerTurnActions(state: GameState, playerId: string): void {
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player) return;
+  const speed = player.speed ?? getArmorSpeed(player.armor);
+  if (speed) player.actionBudget = createDefaultActionBudget(speed);
+  if (state.combat) {
+    state.combat.pendingActions = state.combat.pendingActions.filter(
+      (p) => p.actorPlayerId !== playerId,
+    );
+    if (state.combat.pendingReaction?.playerId === playerId) {
+      state.combat.pendingReaction = null;
+    }
+  }
+}
+
+function rewindToPlayerTurn(state: GameState, playerId: string): string {
+  const idx = state.actedPlayerIds.lastIndexOf(playerId);
+  if (idx >= 0) state.actedPlayerIds.splice(idx, 1);
+  state.roundPhase = "playerTurn";
+  state.turn = { role: "player", playerId };
+  resetPlayerTurnActions(state, playerId);
+  const player = state.players.find((p) => p.id === playerId);
+  return `Stepped back to ${playerLabel(player!)}'s turn — actions reset`;
+}
+
+export function canRewindPhase(state: GameState): boolean {
+  if (state.round === 1 && state.roundPhase === "deployment") return false;
+  if (state.round > 1 && state.roundPhase === "startRoundEffects") return false;
+  return true;
+}
+
 function resetToRoundStart(state: GameState): void {
   state.roundPhase = state.round === 1 ? "deployment" : "startRoundEffects";
   state.turn = { role: "gm" };
@@ -220,6 +263,10 @@ export function validatePhaseAction(
       if (state.roundPhase !== "deployment") return "Wrong phase";
       if (state.round !== 1) return "Deployment only happens at the start of round 1";
       return null;
+    case "rewindPhase":
+      if (ctx.role !== "gm") return "Only the game master can do that";
+      if (!canRewindPhase(state)) return "Already at the first phase of the round";
+      return null;
   }
 }
 
@@ -306,6 +353,76 @@ export function applyPhaseAction(
     case "resetCombat": {
       resetToCombatStart(state);
       return "Combat reset — deployment";
+    }
+    case "rewindPhase": {
+      switch (state.roundPhase) {
+        case "countdownTags": {
+          popLastRoundTurn(state);
+          state.roundPhase = "gmTurn";
+          state.turn = { role: "gm" };
+          return "Stepped back to GM turn";
+        }
+        case "gmTurn": {
+          if (remainingPlayerIds(state).length === 0) {
+            const lastActed = state.actedPlayerIds[state.actedPlayerIds.length - 1];
+            if (!lastActed) return "Nothing to rewind";
+            return rewindToPlayerTurn(state, lastActed);
+          }
+          const last = lastRoundTurn(state);
+          if (last?.role === "player" && state.actedPlayerIds.includes(last.playerId)) {
+            return rewindToPlayerTurn(state, last.playerId);
+          }
+          if (last?.role === "gm" && !last.gmPhase) {
+            popLastRoundTurn(state);
+            state.roundPhase = "playersChoice";
+            state.turn = null;
+            return "Stepped back to players' choice";
+          }
+          return "Cannot step back from here";
+        }
+        case "playerTurn": {
+          if (state.turn?.role !== "player") return "No player turn in progress";
+          const playerId = state.turn.playerId;
+          popLastRoundTurn(state);
+          resetPlayerTurnActions(state, playerId);
+          const prev = lastRoundTurn(state);
+          if (prev?.role === "gm" && prev.gmPhase === "startRoundEffects") {
+            state.roundPhase = "startRoundEffects";
+            state.turn = { role: "gm" };
+            return "Stepped back to start round effects — actions reset";
+          }
+          if (prev?.role === "gm") {
+            state.roundPhase = "gmTurn";
+            state.turn = { role: "gm" };
+            return "Stepped back to GM turn — actions reset";
+          }
+          state.roundPhase = "playersChoice";
+          state.turn = null;
+          return "Stepped back to players' choice — actions reset";
+        }
+        case "playersChoice": {
+          const last = lastRoundTurn(state);
+          if (last?.role === "gm" && last.gmPhase === "startRoundEffects") {
+            state.roundPhase = "startRoundEffects";
+            state.turn = { role: "gm" };
+            return "Stepped back to start round effects";
+          }
+          if (last?.role === "gm" && !last.gmPhase) {
+            popLastRoundTurn(state);
+            state.roundPhase = "gmTurn";
+            state.turn = { role: "gm" };
+            return "Stepped back to GM turn";
+          }
+          return "Cannot step back from here";
+        }
+        case "startRoundEffects": {
+          state.roundPhase = "deployment";
+          state.turn = { role: "gm" };
+          return "Stepped back to deployment";
+        }
+        case "deployment":
+          return "Already at the first phase of the round";
+      }
     }
   }
 }

@@ -260,7 +260,7 @@ watch(sheetsVersion, () => {
 }
 
 .chevron {
-  font-size: 0.75rem;
+  font-size: 1.5rem;
   color: #8b949e;
 }
 

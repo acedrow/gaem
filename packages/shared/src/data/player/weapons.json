@@ -3,7 +3,23 @@
     "name": "Ten Thousand Year Reign Shattering Blade",
     "description": "Taken from Abraxas's broken hands and plunged into the heart of his lover. The first of Divine Humanity's purified weapons is said to know the 18 hymns of tyrant-woe, and it scalds the air in the presence of crowned heads.",
     "attack": { "patternId": "line", "size": 3, "damage": "4+2D10" },
-    "activeAbility": "Roaming Strikes — You take a powerful riposte stance. Until your next move or attack, you gain Armor:2 and Compel:1 and you may not use any Reversal abilities. Enemy attacks against you grant 1 stack of Retaliation while you are in this stance. When you end your turn with stacks of Retaliation, but aren't in this stance, you lose 1 stack of it. On any of your turns following this one when you have at least Retaliation:1, you may make an attack with Charge, Arc:X, where X is your starting Speed plus your stacks of Retaliation. When making this attack, you may spend Retaliation to modify the attack. You may gain 1 modifier per 1 stack of Retaliation spent, with no restrictions on duplicate effects: You gain Aegis:1 before your attack; your attack gains the Breaker tag; your attack gains Bleed:1; your attack gains Lingering:1; your attack gains Push:2; your attack gains +1 Damage; you may make one square in your pattern Uneasy after your attack.",
+    "activeAbility": {
+      "name": "Roaming Strikes",
+      "intro": "You take a powerful riposte stance. Until your next move or attack, you gain Armor:2 and Compel:1 and you may not use any Reversal abilities. Enemy attacks against you grant 1 stack of Retaliation while you are in this stance. When you end your turn with stacks of Retaliation, but aren't in this stance, you lose 1 stack of it. On any of your turns following this one when you have at least Retaliation:1, you may make an attack with Charge, Arc:X, where X is your starting Speed plus your stacks of Retaliation. When making this attack, you may spend Retaliation to modify the attack. You may gain 1 modifier per 1 stack of Retaliation spent, with no restrictions on duplicate effects:",
+      "sections": [
+        {
+          "options": [
+            "You gain Aegis:1 before your attack",
+            "Your attack gains the Breaker tag",
+            "Your attack gains Bleed:1",
+            "Your attack gains Lingering:1",
+            "Your attack gains Push:2",
+            "Your attack gains +1 Damage",
+            "You may make one square in your pattern Uneasy after your attack"
+          ]
+        }
+      ]
+    },
     "passiveAbility": "Eight-Folded Four-Fold Tetragram — When you kill an enemy with this weapon, you may move into the empty space and perform a regular attack as a free action."
   },
   {
@@ -29,7 +45,15 @@
     "description": "Zubana ascended first among the stars, and her rage claimed a million barren planets before it was quelled. Awakening the heavens to the brutality inflicted in their false name can only lead to righteous fury and immolating flame. Now her fury, and that of her three sisters, is set to a task worthy of its nuclear flame.",
     "attack": { "patternId": "line", "size": 3, "damage": "6" },
     "activeAbility": "Unfolding — As an Aux Action, charge the Heaven Burning Sword. Its level increases by 1 to a maximum of 3.",
-    "passiveAbility": "Allogenetic Tactics — The Heaven Burning Sword resets to Level 1 after every attack. Level 1: Damage 6. Level 2: Damage 15. Level 3: Damage 25."
+    "passiveAbility": {
+      "name": "Allogenetic Tactics",
+      "intro": "The Heaven Burning Sword resets to Level 1 after every attack.",
+      "sections": [
+        { "title": "Level 1", "options": ["Damage 6"] },
+        { "title": "Level 2", "options": ["Damage 15"] },
+        { "title": "Level 3", "options": ["Damage 25"] }
+      ]
+    }
   },
   {
     "name": "Ambiguous Intentions",
@@ -41,7 +65,25 @@
     "name": "Sabaoth-Class Obliteration Charges",
     "description": "\"The 9th Layer of Heaven seemed impenetrable, but the pillars separating realms proved vulnerable to shaped charges\"",
     "activeAbility": "Apocalypse Sundering Omnistrike — Spend a Charge (see below). Make an attack combining the attack patterns of any two bomb types, which may fit together in any shape as long as they have at least one pair of squares adjacent to, or overlapping, each other. Apply the Effects and damage from each bomb in all squares of the combined pattern.",
-    "passiveAbility": "Dynamic Gnosis — You begin each TACCOM Combat with 5 Charges. You can spend a Charge at any time to set your current bomb type, selecting an option below and using its Damage, Pattern, and Effects for your weapon attacks until the end of the combat or you replace your selected bomb type by spending another Charge. Any time an ability or effect would restore your Equipment, you also return to 5 Charges. You cannot make weapon attacks with no bomb type selected. Aragmos — Range: 3-6, Damage: 5. Doration — Range: 4-6, Damage: 6. Akinakis — Range: 5-6, Damage: 10. Pelti — Range: 3-5, Damage: 0. All affected squares become Advantageous. Akeomai — Range: 1-3, Damage: 0. All blue squares inflict Healing:2. If any targeted squares are Advantageous, you may spend 1 Charge for all connected Advantageous squares to inflict Healing:2 as well. You may do this multiple times as long as an adjacent square is Advantageous."
+    "passiveAbility": {
+      "name": "Dynamic Gnosis",
+      "intro": "You begin each TACCOM Combat with 5 Charges. You can spend a Charge at any time to set your current bomb type, selecting an option below and using its Damage, Pattern, and Effects for your weapon attacks until the end of the combat or you replace your selected bomb type by spending another Charge. Any time an ability or effect would restore your Equipment, you also return to 5 Charges. You cannot make weapon attacks with no bomb type selected.",
+      "sections": [
+        { "title": "Aragmos", "options": ["Range: 3-6, Damage: 5"] },
+        { "title": "Doration", "options": ["Range: 4-6, Damage: 6"] },
+        { "title": "Akinakis", "options": ["Range: 5-6, Damage: 10"] },
+        {
+          "title": "Pelti",
+          "options": ["Range: 3-5, Damage: 0. All affected squares become Advantageous."]
+        },
+        {
+          "title": "Akeomai",
+          "options": [
+            "Range: 1-3, Damage: 0. All blue squares inflict Healing:2. If any targeted squares are Advantageous, you may spend 1 Charge for all connected Advantageous squares to inflict Healing:2 as well. You may do this multiple times as long as an adjacent square is Advantageous."
+          ]
+        }
+      ]
+    }
   },
   {
     "name": "Love Without Consideration",
@@ -60,7 +102,47 @@
     "name": "Heaven Or Hell",
     "description": "Torn from the Demiurge's wrists, these gauntlets channel the fists of every punch thrown in the direction of an oppressor, calling forth every brutality of every war in a single, sickening blow.",
     "activeAbility": "Entangled Simulation Collapse — If you are attacked at any point before your next turn, move to a space adjacent to your attacker, gain Throw:1, and make a free weapon attack.",
-    "passiveAbility": "Schmovement — When you hit an enemy with a weapon attack or use your Armor Reversal, you also gain 1 stack of one of the following Combo Tags: Juggle, Knockdown, or Pressure. Combo Tag stacks stay until you use them or TACCOM ends. Any time you cause damage in any way, as a free action you may spend any number of stacks of Combo Tags on the following options without limits on duplication: Juggle — Deal 1 damage and gain Pressure:1, or deal 3 damage to an adjacent unit other than the one you just hit. Knockdown — Flip a coin and call it. If you are right, deal 5 more damage and gain Pressure:1. If you are wrong, take 2 damage for each Knockdown spent this turn, or gain Throw:1. Pressure — Push your opponent 2 spaces. If the opponent collides with another unit, wall, or other impassable terrain, gain Bounce:1, then deal 1 damage to both targets, or move up to 3 spaces then deal 3 damage to an adjacent unit. Bounce — Deal 1 damage and push your target 1 space. If the opponent collides with another unit, deal 1 damage to that unit and you gain Knockdown:1, or deal 3 damage and move 1 space. Throw — Push your target up to 3 spaces in any direction, or deal 2 damage then flip a coin and call it. If you are right, gain Knockdown:1. If you are wrong, take 1 damage."
+    "passiveAbility": {
+      "name": "Schmovement",
+      "intro": "When you hit an enemy with a weapon attack or use your Armor Reversal, you also gain 1 stack of one of the following Combo Tags: Juggle, Knockdown, or Pressure. Combo Tag stacks stay until you use them or TACCOM ends. Any time you cause damage in any way, as a free action you may spend any number of stacks of Combo Tags on the following options without limits on duplication:",
+      "sections": [
+        {
+          "title": "Juggle",
+          "options": [
+            "Deal 1 damage and gain Pressure:1.",
+            "Deal 3 damage to an adjacent unit other than the one you just hit."
+          ]
+        },
+        {
+          "title": "Knockdown",
+          "options": [
+            "Flip a coin and call it. If you are right, deal 5 more damage and gain Pressure:1. If you are wrong, take 2 damage for each Knockdown spent this turn.",
+            "Gain Throw:1."
+          ]
+        },
+        {
+          "title": "Pressure",
+          "options": [
+            "Push your opponent 2 spaces. If the opponent collides with another unit, wall, or other impassable terrain, gain Bounce:1, then deal 1 damage to both targets.",
+            "Move up to 3 spaces, then deal 3 damage to an adjacent unit."
+          ]
+        },
+        {
+          "title": "Bounce",
+          "options": [
+            "Deal 1 damage and push your target 1 space. If the opponent collides with another unit, deal 1 damage to that unit and you gain Knockdown:1.",
+            "Deal 3 damage and move 1 space."
+          ]
+        },
+        {
+          "title": "Throw",
+          "options": [
+            "Push your target up to 3 spaces in any direction.",
+            "Deal 2 damage, then flip a coin and call it. If you are right, gain Knockdown:1. If you are wrong, take 1 damage."
+          ]
+        }
+      ]
+    }
   },
   {
     "name": "Consecrated Behemoth Spines",

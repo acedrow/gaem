@@ -11,6 +11,7 @@ import type { DataFocus } from "../composables/useInfoDataSelection.js";
 import { kindLabel } from "../lib/game-data-search.js";
 import PanelShell from "./PanelShell.vue";
 import PlayerItemDetail from "./PlayerItemDetail.vue";
+import RuleText from "./RuleText.vue";
 
 const props = defineProps<{ focus: DataFocus }>();
 
@@ -38,7 +39,9 @@ const item = computed(
   <PanelShell :title="title" :kicker="categoryLabel" @close="closeRightPanel">
     <div v-if="item" class="panel-body">
       <p v-if="'summary' in item && item.summary" class="item-summary">{{ item.summary }}</p>
-      <p v-if="item.description" class="item-description">{{ item.description }}</p>
+      <p v-if="item.description" class="item-description">
+        <RuleText :text="item.description" />
+      </p>
       <PlayerItemDetail :item="item" :kind="focus.kind" />
     </div>
     <p v-else class="muted">Entry not found.</p>
@@ -54,7 +57,5 @@ const item = computed(
 
 .item-description {
   margin: 0 0 0.75rem;
-  line-height: 1.45;
-  color: var(--color-muted);
 }
 </style>

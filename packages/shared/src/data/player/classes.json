@@ -61,7 +61,20 @@
     "description": "The doors are open, but only to those with eyes to see. Hyper-LSD and an adjusted reality-perspective-realignment suite forge walls of golden thought and homunculi of pearls; a bastion for us, a killbox for them.",
     "hp": 20,
     "activeAbility": "59th Level Sophia Transposing Art — Transport one adjacent creature or yourself into your pocket dimension, emerge from your pocket dimension into a square adjacent to its vessel, or eject something in your pocket dimension into an adjacent square.",
-    "passiveAbility": "Sophia Enclosing Hermetic Chamber — You control a small pocket dimension compressed into a jewel, ritual token, or other small object. Using the 59th Level Sophia Transposing Art, you can transport any active object from the current battlefield into this pocket dimension. The pocket dimension is represented by a 5x5 grid that shares no squares with the main map. When you enter your own pocket dimension, this vessel falls into the square you were in. Allies can carry it while you're within. During combat, when you kill a miniboss or swarm, gain Perspective:1. Spend any number of stacks of Perspective as a free action to alter the properties of your pocket dimension in the following ways: The next friendly unit to enter the dimension gains +1 HP per Stack spent. This can increase max HP until the end of the current TACCOM. The next friendly unit to enter the dimension gains +1 Damage to their next attack per Stack spent. Increase your Hermetic Crystal's HP by 1 per stack spent until the end of TACCOM. You may exceed its starting HP. Place 2 wraiths inside your grid.",
+    "passiveAbility": {
+      "name": "Sophia Enclosing Hermetic Chamber",
+      "intro": "You control a small pocket dimension compressed into a jewel, ritual token, or other small object. Using the 59th Level Sophia Transposing Art, you can transport any active object from the current battlefield into this pocket dimension. The pocket dimension is represented by a 5x5 grid that shares no squares with the main map. When you enter your own pocket dimension, this vessel falls into the square you were in. Allies can carry it while you're within. During combat, when you kill a miniboss or swarm, gain Perspective:1. Spend any number of stacks of Perspective as a free action to alter the properties of your pocket dimension in the following ways:",
+      "sections": [
+        {
+          "options": [
+            "The next friendly unit to enter the dimension gains +1 HP per stack spent until the end of TACCOM.",
+            "The next friendly unit to enter the dimension gains +1 Damage to their next attack per stack spent.",
+            "Increase your Hermetic Crystal's HP by 1 per stack spent until the end of TACCOM. You may exceed its starting HP.",
+            "Place 2 wraiths inside your grid."
+          ]
+        }
+      ]
+    },
     "pocketDimension": {
       "gridSize": "5x5",
       "perspectiveOptions": [

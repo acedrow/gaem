@@ -198,7 +198,7 @@ function setHp() {
       </template>
 
       <p v-if="listing?.codename" class="codename"><em>{{ listing.codename }}</em></p>
-      <p v-if="listing?.description" class="description"><em>{{ listing.description }}</em></p>
+      <p v-if="listing?.description" class="item-description">{{ listing.description }}</p>
       <p v-else-if="!listing?.codename" class="muted">No description available.</p>
 
       <div v-if="!isGm && listing?.speed != null" class="stats">
@@ -246,13 +246,6 @@ function setHp() {
   color: var(--color-muted);
 }
 
-.description {
-  margin: 0;
-  font-size: 0.9rem;
-  line-height: 1.5;
-  color: #c9d1d9;
-}
-
 .stat {
   font-size: 0.8rem;
   color: var(--color-muted);
@@ -293,11 +286,6 @@ function setHp() {
 
 .ability-label {
   display: block;
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-muted);
   margin-bottom: 0.15rem;
 }
 

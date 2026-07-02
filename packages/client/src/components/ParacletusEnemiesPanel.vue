@@ -53,7 +53,7 @@ function viewEnemyDetails(name: string) {
             <p v-if="enemy.summary" class="enemy-summary">{{ enemy.summary }}</p>
             <template v-if="selectedSpawnEnemyName === enemy.name">
               <p v-if="enemy.codename" class="enemy-codename"><em>{{ enemy.codename }}</em></p>
-              <p v-if="enemy.description" class="enemy-description"><em>{{ enemy.description }}</em></p>
+              <p v-if="enemy.description" class="item-description">{{ enemy.description }}</p>
               <button
                 type="button"
                 class="view-details-btn"
@@ -200,13 +200,6 @@ function viewEnemyDetails(name: string) {
   margin: 0.5rem 0 0;
   font-size: 0.8rem;
   color: var(--color-muted);
-}
-
-.enemy-description {
-  margin: 0.25rem 0 0.5rem;
-  font-size: 0.82rem;
-  line-height: 1.45;
-  color: #c9d1d9;
 }
 
 .view-details-btn {

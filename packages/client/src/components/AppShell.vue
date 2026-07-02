@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import type { PhaseAction } from "@gaem/shared";
 import { remainingPlayerIds, roundPhaseLabel, turnHolderLabel } from "@gaem/shared";
-import { computed } from "vue";
+import { computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 
+import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
+import { activeTab } from "../composables/useGameConsole.js";
 import { useGameConnection } from "../composables/useGameConnection.js";
 import { useGameState } from "../composables/useGameState.js";
+import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import { useSession } from "../composables/useSession.js";
+import { initUiPersistence } from "../composables/uiPersist.js";
 import ActionBar from "./ActionBar.vue";
 import GmActionBar from "./GmActionBar.vue";
 import GameBoard from "./GameBoard.vue";
@@ -16,9 +20,27 @@ import SideNav from "./SideNav.vue";
 
 const router = useRouter();
 const { role, playerProfile, clearSession } = useSession();
-const { sidebarCollapsed } = useCharacterSheetSelection();
+const { selectedSheetId, sheetsExpanded, rightPanelCollapsed, sidebarCollapsed } =
+  useCharacterSheetSelection();
+const { boardSelection, selectBoardPlayer } = useBoardSelection();
+const { dataCategory, dataFocus, dataFocusReturnCategory, dataExpanded } = useInfoDataSelection();
 const { connection } = useGameConnection();
 const { gameState, yourPlayerId, send } = useGameState();
+
+onMounted(() => {
+  initUiPersistence({
+    boardSelection,
+    selectedSheetId,
+    dataCategory,
+    dataFocus,
+    dataFocusReturnCategory,
+    activeTab,
+    sheetsExpanded,
+    dataExpanded,
+    rightPanelCollapsed,
+    gameState,
+  });
+});
 
 const mapName = computed(() => gameState.value?.mapName ?? gameState.value?.mapId ?? null);
 
@@ -78,7 +100,12 @@ function leave() {
 
 function onPhaseAction() {
   if (!phaseAction.value) return;
-  send({ type: "phaseAction", action: phaseAction.value.action });
+  const action = phaseAction.value.action;
+  if (action === "takeTurn" && yourPlayerId.value) {
+    const player = gameState.value?.players.find((p) => p.id === yourPlayerId.value);
+    if (player) selectBoardPlayer(player.id, player.characterSheetId);
+  }
+  send({ type: "phaseAction", action });
 }
 </script>
 

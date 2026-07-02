@@ -7,6 +7,7 @@ import { useBoardSelection } from "../composables/useBoardSelection.js";
 import type { DataCategory } from "../composables/useInfoDataSelection.js";
 import PanelShell from "./PanelShell.vue";
 import PlayerItemDetail from "./PlayerItemDetail.vue";
+import RuleText from "./RuleText.vue";
 
 const props = defineProps<{ category: DataCategory }>();
 
@@ -51,7 +52,9 @@ function toggle(name: string) {
 
         <div v-if="isExpanded(item.name)" class="list-card-body">
           <p v-if="'summary' in item && item.summary" class="item-summary">{{ item.summary }}</p>
-          <p class="item-description">{{ item.description }}</p>
+          <p class="item-description">
+            <RuleText :text="item.description" />
+          </p>
           <PlayerItemDetail :item="item" :kind="category" />
         </div>
       </article>
@@ -66,17 +69,12 @@ function toggle(name: string) {
 
 .chevron {
   color: var(--color-muted);
-  font-size: 0.75rem;
+  font-size: 1.5rem;
 }
 
 .item-summary {
   margin: 0 0 0.5rem;
   font-weight: 600;
   color: var(--color-text);
-}
-
-.item-description {
-  margin: 0 0 0.5rem;
-  line-height: 1.45;
 }
 </style>

@@ -1,10 +1,12 @@
 import type { ConsoleLogEntry } from "@gaem/shared";
 import { ref } from "vue";
 
+import { readPersistedUi } from "./uiPersist.js";
+
 export type RightPanelTab = "console" | "info" | "turnOrder";
 
 const entries = ref<ConsoleLogEntry[]>([]);
-export const activeTab = ref<RightPanelTab>("info");
+export const activeTab = ref<RightPanelTab>(readPersistedUi().activeTab);
 
 export function setConsoleEntries(next: ConsoleLogEntry[]) {
   entries.value = next;

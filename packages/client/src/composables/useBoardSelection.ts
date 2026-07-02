@@ -1,5 +1,6 @@
 import { computed, ref } from "vue";
 
+import { readPersistedUi } from "./uiPersist.js";
 import { useCharacterSheetSelection } from "./useCharacterSheetSelection.js";
 import { activeTab } from "./useGameConsole.js";
 import { useGameState } from "./useGameState.js";
@@ -9,7 +10,8 @@ export type BoardSelection =
   | { kind: "player"; id: string }
   | { kind: "enemy"; id: string };
 
-const boardSelection = ref<BoardSelection | null>(null);
+const persisted = readPersistedUi();
+const boardSelection = ref<BoardSelection | null>(persisted.boardSelection);
 
 export function useBoardSelection() {
   const { selectSheet, rightPanelCollapsed } = useCharacterSheetSelection();

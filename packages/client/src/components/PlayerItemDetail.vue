@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import type { PlayerArmor, PlayerClass, PlayerWeapon } from "@gaem/shared";
 
+import AbilityBlock from "./AbilityBlock.vue";
+import RuleText from "./RuleText.vue";
+
 defineProps<{
   item: PlayerClass | PlayerArmor | PlayerWeapon;
   kind: "classes" | "armor" | "weapons";
@@ -10,41 +13,84 @@ defineProps<{
 <template>
   <template v-if="kind === 'classes'">
     <p class="item-stat">HP {{ (item as PlayerClass).hp }}</p>
-    <p v-if="(item as PlayerClass).activeAbility" class="item-ability">
-      <span class="ability-label">Active</span>
-      {{ (item as PlayerClass).activeAbility }}
-    </p>
-    <p v-if="(item as PlayerClass).passiveAbility" class="item-ability">
-      <span class="ability-label">Passive</span>
-      {{ (item as PlayerClass).passiveAbility }}
-    </p>
+    <AbilityBlock
+      :content="(item as PlayerClass).activeAbility"
+      tier-label="Active"
+    />
+    <AbilityBlock
+      :content="(item as PlayerClass).passiveAbility"
+      tier-label="Passive"
+    />
+    <template v-if="(item as PlayerClass).pocketDimension">
+      <div class="extra-block">
+        <div class="ability-section-title">
+          Pocket dimension ({{ (item as PlayerClass).pocketDimension!.gridSize }})
+        </div>
+        <template v-if="(item as PlayerClass).pocketDimension!.wraith">
+          <div class="ability-section-title">Wraith</div>
+          <p class="ability-section-body">
+            <RuleText
+              :text="`HP ${(item as PlayerClass).pocketDimension!.wraith!.hp}, Speed ${(item as PlayerClass).pocketDimension!.wraith!.speed}. ${(item as PlayerClass).pocketDimension!.wraith!.strike}. On death: ${(item as PlayerClass).pocketDimension!.wraith!.onDeath}. ${(item as PlayerClass).pocketDimension!.wraith!.notes}`"
+            />
+          </p>
+        </template>
+        <template v-if="(item as PlayerClass).pocketDimension!.hermeticCrystal">
+          <div class="ability-section-title">Hermetic crystal</div>
+          <p class="ability-section-body">
+            <RuleText
+              :text="`HP ${(item as PlayerClass).pocketDimension!.hermeticCrystal!.hp}, Speed ${(item as PlayerClass).pocketDimension!.hermeticCrystal!.speed}. ${(item as PlayerClass).pocketDimension!.hermeticCrystal!.special}`"
+            />
+          </p>
+        </template>
+      </div>
+    </template>
   </template>
 
   <template v-else-if="kind === 'armor'">
     <p class="item-stat">Speed {{ (item as PlayerArmor).speed }}</p>
-    <p v-if="(item as PlayerArmor).specialMovement" class="item-ability">
-      <span class="ability-label">Movement</span>
-      {{ (item as PlayerArmor).specialMovement }}
+    <AbilityBlock
+      v-if="(item as PlayerArmor).specialMovement && (item as PlayerArmor).specialMovement !== 'N/A'"
+      :content="(item as PlayerArmor).specialMovement"
+      tier-label="Movement"
+    />
+    <p v-if="(item as PlayerArmor).special" class="item-ability">
+      <span class="ability-label">Special</span>
+      <RuleText :text="(item as PlayerArmor).special!" />
     </p>
-    <p v-if="(item as PlayerArmor).armorAction" class="item-ability">
-      <span class="ability-label">Armor action</span>
-      {{ (item as PlayerArmor).armorAction }}
-    </p>
+    <AbilityBlock
+      :content="(item as PlayerArmor).armorAction"
+      tier-label="Armor action"
+    />
     <p v-if="(item as PlayerArmor).reversal" class="item-ability">
-      <span class="ability-label">Reversal ({{ (item as PlayerArmor).reversal.charges }} charges)</span>
-      {{ (item as PlayerArmor).reversal.effect }}
+      <span class="ability-label">
+        Reversal ({{ (item as PlayerArmor).reversal!.charges }} charges)
+      </span>
+      <RuleText :text="(item as PlayerArmor).reversal!.effect" />
     </p>
+    <template v-if="(item as PlayerArmor).towers?.length">
+      <div class="extra-block">
+        <div class="ability-section-title">Towers</div>
+        <div v-for="tower in (item as PlayerArmor).towers" :key="tower.name" class="tower-block">
+          <div class="ability-section-title">{{ tower.name }}</div>
+          <p class="ability-section-body">
+            <RuleText
+              :text="`${tower.tags}, HP ${tower.hp}${tower.scale > 1 ? `, scale ${tower.scale}` : ''}. ${tower.special}`"
+            />
+          </p>
+        </div>
+      </div>
+    </template>
   </template>
 
   <template v-else>
-    <p v-if="(item as PlayerWeapon).activeAbility" class="item-ability">
-      <span class="ability-label">Active</span>
-      {{ (item as PlayerWeapon).activeAbility }}
-    </p>
-    <p v-if="(item as PlayerWeapon).passiveAbility" class="item-ability">
-      <span class="ability-label">Passive</span>
-      {{ (item as PlayerWeapon).passiveAbility }}
-    </p>
+    <AbilityBlock
+      :content="(item as PlayerWeapon).activeAbility"
+      tier-label="Active"
+    />
+    <AbilityBlock
+      :content="(item as PlayerWeapon).passiveAbility"
+      tier-label="Passive"
+    />
   </template>
 </template>
 
@@ -57,6 +103,25 @@ defineProps<{
 
 .item-ability {
   margin: 0.5rem 0 0;
+  line-height: 1.45;
+}
+
+.extra-block,
+.tower-block {
+  margin-top: 0.5rem;
+}
+
+.ability-section-title {
+  margin: 0.45rem 0 0.15rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text);
+}
+
+.ability-section-body {
+  margin: 0.15rem 0 0.35rem;
   line-height: 1.45;
 }
 </style>

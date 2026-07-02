@@ -76,7 +76,15 @@
     "summary": "Rearrange the terrain or consume it for bonuses.",
     "description": "\"In the Bythos we found him. The last of them, by his word. The oldest of them by ours. He judged us unworthy, and barred our way to the Demiurge's chambers.\"",
     "speed": 4,
-    "specialMovement": "Meditation On Past Gnosis — When you begin your turn adjacent to special terrain (Uneasy, Void, Impassable, Obstacle, Advantageous), you may absorb one square of the special terrain, converting it into Standard terrain and gaining one of the following until the end of your turn: Speed: 2, Aegis:1, or +1 Damage.",
+    "specialMovement": {
+      "name": "Meditation On Past Gnosis",
+      "intro": "When you begin your turn adjacent to special terrain (Uneasy, Void, Impassable, Obstacle, Advantageous), you may absorb one square of the special terrain, converting it into Standard terrain and gaining one of the following until the end of your turn:",
+      "sections": [
+        {
+          "options": ["Speed: 2", "Aegis:1", "+1 Damage"]
+        }
+      ]
+    },
     "armorAction": "Perfected Precognitive Evasion — During an attack, if any of your pattern overlaps with at least one special terrain tile, you may spend a Support Action to move that terrain to any other valid square within your attack pattern. You may move up to three tiles in this way per action.",
     "reversal": {
       "description": "\"They surrendered before we even drew steel. Their scales clattered to the ground, and this titan knelt before us in the darkness of the Eternal Tribunal. They sloughed off their flesh, and I watched a God turn into a Mortal.\"",
@@ -164,7 +172,29 @@
     "description": "Honeyed was the blood of Sachiel in his deep compassion, though its sweetness made of him a miser. He met his end toppled and flayed by Tolgar and his legions who had never tasted sweetness. Whomsoever wears Sachiel's skin wears too Tolgar's stern lesson, \"kindness given is not lost.\"",
     "speed": 7,
     "specialMovement": "When you end your movement, your current square becomes Advantageous Terrain.",
-    "armorAction": "Blessed Wake — While in or adjacent to Advantageous Terrain, you may spend a Support Action to Activate it. Select one of the benefits below: Shelter — The Advantageous terrain becomes Advantageous with Cover. Succor — The Advantageous terrain becomes Advantageous with Healing:1. Stymie — The Advantageous terrain becomes Advantageous with Uneasy. Settle — The Advantageous terrain becomes Advantageous with Fortified. Activation is contagious—it affects all contiguous Advantageous spaces at once. You may only have one benefit active at any one time. Changing the active benefit or applying the benefit to a different cluster of advantageous terrain removes any previously applied benefits to any previously activated spaces. Previously enhanced tiles revert to Advantageous terrain with no other modifiers.",
+    "armorAction": {
+      "name": "Blessed Wake",
+      "intro": "While in or adjacent to Advantageous Terrain, you may spend a Support Action to Activate it. Select one of the benefits below:",
+      "sections": [
+        {
+          "title": "Shelter",
+          "options": ["The Advantageous terrain becomes Advantageous with Cover."]
+        },
+        {
+          "title": "Succor",
+          "options": ["The Advantageous terrain becomes Advantageous with Healing:1."]
+        },
+        {
+          "title": "Stymie",
+          "options": ["The Advantageous terrain becomes Advantageous with Uneasy."]
+        },
+        {
+          "title": "Settle",
+          "options": ["The Advantageous terrain becomes Advantageous with Fortified."]
+        }
+      ],
+      "outro": "Activation is contagious—it affects all contiguous Advantageous spaces at once. You may only have one benefit active at any one time. Changing the active benefit or applying the benefit to a different cluster of advantageous terrain removes any previously applied benefits to any previously activated spaces. Previously enhanced tiles revert to Advantageous terrain with no other modifiers."
+    },
     "reversal": {
       "description": "\"We found him in the vaults of heaven. One final count of the arrayed treasures of Ogdoad. What need has heaven for goblets and silver coins? It was no matter. We melted the ocean of gilded sorrow in his screaming blood, and crafted his isolationism into strength.\" — Heradan, 8th Adherent to the Rebel Fist",
       "charges": 3,

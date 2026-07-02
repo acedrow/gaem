@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { PhaseAction } from "@gaem/shared";
-import { formatTurnHolder } from "@gaem/shared";
+import { canRewindPhase, formatTurnHolder } from "@gaem/shared";
 import { computed } from "vue";
 
 import { useGameState } from "../composables/useGameState.js";
@@ -11,6 +11,7 @@ const { gameState, send } = useGameState();
 
 const round = computed(() => gameState.value?.round ?? null);
 const enforceTurns = computed(() => gameState.value?.enforceTurns !== false);
+const canStepBack = computed(() => (gameState.value ? canRewindPhase(gameState.value) : false));
 
 function setEnforceTurns(value: boolean) {
   send({ type: "setEnforceTurns", enforceTurns: value });
@@ -27,6 +28,8 @@ const gmActionConfirm: Partial<Record<PhaseAction, string>> = {
   resetRound: "Reset the current round to its start?",
   gmEndRound: "End the current round and start the next one?",
   gmEndTurn: "End the current turn?",
+  rewindPhase:
+    "Step back to the previous phase? In-progress player actions will be reset.",
 };
 
 function sendGmAction(action: PhaseAction) {
@@ -62,6 +65,14 @@ function sendGmAction(action: PhaseAction) {
       </button>
       <button type="button" class="control-btn" @click="sendGmAction('resetRound')">
         Reset round
+      </button>
+      <button
+        type="button"
+        class="control-btn"
+        :disabled="!canStepBack"
+        @click="sendGmAction('rewindPhase')"
+      >
+        Step back
       </button>
       <button type="button" class="control-btn" @click="sendGmAction('gmEndRound')">
         End round
@@ -178,9 +189,14 @@ function sendGmAction(action: PhaseAction) {
   font-weight: 600;
 }
 
-.control-btn:hover {
+.control-btn:hover:not(:disabled) {
   background: #388bfd33;
   border-color: #58a6ff;
+}
+
+.control-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .history {

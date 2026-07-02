@@ -12,6 +12,7 @@ import {
 import { computed, nextTick, onUnmounted, ref, watch } from "vue";
 
 import CombatStrip from "./CombatStrip.vue";
+import SheetGearFieldRow from "./SheetGearFieldRow.vue";
 import { useApi } from "../composables/useApi.js";
 import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
@@ -50,6 +51,9 @@ const editingHp = ref(false);
 const hpDraft = ref(0);
 const hpInputEl = ref<HTMLInputElement | null>(null);
 const fieldInputEl = ref<HTMLInputElement | HTMLSelectElement | null>(null);
+const classFieldEl = ref<InstanceType<typeof SheetGearFieldRow> | null>(null);
+const armorFieldEl = ref<InstanceType<typeof SheetGearFieldRow> | null>(null);
+const weaponFieldEl = ref<InstanceType<typeof SheetGearFieldRow> | null>(null);
 
 const canEdit = computed(() => {
   if (!sheet.value) return false;
@@ -181,8 +185,16 @@ function startFieldEdit(field: EditableField) {
   if (!canEdit.value) return;
   editingField.value = field;
   nextTick(() => {
-    fieldInputEl.value?.focus();
-    if (fieldInputEl.value instanceof HTMLInputElement) fieldInputEl.value.select();
+    const el =
+      field === "class"
+        ? classFieldEl.value?.fieldInputEl
+        : field === "armor"
+          ? armorFieldEl.value?.fieldInputEl
+          : field === "weapon"
+            ? weaponFieldEl.value?.fieldInputEl
+            : fieldInputEl.value;
+    el?.focus();
+    if (el instanceof HTMLInputElement) el.select();
   });
 }
 
@@ -419,30 +431,22 @@ onUnmounted(() => {
             </template>
           </div>
 
-          <div class="field-row">
-            <template v-if="editingField !== 'class'">
-              <span class="field-label">Class:</span>
-              <span class="field-value-wrap">
-                <span class="field-value">{{ form.class || "—" }}</span>
-                <div v-if="selectedClass" class="field-tooltip">
-                  <p v-if="selectedClass.summary" class="tooltip-summary">{{ selectedClass.summary }}</p>
-                  <p class="tooltip-body">{{ selectedClass.description }}</p>
-                </div>
-              </span>
-              <button
-                v-if="canEdit"
-                type="button"
-                class="edit-btn"
-                aria-label="Edit class"
-                @click="startFieldEdit('class')"
-              >
-                <svg class="icon"><use href="#icon-pencil" /></svg>
-              </button>
+          <SheetGearFieldRow
+            ref="classFieldEl"
+            label="Class"
+            :value="form.class"
+            kind="classes"
+            :item="selectedClass"
+            :editing="editingField === 'class'"
+            :can-edit="canEdit"
+            @start-edit="startFieldEdit('class')"
+          >
+            <template #edit-icon>
+              <svg class="icon"><use href="#icon-pencil" /></svg>
             </template>
-            <template v-else>
-              <span class="field-label">Class:</span>
+            <template #input="{ inputEl }">
               <select
-                ref="fieldInputEl"
+                :ref="inputEl"
                 v-model="form.class"
                 class="field-input"
                 required
@@ -456,32 +460,24 @@ onUnmounted(() => {
                 </option>
               </select>
             </template>
-          </div>
+          </SheetGearFieldRow>
 
-          <div class="field-row">
-            <template v-if="editingField !== 'armor'">
-              <span class="field-label">Armor:</span>
-              <span class="field-value-wrap">
-                <span class="field-value">{{ form.armor || "—" }}</span>
-                <div v-if="selectedArmor" class="field-tooltip">
-                  <p v-if="selectedArmor.summary" class="tooltip-summary">{{ selectedArmor.summary }}</p>
-                  <p class="tooltip-body">{{ selectedArmor.description }}</p>
-                </div>
-              </span>
-              <button
-                v-if="canEdit"
-                type="button"
-                class="edit-btn"
-                aria-label="Edit armor"
-                @click="startFieldEdit('armor')"
-              >
-                <svg class="icon"><use href="#icon-pencil" /></svg>
-              </button>
+          <SheetGearFieldRow
+            ref="armorFieldEl"
+            label="Armor"
+            :value="form.armor"
+            kind="armor"
+            :item="selectedArmor"
+            :editing="editingField === 'armor'"
+            :can-edit="canEdit"
+            @start-edit="startFieldEdit('armor')"
+          >
+            <template #edit-icon>
+              <svg class="icon"><use href="#icon-pencil" /></svg>
             </template>
-            <template v-else>
-              <span class="field-label">Armor:</span>
+            <template #input="{ inputEl }">
               <select
-                ref="fieldInputEl"
+                :ref="inputEl"
                 v-model="form.armor"
                 class="field-input"
                 required
@@ -495,31 +491,24 @@ onUnmounted(() => {
                 </option>
               </select>
             </template>
-          </div>
+          </SheetGearFieldRow>
 
-          <div class="field-row">
-            <template v-if="editingField !== 'weapon'">
-              <span class="field-label">Weapon:</span>
-              <span class="field-value-wrap">
-                <span class="field-value">{{ form.weapon || "—" }}</span>
-                <div v-if="selectedWeapon" class="field-tooltip">
-                  <p class="tooltip-body">{{ selectedWeapon.description }}</p>
-                </div>
-              </span>
-              <button
-                v-if="canEdit"
-                type="button"
-                class="edit-btn"
-                aria-label="Edit weapon"
-                @click="startFieldEdit('weapon')"
-              >
-                <svg class="icon"><use href="#icon-pencil" /></svg>
-              </button>
+          <SheetGearFieldRow
+            ref="weaponFieldEl"
+            label="Weapon"
+            :value="form.weapon"
+            kind="weapons"
+            :item="selectedWeapon"
+            :editing="editingField === 'weapon'"
+            :can-edit="canEdit"
+            @start-edit="startFieldEdit('weapon')"
+          >
+            <template #edit-icon>
+              <svg class="icon"><use href="#icon-pencil" /></svg>
             </template>
-            <template v-else>
-              <span class="field-label">Weapon:</span>
+            <template #input="{ inputEl }">
               <select
-                ref="fieldInputEl"
+                :ref="inputEl"
                 v-model="form.weapon"
                 class="field-input"
                 required
@@ -533,7 +522,7 @@ onUnmounted(() => {
                 </option>
               </select>
             </template>
-          </div>
+          </SheetGearFieldRow>
         </div>
       </div>
     </div>
@@ -796,41 +785,13 @@ onUnmounted(() => {
   font-weight: 500;
 }
 
-.field-value-wrap {
-  position: relative;
-  min-width: 0;
-}
-
-.field-value-wrap:hover .field-tooltip {
-  display: block;
-}
-
 .field-value {
   color: #e6edf3;
-  display: block;
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.field-tooltip {
-  display: none;
-  position: absolute;
-  left: 0;
-  top: calc(100% + 4px);
-  z-index: 10;
-  min-width: 180px;
-  max-width: 280px;
-  padding: 0.45rem 0.55rem;
-  border-radius: 6px;
-  border: 1px solid #30363d;
-  background: #0d1117;
-  color: #e6edf3;
-  font-size: 0.78rem;
-  line-height: 1.45;
-  white-space: normal;
-  box-shadow: 0 4px 12px #01040966;
-  pointer-events: none;
 }
 
 .field-input {
@@ -868,16 +829,6 @@ onUnmounted(() => {
   width: 0.75rem;
   height: 0.75rem;
   fill: currentColor;
-}
-
-.tooltip-summary {
-  margin: 0 0 0.35rem;
-  color: #8b949e;
-  font-size: 0.75rem;
-}
-
-.tooltip-body {
-  margin: 0;
 }
 
 .cta {

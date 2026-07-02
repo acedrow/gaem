@@ -1,5 +1,7 @@
 import type { Ref } from "vue";
-import { computed, nextTick, ref } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
+
+import { readPersistedViewport, writePersistedViewport } from "./uiPersist.js";
 
 const BOARD_PAD = 24;
 const ZOOM_MAX_FACTOR = 4;
@@ -19,6 +21,7 @@ export function useBoardViewport(
   hasGameState: Ref<boolean>,
   boardHeight: Ref<number>,
   boardWidth: Ref<number>,
+  boardKey: Ref<string | null>,
 ) {
   const scale = ref(1);
   const panX = ref(0);
@@ -83,6 +86,35 @@ export function useBoardViewport(
     fitScale.value = fit.scale;
     fitPanX.value = fit.panX;
     fitPanY.value = fit.panY;
+    persistViewport();
+  }
+
+  function restoreOrFit() {
+    const el = viewportEl.value;
+    const key = boardKey.value;
+    if (!el || !hasGameState.value || !key) return;
+    updateFitState();
+    const saved = readPersistedViewport(key);
+    if (saved) {
+      scale.value = saved.scale;
+      panX.value = saved.panX;
+      panY.value = saved.panY;
+      clampView();
+      persistViewport();
+      return;
+    }
+    fitToView();
+  }
+
+  let persistTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function persistViewport() {
+    const key = boardKey.value;
+    if (!key) return;
+    if (persistTimer) clearTimeout(persistTimer);
+    persistTimer = setTimeout(() => {
+      writePersistedViewport(key, scale.value, panX.value, panY.value);
+    }, 150);
   }
 
   const resizeObserver = new ResizeObserver(() => {
@@ -122,6 +154,7 @@ export function useBoardViewport(
       panY.value = my - (my - panY.value) * ratio;
       scale.value = next;
       clampView();
+      persistViewport();
       return;
     }
 
@@ -134,6 +167,7 @@ export function useBoardViewport(
     panX.value -= dx;
     panY.value -= dy;
     clampView();
+    persistViewport();
   }
 
   function onWheel(e: WheelEvent) {
@@ -165,8 +199,18 @@ export function useBoardViewport(
 
   function disconnect() {
     if (wheelFrame) cancelAnimationFrame(wheelFrame);
+    if (persistTimer) clearTimeout(persistTimer);
     resizeObserver.disconnect();
   }
+
+  watch(
+    [viewportEl, boardKey, hasGameState],
+    ([el, key, ready]) => {
+      if (!el || !key || !ready) return;
+      nextTick(restoreOrFit);
+    },
+    { immediate: true },
+  );
 
   return {
     scale,
@@ -175,6 +219,7 @@ export function useBoardViewport(
     stageStyle,
     isTransformed,
     fitToView,
+    restoreOrFit,
     onWheel,
     observeViewport,
     disconnect,

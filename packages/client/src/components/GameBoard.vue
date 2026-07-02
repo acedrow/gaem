@@ -22,7 +22,7 @@ import {
   tileAt,
   validateEnemyFootprint,
 } from "@gaem/shared";
-import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 
 import { useBoardActionMode } from "../composables/useBoardActionMode.js";
 import { useCombatActions } from "../composables/useCombatActions.js";
@@ -112,6 +112,9 @@ const boardWidthPx = computed(() => {
 const hasGameState = computed(() => !!gameState.value);
 const boardWidth = computed(() => gameState.value?.width ?? 1);
 const boardHeight = computed(() => gameState.value?.height ?? 1);
+const boardKey = computed(() =>
+  gameState.value ? `${gameState.value.width}x${gameState.value.height}` : null,
+);
 
 const {
   scale,
@@ -129,6 +132,7 @@ const {
   hasGameState,
   boardHeight,
   boardWidth,
+  boardKey,
 );
 
 const playerProfileRef = computed(() => props.playerProfile ?? null);
@@ -862,13 +866,6 @@ function onKeydown(e: KeyboardEvent) {
   e.preventDefault();
   tryMove(t.x, t.y);
 }
-
-watch(
-  () => (gameState.value ? `${gameState.value.width}x${gameState.value.height}` : null),
-  (key) => {
-    if (key) nextTick(fitToView);
-  },
-);
 
 onMounted(() => {
   connect();

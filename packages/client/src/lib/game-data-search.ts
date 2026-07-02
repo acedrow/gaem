@@ -1,5 +1,6 @@
 import type { CharacterSheet } from "@gaem/shared";
 import {
+  abilityTextToPlain,
   listEnemyListings,
   PLAYER_ARMOR,
   PLAYER_CLASSES,
@@ -35,7 +36,13 @@ const PLAYER_DATA_INDEX: SearchEntry[] = [
     kind: "classes" as const,
     name: item.name,
     subtitle: item.summary,
-    haystack: haystack(item.name, item.summary, item.description, item.activeAbility, item.passiveAbility),
+    haystack: haystack(
+      item.name,
+      item.summary,
+      item.description,
+      abilityTextToPlain(item.activeAbility),
+      abilityTextToPlain(item.passiveAbility),
+    ),
   })),
   ...PLAYER_ARMOR.map((item) => ({
     kind: "armor" as const,
@@ -45,8 +52,8 @@ const PLAYER_DATA_INDEX: SearchEntry[] = [
       item.name,
       item.summary,
       item.description,
-      item.specialMovement,
-      item.armorAction,
+      abilityTextToPlain(item.specialMovement),
+      abilityTextToPlain(item.armorAction),
       item.reversal?.description,
       item.reversal?.effect,
       item.reversal?.trigger,
@@ -55,7 +62,12 @@ const PLAYER_DATA_INDEX: SearchEntry[] = [
   ...PLAYER_WEAPONS.map((item) => ({
     kind: "weapons" as const,
     name: item.name,
-    haystack: haystack(item.name, item.description, item.activeAbility, item.passiveAbility),
+    haystack: haystack(
+      item.name,
+      item.description,
+      abilityTextToPlain(item.activeAbility),
+      abilityTextToPlain(item.passiveAbility),
+    ),
   })),
 ];
 

@@ -4,14 +4,26 @@ import weaponsJson from "./data/player/weapons.json" with { type: "json" };
 import effectsJson from "./data/rules/effects.json" with { type: "json" };
 import type { Player } from "./types.js";
 import type { StructuredArmorAction, WeaponAttackSpec } from "./combat/types.js";
+import type { AbilityText } from "./rule-text.js";
 
-export type { StructuredArmorAction, WeaponAttackSpec };
+export type { StructuredArmorAction, WeaponAttackSpec, AbilityText };
 
-export type PlayerClass = (typeof classesJson)[number];
-export type PlayerArmor = (typeof armorJson)[number] & {
+type ClassJson = (typeof classesJson)[number];
+type ArmorJson = (typeof armorJson)[number];
+type WeaponJson = (typeof weaponsJson)[number];
+
+export type PlayerClass = Omit<ClassJson, "activeAbility" | "passiveAbility"> & {
+  activeAbility?: AbilityText;
+  passiveAbility?: AbilityText;
+};
+export type PlayerArmor = Omit<ArmorJson, "armorAction" | "specialMovement"> & {
+  armorAction?: AbilityText;
+  specialMovement?: AbilityText;
   armorActionStructured?: StructuredArmorAction;
 };
-export type PlayerWeapon = (typeof weaponsJson)[number] & {
+export type PlayerWeapon = Omit<WeaponJson, "activeAbility" | "passiveAbility"> & {
+  activeAbility?: AbilityText;
+  passiveAbility?: AbilityText;
   attack?: WeaponAttackSpec;
 };
 export type EffectGlossaryEntry = (typeof effectsJson)[number];

@@ -1,5 +1,6 @@
 import { ref } from "vue";
 
+import { readPersistedUi } from "./uiPersist.js";
 import { useEnemySpawnSelection } from "./useEnemySpawnSelection.js";
 import { usePatternSelection } from "./usePatternSelection.js";
 
@@ -11,10 +12,11 @@ export type DataFocus = {
   name: string;
 };
 
-const dataCategory = ref<DataCategory | null>(null);
-const dataFocus = ref<DataFocus | null>(null);
-const dataFocusReturnCategory = ref<DataCategory | null>(null);
-const dataExpanded = ref(false);
+const persisted = readPersistedUi();
+const dataCategory = ref<DataCategory | null>(persisted.dataCategory);
+const dataFocus = ref<DataFocus | null>(persisted.dataFocus);
+const dataFocusReturnCategory = ref<DataCategory | null>(persisted.dataFocusReturnCategory);
+const dataExpanded = ref(persisted.dataExpanded);
 
 export function useInfoDataSelection() {
   const { clearPatternSelection } = usePatternSelection();

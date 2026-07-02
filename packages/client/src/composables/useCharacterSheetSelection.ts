@@ -1,10 +1,12 @@
 import { ref } from "vue";
 
+import { readPersistedUi } from "./uiPersist.js";
 import { activeTab } from "./useGameConsole.js";
 import { useInfoDataSelection } from "./useInfoDataSelection.js";
 
-const selectedSheetId = ref<string | null>(null);
-const sheetsExpanded = ref(false);
+const persisted = readPersistedUi();
+const selectedSheetId = ref<string | null>(persisted.selectedSheetId);
+const sheetsExpanded = ref(persisted.sheetsExpanded);
 const sheetsVersion = ref(0);
 const sidebarCollapsed = ref(false);
 const rightPanelCollapsed = ref(false);
