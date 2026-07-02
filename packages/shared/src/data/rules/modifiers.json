@@ -19,12 +19,5 @@
     "description": "Sets the thickness of certain patterns, most often Line. Width:3 on Line:1 is equivalent to Wall:3.",
     "size": { "min": 0, "max": 10, "default": 0 },
     "appliesTo": ["line", "cone", "charge"]
-  },
-  {
-    "id": "length",
-    "name": "Length",
-    "description": "Sets the distance of certain patterns, most often Line. When set, overrides the pattern size for distance.",
-    "size": { "min": 0, "max": 20, "default": 0 },
-    "appliesTo": ["line", "cone", "charge", "blast"]
   }
 ]

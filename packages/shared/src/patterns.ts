@@ -329,14 +329,10 @@ export function fixedPatternTiles(
 
   const rangeMod = modifiers.range;
   const widthMod = modifiers.width;
-  const lengthMod = modifiers.length;
 
   if (!patternId && rangeMod > 0) {
     return rangeOnlyTiles(origin, rangeMod);
   }
-
-  const effectiveLength = lengthMod > 0 ? lengthMod : size;
-  const effectiveSize = lengthMod > 0 ? lengthMod : size;
 
   if (patternId === "ring") {
     const ringGap = rangeMod > 0 ? rangeMod : (options?.ringGap ?? 1);
@@ -351,7 +347,7 @@ export function fixedPatternTiles(
   if (widthMod > 0 && (patternId === "line" || patternId === "charge")) {
     return lineTilesWithWidth(
       patternOrigin,
-      effectiveLength,
+      size,
       widthMod,
       direction,
       lopsidedExtra,
@@ -365,7 +361,7 @@ export function fixedPatternTiles(
         x: patternOrigin.x + PERP_DELTA[direction].x * w,
         y: patternOrigin.y + PERP_DELTA[direction].y * w,
       };
-      tiles.push(...coneTiles(shifted, effectiveSize, direction));
+      tiles.push(...coneTiles(shifted, size, direction));
     }
     return tiles;
   }
@@ -373,7 +369,7 @@ export function fixedPatternTiles(
   return baseFixedPatternTiles(
     patternId,
     patternOrigin,
-    effectiveSize,
+    size,
     direction,
     {
       ...options,

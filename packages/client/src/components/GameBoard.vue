@@ -573,7 +573,7 @@ function onKeydown(e: KeyboardEvent) {
     return;
   }
 
-  if (e.key === "r" || e.key === "R") {
+  if ((e.key === "r" || e.key === "R") && !e.metaKey && !e.ctrlKey && !e.altKey) {
     if (patternPreviewActive.value && selectedPattern.value?.directional) {
       e.preventDefault();
       cyclePatternDirection();

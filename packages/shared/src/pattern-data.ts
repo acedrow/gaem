@@ -42,7 +42,6 @@ export type PatternModifier = {
 export type PatternModifierValues = {
   range: number;
   width: number;
-  length: number;
   recoil: number;
 };
 
@@ -55,7 +54,6 @@ const modifierById = new Map(PATTERN_MODIFIERS.map((m) => [m.id, m]));
 export const DEFAULT_MODIFIER_VALUES: PatternModifierValues = {
   range: 0,
   width: 0,
-  length: 0,
   recoil: 0,
 };
 
