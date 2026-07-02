@@ -6,7 +6,16 @@ export type EnemyListing = {
   title?: string;
   description?: string;
   hp: number;
+  agnosiaHp?: number;
+  crown?: number;
+  scale?: number;
+  speed?: number;
+  actions?: string;
   tags?: string[];
+  attacks?: string[];
+  agnosia?: string;
+  special?: string;
+  stainwalk?: string;
 };
 
 type EnemyFaction = {

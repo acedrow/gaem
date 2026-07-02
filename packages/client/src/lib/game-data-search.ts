@@ -1,3 +1,4 @@
+import type { CharacterSheet } from "@gaem/shared";
 import {
   listEnemyListings,
   PLAYER_ARMOR,
@@ -7,25 +8,29 @@ import {
 
 import type { DataFocusKind } from "../composables/useInfoDataSelection.js";
 
+export type GameDataSearchResultKind = DataFocusKind | "characterSheet";
+
 export type GameDataSearchResult = {
-  kind: DataFocusKind;
+  kind: GameDataSearchResultKind;
   name: string;
   subtitle?: string;
   score: number;
+  sheetId?: string;
 };
 
 type SearchEntry = {
-  kind: DataFocusKind;
+  kind: GameDataSearchResultKind;
   name: string;
   subtitle?: string;
   haystack: string;
+  sheetId?: string;
 };
 
 function haystack(...parts: (string | undefined)[]): string {
   return parts.filter(Boolean).join(" ").toLowerCase();
 }
 
-const SEARCH_INDEX: SearchEntry[] = [
+const PLAYER_DATA_INDEX: SearchEntry[] = [
   ...PLAYER_CLASSES.map((item) => ({
     kind: "classes" as const,
     name: item.name,
@@ -52,19 +57,30 @@ const SEARCH_INDEX: SearchEntry[] = [
     name: item.name,
     haystack: haystack(item.name, item.description, item.activeAbility, item.passiveAbility),
   })),
-  ...listEnemyListings().map((item) => ({
-    kind: "enemy" as const,
-    name: item.name,
-    subtitle: item.title,
-    haystack: haystack(
-      item.name,
-      item.codename,
-      item.title,
-      item.description,
-      item.tags?.join(" "),
-    ),
-  })),
 ];
+
+const ENEMY_INDEX: SearchEntry[] = listEnemyListings().map((item) => ({
+  kind: "enemy" as const,
+  name: item.name,
+  subtitle: item.title,
+  haystack: haystack(
+    item.name,
+    item.codename,
+    item.title,
+    item.description,
+    item.tags?.join(" "),
+  ),
+}));
+
+function characterSheetEntries(sheets: CharacterSheet[]): SearchEntry[] {
+  return sheets.map((sheet) => ({
+    kind: "characterSheet" as const,
+    name: sheet.name,
+    sheetId: sheet.id,
+    subtitle: sheet.class,
+    haystack: haystack(sheet.name, sheet.class, sheet.armor, sheet.weapon),
+  }));
+}
 
 function scoreMatch(name: string, haystack: string, query: string): number {
   const normalizedName = name.toLowerCase();
@@ -77,12 +93,28 @@ function scoreMatch(name: string, haystack: string, query: string): number {
   return 0;
 }
 
-export function searchGameData(query: string, limit = 12): GameDataSearchResult[] {
+export type SearchGameDataOptions = {
+  includeEnemies?: boolean;
+  characterSheets?: CharacterSheet[];
+};
+
+export function searchGameData(
+  query: string,
+  options: SearchGameDataOptions = {},
+  limit = 12,
+): GameDataSearchResult[] {
+  const { includeEnemies = true, characterSheets = [] } = options;
   const trimmed = query.trim().toLowerCase();
   if (!trimmed) return [];
 
+  const searchIndex = [
+    ...PLAYER_DATA_INDEX,
+    ...(includeEnemies ? ENEMY_INDEX : []),
+    ...characterSheetEntries(characterSheets),
+  ];
+
   const results: GameDataSearchResult[] = [];
-  for (const entry of SEARCH_INDEX) {
+  for (const entry of searchIndex) {
     const score = scoreMatch(entry.name, entry.haystack, trimmed);
     if (score > 0) {
       results.push({
@@ -90,6 +122,7 @@ export function searchGameData(query: string, limit = 12): GameDataSearchResult[
         name: entry.name,
         subtitle: entry.subtitle,
         score,
+        sheetId: entry.sheetId,
       });
     }
   }
@@ -99,9 +132,10 @@ export function searchGameData(query: string, limit = 12): GameDataSearchResult[
     .slice(0, limit);
 }
 
-export function kindLabel(kind: DataFocusKind): string {
+export function kindLabel(kind: GameDataSearchResultKind): string {
   if (kind === "classes") return "Class";
   if (kind === "armor") return "Armor";
   if (kind === "weapons") return "Weapon";
+  if (kind === "characterSheet") return "Character sheet";
   return "Enemy";
 }

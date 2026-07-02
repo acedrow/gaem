@@ -1,20 +1,71 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import type { CharacterSheet } from "@gaem/shared";
+import { computed, onMounted, ref, watch } from "vue";
 
+import { useApi } from "../composables/useApi.js";
+import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
-import { kindLabel, searchGameData } from "../lib/game-data-search.js";
+import { useSession } from "../composables/useSession.js";
+import {
+  kindLabel,
+  searchGameData,
+  type GameDataSearchResult,
+} from "../lib/game-data-search.js";
 
 const query = ref("");
+const sheets = ref<CharacterSheet[]>([]);
+
+const { apiFetch } = useApi();
+const { role } = useSession();
+const { clearBoardSelection } = useBoardSelection();
 const { selectDataFocus } = useInfoDataSelection();
-const { rightPanelCollapsed } = useCharacterSheetSelection();
+const { rightPanelCollapsed, selectSheet, sheetsVersion } = useCharacterSheetSelection();
 
-const results = computed(() => searchGameData(query.value));
+const isGm = computed(() => role.value === "gm");
 
-function onSelect(name: string, kind: (typeof results.value)[number]["kind"]) {
-  selectDataFocus({ kind, name });
+const results = computed(() =>
+  searchGameData(query.value, {
+    includeEnemies: isGm.value,
+    characterSheets: sheets.value,
+  }),
+);
+
+const placeholder = computed(() =>
+  isGm.value
+    ? "Classes, armor, weapons, enemies, character sheets…"
+    : "Classes, armor, weapons, character sheets…",
+);
+
+const hint = computed(() =>
+  isGm.value
+    ? "Search classes, armor, weapons, enemies, and character sheets by name or keyword."
+    : "Search classes, armor, weapons, and character sheets by name or keyword.",
+);
+
+async function loadSheets() {
+  try {
+    const res = await apiFetch("/api/character-sheets");
+    if (!res.ok) return;
+    const data = (await res.json()) as { sheets: CharacterSheet[] };
+    sheets.value = data.sheets;
+  } catch {
+    sheets.value = [];
+  }
+}
+
+function onSelect(result: GameDataSearchResult) {
+  if (result.kind === "characterSheet" && result.sheetId) {
+    clearBoardSelection();
+    selectSheet(result.sheetId);
+  } else if (result.kind !== "characterSheet") {
+    selectDataFocus({ kind: result.kind, name: result.name });
+  }
   rightPanelCollapsed.value = false;
 }
+
+onMounted(loadSheets);
+watch(sheetsVersion, loadSheets);
 </script>
 
 <template>
@@ -25,15 +76,15 @@ function onSelect(name: string, kind: (typeof results.value)[number]["kind"]) {
         v-model="query"
         class="search-input"
         type="search"
-        placeholder="Classes, armor, weapons, enemies…"
+        :placeholder="placeholder"
         autocomplete="off"
         spellcheck="false"
       />
     </label>
 
     <ul v-if="query.trim() && results.length" class="results">
-      <li v-for="result in results" :key="`${result.kind}:${result.name}`">
-        <button class="result-btn" type="button" @click="onSelect(result.name, result.kind)">
+      <li v-for="result in results" :key="`${result.kind}:${result.sheetId ?? result.name}`">
+        <button class="result-btn" type="button" @click="onSelect(result)">
           <span class="result-name">{{ result.name }}</span>
           <span class="result-meta">
             <span class="result-kind">{{ kindLabel(result.kind) }}</span>
@@ -44,7 +95,7 @@ function onSelect(name: string, kind: (typeof results.value)[number]["kind"]) {
     </ul>
 
     <p v-else-if="query.trim()" class="empty">No matches for “{{ query.trim() }}”.</p>
-    <p v-else class="hint">Search classes, armor, weapons, and enemies by name or keyword.</p>
+    <p v-else class="hint">{{ hint }}</p>
   </div>
 </template>
 

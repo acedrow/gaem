@@ -13,12 +13,13 @@ import GameDataDetailPanel from "./GameDataDetailPanel.vue";
 import InfoSearchPanel from "./InfoSearchPanel.vue";
 import PlayerBoardPanel from "./PlayerBoardPanel.vue";
 import PlayerDataPanel from "./PlayerDataPanel.vue";
+import ParacletusEnemiesPanel from "./ParacletusEnemiesPanel.vue";
 import PatternsPanel from "./PatternsPanel.vue";
 import TurnOrderPanel from "./TurnOrderPanel.vue";
 
 const { selectedSheetId, rightPanelCollapsed } = useCharacterSheetSelection();
 const { boardSelection } = useBoardSelection();
-const { dataCategory, dataFocus } = useInfoDataSelection();
+const { dataCategory, dataFocus, dataFocusReturnCategory } = useInfoDataSelection();
 const { gameState } = useGameState();
 
 const boardPlayerSheetId = computed(() => {
@@ -96,13 +97,19 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
         <div v-show="activeTab === 'info'" class="info-pane">
           <EnemyInfoPanel
             v-if="boardSelection?.kind === 'enemy'"
-            :key="boardSelection.id"
+            :key="`board:${boardSelection.id}`"
             :enemy-id="boardSelection.id"
           />
           <PlayerBoardPanel
             v-else-if="boardSelection?.kind === 'player' && !boardPlayerSheetId"
             :key="boardSelection.id"
             :player-id="boardSelection.id"
+          />
+          <EnemyInfoPanel
+            v-else-if="dataFocus?.kind === 'enemy'"
+            :key="`bestiary:${dataFocus.name}`"
+            :enemy-name="dataFocus.name"
+            :show-back="dataFocusReturnCategory === 'paracletus'"
           />
           <GameDataDetailPanel
             v-else-if="dataFocus"
@@ -112,6 +119,10 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
           <PatternsPanel
             v-else-if="dataCategory === 'patterns'"
             key="patterns"
+          />
+          <ParacletusEnemiesPanel
+            v-else-if="dataCategory === 'paracletus'"
+            key="paracletus"
           />
           <PlayerDataPanel
             v-else-if="dataCategory"

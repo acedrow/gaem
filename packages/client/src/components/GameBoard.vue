@@ -19,8 +19,10 @@ import { useCharacterSheetSelection } from "../composables/useCharacterSheetSele
 import { appendConsoleEntry, setConsoleEntries } from "../composables/useGameConsole.js";
 import { useGameConnection } from "../composables/useGameConnection.js";
 import { useGameState } from "../composables/useGameState.js";
+import { useEnemySpawnSelection } from "../composables/useEnemySpawnSelection.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import { usePatternSelection } from "../composables/usePatternSelection.js";
+import BoardContextMenu, { type BoardContextMenuItem } from "./BoardContextMenu.vue";
 
 const props = defineProps<{
   role: "gm" | "player";
@@ -46,6 +48,7 @@ const {
 } = useBoardSelection();
 const { gameState, yourPlayerId, setGameState, registerSend, clearGameState } = useGameState();
 const { dataCategory } = useInfoDataSelection();
+const { selectedSpawnEnemyName, clearSpawnEnemySelection } = useEnemySpawnSelection();
 const {
   selectedPatternId,
   selectedPattern,
@@ -61,6 +64,13 @@ const {
 const lastError = ref<string | null>(null);
 const hoveredKey = ref<string | null>(null);
 const draggingDeploy = ref(false);
+const contextMenu = ref<{
+  open: boolean;
+  x: number;
+  y: number;
+  items: BoardContextMenuItem[];
+  enemyId?: string;
+}>({ open: false, x: 0, y: 0, items: [] });
 const viewportEl = ref<HTMLElement | null>(null);
 const scale = ref(1);
 const panX = ref(0);
@@ -517,6 +527,12 @@ function onGmCellClick(x: number, y: number) {
     return;
   }
 
+  const spawnName = selectedSpawnEnemyName.value;
+  if (spawnName && isEmptyWalkable(x, y)) {
+    send({ type: "addEnemy", x, y, name: spawnName });
+    return;
+  }
+
   const selected = selectedEnemyId.value;
   if (selected) {
     const selectedEnemy = s.enemies.find((e) => e.id === selected);
@@ -551,21 +567,84 @@ function onCellClick(x: number, y: number) {
 }
 
 function onViewportClick(e: MouseEvent) {
+  closeContextMenu();
   if ((e.target as HTMLElement).closest(".cell")) return;
   clearBoardSelection();
 }
 
 function onBoardDisplayClick(e: MouseEvent) {
+  closeContextMenu();
   const target = e.target as HTMLElement;
   if (target.closest(".board-viewport, .reset-zoom-btn")) return;
   clearBoardSelection();
 }
 
+function removeEnemyById(enemyId: string) {
+  lastError.value = null;
+  send({ type: "removeEnemy", enemyId });
+  clearBoardSelection();
+}
+
 function removeSelectedEnemy() {
   if (!selectedEnemyId.value) return;
-  lastError.value = null;
-  send({ type: "removeEnemy", enemyId: selectedEnemyId.value });
-  clearBoardSelection();
+  removeEnemyById(selectedEnemyId.value);
+}
+
+function closeContextMenu() {
+  contextMenu.value.open = false;
+  contextMenu.value.items = [];
+  contextMenu.value.enemyId = undefined;
+}
+
+function buildContextMenuItems(x: number, y: number): BoardContextMenuItem[] {
+  const items: BoardContextMenuItem[] = [];
+  const enemy = enemyAt(x, y);
+
+  if (props.role === "gm" && enemy) {
+    items.push({ id: "remove-enemy", label: "Remove enemy", danger: true });
+  }
+
+  return items;
+}
+
+function onBoardContextMenu(e: MouseEvent) {
+  if (!gameState.value) return;
+  e.preventDefault();
+
+  const cell = (e.target as HTMLElement).closest("[data-cell-x]") as HTMLElement | null;
+  if (!cell) {
+    closeContextMenu();
+    return;
+  }
+
+  const x = Number(cell.dataset.cellX);
+  const y = Number(cell.dataset.cellY);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+
+  const items = buildContextMenuItems(x, y);
+  if (items.length === 0) {
+    closeContextMenu();
+    return;
+  }
+
+  const enemy = enemyAt(x, y);
+  if (enemy) selectBoardEnemy(enemy.id);
+
+  contextMenu.value = {
+    open: true,
+    x: e.clientX,
+    y: e.clientY,
+    items,
+    enemyId: enemy?.id,
+  };
+}
+
+function onContextMenuSelect(id: string) {
+  if (id === "remove-enemy" && contextMenu.value.enemyId) {
+    removeEnemyById(contextMenu.value.enemyId);
+  }
+
+  closeContextMenu();
 }
 
 function onKeydown(e: KeyboardEvent) {
@@ -581,8 +660,20 @@ function onKeydown(e: KeyboardEvent) {
     }
   }
 
+  if (contextMenu.value.open) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeContextMenu();
+      return;
+    }
+  }
+
   if (props.role === "gm") {
     if (e.key === "Escape") {
+      if (selectedSpawnEnemyName.value) {
+        clearSpawnEnemySelection();
+        return;
+      }
       clearBoardSelection();
       return;
     }
@@ -697,7 +788,13 @@ onUnmounted(() => {
     <p v-if="lastError" class="error">{{ lastError }}</p>
 
     <div v-if="gameState" class="board-display" @click="onBoardDisplayClick">
-      <div ref="viewportEl" class="board-viewport" @click="onViewportClick" @wheel.prevent="onWheel">
+      <div
+        ref="viewportEl"
+        class="board-viewport"
+        @click="onViewportClick"
+        @contextmenu="onBoardContextMenu"
+        @wheel.prevent="onWheel"
+      >
         <div class="board-stage" :style="stageStyle">
           <div class="board-wrap">
             <div class="board" :style="gridStyle">
@@ -727,6 +824,10 @@ onUnmounted(() => {
                   canGmMoveEnemies(gameState) &&
                   !!selectedEnemyId &&
                   isAdjacentToSelectedEnemy(c.x, c.y) &&
+                  isEmptyWalkable(c.x, c.y),
+                'gm-spawnable':
+                  props.role === 'gm' &&
+                  !!selectedSpawnEnemyName &&
                   isEmptyWalkable(c.x, c.y),
                 'pattern-primary': isPatternPrimary(c.x, c.y),
                 'pattern-secondary': isPatternSecondary(c.x, c.y),
@@ -804,6 +905,15 @@ onUnmounted(() => {
     </div>
 
     <p v-else class="loading">Loading board…</p>
+
+    <BoardContextMenu
+      :open="contextMenu.open"
+      :x="contextMenu.x"
+      :y="contextMenu.y"
+      :items="contextMenu.items"
+      @select="onContextMenuSelect"
+      @close="closeContextMenu"
+    />
   </div>
 </template>
 
@@ -862,6 +972,7 @@ onUnmounted(() => {
 .cell.movable { cursor: pointer; outline: 1px dashed #388bfd66; }
 .cell.deployable { cursor: pointer; outline: 1px dashed #3fb95066; }
 .cell.gm-movable { cursor: pointer; outline: 1px dashed #f8514966; }
+.cell.gm-spawnable { cursor: crosshair; outline: 1px dashed #a371f766; }
 .cell.pattern-primary { outline: 2px solid #a371f7; background: #a371f722; }
 .cell.pattern-secondary { outline: 1px dashed #a371f799; background: #a371f711; cursor: pointer; }
 .cell.pattern-recoil { outline: 1px dashed #d2992266; background: #d2992211; }

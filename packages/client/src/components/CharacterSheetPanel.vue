@@ -81,6 +81,7 @@ const hpBarLevel = computed(() => {
 const selectedClass = computed(() => getClassByName(form.value.class));
 const selectedArmor = computed(() => getArmorByName(form.value.armor));
 const selectedWeapon = computed(() => getWeaponByName(form.value.weapon));
+const speed = computed(() => selectedArmor.value?.speed);
 const selectedProfileName = computed(
   () => profiles.value.find((p) => p.id === form.value.player)?.name ?? form.value.player
 );
@@ -359,6 +360,8 @@ onUnmounted(() => {
               <div class="hp-bar-fill" :class="hpBarLevel" :style="{ width: `${hpPercent}%` }" />
             </div>
           </div>
+
+          <p v-if="speed != null" class="speed-stat">Speed {{ speed }}</p>
         </div>
 
         <div class="fields">
@@ -767,6 +770,13 @@ onUnmounted(() => {
 
 .hp-bar-fill.low {
   background: linear-gradient(90deg, #8b1e1e, #f85149);
+}
+
+.speed-stat {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #8b949e;
 }
 
 .fields {

@@ -3,7 +3,6 @@ import type { PlayerArmor, PlayerClass, PlayerWeapon } from "@gaem/shared";
 import {
   getArmorByName,
   getClassByName,
-  getEnemyListingByName,
   getWeaponByName,
 } from "@gaem/shared";
 import { computed } from "vue";
@@ -16,14 +15,6 @@ const props = defineProps<{ focus: DataFocus }>();
 
 const { closeRightPanel } = useBoardSelection();
 
-type EnemyDetail = NonNullable<ReturnType<typeof getEnemyListingByName>> & {
-  codename?: string;
-  attacks?: string[];
-  special?: string;
-  stainwalk?: string;
-  agnosia?: string;
-};
-
 const playerClass = computed(() =>
   props.focus.kind === "classes" ? getClassByName(props.focus.name) : undefined,
 );
@@ -33,18 +24,13 @@ const playerArmor = computed(() =>
 const playerWeapon = computed(() =>
   props.focus.kind === "weapons" ? getWeaponByName(props.focus.name) : undefined,
 );
-const enemy = computed(() =>
-  props.focus.kind === "enemy"
-    ? (getEnemyListingByName(props.focus.name) as EnemyDetail | undefined)
-    : undefined,
-);
 
 const title = computed(() => props.focus.name);
 const categoryLabel = computed(() => kindLabel(props.focus.kind));
 
 const item = computed(
-  (): PlayerClass | PlayerArmor | PlayerWeapon | EnemyDetail | undefined =>
-    playerClass.value ?? playerArmor.value ?? playerWeapon.value ?? enemy.value,
+  (): PlayerClass | PlayerArmor | PlayerWeapon | undefined =>
+    playerClass.value ?? playerArmor.value ?? playerWeapon.value,
 );
 </script>
 
@@ -54,7 +40,6 @@ const item = computed(
       <div class="title-block">
         <p class="panel-kicker">{{ categoryLabel }}</p>
         <h2 class="panel-title">{{ title }}</h2>
-        <p v-if="enemy?.title" class="panel-subtitle">{{ enemy.title }}</p>
       </div>
       <button class="close-btn" type="button" title="Close" @click="closeRightPanel">×</button>
     </div>
@@ -101,30 +86,6 @@ const item = computed(
           {{ playerWeapon.passiveAbility }}
         </p>
       </template>
-
-      <template v-else-if="enemy">
-        <p v-if="enemy.codename" class="item-stat">Codename {{ enemy.codename }}</p>
-        <p class="item-stat">HP {{ enemy.hp }}</p>
-        <div v-if="enemy.tags?.length" class="tags">
-          <span v-for="tag in enemy.tags" :key="tag" class="tag">{{ tag }}</span>
-        </div>
-        <p v-for="(attack, i) in enemy.attacks" :key="i" class="item-ability">
-          <span class="ability-label">Attack {{ i + 1 }}</span>
-          {{ attack }}
-        </p>
-        <p v-if="enemy.special" class="item-ability">
-          <span class="ability-label">Special</span>
-          {{ enemy.special }}
-        </p>
-        <p v-if="enemy.stainwalk" class="item-ability">
-          <span class="ability-label">Stainwalk</span>
-          {{ enemy.stainwalk }}
-        </p>
-        <p v-if="enemy.agnosia" class="item-ability">
-          <span class="ability-label">Agnosia</span>
-          {{ enemy.agnosia }}
-        </p>
-      </template>
     </div>
 
     <p v-else class="muted">Entry not found.</p>
@@ -167,14 +128,6 @@ const item = computed(
   font-size: 1.1rem;
   font-weight: 700;
   line-height: 1.3;
-}
-
-.panel-subtitle {
-  margin: 0.2rem 0 0;
-  font-size: 0.75rem;
-  color: #8b949e;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .close-btn {
@@ -237,23 +190,6 @@ const item = computed(
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #8b949e;
-}
-
-.tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
-.tag {
-  padding: 0.15rem 0.45rem;
-  border-radius: 999px;
-  background: #21262d;
-  border: 1px solid #30363d;
-  font-size: 0.72rem;
-  color: #8b949e;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
 }
 
 .muted {

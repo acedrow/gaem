@@ -188,6 +188,15 @@ watch(sheetsVersion, () => {
       >
         <span class="sheet-name">Patterns</span>
       </button>
+      <button
+        v-if="role === 'gm'"
+        class="sheet-item"
+        :class="{ selected: dataCategory === 'paracletus' }"
+        type="button"
+        @click="onSelectData('paracletus')"
+      >
+        <span class="sheet-name">Enemies — Paracletus</span>
+      </button>
     </div>
 
     <div v-if="showCreate" class="modal-backdrop" @click.self="showCreate = false">
