@@ -1,6 +1,6 @@
 import type { Enemy, GameMap, GameState, MapTile, TerrainType } from "./types.js";
 import { TERRAIN_TYPES } from "./types.js";
-import { getEnemyMaxHpByName } from "./enemy-data.js";
+import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles } from "./enemy-data.js";
 
 const BLOCKING_TERRAIN = new Set<TerrainType>(["impassable", "obstacle", "void"]);
 const TERRAIN_SET = new Set<string>(TERRAIN_TYPES);
@@ -163,25 +163,37 @@ function parseMapEnemies(raw: unknown, width: number, height: number): Enemy[] |
     if (!Number.isInteger(x) || !Number.isInteger(y)) {
       throw new Error(`Enemy ${id} x and y must be integers`);
     }
-    if ((x as number) < 0 || (x as number) >= width || (y as number) < 0 || (y as number) >= height) {
-      throw new Error(`Enemy ${id} at (${x}, ${y}) is out of bounds`);
-    }
-
-    const posKey = tileKey(x as number, y as number);
-    if (seenPositions.has(posKey)) {
-      throw new Error(`Multiple enemies at (${x}, ${y})`);
-    }
-    seenPositions.add(posKey);
 
     const name = e.name;
     if (name !== undefined && typeof name !== "string") {
       throw new Error(`Enemy ${id} name must be a string`);
     }
 
+    const rawScale = e.scale;
+    if (rawScale !== undefined && (!Number.isInteger(rawScale) || (rawScale as number) < 1)) {
+      throw new Error(`Enemy ${id} scale must be a positive integer`);
+    }
+    const scale =
+      rawScale !== undefined
+        ? (rawScale as number)
+        : getEnemyScaleByName(name as string | undefined);
+
+    for (const tile of enemyFootprintTiles(x as number, y as number, scale)) {
+      if (tile.x < 0 || tile.x >= width || tile.y < 0 || tile.y >= height) {
+        throw new Error(`Enemy ${id} footprint at (${x}, ${y}) is out of bounds`);
+      }
+      const posKey = tileKey(tile.x, tile.y);
+      if (seenPositions.has(posKey)) {
+        throw new Error(`Enemy footprints overlap at (${tile.x}, ${tile.y})`);
+      }
+      seenPositions.add(posKey);
+    }
+
     enemies.push({
       id: id.trim(),
       x: x as number,
       y: y as number,
+      scale,
       ...(name !== undefined ? { name: name as string } : {}),
     });
   }
@@ -199,6 +211,7 @@ export function createInitialStateFromMap(map: GameMap): GameState {
     players: [],
     enemies: (map.enemies ?? []).map((e) => ({
       ...e,
+      scale: getEnemyScale(e),
       hp: getEnemyMaxHpByName(e.name),
     })),
     round: 1,

@@ -22,6 +22,7 @@ export type Enemy = {
   y: number;
   name?: string;
   hp?: number;
+  scale?: number;
 };
 
 export type TerrainObject = {

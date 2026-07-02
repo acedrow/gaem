@@ -1,6 +1,6 @@
 import type { Enemy, GameState, GaemRole, PhaseAction, Player, TurnHolder } from "./types.js";
 import { playerLabel } from "./console.js";
-import { getEnemyMaxHpByName } from "./enemy-data.js";
+import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles, enemyOccupiesTile } from "./enemy-data.js";
 import { getClassMaxHp } from "./player-data.js";
 import { isWalkable, tileAt } from "./map.js";
 
@@ -301,7 +301,28 @@ function isOccupiedByPlayer(state: GameState, x: number, y: number): boolean {
 }
 
 function isOccupiedByEnemy(state: GameState, x: number, y: number): boolean {
-  return state.enemies.some((e) => e.x === x && e.y === y);
+  return state.enemies.some((e) => enemyOccupiesTile(e, x, y));
+}
+
+export function validateEnemyFootprint(
+  state: GameState,
+  x: number,
+  y: number,
+  scale: number,
+  excludeEnemyId?: string,
+): string | null {
+  if (scale < 1) return "Invalid scale";
+  if (x < 0 || y < 0 || x + scale > state.width || y + scale > state.height) {
+    return "Out of bounds";
+  }
+  for (const tile of enemyFootprintTiles(x, y, scale)) {
+    if (!isWalkable(tileAt(state.tiles, tile.x, tile.y))) return "Blocked";
+    if (isOccupiedByPlayer(state, tile.x, tile.y)) return "Tile occupied";
+    if (state.enemies.some((e) => e.id !== excludeEnemyId && enemyOccupiesTile(e, tile.x, tile.y))) {
+      return "Tile occupied";
+    }
+  }
+  return null;
 }
 
 function isOccupied(state: GameState, x: number, y: number): boolean {
@@ -370,21 +391,11 @@ export function validateEnemyMove(
 
   if (!canGmMoveEnemies(state)) return "Not GM turn";
 
-  if (toX < 0 || toY < 0 || toX >= state.width || toY >= state.height) {
-    return "Out of bounds";
-  }
-  if (!isWalkable(tileAt(state.tiles, toX, toY))) return "Blocked";
-
   const dx = Math.abs(toX - enemy.x);
   const dy = Math.abs(toY - enemy.y);
   if (dx + dy !== 1) return "Must move to an adjacent tile";
 
-  if (isOccupiedByPlayer(state, toX, toY)) return "Tile occupied";
-  if (state.enemies.some((e) => e.id !== enemyId && e.x === toX && e.y === toY)) {
-    return "Tile occupied";
-  }
-
-  return null;
+  return validateEnemyFootprint(state, toX, toY, getEnemyScale(enemy), enemyId);
 }
 
 export function applyEnemyMove(
@@ -402,22 +413,20 @@ export function applyEnemyMove(
 export function validateAddEnemy(
   state: GameState,
   x: number,
-  y: number
+  y: number,
+  scale = 1,
 ): string | null {
-  if (x < 0 || y < 0 || x >= state.width || y >= state.height) {
-    return "Out of bounds";
-  }
-  if (!isWalkable(tileAt(state.tiles, x, y))) return "Blocked";
-  if (isOccupied(state, x, y)) return "Tile occupied";
-  return null;
+  return validateEnemyFootprint(state, x, y, scale);
 }
 
 export function addEnemy(state: GameState, enemy: Enemy): string | null {
-  const err = validateAddEnemy(state, enemy.x, enemy.y);
+  const scale = getEnemyScale(enemy);
+  const err = validateEnemyFootprint(state, enemy.x, enemy.y, scale);
   if (err) return err;
   const maxHp = getEnemyMaxHp(enemy);
   state.enemies.push({
     ...enemy,
+    scale,
     hp: clampHp(enemy.hp ?? maxHp, maxHp),
   });
   return null;
@@ -579,6 +588,9 @@ export function normalizeGameState(state: GameState): GameState {
     }
   }
   for (const enemy of state.enemies) {
+    if (enemy.scale == null) {
+      enemy.scale = getEnemyScaleByName(enemy.name);
+    }
     const maxHp = getEnemyMaxHp(enemy);
     if (enemy.hp === undefined) {
       enemy.hp = maxHp;

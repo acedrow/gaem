@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { getEnemyListingByName, getEnemyMaxHp } from "@gaem/shared";
+import { getEnemyListingByName, getEnemyMaxHp, getEnemyScale } from "@gaem/shared";
 import { computed } from "vue";
 
 import { useBoardSelection } from "../composables/useBoardSelection.js";
@@ -52,6 +52,11 @@ const hpBarLevel = computed(() => {
   return "high";
 });
 
+const enemyScale = computed(() => {
+  if (activeEnemy.value) return getEnemyScale(activeEnemy.value);
+  return listing.value?.scale ?? 1;
+});
+
 const notFound = computed(() => !listing.value && !activeEnemy.value);
 </script>
 
@@ -98,7 +103,7 @@ const notFound = computed(() => !listing.value && !activeEnemy.value);
           <span v-if="!showHpBar" class="stat">HP: {{ listing.hp }}</span>
           <span v-if="listing.codename" class="stat">Codename: {{ listing.codename }}</span>
           <span v-if="listing.crown != null" class="stat">Crown: {{ listing.crown }}</span>
-          <span v-if="listing.scale != null" class="stat">Scale: {{ listing.scale }}</span>
+          <span v-if="listing.scale != null || activeEnemy" class="stat">Scale: {{ enemyScale }}</span>
           <span v-if="listing.speed != null" class="stat">Speed: {{ listing.speed }}</span>
           <span v-if="listing.actions" class="stat">Actions: {{ listing.actions }}</span>
           <span v-if="listing.agnosiaHp != null" class="stat">Agnosia HP: {{ listing.agnosiaHp }}</span>
@@ -134,7 +139,9 @@ const notFound = computed(() => !listing.value && !activeEnemy.value);
           {{ listing.stainwalk }}
         </p>
 
-        <p v-if="activeEnemy" class="position">Position ({{ activeEnemy.x }}, {{ activeEnemy.y }})</p>
+        <p v-if="activeEnemy" class="position">
+          Position ({{ activeEnemy.x }}, {{ activeEnemy.y }}){{ enemyScale > 1 ? ` · ${enemyScale}×${enemyScale}` : "" }}
+        </p>
       </template>
     </div>
 

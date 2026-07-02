@@ -5,12 +5,17 @@ import {
   canPlayerMove,
   coordsToKeySet,
   drawableExpansionOptions,
+  enemyFootprintTiles,
+  enemyOccupiesTile,
   fixedPatternTilesInBounds,
   getEnemyMaxHp,
+  getEnemyScale,
+  getEnemyScaleByName,
   getPlayerMaxHp,
   isWalkable,
   recoilTilesInBounds,
   tileAt,
+  validateEnemyFootprint,
 } from "@gaem/shared";
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 
@@ -376,11 +381,28 @@ function playersAt(x: number, y: number): Player[] {
 }
 
 function enemyAt(x: number, y: number) {
-  return gameState.value?.enemies.find((e) => e.x === x && e.y === y);
+  return gameState.value?.enemies.find((e) => enemyOccupiesTile(e, x, y));
+}
+
+function enemyAnchorAt(x: number, y: number) {
+  const enemy = enemyAt(x, y);
+  return enemy && enemy.x === x && enemy.y === y ? enemy : undefined;
 }
 
 function enemiesAt(x: number, y: number): Enemy[] {
-  return gameState.value?.enemies.filter((e) => e.x === x && e.y === y) ?? [];
+  return gameState.value?.enemies.filter((e) => enemyOccupiesTile(e, x, y)) ?? [];
+}
+
+function enemyPieceStyle(enemy: Enemy): Record<string, string> {
+  const scale = getEnemyScale(enemy);
+  if (scale <= 1) return {};
+  const gap = 3;
+  const inset = 8;
+  return {
+    width: `calc(${scale * 100}% + ${(scale - 1) * gap}px - ${inset}px)`,
+    height: `calc(${scale * 100}% + ${(scale - 1) * gap}px - ${inset}px)`,
+    inset: "4px auto auto 4px",
+  };
 }
 
 function terrainObjectsAt(x: number, y: number): TerrainObject[] {
@@ -404,17 +426,67 @@ function formatHp(current: number | undefined, max: number): string {
   return max > 0 ? `${hp}/${max}` : String(hp);
 }
 
-function isEmptyWalkable(x: number, y: number): boolean {
-  return isWalkable(getTile(x, y)) && !playerAt(x, y) && !enemyAt(x, y);
+function getSelectedEnemyMoveTargets(): { anchorX: number; anchorY: number }[] {
+  const s = gameState.value;
+  const id = selectedEnemyId.value;
+  if (!s || !id || !canGmMoveEnemies(s)) return [];
+  const enemy = s.enemies.find((e) => e.id === id);
+  if (!enemy) return [];
+
+  const scale = getEnemyScale(enemy);
+  const deltas = [
+    { dx: 0, dy: -1 },
+    { dx: 0, dy: 1 },
+    { dx: -1, dy: 0 },
+    { dx: 1, dy: 0 },
+  ];
+  const targets: { anchorX: number; anchorY: number }[] = [];
+  for (const { dx, dy } of deltas) {
+    const anchorX = enemy.x + dx;
+    const anchorY = enemy.y + dy;
+    if (validateEnemyFootprint(s, anchorX, anchorY, scale, id) === null) {
+      targets.push({ anchorX, anchorY });
+    }
+  }
+  return targets;
 }
 
-function isAdjacentToSelectedEnemy(x: number, y: number): boolean {
-  const id = selectedEnemyId.value;
+const gmEnemyMoveTargetKeys = computed(() => {
+  const keys = new Set<string>();
   const s = gameState.value;
-  if (!id || !s) return false;
+  const id = selectedEnemyId.value;
+  if (!s || !id) return keys;
   const enemy = s.enemies.find((e) => e.id === id);
-  if (!enemy) return false;
-  return Math.abs(x - enemy.x) + Math.abs(y - enemy.y) === 1;
+  if (!enemy) return keys;
+  const scale = getEnemyScale(enemy);
+  for (const { anchorX, anchorY } of getSelectedEnemyMoveTargets()) {
+    for (const tile of enemyFootprintTiles(anchorX, anchorY, scale)) {
+      keys.add(`${tile.x}-${tile.y}`);
+    }
+  }
+  return keys;
+});
+
+function gmEnemyMoveAnchorAt(x: number, y: number): { x: number; y: number } | null {
+  const s = gameState.value;
+  const id = selectedEnemyId.value;
+  if (!s || !id) return null;
+  const enemy = s.enemies.find((e) => e.id === id);
+  if (!enemy) return null;
+  const scale = getEnemyScale(enemy);
+  for (const { anchorX, anchorY } of getSelectedEnemyMoveTargets()) {
+    for (const tile of enemyFootprintTiles(anchorX, anchorY, scale)) {
+      if (tile.x === x && tile.y === y) return { x: anchorX, y: anchorY };
+    }
+  }
+  return null;
+}
+
+function isGmSpawnable(x: number, y: number): boolean {
+  const s = gameState.value;
+  const spawnName = selectedSpawnEnemyName.value;
+  if (!s || !spawnName) return false;
+  return validateEnemyFootprint(s, x, y, getEnemyScaleByName(spawnName)) === null;
 }
 
 function isAdjacentToYou(x: number, y: number): boolean {
@@ -510,6 +582,24 @@ function onPlayerCellClick(x: number, y: number) {
   tryMove(x, y);
 }
 
+function tryMoveSelectedEnemy(x: number, y: number): boolean {
+  lastError.value = null;
+  const s = gameState.value;
+  const selected = selectedEnemyId.value;
+  if (!s || !selected) return false;
+  const selectedEnemy = s.enemies.find((e) => e.id === selected);
+  if (!selectedEnemy) {
+    clearBoardSelection();
+    return false;
+  }
+  const anchor = gmEnemyMoveAnchorAt(x, y);
+  if (canGmMoveEnemies(s) && anchor) {
+    send({ type: "moveEnemy", enemyId: selected, x: anchor.x, y: anchor.y });
+    return true;
+  }
+  return false;
+}
+
 function onGmCellClick(x: number, y: number) {
   lastError.value = null;
   const s = gameState.value;
@@ -528,27 +618,12 @@ function onGmCellClick(x: number, y: number) {
   }
 
   const spawnName = selectedSpawnEnemyName.value;
-  if (spawnName && isEmptyWalkable(x, y)) {
+  if (spawnName && validateEnemyFootprint(s, x, y, getEnemyScaleByName(spawnName)) === null) {
     send({ type: "addEnemy", x, y, name: spawnName });
     return;
   }
 
-  const selected = selectedEnemyId.value;
-  if (selected) {
-    const selectedEnemy = s.enemies.find((e) => e.id === selected);
-    if (!selectedEnemy) {
-      clearBoardSelection();
-      return;
-    }
-    if (
-      canGmMoveEnemies(s) &&
-      isAdjacentToSelectedEnemy(x, y) &&
-      isEmptyWalkable(x, y)
-    ) {
-      send({ type: "moveEnemy", enemyId: selected, x, y });
-      return;
-    }
-  }
+  if (tryMoveSelectedEnemy(x, y)) return;
 
   clearBoardSelection();
 }
@@ -680,6 +755,25 @@ function onKeydown(e: KeyboardEvent) {
     if ((e.key === "Delete" || e.key === "Backspace") && selectedEnemyId.value) {
       e.preventDefault();
       removeSelectedEnemy();
+      return;
+    }
+    const selected = selectedEnemyId.value;
+    const s = gameState.value;
+    if (selected && s) {
+      const enemy = s.enemies.find((e) => e.id === selected);
+      if (enemy) {
+        const map: Record<string, { x: number; y: number }> = {
+          ArrowUp: { x: enemy.x, y: enemy.y - 1 },
+          ArrowDown: { x: enemy.x, y: enemy.y + 1 },
+          ArrowLeft: { x: enemy.x - 1, y: enemy.y },
+          ArrowRight: { x: enemy.x + 1, y: enemy.y },
+        };
+        const t = map[e.key];
+        if (t) {
+          e.preventDefault();
+          tryMoveSelectedEnemy(t.x, t.y);
+        }
+      }
     }
     return;
   }
@@ -820,15 +914,10 @@ onUnmounted(() => {
                 deployable: isDeployable(c.x, c.y),
                 'gm-movable':
                   props.role === 'gm' &&
-                  !!gameState &&
-                  canGmMoveEnemies(gameState) &&
-                  !!selectedEnemyId &&
-                  isAdjacentToSelectedEnemy(c.x, c.y) &&
-                  isEmptyWalkable(c.x, c.y),
+                  gmEnemyMoveTargetKeys.has(c.key),
                 'gm-spawnable':
                   props.role === 'gm' &&
-                  !!selectedSpawnEnemyName &&
-                  isEmptyWalkable(c.x, c.y),
+                  isGmSpawnable(c.x, c.y),
                 'pattern-primary': isPatternPrimary(c.x, c.y),
                 'pattern-secondary': isPatternSecondary(c.x, c.y),
                 'pattern-recoil': isPatternRecoil(c.x, c.y),
@@ -875,10 +964,11 @@ onUnmounted(() => {
                 </div>
               </div>
               <span
-                v-if="enemyAt(c.x, c.y)"
+                v-if="enemyAnchorAt(c.x, c.y)"
                 class="piece enemy"
-                :class="{ selected: isEnemySelected(enemyAt(c.x, c.y)!.id) }"
-                @click.stop="onEnemyTokenClick(enemyAt(c.x, c.y)!)"
+                :class="{ selected: isEnemySelected(enemyAnchorAt(c.x, c.y)!.id) }"
+                :style="enemyPieceStyle(enemyAnchorAt(c.x, c.y)!)"
+                @click.stop="onEnemyTokenClick(enemyAnchorAt(c.x, c.y)!)"
               />
               <span
                 v-if="playerAt(c.x, c.y)"
@@ -980,7 +1070,7 @@ onUnmounted(() => {
 .piece.player-piece { cursor: pointer; z-index: 2; }
 .piece.player-piece.draggable { cursor: grab; }
 .piece.player-piece.dragging { cursor: grabbing; }
-.piece.enemy { background: hsl(0 70% 45%); z-index: 0; }
+.piece.enemy { background: hsl(0 70% 45%); z-index: 1; }
 .piece.selected { outline: 2px solid #fff; }
 .tile-tooltip {
   position: absolute;
