@@ -14,6 +14,7 @@ export type BoardActionMode =
 
 const mode = ref<BoardActionMode>(null);
 const attackDirection = ref<PatternDirection>("n");
+const attackAimed = ref(false);
 const movePath = ref<{ x: number; y: number }[]>([]);
 const pendingTargetEnemyId = ref<string | null>(null);
 const pendingTargetPlayerId = ref<string | null>(null);
@@ -25,6 +26,7 @@ export function useBoardActionMode() {
 
   function setMode(next: BoardActionMode) {
     mode.value = next;
+    attackAimed.value = false;
     movePath.value = [];
     pendingTargetEnemyId.value = null;
     pendingTargetPlayerId.value = null;
@@ -50,6 +52,7 @@ export function useBoardActionMode() {
   return {
     mode,
     attackDirection,
+    attackAimed,
     movePath,
     pendingTargetEnemyId,
     pendingTargetPlayerId,

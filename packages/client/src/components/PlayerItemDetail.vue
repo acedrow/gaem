@@ -3,6 +3,7 @@ import type { PlayerArmor, PlayerClass, PlayerWeapon } from "@gaem/shared";
 
 import AbilityBlock from "./AbilityBlock.vue";
 import RuleText from "./RuleText.vue";
+import WeaponPatternDiagram from "./WeaponPatternDiagram.vue";
 
 defineProps<{
   item: PlayerClass | PlayerArmor | PlayerWeapon;
@@ -83,6 +84,10 @@ defineProps<{
   </template>
 
   <template v-else>
+    <WeaponPatternDiagram
+      v-if="(item as PlayerWeapon).attack"
+      :attack="(item as PlayerWeapon).attack!"
+    />
     <AbilityBlock
       :content="(item as PlayerWeapon).activeAbility"
       tier-label="Active"

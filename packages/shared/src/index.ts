@@ -10,3 +10,4 @@ export * from "./enemy-data.js";
 export * from "./pattern-data.js";
 export * from "./patterns.js";
 export * from "./rule-text.js";
+export * from "./weapon-patterns.js";

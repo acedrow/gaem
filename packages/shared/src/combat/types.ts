@@ -13,9 +13,30 @@ export type ActionBudget = {
 
 export type EffectStacks = Record<string, number>;
 
+export type RelativeTile = readonly [number, number];
+
+export type WeaponPatternLevel = {
+  label: string;
+  damage: string;
+  tiles: RelativeTile[];
+};
+
+export type WeaponBombPattern = {
+  name: string;
+  damage: string;
+  range?: string;
+  tiles: RelativeTile[];
+  heal?: boolean;
+  effects?: string[];
+};
+
 export type WeaponAttackSpec = {
-  patternId: string;
-  size: number;
+  patternId?: string;
+  tiles?: RelativeTile[];
+  levels?: WeaponPatternLevel[];
+  bombs?: WeaponBombPattern[];
+  rangeTargets?: { range: number; maxTargets: number };
+  size?: number;
   range?: number;
   width?: number;
   damage: string;

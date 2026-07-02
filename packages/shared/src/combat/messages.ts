@@ -45,6 +45,7 @@ import { applyEffectStacks } from "./effects.js";
 import { createPendingAction, addPendingAction, applyAssistedOutcome } from "./pending.js";
 import { markEnemyExhausted, setActiveEnemy } from "./enemy.js";
 import { enemyLabel, playerLabel } from "../console.js";
+import { isRangeTargetAttack, rangeTargetDistance } from "../weapon-patterns.js";
 
 export type CombatMessageContext = {
   role: GaemRole;
@@ -105,12 +106,11 @@ export function validatePlayerAction(
       if (effectiveActionBlocked(player, "main")) return "Shock — cannot use Main";
       const spec = getWeaponAttackSpec(player.weapon);
       if (!spec) return "Weapon has no attack profile";
-      if (spec.patternId === "range") {
+      if (isRangeTargetAttack(spec)) {
         if (!action.targetEnemyId) return "Select target";
         const enemy = state.enemies.find((e) => e.id === action.targetEnemyId);
         if (!enemy) return "Unknown target";
-        const range = spec.range ?? 1;
-        if (manhattanDistance(player, enemy) > range) return "Target out of range";
+        if (manhattanDistance(player, enemy) > rangeTargetDistance(spec)) return "Target out of range";
       }
       return null;
     }
@@ -203,7 +203,7 @@ export function applyPlayerAction(
       spendActionTier(player.actionBudget, "main");
       const spec = getWeaponAttackSpec(player.weapon)!;
       let result;
-      if (spec.patternId === "range" && action.targetEnemyId) {
+      if (isRangeTargetAttack(spec) && action.targetEnemyId) {
         const enemy = state.enemies.find((e) => e.id === action.targetEnemyId)!;
         const { total, detail } = resolveAttackDamage(spec, action.damageRoll);
         applyDamageToEnemy(enemy, total);

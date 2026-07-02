@@ -1,5 +1,7 @@
 import type { PatternDirection } from "../pattern-data.js";
+import { PATTERN_DIRECTIONS } from "../pattern-data.js";
 import { fixedPatternTilesInBounds } from "../patterns.js";
+import { bespokeTilesInBounds } from "../weapon-patterns.js";
 import { buildBoardOccupancy } from "../game.js";
 import { coordKey } from "../map.js";
 import type { Enemy, GameState, Player } from "../types.js";
@@ -39,15 +41,62 @@ export function getWeaponAttackSpec(weaponName: string | undefined): WeaponAttac
   return weapon.attack as WeaponAttackSpec;
 }
 
+export function playerAttackDirectionsAt(
+  state: GameState,
+  playerId: string,
+  x: number,
+  y: number,
+): PatternDirection[] {
+  const player = state.players.find((p) => p.id === playerId);
+  const spec = getWeaponAttackSpec(player?.weapon);
+  if (!player || !spec) return [];
+  const origin = { x: player.x, y: player.y };
+  const dirs: PatternDirection[] = [];
+  for (const direction of PATTERN_DIRECTIONS) {
+    const tiles = collectAttackTiles(state, origin, spec, direction);
+    if (tiles.some((t) => t.x === x && t.y === y)) dirs.push(direction);
+  }
+  return dirs;
+}
+
+export function rangeAttackTileKeys(
+  state: GameState,
+  origin: { x: number; y: number },
+  range: number,
+): Set<string> {
+  const keys = new Set<string>();
+  for (let dy = -range; dy <= range; dy++) {
+    for (let dx = -range; dx <= range; dx++) {
+      if (dx === 0 && dy === 0) continue;
+      if (Math.abs(dx) + Math.abs(dy) > range) continue;
+      const x = origin.x + dx;
+      const y = origin.y + dy;
+      if (x < 0 || y < 0 || x >= state.width || y >= state.height) continue;
+      keys.add(coordKey(x, y));
+    }
+  }
+  return keys;
+}
+
 export function collectAttackTiles(
   state: GameState,
   origin: { x: number; y: number },
   spec: WeaponAttackSpec,
   direction: PatternDirection,
 ): { x: number; y: number }[] {
-  if (spec.patternId === "range" && spec.range) {
+  if (spec.tiles?.length) {
+    return bespokeTilesInBounds(
+      origin,
+      spec.tiles,
+      direction,
+      state.width,
+      state.height,
+    );
+  }
+  if (spec.rangeTargets || (spec.patternId === "range" && spec.range)) {
     return [];
   }
+  if (!spec.patternId || spec.size == null) return [];
   return fixedPatternTilesInBounds(
     spec.patternId,
     origin,

@@ -47,39 +47,43 @@ function sendGmAction(action: PhaseAction) {
     </header>
 
     <div v-if="role === 'gm'" class="gm-controls">
-      <label class="enforce-turns">
-        <span class="enforce-label">Enforce turns</span>
+      <div class="gm-controls-main">
+        <label class="enforce-turns">
+          <span class="enforce-label">Enforce turns</span>
+          <button
+            type="button"
+            role="switch"
+            class="toggle"
+            :class="{ on: enforceTurns }"
+            :aria-checked="enforceTurns"
+            @click="setEnforceTurns(!enforceTurns)"
+          >
+            <span class="toggle-thumb" />
+          </button>
+        </label>
         <button
           type="button"
-          role="switch"
-          class="toggle"
-          :class="{ on: enforceTurns }"
-          :aria-checked="enforceTurns"
-          @click="setEnforceTurns(!enforceTurns)"
+          class="control-btn"
+          :disabled="!canStepBack"
+          @click="sendGmAction('rewindPhase')"
         >
-          <span class="toggle-thumb" />
+          Step back
         </button>
-      </label>
-      <button type="button" class="control-btn" @click="sendGmAction('resetCombat')">
-        Reset combat
-      </button>
-      <button type="button" class="control-btn" @click="sendGmAction('resetRound')">
-        Reset round
-      </button>
-      <button
-        type="button"
-        class="control-btn"
-        :disabled="!canStepBack"
-        @click="sendGmAction('rewindPhase')"
-      >
-        Step back
-      </button>
-      <button type="button" class="control-btn" @click="sendGmAction('gmEndRound')">
-        End round
-      </button>
-      <button type="button" class="control-btn" @click="sendGmAction('gmEndTurn')">
-        End turn
-      </button>
+        <button type="button" class="control-btn" @click="sendGmAction('gmEndRound')">
+          End round
+        </button>
+        <button type="button" class="control-btn" @click="sendGmAction('gmEndTurn')">
+          End turn
+        </button>
+      </div>
+      <div class="gm-controls-danger">
+        <button type="button" class="control-btn danger" @click="sendGmAction('resetCombat')">
+          Reset combat
+        </button>
+        <button type="button" class="control-btn danger" @click="sendGmAction('resetRound')">
+          Reset round
+        </button>
+      </div>
     </div>
 
     <div class="history">
@@ -125,11 +129,23 @@ function sendGmAction(action: PhaseAction) {
 .gm-controls {
   flex-shrink: 0;
   display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #30363d;
+}
+
+.gm-controls-main,
+.gm-controls-danger {
+  display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid #30363d;
+}
+
+.gm-controls-danger {
+  padding-top: 0.65rem;
+  border-top: 1px solid #30363d;
 }
 
 .enforce-turns {
@@ -197,6 +213,17 @@ function sendGmAction(action: PhaseAction) {
 .control-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.control-btn.danger {
+  border-color: #f8514966;
+  background: #f8514922;
+  color: #f85149;
+}
+
+.control-btn.danger:hover:not(:disabled) {
+  background: #f8514933;
+  border-color: #f85149;
 }
 
 .history {

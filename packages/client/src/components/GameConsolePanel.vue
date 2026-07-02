@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from "vue";
+import { nextTick, onMounted, ref, watch } from "vue";
 
 import { useApi } from "../composables/useApi.js";
 import { useGameConsole } from "../composables/useGameConsole.js";
@@ -70,6 +70,10 @@ watch(() => entries.value.length, scrollLogToBottom);
 
 watch(activeTab, (tab) => {
   if (tab === "console") void scrollLogToBottom();
+});
+
+onMounted(() => {
+  if (activeTab.value === "console") void scrollLogToBottom();
 });
 </script>
 

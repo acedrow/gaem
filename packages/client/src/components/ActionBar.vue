@@ -15,7 +15,7 @@ const {
   sendPlayerAction,
 } = useCombatActions();
 
-const { mode, setMode, clearMode, attackDirection, rotateAttackDirection } = useBoardActionMode();
+const { mode, setMode, clearMode } = useBoardActionMode();
 
 const speedLabel = computed(() => {
   if (!budget.value) return "—";
@@ -129,10 +129,7 @@ function pickMode(next: typeof mode.value) {
       </button>
     </div>
     <div v-if="mode === 'attack'" class="hint-row">
-      <button type="button" class="action-btn small" @click="rotateAttackDirection">
-        Aim {{ attackDirection.toUpperCase() }}
-      </button>
-      <span class="hint">Click board to confirm attack</span>
+      <span class="hint">Click a highlighted tile to aim, then click the attack area to confirm</span>
     </div>
     <button v-if="mode" type="button" class="action-btn cancel" @click="clearMode">
       Cancel
