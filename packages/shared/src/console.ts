@@ -7,6 +7,9 @@ export type ConsoleActor = {
 
 export const CONSOLE_MAX_ENTRIES = 200;
 
+export const CONSOLE_MSG_CONNECTED = "connected to game";
+export const CONSOLE_MSG_DISCONNECTED = "disconnected from game";
+
 export type ConsoleLogEntry = {
   id: string;
   at: number;

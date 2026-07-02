@@ -1,13 +1,23 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref, watch } from "vue";
+import { CONSOLE_MSG_CONNECTED, CONSOLE_MSG_DISCONNECTED } from "@gaem/shared";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 
 import { useApi } from "../composables/useApi.js";
 import { useGameConsole } from "../composables/useGameConsole.js";
+import { usePlayerSettings } from "../composables/usePlayerSettings.js";
 import NumberStepper from "./NumberStepper.vue";
 import SegmentedControl from "./SegmentedControl.vue";
 
 const { entries, activeTab } = useGameConsole();
+const { showConnectionsInConsole } = usePlayerSettings();
 const { apiFetch } = useApi();
+
+const visibleEntries = computed(() => {
+  if (showConnectionsInConsole.value) return entries.value;
+  return entries.value.filter(
+    (e) => e.message !== CONSOLE_MSG_CONNECTED && e.message !== CONSOLE_MSG_DISCONNECTED,
+  );
+});
 
 const listEl = ref<HTMLElement | null>(null);
 const quantity = ref(1);
@@ -58,7 +68,7 @@ async function scrollLogToBottom() {
   if (listEl.value) listEl.value.scrollTop = listEl.value.scrollHeight;
 }
 
-watch(() => entries.value.length, scrollLogToBottom);
+watch(() => visibleEntries.value.length, scrollLogToBottom);
 
 watch(activeTab, (tab) => {
   if (tab === "console") void scrollLogToBottom();
@@ -72,9 +82,9 @@ onMounted(() => {
 <template>
   <div class="console-panel">
     <div class="log-area">
-      <div v-if="entries.length === 0" class="empty">No game events yet.</div>
+      <div v-if="visibleEntries.length === 0" class="empty">No game events yet.</div>
       <ul v-else ref="listEl" class="log">
-        <li v-for="entry in entries" :key="entry.id" class="entry">
+        <li v-for="entry in visibleEntries" :key="entry.id" class="entry">
           <time class="time">{{ formatTime(entry.at) }}</time>
           <span class="message">
             <span class="actor" :class="entry.actor.role">{{ entry.actor.name }}</span>

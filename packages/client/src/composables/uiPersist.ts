@@ -15,7 +15,7 @@ const DATA_CATEGORIES = new Set<DataCategory>([
   "paracletus",
 ]);
 
-const RIGHT_PANEL_TABS = new Set<RightPanelTab>(["console", "info", "turnOrder"]);
+const RIGHT_PANEL_TABS = new Set<RightPanelTab>(["console", "info", "turnOrder", "settings"]);
 
 export type PersistedViewport = {
   boardKey: string;

@@ -6,6 +6,8 @@ import {
   applyMove,
   applyPhaseAction,
   characterTargetLabel,
+  CONSOLE_MSG_CONNECTED,
+  CONSOLE_MSG_DISCONNECTED,
   createInitialStateFromMap,
   DEFAULT_MAP_ID,
   enemyLabel,
@@ -169,7 +171,7 @@ export class GameRoom {
           playerKey: null,
           role: "gm",
         } satisfies Attachment);
-        await this.broadcastConsole(await this.actorForSocket(ws), "connected to game");
+        await this.broadcastConsole(await this.actorForSocket(ws), CONSOLE_MSG_CONNECTED);
         await this.broadcastState();
         return;
       }
@@ -211,7 +213,7 @@ export class GameRoom {
           updatedAt: new Date().toISOString(),
         });
       }
-      await this.broadcastConsole(await this.actorForSocket(ws), "connected to game");
+      await this.broadcastConsole(await this.actorForSocket(ws), CONSOLE_MSG_CONNECTED);
       await this.broadcastState();
       return;
     }
@@ -409,7 +411,7 @@ export class GameRoom {
   async webSocketClose(ws: WebSocket): Promise<void> {
     const att = ws.deserializeAttachment() as Attachment | null;
     if (att?.role) {
-      await this.broadcastConsole(await this.actorForSocket(ws), "disconnected from game");
+      await this.broadcastConsole(await this.actorForSocket(ws), CONSOLE_MSG_DISCONNECTED);
     }
     const playerId = att?.playerId;
     const playerKey = att?.playerKey;

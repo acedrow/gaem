@@ -3,7 +3,7 @@ import { ref } from "vue";
 
 import { readPersistedUi } from "./uiPersist.js";
 
-export type RightPanelTab = "console" | "info" | "turnOrder";
+export type RightPanelTab = "console" | "info" | "turnOrder" | "settings";
 
 const entries = ref<ConsoleLogEntry[]>([]);
 export const activeTab = ref<RightPanelTab>(readPersistedUi().activeTab);

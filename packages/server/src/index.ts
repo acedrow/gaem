@@ -21,6 +21,8 @@ import {
   applyMove,
   applyPhaseAction,
   characterTargetLabel,
+  CONSOLE_MSG_CONNECTED,
+  CONSOLE_MSG_DISCONNECTED,
   createInitialStateFromMap,
   DEFAULT_MAP_ID,
   enemyLabel,
@@ -351,7 +353,7 @@ wss.on("connection", (ws: WebSocket) => {
         socketPlayer.set(ws, null);
         socketProfile.set(ws, null);
         socketRole.set(ws, "gm");
-        broadcastConsole(actorForSocket(ws), "connected to game");
+        broadcastConsole(actorForSocket(ws), CONSOLE_MSG_CONNECTED);
         broadcastState();
         return;
       }
@@ -396,7 +398,7 @@ wss.on("connection", (ws: WebSocket) => {
       socketPlayer.set(ws, resolved.playerId);
       socketProfile.set(ws, requestedProfileId);
       socketRole.set(ws, "player");
-      broadcastConsole(actorForSocket(ws), "connected to game");
+      broadcastConsole(actorForSocket(ws), CONSOLE_MSG_CONNECTED);
       broadcastState();
       return;
     }
@@ -579,7 +581,7 @@ wss.on("connection", (ws: WebSocket) => {
   ws.on("close", () => {
     const actor = actorForSocket(ws);
     if (socketRole.get(ws)) {
-      broadcastConsole(actor, "disconnected from game");
+      broadcastConsole(actor, CONSOLE_MSG_DISCONNECTED);
     }
     socketPlayer.delete(ws);
     socketProfile.delete(ws);

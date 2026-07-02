@@ -44,6 +44,7 @@ import { usePortraitCache } from "../composables/usePortraitCache.js";
 import { useGameState } from "../composables/useGameState.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import { usePatternSelection } from "../composables/usePatternSelection.js";
+import { usePlayerSettings } from "../composables/usePlayerSettings.js";
 import BoardCell, { type CellRenderState } from "./BoardCell.vue";
 import BoardContextMenu, { type BoardContextMenuItem } from "./BoardContextMenu.vue";
 import AddEffectModal from "./AddEffectModal.vue";
@@ -74,6 +75,8 @@ const selectedPlayerId = computed(() =>
   boardSelection.value?.kind === "player" ? boardSelection.value.id : null,
 );
 const { gameState, yourPlayerId } = useGameState();
+const { showHealthBars } = usePlayerSettings();
+const showEnemyHealthBars = computed(() => showHealthBars.value && props.role === "gm");
 const { indicators: damageIndicators } = useDamageIndicators(gameState);
 const { sheets, loadSheets } = useCharacterSheets();
 const boardPlayers = computed(() => gameState.value?.players);
@@ -1128,6 +1131,10 @@ onUnmounted(() => {
                   draggingDeploy,
                   selectedPlayerId === cellStateByKey.get(c.key)?.player?.id,
                   selectedEnemyId === cellStateByKey.get(c.key)?.enemyAnchor?.id,
+                  cellStateByKey.get(c.key)?.player?.hp,
+                  cellStateByKey.get(c.key)?.enemyAnchor?.hp,
+                  showHealthBars,
+                  showEnemyHealthBars,
                 ]"
                 :x="c.x"
                 :y="c.y"
@@ -1138,6 +1145,8 @@ onUnmounted(() => {
                 :is-player-selected="!!cellStateByKey.get(c.key)?.player && isPlayerSelected(cellStateByKey.get(c.key)!.player!.id)"
                 :is-enemy-selected="!!cellStateByKey.get(c.key)?.enemyAnchor && isEnemySelected(cellStateByKey.get(c.key)!.enemyAnchor!.id)"
                 :player-hue="cellStateByKey.get(c.key)?.player ? hueFromId(cellStateByKey.get(c.key)!.player!.id) : null"
+                :show-health-bars="showHealthBars"
+                :show-enemy-health-bars="showEnemyHealthBars"
                 @click="onCellClick(c.x, c.y)"
                 @hover="onCellHover(c.x, c.y, c.key)"
                 @unhover="onCellUnhover"

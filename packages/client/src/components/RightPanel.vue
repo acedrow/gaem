@@ -17,6 +17,7 @@ import PlayerBoardPanel from "./PlayerBoardPanel.vue";
 import PlayerDataPanel from "./PlayerDataPanel.vue";
 import ParacletusEnemiesPanel from "./ParacletusEnemiesPanel.vue";
 import PatternsPanel from "./PatternsPanel.vue";
+import SettingsPanel from "./SettingsPanel.vue";
 import TurnOrderPanel from "./TurnOrderPanel.vue";
 
 const { selectedSheetId, rightPanelCollapsed } = useCharacterSheetSelection();
@@ -92,6 +93,24 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
             />
           </svg>
         </button>
+        <button
+          type="button"
+          class="tab"
+          :class="{ active: activeTab === 'settings' }"
+          title="Settings"
+          aria-label="Settings"
+          @click="activeTab = 'settings'"
+        >
+          <svg class="tab-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path
+              d="M9.75 4.25a0.65 0.65 0 0 0 0 0.95l1.05 1.05a0.65 0.65 0 0 0 0.95 0l2.5-2.5a4 4 0 0 1-5.3 5.3l-4.6 4.6a1.4 1.4 0 0 1-2-2l4.6-4.6a4 4 0 0 1 5.3-5.3l-2.5 2.5z"
+              stroke="currentColor"
+              stroke-width="1.25"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </button>
       </div>
 
       <div class="tab-body">
@@ -143,6 +162,7 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
           <InfoSearchPanel v-else />
         </div>
         <TurnOrderPanel v-if="activeTab === 'turnOrder'" />
+        <SettingsPanel v-if="activeTab === 'settings'" />
         <AssistedActionPanel v-if="activeTab === 'console'" />
       </div>
     </template>

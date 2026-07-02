@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { EffectStacks, Enemy, MapTile, Player } from "@gaem/shared";
-import { getEnemyScale, getEffectSummary } from "@gaem/shared";
+import { getEnemyMaxHp, getEnemyScale, getEffectSummary, getPlayerMaxHp } from "@gaem/shared";
 import { computed } from "vue";
 
 import EffectIcon from "./EffectIcon.vue";
+import HpBar from "./HpBar.vue";
 
 export type CellRenderState = {
   terrainClass: string | null;
@@ -34,6 +35,8 @@ const props = defineProps<{
   canDragDeploy: boolean;
   isPlayerSelected: boolean;
   isEnemySelected: boolean;
+  showHealthBars: boolean;
+  showEnemyHealthBars: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -92,6 +95,20 @@ function effectBadgeStyle(enemy: Enemy | undefined): Record<string, string> {
 const scaledEnemyEffects = computed(
   () => !!props.cell.enemyAnchor && getEnemyScale(props.cell.enemyAnchor) > 1 && effectEntries.value.length > 0,
 );
+
+const playerHp = computed(() => {
+  const player = props.cell.player;
+  if (!player) return null;
+  const maxHp = getPlayerMaxHp(player);
+  return { currentHp: player.hp ?? maxHp, maxHp };
+});
+
+const enemyHp = computed(() => {
+  const enemy = props.cell.enemyAnchor;
+  if (!enemy) return null;
+  const maxHp = getEnemyMaxHp(enemy);
+  return { currentHp: enemy.hp ?? maxHp, maxHp };
+});
 </script>
 
 <template>
@@ -123,6 +140,13 @@ const scaledEnemyEffects = computed(
       @click.stop="emit('enemyClick')"
     >
       <span v-if="cell.turnEnded" class="turn-ended-mark" aria-hidden="true"></span>
+      <HpBar
+        v-if="showEnemyHealthBars && enemyHp"
+        class="token-hp-bar"
+        compact
+        :current-hp="enemyHp.currentHp"
+        :max-hp="enemyHp.maxHp"
+      />
     </span>
     <span
       v-if="cell.player"
@@ -145,6 +169,13 @@ const scaledEnemyEffects = computed(
         class="portrait-img"
       />
       <span v-if="cell.turnEnded" class="turn-ended-mark" aria-hidden="true"></span>
+      <HpBar
+        v-if="showHealthBars && playerHp"
+        class="token-hp-bar"
+        compact
+        :current-hp="playerHp.currentHp"
+        :max-hp="playerHp.maxHp"
+      />
     </span>
     <div v-if="effectEntries.length" class="effect-badges" :style="effectBadgeStyle(cell.enemyAnchor)">
       <span
@@ -306,6 +337,15 @@ const scaledEnemyEffects = computed(
 
 .piece.selected {
   outline: 2px solid #fff;
+}
+
+.token-hp-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  pointer-events: none;
 }
 
 .effect-badges {

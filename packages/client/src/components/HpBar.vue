@@ -8,6 +8,7 @@ const props = defineProps<{
   maxHp: number;
   editable?: boolean;
   editing?: boolean;
+  compact?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -22,8 +23,8 @@ const { hpPercent, hpBarLevel } = useHpBar(currentHpRef, maxHpRef);
 </script>
 
 <template>
-  <div class="hp-bar-block">
-    <div class="hp-bar-header">
+  <div class="hp-bar-block" :class="{ compact }">
+    <div v-if="!compact" class="hp-bar-header">
       <span class="hp-bar-label">HP</span>
       <span class="hp-bar-values">
         <slot name="values">
@@ -37,3 +38,14 @@ const { hpPercent, hpBarLevel } = useHpBar(currentHpRef, maxHpRef);
     </div>
   </div>
 </template>
+
+<style scoped>
+.hp-bar-block.compact {
+  margin-bottom: 0;
+}
+
+.hp-bar-block.compact .hp-bar-track {
+  height: 3px;
+  border-radius: 0;
+}
+</style>
