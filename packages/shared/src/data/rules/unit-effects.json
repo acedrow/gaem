@@ -18,7 +18,7 @@
     "summary": "1 damage at start of turn; spreads to adjacent units. Keep highest stacks only. −1 stack at end of turn if no adjacent Blazing.",
     "description": "This unit takes 1 damage at the start of each turn. Blazing spreads: any unit who begins a turn adjacent to a unit with Blazing gains Blazing:1 and immediately takes its 1 damage. Additional Blazing does not add to existing Blazing—keep the highest number of stacks from any one source and ignore all others. Remove 1 stack at the end of the affected unit's turn, but only if there are no units adjacent to it.",
     "stacking": "max",
-    "icon": "M8 14 Q5 10 6 7 Q7 9 8 6 Q9 9 10 7 Q11 10 8 14 Z M8 4 L8 2"
+    "icon": "M8 12.5 Q6.5 10 7 8 Q7.5 5.5 8 3.5 Q8.5 5.5 9 8 Q9.5 10 8 12.5 Z"
   },
   {
     "id": "Bleed",
@@ -32,21 +32,14 @@
     "summary": "Cannot inflict Effects on other creatures. −1 stack at end of turn.",
     "description": "This unit cannot inflict Effects on other creatures. Actions otherwise function as normal. Remove 1 stack at the end of the affected unit's turn.",
     "stacking": "add",
-    "icon": "M5 8 A3 3 0 1 1 11 8 M5 8 A3 3 0 1 0 11 8"
-  },
-  {
-    "id": "Breaker",
-    "summary": "Allows targeting individual creatures within Swarms.",
-    "description": "Allows the targeting of individual creatures within Swarms, enabling attacks to disrupt the Swarm by destroying or pushing a single member away from the host. See page 99.",
-    "stacking": "add",
-    "icon": "M4 4 L12 12 M12 4 L4 12 M8 2 L8 6 M8 10 L8 14"
+    "icon": "M4 8 C4 5.5 6.5 5 8 7 C9.5 5 12 5.5 12 8 C12 10.5 9.5 11 8 9 C6.5 11 4 10.5 4 8"
   },
   {
     "id": "Broken",
     "summary": "All attacks deal maximum damage. −1 stack after each attack.",
     "description": "All attacks against this target deal maximum damage. Remove 1 stack after each attack against the affected unit.",
     "stacking": "add",
-    "icon": "M8 2 L10 6 L14 6 L11 9 L12 13 L8 11 L4 13 L5 9 L2 6 L6 6 Z"
+    "icon": "M8 2 L6.5 6 L4 8.5 L3 12.5 M8 2 L9.5 6 L12 8.5 L13 12.5 M6.5 6 L9.5 6 M4 8.5 L2 10.5 M12 8.5 L14 10.5"
   },
   {
     "id": "Compel",
@@ -67,14 +60,14 @@
     "summary": "Must attack units with Compel if possible. −1 stack at end of turn.",
     "description": "This unit must attack a unit with Compel if possible, including attacking an ally. It can only take attacks that do not target a unit with Compel after making an attack that does, unless no unit has Compel. Remove 1 stack at the end of the affected unit's turn.",
     "stacking": "add",
-    "icon": "M8 2 L10 6 L14 7 L11 10 L12 14 L8 12 L4 14 L5 10 L2 7 L6 6 Z"
+    "icon": "M8 2.5 V13 M3.5 7 H12.5 M4.5 4.5 L11.5 11.5 M11.5 4.5 L4.5 11.5"
   },
   {
     "id": "Haste",
     "summary": "One additional Action of any type per turn. −1 stack after the extra action.",
     "description": "This unit may make one additional Action of any type during their turn. Remove 1 stack after the additional action has been taken.",
     "stacking": "add",
-    "icon": "M3 8 L13 8 M10 5 L13 8 L10 11"
+    "icon": "M10 2 L6 9 H8.5 L5 14 L11 7 H8.5 L13 2"
   },
   {
     "id": "Healing",
@@ -126,25 +119,11 @@
     "icon": "M8 3 Q11 7 10 11 Q8 13 6 11 Q5 7 8 3 Z M7 8 H9"
   },
   {
-    "id": "Pull",
-    "summary": "Move target toward source until stacks depleted or collision.",
-    "description": "Move the target toward the source of Pull until stacks are depleted or until the target collides with the source of the Pull. Unlike Push, Pulls cannot cause collision damage.",
-    "stacking": "add",
-    "icon": "M13 8 H5 M8 5 L5 8 L8 11"
-  },
-  {
-    "id": "Push",
-    "summary": "Move target away from attack origin by X spaces; collision damage for blocked spaces.",
-    "description": "Move the target away from the attack's origin by X spaces. Push:3 from an attacker to the east moves the target 3 spaces to the west. When a pushed target is unable to move some (or all) of the distance due to an obstructing unit, wall, or other impassable feature, the target takes 1 damage for each space they are unable to move. The obstruction is pushed 1 square if it is something able to be pushed. Map edges stop movement unless it is more interesting or narratively appropriate not to.",
-    "stacking": "add",
-    "icon": "M3 8 H11 M8 5 L11 8 L8 11"
-  },
-  {
     "id": "Seeking",
     "summary": "Ignores negative elevation penalties.",
     "description": "This unit or attack ignores negative elevation penalties.",
     "stacking": "add",
-    "icon": "M8 3 L10 7 L14 7 L11 10 L12 14 L8 12 L4 14 L5 10 L2 7 L6 7 Z M8 6 A1.5 1.5 0 1 0 8 9 A1.5 1.5 0 1 0 8 6 Z"
+    "icon": "M8 2.5 L9 7 L8 8.5 L7 7 Z M8 8.5 A3.5 3.5 0 1 0 8 8.51 M8 8.5 L10.5 11 M8 8.5 L5.5 11"
   },
   {
     "id": "Shaded",

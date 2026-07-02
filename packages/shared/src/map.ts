@@ -1,6 +1,6 @@
 import type { Enemy, GameMap, GameState, MapTile, TerrainType } from "./types.js";
 import { TERRAIN_TYPES } from "./types.js";
-import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles } from "./enemy-data.js";
+import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles, refreshEnemyMovement } from "./enemy-data.js";
 
 const BLOCKING_TERRAIN = new Set<TerrainType>(["impassable", "obstacle", "void"]);
 const TERRAIN_SET = new Set<string>(TERRAIN_TYPES);
@@ -237,11 +237,15 @@ function parseMapEnemies(raw: unknown, width: number, height: number): Enemy[] |
 }
 
 export function createInitialStateFromMap(map: GameMap): GameState {
-  const enemies = (map.enemies ?? []).map((e) => ({
-    ...e,
-    scale: getEnemyScale(e),
-    hp: getEnemyMaxHpByName(e.name),
-  }));
+  const enemies = (map.enemies ?? []).map((e) => {
+    const enemy = {
+      ...e,
+      scale: getEnemyScale(e),
+      hp: getEnemyMaxHpByName(e.name),
+    };
+    refreshEnemyMovement(enemy);
+    return enemy;
+  });
 
   return {
     mapId: map.id,

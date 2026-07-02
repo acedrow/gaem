@@ -3,7 +3,7 @@ import { playerLabel } from "./console.js";
 import { createDefaultActionBudget, createDefaultCombatState } from "./combat/types.js";
 import { tickRoundCountdowns, tickUnitEndOfTurn } from "./combat/effects.js";
 import { resetEnemyExhaustion } from "./combat/enemy.js";
-import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles } from "./enemy-data.js";
+import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles, ensureEnemyMovement, refreshEnemyMovement, spendEnemyMovement } from "./enemy-data.js";
 import { applyLoadoutToPlayer, getClassMaxHp, getArmorSpeed } from "./player-data.js";
 import { coordKey, isFootprintInBounds, isInBounds, isWalkable, tileAt } from "./map.js";
 import { isOrthogonallyAdjacent } from "./patterns.js";
@@ -210,6 +210,14 @@ export function enterPlayersChoice(state: GameState): string {
   state.roundPhase = "playersChoice";
   state.turn = null;
   return "Advanced to players' choice";
+}
+
+export function finishGmTurnIfPlayersRemain(state: GameState): string | null {
+  if (state.enforceTurns === false) return null;
+  if (state.roundPhase !== "gmTurn" || state.turn?.role !== "gm") return null;
+  if (remainingPlayerIds(state).length === 0) return null;
+  recordTurn(state, { role: "gm" });
+  return enterPlayersChoice(state);
 }
 
 export type PhaseActionContext = {
@@ -591,9 +599,15 @@ export function validateEnemyMove(
   if (!enemy) return "Unknown enemy";
 
   if (!canGmMoveEnemies(state)) return "Not GM turn";
+  if (enemy.exhausted) return "Enemy has ended turn";
 
   if (!isOrthogonallyAdjacent({ x: enemy.x, y: enemy.y }, { x: toX, y: toY })) {
     return "Must move to an adjacent tile";
+  }
+
+  if (state.enforceTurns !== false) {
+    ensureEnemyMovement(enemy);
+    if ((enemy.movementRemaining ?? 0) < 1) return "Not enough movement";
   }
 
   return validateEnemyFootprint(state, toX, toY, getEnemyScale(enemy), enemyId);
@@ -607,6 +621,7 @@ export function applyEnemyMove(
 ): void {
   const enemy = state.enemies.find((e) => e.id === enemyId);
   if (!enemy) return;
+  if (state.enforceTurns !== false) spendEnemyMovement(enemy, 1);
   enemy.x = toX;
   enemy.y = toY;
 }
@@ -630,6 +645,7 @@ export function addEnemy(state: GameState, enemy: Enemy): string | null {
     scale,
     hp: normalizeHp(enemy.hp, maxHp),
   });
+  refreshEnemyMovement(state.enemies[state.enemies.length - 1]!);
   return null;
 }
 

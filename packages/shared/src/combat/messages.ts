@@ -9,6 +9,7 @@ import {
   canGmMoveEnemies,
   canPlayerMove,
   clampHp,
+  finishGmTurnIfPlayersRemain,
   getEnemyMaxHp,
   getPlayerMaxHp,
   validateEnemyFootprint,
@@ -16,7 +17,7 @@ import {
 import { getArmorByName, getArmorSpeed, getWeaponByName } from "../player-data.js";
 import type { StructuredArmorAction } from "./types.js";
 import { createDefaultActionBudget } from "./types.js";
-import { getEnemyScale, enemyFootprintTiles } from "../enemy-data.js";
+import { getEnemyScale, enemyFootprintTiles, ensureEnemyMovement, spendEnemyMovement } from "../enemy-data.js";
 import { buildBoardOccupancy } from "../game.js";
 import { coordKey, isInBounds, isWalkable, tileAt } from "../map.js";
 import { isOrthogonallyAdjacent } from "../patterns.js";
@@ -368,6 +369,7 @@ export function validateGmEnemyAction(state: GameState, action: GmEnemyAction): 
   switch (action.action) {
     case "move": {
       if (action.path.length === 0) return "Empty path";
+      if (enemy.exhausted) return "Enemy has ended turn";
       let cx = enemy.x;
       let cy = enemy.y;
       for (const step of action.path) {
@@ -376,6 +378,10 @@ export function validateGmEnemyAction(state: GameState, action: GmEnemyAction): 
         if (err) return err;
         cx = step.x;
         cy = step.y;
+      }
+      if (state.enforceTurns !== false) {
+        ensureEnemyMovement(enemy);
+        if ((enemy.movementRemaining ?? 0) < action.path.length) return "Not enough movement";
       }
       return null;
     }
@@ -394,6 +400,7 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
   switch (action.action) {
     case "move": {
       const dest = action.path[action.path.length - 1]!;
+      if (state.enforceTurns !== false) spendEnemyMovement(enemy, action.path.length);
       enemy.x = dest.x;
       enemy.y = dest.y;
       setActiveEnemy(state, enemy.id);
@@ -464,6 +471,8 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
       const ticks = tickUnitEndOfTurn(enemy);
       let msg = `${enemyLabel(enemy)} ended turn`;
       if (ticks.length) msg += `. ${ticks.join("; ")}`;
+      const phaseMsg = finishGmTurnIfPlayersRemain(state);
+      if (phaseMsg) msg += `. GM phase ended — ${phaseMsg}`;
       return msg;
     }
   }

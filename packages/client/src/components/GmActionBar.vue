@@ -2,6 +2,7 @@
 import type { PatternDirection } from "@gaem/shared";
 import {
   getEnemyListingByName,
+  getEnemySpeed,
   nextPatternDirection,
   parseEnemyAttackString,
   unexhaustedEnemies,
@@ -28,6 +29,14 @@ const activeEnemy = computed(() => {
 });
 
 const listing = computed(() => getEnemyListingByName(activeEnemy.value?.name));
+
+const speedLabel = computed(() => {
+  const enemy = activeEnemy.value;
+  if (!enemy) return "—";
+  const max = getEnemySpeed(enemy);
+  const remaining = enemy.movementRemaining ?? max;
+  return `${remaining}/${max}`;
+});
 
 const parsedAttacks = computed(() =>
   (listing.value?.attacks ?? []).map((text) => parseEnemyAttackString(text)),
@@ -87,7 +96,7 @@ function exhaustEnemy() {
       <div class="budget-row">
         <span class="chip enemy-name">{{ activeEnemy.name ?? activeEnemy.id }}</span>
         <span v-if="activeEnemy.exhausted" class="chip spent">Exhausted</span>
-        <span v-else class="chip">Click board to move</span>
+        <span v-else class="chip speed">Speed {{ speedLabel }}</span>
       </div>
       <div v-if="listing?.attacks?.length" class="actions-row">
         <select v-model="attackIndex" class="select">
@@ -157,6 +166,10 @@ function exhaustEnemy() {
 
 .chip.enemy-name {
   font-weight: 700;
+}
+
+.chip.speed {
+  margin-left: auto;
 }
 
 .action-btn {

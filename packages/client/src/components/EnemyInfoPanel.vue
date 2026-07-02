@@ -4,6 +4,7 @@ import {
   getEnemyListingByName,
   getEnemyMaxHp,
   getEnemyScale,
+  getEnemySpeed,
   unexhaustedEnemies,
 } from "@gaem/shared";
 import { computed, ref } from "vue";
@@ -70,6 +71,14 @@ const queue = computed(() => {
 
 const showUseAttack = computed(() => isGm.value && showGmCombatUi.value && !!activeEnemy.value);
 
+const enemySpeedLabel = computed(() => {
+  const enemy = activeEnemy.value;
+  if (!enemy) return null;
+  const max = getEnemySpeed(enemy);
+  const remaining = enemy.movementRemaining ?? max;
+  return `${remaining}/${max}`;
+});
+
 function openAttackModal(index: number) {
   attackModalIndex.value = index;
   attackModalOpen.value = true;
@@ -117,7 +126,7 @@ function endEnemyTurn() {
           <span v-if="!showHpBar" class="stat">HP: {{ listing.hp }}</span>
           <span v-if="listing.crown != null" class="stat">Crown: {{ listing.crown }}</span>
           <span v-if="listing.scale != null || activeEnemy" class="stat">Scale: {{ enemyScale }}</span>
-          <span v-if="listing.speed != null" class="stat">Speed: {{ listing.speed }}</span>
+          <span v-if="listing.speed != null || activeEnemy" class="stat">Speed: {{ enemySpeedLabel ?? listing.speed }}</span>
           <span v-if="listing.actions" class="stat">Actions: {{ listing.actions }}</span>
           <span v-if="bossBudget != null" class="stat">Boss budget: {{ bossBudget }}</span>
           <span v-if="activeEnemy?.exhausted" class="stat exhausted">Exhausted</span>

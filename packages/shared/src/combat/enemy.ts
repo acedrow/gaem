@@ -1,5 +1,5 @@
 import type { GameState } from "../types.js";
-import { getEnemyListingByName } from "../enemy-data.js";
+import { getEnemyListingByName, refreshEnemyMovement } from "../enemy-data.js";
 
 export function bossActionsForEncounter(
   actionsStat: string | undefined,
@@ -31,6 +31,7 @@ export function markEnemyExhausted(state: GameState, enemyId: string): void {
 export function resetEnemyExhaustion(state: GameState): void {
   for (const enemy of state.enemies) {
     enemy.exhausted = false;
+    refreshEnemyMovement(enemy);
   }
 }
 

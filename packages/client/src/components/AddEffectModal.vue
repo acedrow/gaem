@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { RULE_EFFECTS } from "@gaem/shared";
+import { UNIT_EFFECTS } from "@gaem/shared";
 import { computed, ref, watch } from "vue";
 
 import { useGameState } from "../composables/useGameState.js";
@@ -20,19 +20,19 @@ const emit = defineEmits<{
 const { send } = useGameState();
 const { isGm } = useSession();
 
-const selectedId = ref(RULE_EFFECTS[0]?.id ?? "");
+const selectedId = ref(UNIT_EFFECTS[0]?.id ?? "");
 const stacks = ref(1);
 
 watch(
   () => props.open,
   (isOpen) => {
     if (!isOpen) return;
-    selectedId.value = RULE_EFFECTS[0]?.id ?? "";
+    selectedId.value = UNIT_EFFECTS[0]?.id ?? "";
     stacks.value = 1;
   },
 );
 
-const selectedEffect = computed(() => RULE_EFFECTS.find((e) => e.id === selectedId.value));
+const selectedEffect = computed(() => UNIT_EFFECTS.find((e) => e.id === selectedId.value));
 const canApply = computed(() => !!props.target && !!selectedId.value && stacks.value !== 0);
 
 function apply() {
@@ -58,7 +58,7 @@ function clearEffects() {
       <label class="field-label" for="effect-select">Effect</label>
       <div class="effect-list">
         <button
-          v-for="effect in RULE_EFFECTS"
+          v-for="effect in UNIT_EFFECTS"
           :key="effect.id"
           type="button"
           class="effect-option"

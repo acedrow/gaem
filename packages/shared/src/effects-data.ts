@@ -1,4 +1,5 @@
-import effectsJson from "./data/rules/effects.json" with { type: "json" };
+import unitEffectsJson from "./data/rules/unit-effects.json" with { type: "json" };
+import weaponEffectsJson from "./data/rules/weapon-effects.json" with { type: "json" };
 
 export type EffectStacking = "add" | "max";
 
@@ -10,10 +11,20 @@ export type RuleEffect = {
   icon: string;
 };
 
-export const RULE_EFFECTS = effectsJson as RuleEffect[];
+export const UNIT_EFFECTS = unitEffectsJson as RuleEffect[];
+export const WEAPON_EFFECTS = weaponEffectsJson as RuleEffect[];
 
-const effectById = new Map(RULE_EFFECTS.map((e) => [e.id, e]));
-const effectIds = new Set(RULE_EFFECTS.map((e) => e.id));
+const unitEffectIds = new Set(UNIT_EFFECTS.map((e) => e.id));
+export const RULE_EFFECTS = [
+  ...UNIT_EFFECTS,
+  ...WEAPON_EFFECTS.filter((e) => !unitEffectIds.has(e.id)),
+] as RuleEffect[];
+
+const effectById = new Map<string, RuleEffect>([
+  ...WEAPON_EFFECTS.map((e) => [e.id, e] as const),
+  ...UNIT_EFFECTS.map((e) => [e.id, e] as const),
+]);
+const effectIds = new Set([...UNIT_EFFECTS, ...WEAPON_EFFECTS].map((e) => e.id));
 
 export function getEffectById(id: string): RuleEffect | undefined {
   return effectById.get(id);

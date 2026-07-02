@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { RULE_EFFECTS } from "@gaem/shared";
+import { UNIT_EFFECTS, WEAPON_EFFECTS, type RuleEffect } from "@gaem/shared";
 import { ref } from "vue";
 
 import { useBoardSelection } from "../composables/useBoardSelection.js";
@@ -10,45 +10,77 @@ import RuleText from "./RuleText.vue";
 const { closeRightPanel } = useBoardSelection();
 const expanded = ref<Set<string>>(new Set());
 
-function isExpanded(id: string): boolean {
-  return expanded.value.has(id);
+const sections: { title: string; effects: RuleEffect[] }[] = [
+  { title: "Unit effects", effects: UNIT_EFFECTS },
+  { title: "Weapon effects", effects: WEAPON_EFFECTS },
+];
+
+function effectKey(sectionTitle: string, id: string): string {
+  return `${sectionTitle}-${id}`;
 }
 
-function toggle(id: string) {
-  if (expanded.value.has(id)) expanded.value.delete(id);
-  else expanded.value.add(id);
+function isExpanded(sectionTitle: string, id: string): boolean {
+  return expanded.value.has(effectKey(sectionTitle, id));
+}
+
+function toggle(sectionTitle: string, id: string) {
+  const key = effectKey(sectionTitle, id);
+  if (expanded.value.has(key)) expanded.value.delete(key);
+  else expanded.value.add(key);
 }
 </script>
 
 <template>
   <PanelShell title="Effects" @close="closeRightPanel">
     <div class="panel-body">
-      <article v-for="effect in RULE_EFFECTS" :key="effect.id" class="list-card">
-        <button
-          type="button"
-          class="list-card-header"
-          :class="{ expanded: isExpanded(effect.id) }"
-          @click="toggle(effect.id)"
+      <section v-for="section in sections" :key="section.title" class="effect-section">
+        <h3 class="section-title">{{ section.title }}</h3>
+        <article
+          v-for="effect in section.effects"
+          :key="effectKey(section.title, effect.id)"
+          class="list-card"
         >
-          <span class="item-header">
-            <EffectIcon :effect-id="effect.id" :size="18" />
-            <span class="item-name">{{ effect.id }}</span>
-          </span>
-          <span class="chevron" aria-hidden="true">{{ isExpanded(effect.id) ? "▾" : "▸" }}</span>
-        </button>
+          <button
+            type="button"
+            class="list-card-header"
+            :class="{ expanded: isExpanded(section.title, effect.id) }"
+            @click="toggle(section.title, effect.id)"
+          >
+            <span class="item-header">
+              <EffectIcon :effect-id="effect.id" :size="18" />
+              <span class="item-name">{{ effect.id }}</span>
+            </span>
+            <span class="chevron" aria-hidden="true">{{
+              isExpanded(section.title, effect.id) ? "▾" : "▸"
+            }}</span>
+          </button>
 
-        <div v-if="isExpanded(effect.id)" class="list-card-body">
-          <p class="item-summary">{{ effect.summary }}</p>
-          <p class="item-description">
-            <RuleText :text="effect.description" />
-          </p>
-        </div>
-      </article>
+          <div v-if="isExpanded(section.title, effect.id)" class="list-card-body">
+            <p class="item-summary">{{ effect.summary }}</p>
+            <p class="item-description">
+              <RuleText :text="effect.description" />
+            </p>
+          </div>
+        </article>
+      </section>
     </div>
   </PanelShell>
 </template>
 
 <style scoped>
+.effect-section + .effect-section {
+  margin-top: 1.25rem;
+}
+
+.section-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .item-header {
   display: flex;
   align-items: center;

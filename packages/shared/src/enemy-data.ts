@@ -65,6 +65,35 @@ export function getEnemyScale(enemy: Pick<Enemy, "scale" | "name">): number {
   return getEnemyScaleByName(enemy.name);
 }
 
+export function getEnemySpeedByName(name: string | undefined): number {
+  const speed = findEnemyListing(name)?.speed;
+  return speed != null && speed >= 0 ? Math.trunc(speed) : 0;
+}
+
+export function getEnemySpeed(enemy: Pick<Enemy, "speed" | "name">): number {
+  if (enemy.speed != null && enemy.speed >= 0) return Math.trunc(enemy.speed);
+  return getEnemySpeedByName(enemy.name);
+}
+
+export function refreshEnemyMovement(enemy: Enemy): void {
+  const speed = getEnemySpeed(enemy);
+  enemy.speed = speed;
+  enemy.movementRemaining = speed;
+}
+
+export function ensureEnemyMovement(enemy: Enemy): void {
+  const speed = getEnemySpeed(enemy);
+  enemy.speed = speed;
+  if (enemy.movementRemaining === undefined) enemy.movementRemaining = speed;
+}
+
+export function spendEnemyMovement(enemy: Enemy, cost: number): boolean {
+  ensureEnemyMovement(enemy);
+  if ((enemy.movementRemaining ?? 0) < cost) return false;
+  enemy.movementRemaining = (enemy.movementRemaining ?? 0) - cost;
+  return true;
+}
+
 export function enemyFootprintTiles(
   x: number,
   y: number,

@@ -8,11 +8,13 @@ import {
   coordKey,
   coordsToKeySet,
   drawableExpansionOptions,
+  ensureEnemyMovement,
   enemyFootprintTiles,
   fixedPatternTilesInBounds,
   getEnemyMaxHp,
   getEnemyScale,
   getEnemyScaleByName,
+  getEffectSummary,
   getPlayerMaxHp,
   getWeaponAttackSpec,
   isRangeTargetAttack,
@@ -360,7 +362,11 @@ const gmEnemyMoveTargetKeys = computed(() => {
   const id = selectedEnemyId.value;
   if (!s || !id || !canGmMoveEnemies(s)) return keys;
   const enemy = s.enemies.find((e) => e.id === id);
-  if (!enemy) return keys;
+  if (!enemy || enemy.exhausted) return keys;
+  if (s.enforceTurns !== false) {
+    ensureEnemyMovement(enemy);
+    if ((enemy.movementRemaining ?? 0) < 1) return keys;
+  }
   const scale = getEnemyScale(enemy);
   const deltas = [
     { dx: 0, dy: -1 },
@@ -522,6 +528,19 @@ function terrainObjectLabel(object: TerrainObject): string {
 function formatHp(current: number | undefined, max: number): string {
   const hp = current ?? 0;
   return max > 0 ? `${hp}/${max}` : String(hp);
+}
+
+function effectEntries(stacks?: EffectStacks) {
+  if (!stacks) return [];
+  return Object.entries(stacks)
+    .filter(([, v]) => v > 0)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([id, count]) => ({ id, stacks: count }));
+}
+
+function effectTooltipLabel(id: string, stacks: number): string {
+  const summary = getEffectSummary(id);
+  return summary ? `${id}: ${stacks} — ${summary}` : `${id}: ${stacks}`;
 }
 
 function gmEnemyMoveAnchorAt(x: number, y: number): { x: number; y: number } | null {
@@ -959,9 +978,45 @@ function onContextMenuSelect(id: string) {
   closeContextMenu();
 }
 
+function endEnemyTurn(enemyId: string): boolean {
+  const s = gameState.value;
+  if (!s) return false;
+  const enemy = s.enemies.find((e) => e.id === enemyId);
+  if (!enemy || enemy.exhausted || !canGmMoveEnemies(s)) return false;
+  send({ type: "gmEnemyAction", action: { action: "exhaust", enemyId: enemy.id } });
+  return true;
+}
+
+function tryEndGmTokenTurn(): boolean {
+  const id = selectedEnemyId.value;
+  if (!id) return false;
+  return endEnemyTurn(id);
+}
+
+function tryEndPlayerTurn(): boolean {
+  const s = gameState.value;
+  const id = yourPlayerId.value;
+  if (!s || !id || props.role !== "player") return false;
+  if (s.roundPhase !== "playerTurn") return false;
+  if (s.turn?.role !== "player" || s.turn.playerId !== id) return false;
+  send({ type: "phaseAction", action: "endPlayerTurn" });
+  return true;
+}
+
 function onKeydown(e: KeyboardEvent) {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
     return;
+  }
+
+  if (e.key === "e" && e.ctrlKey && !e.metaKey && !e.altKey) {
+    if (props.role === "gm" && tryEndGmTokenTurn()) {
+      e.preventDefault();
+      return;
+    }
+    if (tryEndPlayerTurn()) {
+      e.preventDefault();
+      return;
+    }
   }
 
   if ((e.key === "r" || e.key === "R") && !e.metaKey && !e.ctrlKey && !e.altKey) {
@@ -1084,23 +1139,33 @@ onUnmounted(() => {
           </div>
           <div v-if="tooltipData.players.length" class="tooltip-section">
             <span class="tooltip-heading">Players</span>
-            <span
-              v-for="player in tooltipData.players"
-              :key="player.id"
-              class="tooltip-row"
-            >
-              {{ playerLabel(player) }} · HP {{ formatHp(player.hp, getPlayerMaxHp(player)) }}
-            </span>
+            <div v-for="player in tooltipData.players" :key="player.id" class="tooltip-unit">
+              <span class="tooltip-row">
+                {{ playerLabel(player) }} · HP {{ formatHp(player.hp, getPlayerMaxHp(player)) }}
+              </span>
+              <span
+                v-for="effect in effectEntries(player.effects)"
+                :key="effect.id"
+                class="tooltip-row tooltip-effect"
+              >
+                {{ effectTooltipLabel(effect.id, effect.stacks) }}
+              </span>
+            </div>
           </div>
           <div v-if="tooltipData.enemies.length" class="tooltip-section">
             <span class="tooltip-heading">Enemies</span>
-            <span
-              v-for="enemy in tooltipData.enemies"
-              :key="enemy.id"
-              class="tooltip-row"
-            >
-              {{ enemyLabel(enemy) }}<template v-if="props.role === 'gm'"> · HP {{ formatHp(enemy.hp, getEnemyMaxHp(enemy)) }}</template>
-            </span>
+            <div v-for="enemy in tooltipData.enemies" :key="enemy.id" class="tooltip-unit">
+              <span class="tooltip-row">
+                {{ enemyLabel(enemy) }}<template v-if="props.role === 'gm'"> · HP {{ formatHp(enemy.hp, getEnemyMaxHp(enemy)) }}</template>
+              </span>
+              <span
+                v-for="effect in effectEntries(enemy.effects)"
+                :key="effect.id"
+                class="tooltip-row tooltip-effect"
+              >
+                {{ effectTooltipLabel(effect.id, effect.stacks) }}
+              </span>
+            </div>
           </div>
           <div v-if="tooltipData.objects.length" class="tooltip-section">
             <span class="tooltip-heading">Objects</span>
@@ -1226,5 +1291,15 @@ onUnmounted(() => {
 
 .tooltip-row {
   display: block;
+}
+
+.tooltip-unit + .tooltip-unit {
+  margin-top: 0.35rem;
+}
+
+.tooltip-effect {
+  padding-left: 0.5rem;
+  color: var(--color-muted);
+  font-size: 0.72rem;
 }
 </style>

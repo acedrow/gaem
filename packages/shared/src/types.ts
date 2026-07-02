@@ -37,6 +37,8 @@ export type Enemy = {
   name?: string;
   hp?: number;
   scale?: number;
+  speed?: number;
+  movementRemaining?: number;
   effects?: EffectStacks;
   exhausted?: boolean;
   agnosiaTriggered?: boolean;
