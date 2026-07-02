@@ -2,7 +2,7 @@ import { getEffectStacking } from "../effects-data.js";
 import type { EffectStacks, GameState, MapTile, Player, Enemy } from "../types.js";
 
 export function parseEffectToken(token: string): { id: string; stacks: number } | null {
-  const match = token.trim().match(/^([A-Za-z][A-Za-z ]*):(\d+)$/);
+  const match = token.trim().match(/^([A-Za-z][A-Za-z ]*):(-?\d+)$/);
   if (!match) return null;
   return { id: match[1]!.trim(), stacks: Number(match[2]) };
 }
@@ -11,14 +11,20 @@ export function applyEffectStacks(target: { effects?: EffectStacks }, tokens: st
   if (!target.effects) target.effects = {};
   for (const token of tokens) {
     const parsed = parseEffectToken(token);
-    if (!parsed) continue;
+    if (!parsed || parsed.stacks === 0) continue;
     const current = target.effects[parsed.id] ?? 0;
-    if (getEffectStacking(parsed.id) === "max") {
-      target.effects[parsed.id] = Math.max(current, parsed.stacks);
-    } else {
-      target.effects[parsed.id] = current + parsed.stacks;
-    }
+    const next =
+      parsed.stacks > 0 && getEffectStacking(parsed.id) === "max"
+        ? Math.max(current, parsed.stacks)
+        : current + parsed.stacks;
+    if (next <= 0) delete target.effects[parsed.id];
+    else target.effects[parsed.id] = next;
   }
+  if (Object.keys(target.effects).length === 0) delete target.effects;
+}
+
+export function clearEffectStacks(target: { effects?: EffectStacks }): void {
+  delete target.effects;
 }
 
 export function removeEffectStacks(target: { effects?: EffectStacks }, tokens: string[]): void {
@@ -48,16 +54,21 @@ export function tickUnitEndOfTurn(unit: Player | Enemy): string[] {
   if (!unit.effects) return messages;
   for (const id of Object.keys(unit.effects)) {
     if (!END_OF_TURN_EFFECTS.has(id)) continue;
+    const before = unit.effects[id] ?? 0;
     if (id === "Healing") {
-      const stacks = unit.effects[id] ?? 0;
-      if (stacks > 0 && unit.hp !== undefined) {
-        unit.hp += stacks;
-        messages.push(`Healing:${stacks}`);
+      if (before > 0 && unit.hp !== undefined) {
+        unit.hp += before;
+        messages.push(`Healing restored ${before} HP`);
       }
     }
-    const next = (unit.effects[id] ?? 0) - 1;
-    if (next <= 0) delete unit.effects[id];
-    else unit.effects[id] = next;
+    const next = before - 1;
+    if (next <= 0) {
+      delete unit.effects[id];
+      if (before > 0) messages.push(`${id} ${before} → removed`);
+    } else {
+      unit.effects[id] = next;
+      if (before !== next) messages.push(`${id} ${before} → ${next}`);
+    }
   }
   if (Object.keys(unit.effects).length === 0) delete unit.effects;
   return messages;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Enemy, MapTile, PatternDirection, Player, TerrainObject } from "@gaem/shared";
+import type { EffectStacks, Enemy, MapTile, PatternDirection, Player, TerrainObject } from "@gaem/shared";
 import {
   boardCellKey,
   buildBoardOccupancy,
@@ -34,8 +34,11 @@ import { useCombatActions } from "../composables/useCombatActions.js";
 import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useBoardViewport } from "../composables/useBoardViewport.js";
 import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
+import { useCharacterSheets } from "../composables/useCharacterSheets.js";
 import { useEnemySpawnSelection } from "../composables/useEnemySpawnSelection.js";
 import { useGameSocket } from "../composables/useGameSocket.js";
+import { showToast } from "../composables/useToasts.js";
+import { usePortraitCache } from "../composables/usePortraitCache.js";
 import { useGameState } from "../composables/useGameState.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import { usePatternSelection } from "../composables/usePatternSelection.js";
@@ -69,6 +72,9 @@ const selectedPlayerId = computed(() =>
   boardSelection.value?.kind === "player" ? boardSelection.value.id : null,
 );
 const { gameState, yourPlayerId } = useGameState();
+const { sheets, loadSheets } = useCharacterSheets();
+const boardPlayers = computed(() => gameState.value?.players);
+const { portraitUrlFor } = usePortraitCache(sheets, boardPlayers);
 const { dataCategory } = useInfoDataSelection();
 const { selectedSpawnEnemyName, clearSpawnEnemySelection } = useEnemySpawnSelection();
 const {
@@ -97,7 +103,6 @@ const {
 } = useBoardActionMode();
 const { sendPlayerAction, sendMovePath } = useCombatActions();
 
-const lastError = ref<string | null>(null);
 const hoveredKey = ref<string | null>(null);
 const hoveredCell = ref<{ x: number; y: number } | null>(null);
 const draggingDeploy = ref(false);
@@ -153,7 +158,7 @@ const { send, connect, disconnect: disconnectSocket } = useGameSocket({
   playerProfile: playerProfileRef,
   selectedSheetId,
   onError: (message) => {
-    lastError.value = message;
+    showToast(message);
   },
   onSelectionInvalidated: (msg) => {
     const selection = boardSelection.value;
@@ -366,7 +371,7 @@ const gmEnemyMoveTargetKeys = computed(() => {
   for (const { dx, dy } of deltas) {
     const anchorX = enemy.x + dx;
     const anchorY = enemy.y + dy;
-    if (validateEnemyFootprint(s, anchorX, anchorY, scale, id, occupancy.value) !== null) {
+    if (validateEnemyFootprint(s, anchorX, anchorY, scale, id, occupancy.value ?? undefined) !== null) {
       continue;
     }
     for (const tile of enemyFootprintTiles(anchorX, anchorY, scale)) {
@@ -452,6 +457,12 @@ const cellStateByKey = computed(() => {
       player,
       enemyAnchor,
       effectStacks: player?.effects ?? enemyAnchor?.effects,
+      turnEnded: player
+        ? s.roundPhase !== "deployment" && s.actedPlayerIds.includes(player.id)
+        : enemy?.exhausted ?? false,
+      playerPortraitUrl: player?.characterSheetId
+        ? portraitUrlFor(player.characterSheetId)
+        : null,
     });
   }
   return map;
@@ -520,23 +531,50 @@ function gmEnemyMoveAnchorAt(x: number, y: number): { x: number; y: number } | n
   const enemy = s.enemies.find((e) => e.id === id);
   if (!enemy) return null;
   const scale = getEnemyScale(enemy);
+  const occ = occupancy.value ?? undefined;
   const deltas = [
     { dx: 0, dy: -1 },
     { dx: 0, dy: 1 },
     { dx: -1, dy: 0 },
     { dx: 1, dy: 0 },
   ];
+  const clickDx = x - enemy.x;
+  const clickDy = y - enemy.y;
+  let best: { x: number; y: number; score: number } | null = null;
   for (const { dx, dy } of deltas) {
     const anchorX = enemy.x + dx;
     const anchorY = enemy.y + dy;
-    if (validateEnemyFootprint(s, anchorX, anchorY, scale, id, occupancy.value ?? undefined) !== null) {
-      continue;
-    }
+    if (validateEnemyFootprint(s, anchorX, anchorY, scale, id, occ) !== null) continue;
+    let matches = false;
     for (const tile of enemyFootprintTiles(anchorX, anchorY, scale)) {
-      if (tile.x === x && tile.y === y) return { x: anchorX, y: anchorY };
+      if (tile.x === x && tile.y === y) {
+        matches = true;
+        break;
+      }
     }
+    if (!matches) continue;
+    const score = dx * clickDx + dy * clickDy;
+    if (!best || score > best.score) best = { x: anchorX, y: anchorY, score };
   }
-  return null;
+  return best ? { x: best.x, y: best.y } : null;
+}
+
+function tryMoveSelectedEnemyToAnchor(anchorX: number, anchorY: number): boolean {
+  const s = gameState.value;
+  const selected = selectedEnemyId.value;
+  if (!s || !selected) return false;
+  const enemy = s.enemies.find((e) => e.id === selected);
+  if (!enemy) {
+    clearBoardSelection();
+    return false;
+  }
+  if (!canGmMoveEnemies(s)) return false;
+  const scale = getEnemyScale(enemy);
+  if (validateEnemyFootprint(s, anchorX, anchorY, scale, selected, occupancy.value ?? undefined) !== null) {
+    return false;
+  }
+  send({ type: "moveEnemy", enemyId: selected, x: anchorX, y: anchorY });
+  return true;
 }
 
 function onEnemyCellClick(x: number, y: number, enemyId: string) {
@@ -572,7 +610,6 @@ function arrowTarget(key: string, origin: { x: number; y: number }): { x: number
 }
 
 function tryMove(x: number, y: number) {
-  lastError.value = null;
   if (props.role !== "player") return;
   if (!yourPlayerId.value || !gameState.value) return;
   if (!canPlayerMove(gameState.value, yourPlayerId.value)) return;
@@ -738,7 +775,6 @@ function handleCombatCellClick(x: number, y: number): boolean {
 }
 
 function onPlayerCellClick(x: number, y: number) {
-  lastError.value = null;
   if (handleCombatCellClick(x, y)) return;
   if (boardActionMode.value === "attack") return;
   if (selectOccupantAt(x, y)) return;
@@ -747,24 +783,12 @@ function onPlayerCellClick(x: number, y: number) {
 }
 
 function tryMoveSelectedEnemy(x: number, y: number): boolean {
-  lastError.value = null;
-  const s = gameState.value;
-  const selected = selectedEnemyId.value;
-  if (!s || !selected) return false;
-  if (!s.enemies.some((e) => e.id === selected)) {
-    clearBoardSelection();
-    return false;
-  }
   const anchor = gmEnemyMoveAnchorAt(x, y);
-  if (canGmMoveEnemies(s) && anchor) {
-    send({ type: "moveEnemy", enemyId: selected, x: anchor.x, y: anchor.y });
-    return true;
-  }
-  return false;
+  if (!anchor) return false;
+  return tryMoveSelectedEnemyToAnchor(anchor.x, anchor.y);
 }
 
 function onGmCellClick(x: number, y: number) {
-  lastError.value = null;
   const s = gameState.value;
   if (!s) return;
 
@@ -829,7 +853,6 @@ function onBoardDisplayClick(e: MouseEvent) {
 }
 
 function removeEnemyById(enemyId: string) {
-  lastError.value = null;
   send({ type: "removeEnemy", enemyId });
   clearBoardSelection();
 }
@@ -846,6 +869,11 @@ function closeContextMenu() {
   contextMenu.value.playerId = undefined;
 }
 
+function hasEffectStacks(unit: { effects?: EffectStacks } | undefined): boolean {
+  if (!unit?.effects) return false;
+  return Object.values(unit.effects).some((stacks) => stacks > 0);
+}
+
 function buildContextMenuItems(x: number, y: number): BoardContextMenuItem[] {
   const items: BoardContextMenuItem[] = [];
   const occ = occupancy.value;
@@ -854,6 +882,9 @@ function buildContextMenuItems(x: number, y: number): BoardContextMenuItem[] {
   const enemy = occ?.enemyByKey.get(key);
   if (player || enemy) {
     items.push({ id: "add-effect", label: "Add effect" });
+  }
+  if (props.role === "gm" && hasEffectStacks(player ?? enemy)) {
+    items.push({ id: "clear-effects", label: "Clear effects", danger: true });
   }
   if (props.role === "gm" && enemy) {
     items.push({ id: "remove-enemy", label: "Remove enemy", danger: true });
@@ -911,6 +942,17 @@ function onContextMenuSelect(id: string) {
     closeContextMenu();
     return;
   }
+  if (id === "clear-effects") {
+    const enemyId = contextMenu.value.enemyId;
+    const playerId = contextMenu.value.playerId;
+    if (enemyId) {
+      send({ type: "clearEffects", target: { kind: "enemy", id: enemyId } });
+    } else if (playerId) {
+      send({ type: "clearEffects", target: { kind: "player", id: playerId } });
+    }
+    closeContextMenu();
+    return;
+  }
   if (id === "remove-enemy" && contextMenu.value.enemyId) {
     removeEnemyById(contextMenu.value.enemyId);
   }
@@ -955,10 +997,10 @@ function onKeydown(e: KeyboardEvent) {
     if (selected && s) {
       const enemy = s.enemies.find((e) => e.id === selected);
       if (enemy) {
-        const t = arrowTarget(e.key, enemy);
-        if (t) {
+        const anchor = arrowTarget(e.key, enemy);
+        if (anchor) {
           e.preventDefault();
-          tryMoveSelectedEnemy(t.x, t.y);
+          tryMoveSelectedEnemyToAnchor(anchor.x, anchor.y);
         }
       }
     }
@@ -974,6 +1016,7 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 onMounted(() => {
+  void loadSheets();
   connect();
   window.addEventListener("keydown", onKeydown);
 });
@@ -991,8 +1034,6 @@ onUnmounted(() => {
 
 <template>
   <div class="game-board">
-    <p v-if="lastError" class="error">{{ lastError }}</p>
-
     <div v-if="gameState" class="board-display" @click="onBoardDisplayClick">
       <div
         ref="viewportEl"

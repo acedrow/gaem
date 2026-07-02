@@ -18,6 +18,8 @@ export type CellRenderState = {
   player: Player | undefined;
   enemyAnchor: Enemy | undefined;
   effectStacks?: EffectStacks;
+  turnEnded?: boolean;
+  playerPortraitUrl?: string | null;
 };
 
 const MAX_VISIBLE_EFFECTS = 4;
@@ -62,17 +64,34 @@ function effectTitle(id: string, stacks: number): string {
   return summary ? `${id}:${stacks} — ${summary}` : `${id}:${stacks}`;
 }
 
+const ENEMY_SCALE_GAP = 3;
+const ENEMY_SCALE_INSET = 8;
+const ENEMY_PIECE_OFFSET = 4;
+
 function enemyPieceStyle(enemy: Enemy): Record<string, string> {
   const scale = getEnemyScale(enemy);
   if (scale <= 1) return {};
-  const gap = 3;
-  const inset = 8;
   return {
-    width: `calc(${scale * 100}% + ${(scale - 1) * gap}px - ${inset}px)`,
-    height: `calc(${scale * 100}% + ${(scale - 1) * gap}px - ${inset}px)`,
-    inset: "4px auto auto 4px",
+    width: `calc(${scale * 100}% + ${(scale - 1) * ENEMY_SCALE_GAP}px - ${ENEMY_SCALE_INSET}px)`,
+    height: `calc(${scale * 100}% + ${(scale - 1) * ENEMY_SCALE_GAP}px - ${ENEMY_SCALE_INSET}px)`,
+    inset: `${ENEMY_PIECE_OFFSET}px auto auto ${ENEMY_PIECE_OFFSET}px`,
   };
 }
+
+function effectBadgeStyle(enemy: Enemy | undefined): Record<string, string> {
+  if (!enemy) return {};
+  const scale = getEnemyScale(enemy);
+  if (scale <= 1) return {};
+  const extra = scale - 1;
+  return {
+    top: `${ENEMY_PIECE_OFFSET}px`,
+    right: `calc(-${extra * 100}% - ${extra * ENEMY_SCALE_GAP}px - ${ENEMY_PIECE_OFFSET}px + ${ENEMY_SCALE_INSET}px)`,
+  };
+}
+
+const scaledEnemyEffects = computed(
+  () => !!props.cell.enemyAnchor && getEnemyScale(props.cell.enemyAnchor) > 1 && effectEntries.value.length > 0,
+);
 </script>
 
 <template>
@@ -90,6 +109,7 @@ function enemyPieceStyle(enemy: Enemy): Record<string, string> {
       'pattern-primary': cell.patternPrimary,
       'pattern-secondary': cell.patternSecondary,
       'pattern-recoil': cell.patternRecoil,
+      'scaled-enemy-effects': scaledEnemyEffects,
     }"
     @click="emit('click')"
     @mouseenter="emit('hover')"
@@ -98,10 +118,12 @@ function enemyPieceStyle(enemy: Enemy): Record<string, string> {
     <span
       v-if="cell.enemyAnchor"
       class="piece enemy"
-      :class="{ selected: isEnemySelected }"
+      :class="{ selected: isEnemySelected, 'turn-ended': cell.turnEnded }"
       :style="enemyPieceStyle(cell.enemyAnchor)"
       @click.stop="emit('enemyClick')"
-    />
+    >
+      <span v-if="cell.turnEnded" class="turn-ended-mark" aria-hidden="true">×</span>
+    </span>
     <span
       v-if="cell.player"
       class="piece player-piece"
@@ -109,12 +131,22 @@ function enemyPieceStyle(enemy: Enemy): Record<string, string> {
         selected: isPlayerSelected,
         draggable: canDragDeploy,
         dragging: draggingDeploy && canDragDeploy,
+        'turn-ended': cell.turnEnded,
+        'has-portrait': !!cell.playerPortraitUrl,
       }"
-      :style="playerHue != null ? { background: `hsl(${playerHue} 70% 45%)` } : undefined"
+      :style="!cell.playerPortraitUrl && playerHue != null ? { background: `hsl(${playerHue} 70% 45%)` } : undefined"
       @click.stop="emit('playerClick')"
       @pointerdown.stop="emit('deployPointerDown', $event)"
-    />
-    <div v-if="effectEntries.length" class="effect-badges">
+    >
+      <img
+        v-if="cell.playerPortraitUrl"
+        :src="cell.playerPortraitUrl"
+        alt=""
+        class="portrait-img"
+      />
+      <span v-if="cell.turnEnded" class="turn-ended-mark" aria-hidden="true">×</span>
+    </span>
+    <div v-if="effectEntries.length" class="effect-badges" :style="effectBadgeStyle(cell.enemyAnchor)">
       <span
         v-for="effect in visibleEffects"
         :key="effect.id"
@@ -200,12 +232,45 @@ function enemyPieceStyle(enemy: Enemy): Record<string, string> {
   background: #d2992211;
 }
 
+.cell.scaled-enemy-effects {
+  z-index: 4;
+}
+
 .piece {
   position: absolute;
   inset: 4px;
   border-radius: 50%;
   display: block;
   z-index: 1;
+  overflow: hidden;
+}
+
+.piece.has-portrait {
+  background: var(--color-surface);
+}
+
+.portrait-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.piece.turn-ended {
+  filter: brightness(0.42) saturate(0.65);
+}
+
+.turn-ended-mark {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #01040955;
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #f85149dd;
+  pointer-events: none;
 }
 
 .piece.player-piece {
@@ -234,7 +299,7 @@ function enemyPieceStyle(enemy: Enemy): Record<string, string> {
   position: absolute;
   top: 0;
   right: 0;
-  z-index: 3;
+  z-index: 5;
   display: flex;
   flex-direction: column;
   align-items: flex-end;

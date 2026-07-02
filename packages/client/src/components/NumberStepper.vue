@@ -12,8 +12,21 @@ const emit = defineEmits<{
   adjust: [delta: number];
 }>();
 
+function clampValue(value: number): number {
+  let next = value;
+  if (props.clamp) next = props.clamp(next);
+  if (props.min != null) next = Math.max(props.min, next);
+  if (props.max != null) next = Math.min(props.max, next);
+  return next;
+}
+
 function onChange() {
-  if (props.clamp) model.value = props.clamp(model.value);
+  model.value = clampValue(model.value);
+}
+
+function adjust(delta: number) {
+  model.value = clampValue(model.value + delta);
+  emit("adjust", delta);
 }
 </script>
 
@@ -23,7 +36,7 @@ function onChange() {
       type="button"
       class="step-btn"
       :disabled="disabled"
-      @click="emit('adjust', -1)"
+      @click="adjust(-1)"
     >
       −
     </button>
@@ -40,7 +53,7 @@ function onChange() {
       type="button"
       class="step-btn"
       :disabled="disabled"
-      @click="emit('adjust', 1)"
+      @click="adjust(1)"
     >
       +
     </button>

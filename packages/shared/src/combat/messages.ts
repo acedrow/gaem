@@ -41,7 +41,7 @@ import {
   parseEnemyAttackString,
   resolveAttackDamage,
 } from "./attack.js";
-import { applyEffectStacks, parseEffectToken } from "./effects.js";
+import { applyEffectStacks, clearEffectStacks, parseEffectToken, tickUnitEndOfTurn } from "./effects.js";
 import { isKnownEffectId } from "../effects-data.js";
 import { createPendingAction, addPendingAction, applyAssistedOutcome } from "./pending.js";
 import { markEnemyExhausted, setActiveEnemy } from "./enemy.js";
@@ -461,7 +461,10 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
     case "exhaust": {
       markEnemyExhausted(state, enemy.id);
       if (state.combat?.activeEnemyId === enemy.id) setActiveEnemy(state, null);
-      return `${enemyLabel(enemy)} exhausted`;
+      const ticks = tickUnitEndOfTurn(enemy);
+      let msg = `${enemyLabel(enemy)} ended turn`;
+      if (ticks.length) msg += `. ${ticks.join("; ")}`;
+      return msg;
     }
   }
 }
@@ -496,6 +499,7 @@ export function validateApplyEffect(
   for (const token of effects) {
     const parsed = parseEffectToken(token);
     if (!parsed) return `Invalid effect token: ${token}`;
+    if (parsed.stacks === 0) return `Invalid effect stacks: ${token}`;
     if (!isKnownEffectId(parsed.id)) return `Unknown effect: ${parsed.id}`;
   }
   return null;
@@ -514,6 +518,29 @@ export function applyEffectTarget(
   applyEffectStacks(unit, effects);
   const label = target.kind === "player" ? playerLabel(unit as import("../types.js").Player) : enemyLabel(unit as import("../types.js").Enemy);
   return `Applied ${effects.join(", ")} to ${label}`;
+}
+
+export function validateClearEffects(
+  state: GameState,
+  target: { kind: "player" | "enemy"; id: string },
+): string | null {
+  if (target.kind === "player" && !state.players.some((p) => p.id === target.id)) return "Unknown player";
+  if (target.kind === "enemy" && !state.enemies.some((e) => e.id === target.id)) return "Unknown enemy";
+  return null;
+}
+
+export function applyClearEffects(
+  state: GameState,
+  target: { kind: "player" | "enemy"; id: string },
+): string {
+  const unit =
+    target.kind === "player"
+      ? state.players.find((p) => p.id === target.id)
+      : state.enemies.find((e) => e.id === target.id);
+  if (!unit) return "Unknown target";
+  clearEffectStacks(unit);
+  const label = target.kind === "player" ? playerLabel(unit as import("../types.js").Player) : enemyLabel(unit as import("../types.js").Enemy);
+  return `Cleared effects on ${label}`;
 }
 
 export function validateAssistedOutcome(_state: GameState, _outcome: AssistedOutcome, role: GaemRole): string | null {
@@ -635,10 +662,15 @@ export function handleCombatMessage(
       return { handled: true, message: applySetEnemyHp(state, parsed.enemyId, parsed.hp) };
     }
     case "applyEffect": {
-      if (ctx.role !== "gm") return { handled: true, error: "Only GM can do that" };
       const err = validateApplyEffect(state, parsed.target, parsed.effects);
       if (err) return { handled: true, error: err };
       return { handled: true, message: applyEffectTarget(state, parsed.target, parsed.effects) };
+    }
+    case "clearEffects": {
+      if (ctx.role !== "gm") return { handled: true, error: "Only GM can do that" };
+      const err = validateClearEffects(state, parsed.target);
+      if (err) return { handled: true, error: err };
+      return { handled: true, message: applyClearEffects(state, parsed.target) };
     }
     case "triggerReversal": {
       if (!ctx.playerId) return { handled: true, error: "Only players can trigger reversal" };

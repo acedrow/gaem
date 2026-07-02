@@ -1,0 +1,169 @@
+<script setup lang="ts">
+import type { PatternDirection } from "@gaem/shared";
+import { nextPatternDirection, parseEnemyAttackString } from "@gaem/shared";
+import { computed, ref, watch } from "vue";
+
+import { useGameState } from "../composables/useGameState.js";
+import ModalDialog from "./ModalDialog.vue";
+
+const props = defineProps<{
+  open: boolean;
+  enemyId: string;
+  attackIndex: number;
+  attackText: string;
+}>();
+
+const emit = defineEmits<{
+  close: [];
+}>();
+
+const { gameState, send } = useGameState();
+
+const attackDirection = ref<PatternDirection>("n");
+const targetPlayerId = ref("");
+const damageOverride = ref<number | "">("");
+
+const parsedAttack = computed(() => parseEnemyAttackString(props.attackText));
+
+watch(
+  () => [props.open, props.attackIndex] as const,
+  ([isOpen]) => {
+    if (!isOpen) return;
+    attackDirection.value = "n";
+    targetPlayerId.value = "";
+    damageOverride.value = "";
+  },
+);
+
+function rotateDirection() {
+  attackDirection.value = nextPatternDirection(attackDirection.value);
+}
+
+function apply() {
+  if (!props.enemyId) return;
+  send({
+    type: "gmEnemyAction",
+    action: {
+      action: "attack",
+      enemyId: props.enemyId,
+      attackIndex: props.attackIndex,
+      direction: parsedAttack.value.patternId ? attackDirection.value : undefined,
+      targetPlayerId: targetPlayerId.value || undefined,
+      damage: damageOverride.value === "" ? undefined : Number(damageOverride.value),
+    },
+  });
+  emit("close");
+}
+</script>
+
+<template>
+  <ModalDialog title="Use attack" :open="open" @close="emit('close')">
+    <p v-if="attackText" class="attack-text">{{ attackText }}</p>
+    <p v-if="parsedAttack.patternId" class="parsed">
+      Pattern {{ parsedAttack.patternId }}:{{ parsedAttack.size }}
+      <span v-if="parsedAttack.damage"> · {{ parsedAttack.damage }} dmg</span>
+    </p>
+
+    <button
+      v-if="parsedAttack.patternId"
+      type="button"
+      class="action-btn"
+      @click="rotateDirection"
+    >
+      Aim {{ attackDirection.toUpperCase() }}
+    </button>
+
+    <label class="field">
+      Target player
+      <select v-model="targetPlayerId" class="select">
+        <option value="">—</option>
+        <option v-for="p in gameState?.players ?? []" :key="p.id" :value="p.id">
+          {{ p.nickname ?? p.id }}
+        </option>
+      </select>
+    </label>
+
+    <label class="field">
+      Damage override
+      <input v-model="damageOverride" type="number" min="0" class="input" placeholder="Default" />
+    </label>
+
+    <template #actions>
+      <button type="button" class="btn-secondary" @click="emit('close')">Cancel</button>
+      <button type="button" class="btn-primary" :disabled="!enemyId" @click="apply">Use attack</button>
+    </template>
+  </ModalDialog>
+</template>
+
+<style scoped>
+.attack-text,
+.parsed {
+  margin: 0 0 0.75rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--color-muted);
+}
+
+.action-btn {
+  margin-bottom: 0.75rem;
+  font-size: 0.78rem;
+  padding: 0.3rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.select,
+.input {
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.88rem;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+}
+
+.btn-primary,
+.btn-secondary {
+  padding: 0.4rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.btn-secondary {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+}
+
+.btn-primary {
+  border: 1px solid var(--color-accent);
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+</style>

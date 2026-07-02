@@ -3,6 +3,7 @@ import { RULE_EFFECTS } from "@gaem/shared";
 import { computed, ref, watch } from "vue";
 
 import { useGameState } from "../composables/useGameState.js";
+import { useSession } from "../composables/useSession.js";
 import EffectIcon from "./EffectIcon.vue";
 import ModalDialog from "./ModalDialog.vue";
 import NumberStepper from "./NumberStepper.vue";
@@ -17,6 +18,7 @@ const emit = defineEmits<{
 }>();
 
 const { send } = useGameState();
+const { isGm } = useSession();
 
 const selectedId = ref(RULE_EFFECTS[0]?.id ?? "");
 const stacks = ref(1);
@@ -31,14 +33,21 @@ watch(
 );
 
 const selectedEffect = computed(() => RULE_EFFECTS.find((e) => e.id === selectedId.value));
+const canApply = computed(() => !!props.target && !!selectedId.value && stacks.value !== 0);
 
 function apply() {
-  if (!props.target || !selectedId.value) return;
+  if (!canApply.value || !props.target) return;
   send({
     type: "applyEffect",
     target: props.target,
     effects: [`${selectedId.value}:${stacks.value}`],
   });
+  emit("close");
+}
+
+function clearEffects() {
+  if (!props.target) return;
+  send({ type: "clearEffects", target: props.target });
   emit("close");
 }
 </script>
@@ -66,12 +75,22 @@ function apply() {
 
     <div class="stacks-row">
       <span class="field-label">Stacks</span>
-      <NumberStepper v-model="stacks" :min="1" :max="99" />
+      <NumberStepper v-model="stacks" :min="-99" :max="99" />
     </div>
+
+    <button
+      v-if="isGm"
+      type="button"
+      class="btn-danger"
+      :disabled="!target"
+      @click="clearEffects"
+    >
+      Clear effects
+    </button>
 
     <template #actions>
       <button type="button" class="btn-secondary" @click="emit('close')">Cancel</button>
-      <button type="button" class="btn-primary" :disabled="!target" @click="apply">Apply</button>
+      <button type="button" class="btn-primary" :disabled="!canApply" @click="apply">Apply</button>
     </template>
   </ModalDialog>
 </template>
@@ -142,6 +161,31 @@ function apply() {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.btn-danger {
+  width: 100%;
+  margin-bottom: 0.75rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 6px;
+  border: 1px solid #f8514966;
+  background: #f8514922;
+  color: var(--color-danger);
+  font-size: 0.85rem;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #f8514933;
+  border-color: var(--color-danger);
+}
+
+.btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .btn-primary,

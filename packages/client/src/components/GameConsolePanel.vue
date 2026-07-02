@@ -28,14 +28,6 @@ function clampQuantity(value: number): number {
   return Math.max(1, Math.min(100, value));
 }
 
-function adjustQuantity(delta: number) {
-  quantity.value = clampQuantity(quantity.value + delta);
-}
-
-function adjustBonus(delta: number) {
-  bonus.value += delta;
-}
-
 async function rollDice() {
   if (rolling.value) return;
   rolling.value = true;
@@ -99,7 +91,6 @@ onMounted(() => {
         :max="100"
         :disabled="rolling"
         :clamp="clampQuantity"
-        @adjust="adjustQuantity"
       />
 
       <SegmentedControl
@@ -113,7 +104,7 @@ onMounted(() => {
 
       <span class="plus-icon" aria-hidden="true">+</span>
 
-      <NumberStepper v-model="bonus" :disabled="rolling" @adjust="adjustBonus" />
+      <NumberStepper v-model="bonus" :disabled="rolling" />
 
       <button type="submit" class="roll-btn" :disabled="rolling">
         {{ rolling ? "…" : "Roll" }}

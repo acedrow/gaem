@@ -176,10 +176,12 @@ function finishPlayerTurn(state: GameState, playerId: string, suffix = "ended th
     state.actedPlayerIds.push(playerId);
   }
   const player = state.players.find((p) => p.id === playerId);
-  if (player) tickUnitEndOfTurn(player);
+  const ticks = player ? tickUnitEndOfTurn(player) : [];
   state.roundPhase = "gmTurn";
   state.turn = { role: "gm" };
-  return `${playerLabel(player!)} ${suffix}`;
+  let msg = `${playerLabel(player!)} ${suffix}`;
+  if (ticks.length) msg += `. ${ticks.join("; ")}`;
+  return msg;
 }
 
 function advanceRound(state: GameState): string {

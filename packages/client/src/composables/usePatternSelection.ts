@@ -76,18 +76,10 @@ export function usePatternSelection() {
     return clampModifierSize(modifier, value);
   }
 
-  function adjustPatternSize(delta: number) {
-    patternSize.value = clampSize(patternSize.value + delta);
+  function adjustPatternSize() {
     if (drawnTiles.value.length > patternSize.value) {
       drawnTiles.value = drawnTiles.value.slice(0, patternSize.value);
     }
-  }
-
-  function adjustModifierValue(id: keyof PatternModifierValues, delta: number) {
-    modifierValues.value = {
-      ...modifierValues.value,
-      [id]: clampModifierValue(id, modifierValues.value[id] + delta),
-    };
   }
 
   function setModifierValue(id: keyof PatternModifierValues, value: number) {
@@ -165,7 +157,6 @@ export function usePatternSelection() {
     clampSize,
     clampModifierValue,
     adjustPatternSize,
-    adjustModifierValue,
     setModifierValue,
     cyclePatternDirection,
     setPatternHoverOrigin,

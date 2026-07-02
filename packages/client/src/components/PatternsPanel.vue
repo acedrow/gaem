@@ -22,7 +22,6 @@ const {
   clampSize,
   clampModifierValue,
   adjustPatternSize,
-  adjustModifierValue,
   setModifierValue,
   resetDrawing,
 } = usePatternSelection();
@@ -90,7 +89,6 @@ function onModifierInput(id: keyof PatternModifierValues, value: number) {
           :disabled="!!(selectedPattern && !modifierApplies(modifier.id))"
           :clamp="(v) => clampModifierValue(modifier.id as keyof PatternModifierValues, v)"
           @update:model-value="setModifierValue(modifier.id as keyof PatternModifierValues, $event)"
-          @adjust="adjustModifierValue(modifier.id as keyof PatternModifierValues, $event)"
         />
       </div>
 

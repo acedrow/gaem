@@ -197,5 +197,9 @@ export type ClientMessage =
       target: { kind: "player" | "enemy"; id: string };
       effects: string[];
     }
+  | {
+      type: "clearEffects";
+      target: { kind: "player" | "enemy"; id: string };
+    }
   | { type: "phaseAction"; action: PhaseAction }
   | { type: "setEnforceTurns"; enforceTurns: boolean };
