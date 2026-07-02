@@ -21,10 +21,17 @@
     "icon": "M3 8 H11 M8 5 L11 8 L8 11"
   },
   {
+    "id": "Piercing",
+    "summary": "Ignores cover; shoots through walls up to stack value.",
+    "description": "This unit or attack ignores cover and may shoot through objects or walls blocking Line of Sight up to the value of Piercing (Piercing:2 allows an attack to penetrate through 2 squares of wall).",
+    "stacking": "add",
+    "icon": "M2 8 H14 M10 5 L14 8 L10 11"
+  },
+  {
     "id": "Seeking",
     "summary": "Ignores negative elevation penalties.",
     "description": "This unit or attack ignores negative elevation penalties.",
     "stacking": "add",
-    "icon": "M8 2.5 L9 7 L8 8.5 L7 7 Z M8 8.5 A3.5 3.5 0 1 0 8 8.51 M8 8.5 L10.5 11 M8 8.5 L5.5 11"
+    "icon": "M8 2 A6 6 0 1 0 8 14 A6 6 0 1 0 8 2 M8 4.5 A3.5 3.5 0 1 0 8 11.5 A3.5 3.5 0 1 0 8 4.5 M8 7 A1 1 0 1 0 8 9 A1 1 0 1 0 8 7"
   }
 ]

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { UNIT_EFFECTS, WEAPON_EFFECTS, type RuleEffect } from "@gaem/shared";
+import { TILE_EFFECTS, UNIT_EFFECTS, WEAPON_EFFECTS, type RuleEffect } from "@gaem/shared";
 import { ref } from "vue";
 
 import { useBoardSelection } from "../composables/useBoardSelection.js";
@@ -13,6 +13,7 @@ const expanded = ref<Set<string>>(new Set());
 const sections: { title: string; effects: RuleEffect[] }[] = [
   { title: "Unit effects", effects: UNIT_EFFECTS },
   { title: "Weapon effects", effects: WEAPON_EFFECTS },
+  { title: "Tile effects", effects: TILE_EFFECTS },
 ];
 
 function effectKey(sectionTitle: string, id: string): string {

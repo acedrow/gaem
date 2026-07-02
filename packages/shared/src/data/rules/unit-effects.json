@@ -18,14 +18,14 @@
     "summary": "1 damage at start of turn; spreads to adjacent units. Keep highest stacks only. −1 stack at end of turn if no adjacent Blazing.",
     "description": "This unit takes 1 damage at the start of each turn. Blazing spreads: any unit who begins a turn adjacent to a unit with Blazing gains Blazing:1 and immediately takes its 1 damage. Additional Blazing does not add to existing Blazing—keep the highest number of stacks from any one source and ignore all others. Remove 1 stack at the end of the affected unit's turn, but only if there are no units adjacent to it.",
     "stacking": "max",
-    "icon": "M8 12.5 Q6.5 10 7 8 Q7.5 5.5 8 3.5 Q8.5 5.5 9 8 Q9.5 10 8 12.5 Z"
+    "icon": "M8 13.5 L6 10 Q5 7.5 6.5 5.5 L8 2 L9.5 5.5 Q11 7.5 10 10 Z M8 11 Q7 8.5 8 6 Q9 8.5 8 11"
   },
   {
     "id": "Bleed",
     "summary": "Attacks against this unit deal +1 damage per stack. −1 stack at end of turn.",
     "description": "All attacks against this target deal an additional 1 damage. Remove 1 stack at the end of the affected unit's turn.",
     "stacking": "add",
-    "icon": "M8 2 Q11 6 10 10 Q9 13 8 14 Q7 13 6 10 Q5 6 8 2 Z"
+    "icon": "M8 2.5 C9.5 5.5 11 7.5 11 10 A3 3 0 1 1 5 10 C5 7.5 6.5 5.5 8 2.5 Z"
   },
   {
     "id": "Bound",
@@ -46,7 +46,7 @@
     "summary": "Forces enemies within range (stacks) to attack this unit. −1 stack after each attack against it.",
     "description": "This unit forces enemies within a range equal to its stacks to attack it during their turn, if able. Compel:1 affects all units that start their turns adjacent or become adjacent and each additional stack increases the range by 1 square. Remove 1 stack after each attack against the affected unit.",
     "stacking": "add",
-    "icon": "M8 3 A5 5 0 1 0 8 13 A5 5 0 1 0 8 3 Z M8 6 A2 2 0 1 0 8 10 A2 2 0 1 0 8 6 Z"
+    "icon": "M8 3 C10 3 12 4.5 12.5 7 C13 9.5 11.5 11.5 9.5 12.5 C8.8 11.2 8.3 10.2 8 10 C7.7 10.2 7.2 11.2 6.5 12.5 C4.5 11.5 3 9.5 3.5 7 C4 4.5 6 3 8 3 Z M8 3.5 V9.5 M5.5 5.5 Q6.5 7 5.5 8.5 M10.5 5.5 Q9.5 7 10.5 8.5"
   },
   {
     "id": "Countdown",
@@ -60,28 +60,21 @@
     "summary": "Must attack units with Compel if possible. −1 stack at end of turn.",
     "description": "This unit must attack a unit with Compel if possible, including attacking an ally. It can only take attacks that do not target a unit with Compel after making an attack that does, unless no unit has Compel. Remove 1 stack at the end of the affected unit's turn.",
     "stacking": "add",
-    "icon": "M8 2.5 V13 M3.5 7 H12.5 M4.5 4.5 L11.5 11.5 M11.5 4.5 L4.5 11.5"
+    "icon": "M5 2 Q2 2 2 5 M11 2 Q14 2 14 5 M14 11 Q14 14 11 14 M2 11 Q2 14 5 14"
   },
   {
     "id": "Haste",
     "summary": "One additional Action of any type per turn. −1 stack after the extra action.",
     "description": "This unit may make one additional Action of any type during their turn. Remove 1 stack after the additional action has been taken.",
     "stacking": "add",
-    "icon": "M10 2 L6 9 H8.5 L5 14 L11 7 H8.5 L13 2"
+    "icon": "M8 3 A5 5 0 1 0 8 13 A5 5 0 1 0 8 3 Z M8 5 L8 8 L10 10"
   },
   {
     "id": "Healing",
     "summary": "Restore HP equal to stacks at end of turn.",
     "description": "This unit restores HP equal to their Healing value at the end of their turn. When this Effect is applied to a tile, a unit standing on it is considered to have the Effect at the tile's number of stacks. A unit buffed with Healing:2 will restore 2 HP at the end of their turn regardless of where they move; a Healing:3 tile will then also restore 3 HP to that unit if they end their turn on that tile. These Healing Effects resolve separately if a unit is subject to both. This cannot increase a unit's max health beyond its default max HP. Remove 1 stack from each source of healing at the end of the affected unit's turn.",
     "stacking": "add",
-    "icon": "M8 4 V12 M4 8 H12"
-  },
-  {
-    "id": "Fortified",
-    "summary": "HELLPIERCER on this tile at turn start removes it and restores 2 Reversal Charges.",
-    "description": "When a HELLPIERCER unit begins its turn on a tile with Fortified, remove the Effect and restore 2 Reversal Charges to that unit.",
-    "stacking": "add",
-    "icon": "M3 12 V7 L8 4 L13 7 V12 H3 Z M6 12 V9 H10 V12"
+    "icon": "M6.5 3 H9.5 V6.5 H13 V9.5 H9.5 V13 H6.5 V9.5 H3 V6.5 H6.5 Z"
   },
   {
     "id": "Lingering",
@@ -109,28 +102,28 @@
     "summary": "Cannot move or Sprint. −1 stack at end of turn.",
     "description": "This unit cannot move or Sprint. Remove 1 stack at the end of the affected unit's turn.",
     "stacking": "add",
-    "icon": "M8 2 L8 10 M6 10 H10 M8 10 L8 14"
+    "icon": "M5.5 3 H10.5 Q12 3 12 4.5 Q12 6 10.5 6 H5.5 Q4 6 4 4.5 Q4 3 5.5 3 M8 6 V13.5"
   },
   {
     "id": "Poison",
     "summary": "1 HP damage per stack at end of turn, then −1 stack.",
     "description": "This unit takes 1 HP damage per stack at the end of their turn. After Poison's damage is dealt, remove 1 stack of Poison.",
     "stacking": "add",
-    "icon": "M8 3 Q11 7 10 11 Q8 13 6 11 Q5 7 8 3 Z M7 8 H9"
+    "icon": "M8 2 C11.5 2 13.5 4.5 13.5 7.5 C13.5 9.5 12 11 10.5 11 V12.5 H5.5 V11 C4 11 2.5 9.5 2.5 7.5 C2.5 4.5 4.5 2 8 2 Z M6 6.5 A1 1 0 1 0 6 6.51 M10 6.5 A1 1 0 1 0 10 6.51 M7.5 8.5 L8 9.5 L8.5 8.5 M6 12 V13 M8 12 V13 M10 12 V13"
   },
   {
     "id": "Seeking",
     "summary": "Ignores negative elevation penalties.",
     "description": "This unit or attack ignores negative elevation penalties.",
     "stacking": "add",
-    "icon": "M8 2.5 L9 7 L8 8.5 L7 7 Z M8 8.5 A3.5 3.5 0 1 0 8 8.51 M8 8.5 L10.5 11 M8 8.5 L5.5 11"
+    "icon": "M8 2 A6 6 0 1 0 8 14 A6 6 0 1 0 8 2 M8 4.5 A3.5 3.5 0 1 0 8 11.5 A3.5 3.5 0 1 0 8 4.5 M8 7 A1 1 0 1 0 8 9 A1 1 0 1 0 8 7"
   },
   {
     "id": "Shaded",
     "summary": "Burst:fog of war hides enemies unless adjacent. Scale = stacks. −1 stack at end of turn.",
     "description": "Creatures with Shaded:1+ are surrounded by a Burst:1 \"fog of war\" effect, hiding enemies and their movements from players. Players can only see enemies within a Shaded zone if they are adjacent to them. Shaded zones move with the unit or affected space unless stated otherwise. Each additional stack of Shaded increases the scale of the burst to the same number. Remove 1 stack at the end of the affected unit's turn.",
     "stacking": "add",
-    "icon": "M3 9 Q5 6 8 8 Q11 6 13 9 Q11 12 8 11 Q5 12 3 9 Z M5 7 Q6 5 8 6 M11 7 Q10 5 8 6"
+    "icon": "M2.5 8 Q8 3.5 13.5 8 Q8 12.5 2.5 8 Z M8 8 A2 2 0 1 0 8 8.01"
   },
   {
     "id": "Shock",
@@ -144,7 +137,7 @@
     "summary": "Movement costs are doubled. −1 stack at end of turn.",
     "description": "This unit's movement costs are doubled. Remove 1 stack at the end of the affected unit's turn.",
     "stacking": "add",
-    "icon": "M8 3 A5 5 0 1 0 8 13 A5 5 0 1 0 8 3 Z M8 5 L8 8 L10 10"
+    "icon": "M4 2.5 H12 L8 8 L4 13.5 H12 L8 8 L4 2.5"
   },
   {
     "id": "Transference",

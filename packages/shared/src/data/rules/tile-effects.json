@@ -1,0 +1,16 @@
+[
+  {
+    "id": "Fortified",
+    "summary": "HELLPIERCER on this tile at turn start removes it and restores 2 Reversal Charges.",
+    "description": "When a HELLPIERCER unit begins its turn on a tile with Fortified, remove the Effect and restore 2 Reversal Charges to that unit.",
+    "stacking": "add",
+    "icon": "M3 12 V7 L8 4 L13 7 V12 H3 Z M6 12 V9 H10 V12"
+  },
+  {
+    "id": "Shaded",
+    "summary": "Burst:fog of war hides enemies unless adjacent. Scale = stacks. −1 stack at end of turn.",
+    "description": "Creatures with Shaded:1+ are surrounded by a Burst:1 \"fog of war\" effect, hiding enemies and their movements from players. Players can only see enemies within a Shaded zone if they are adjacent to them. Shaded zones move with the unit or affected space unless stated otherwise. Each additional stack of Shaded increases the scale of the burst to the same number. Remove 1 stack at the end of the affected unit's turn.",
+    "stacking": "add",
+    "icon": "M2.5 8 Q8 3.5 13.5 8 Q8 12.5 2.5 8 Z M8 8 A2 2 0 1 0 8 8.01"
+  }
+]
