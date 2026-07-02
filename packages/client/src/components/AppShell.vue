@@ -20,8 +20,7 @@ import SideNav from "./SideNav.vue";
 
 const router = useRouter();
 const { role, playerProfile, clearSession } = useSession();
-const { selectedSheetId, sheetsExpanded, rightPanelCollapsed, sidebarCollapsed } =
-  useCharacterSheetSelection();
+const { selectedSheetId, sheetsExpanded } = useCharacterSheetSelection();
 const { boardSelection, selectBoardPlayer } = useBoardSelection();
 const { dataCategory, dataFocus, dataFocusReturnCategory, dataExpanded } = useInfoDataSelection();
 const { connection } = useGameConnection();
@@ -37,7 +36,6 @@ onMounted(() => {
     activeTab,
     sheetsExpanded,
     dataExpanded,
-    rightPanelCollapsed,
     gameState,
   });
 });
@@ -111,8 +109,8 @@ function onPhaseAction() {
 
 <template>
   <div class="app-shell">
-    <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
-      <div v-show="!sidebarCollapsed" class="sidebar-content">
+    <aside class="sidebar">
+      <div class="sidebar-content">
         <SideNav />
         <div class="sidebar-footer">
           <div class="session-info">
@@ -125,14 +123,6 @@ function onPhaseAction() {
           </button>
         </div>
       </div>
-      <button
-        class="panel-toggle sidebar-toggle"
-        type="button"
-        :title="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
-        @click="sidebarCollapsed = !sidebarCollapsed"
-      >
-        {{ sidebarCollapsed ? "▸" : "◂" }}
-      </button>
     </aside>
 
     <main class="main">
@@ -179,11 +169,6 @@ function onPhaseAction() {
   flex-shrink: 0;
   border-right: 1px solid #30363d;
   background: #0d1117;
-  transition: width 0.2s ease;
-}
-
-.sidebar.collapsed {
-  width: 1.75rem;
 }
 
 .sidebar-content {
@@ -317,10 +302,5 @@ function onPhaseAction() {
 .phase-action-btn:hover {
   background: #388bfd33;
   border-color: #58a6ff;
-}
-
-.panel-toggle {
-  right: -0.625rem;
-  border-radius: 0 6px 6px 0;
 }
 </style>

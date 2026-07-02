@@ -227,11 +227,11 @@ onMounted(() => {
 }
 
 .step-btn:first-child {
-  border-radius: 6px 0 0 6px;
+  border-radius: 0;
 }
 
 .step-btn:last-child {
-  border-radius: 0 6px 6px 0;
+  border-radius: 0;
 }
 
 .step-btn:hover:not(:disabled) {

@@ -107,7 +107,7 @@ function applyPending(pendingId: string, reject = false) {
 
 .dmg-input {
   padding: 0.25rem 0.4rem;
-  border-radius: 4px;
+  border-radius: 0;
   border: 1px solid var(--color-border);
   background: var(--color-surface);
   color: var(--color-text);

@@ -14,7 +14,7 @@ const persisted = readPersistedUi();
 const boardSelection = ref<BoardSelection | null>(persisted.boardSelection);
 
 export function useBoardSelection() {
-  const { selectSheet, rightPanelCollapsed } = useCharacterSheetSelection();
+  const { selectSheet } = useCharacterSheetSelection();
   const { gameState } = useGameState();
   const { clearDataCategory, dataCategory, dataFocus } = useInfoDataSelection();
 
@@ -40,14 +40,12 @@ export function useBoardSelection() {
       selectSheet(characterSheetId);
       return;
     }
-    rightPanelCollapsed.value = false;
   }
 
   function selectBoardEnemy(enemyId: string) {
     clearDataCategory();
     boardSelection.value = { kind: "enemy", id: enemyId };
     activeTab.value = "info";
-    rightPanelCollapsed.value = false;
   }
 
   function selectSheetFromNav(sheetId: string) {

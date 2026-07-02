@@ -128,7 +128,7 @@ function clearEffects() {
   width: 100%;
   padding: 0.4rem 0.5rem;
   border: none;
-  border-radius: 4px;
+  border-radius: 0;
   background: transparent;
   color: var(--color-text);
   text-align: left;

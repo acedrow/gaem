@@ -223,7 +223,7 @@ function joinAsSelectedPlayer() {
   border: 1px solid #30363d;
   background: #161b22;
   color: #e6edf3;
-  border-radius: 8px;
+  border-radius: 0;
   padding: 0.5rem 0.65rem;
   cursor: pointer;
 }
@@ -254,7 +254,7 @@ function joinAsSelectedPlayer() {
 .name-input {
   flex: 1 1 220px;
   border: 1px solid #30363d;
-  border-radius: 8px;
+  border-radius: 0;
   background: #0d1117;
   color: #e6edf3;
   padding: 0.55rem 0.65rem;

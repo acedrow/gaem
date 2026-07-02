@@ -125,7 +125,7 @@ defineExpose({ fieldInputEl });
 :deep(.field-input) {
   width: 100%;
   border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border-radius: 0;
   background: var(--color-bg);
   color: var(--color-text);
   padding: 0.35rem 0.5rem;

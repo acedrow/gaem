@@ -158,7 +158,6 @@ export function initUiPersistence(opts: {
   activeTab: Ref<RightPanelTab>;
   sheetsExpanded: Ref<boolean>;
   dataExpanded: Ref<boolean>;
-  rightPanelCollapsed: Ref<boolean>;
   gameState: Ref<{ players: { id: string }[]; enemies: { id: string }[] } | null>;
 }) {
   const {
@@ -170,21 +169,8 @@ export function initUiPersistence(opts: {
     activeTab,
     sheetsExpanded,
     dataExpanded,
-    rightPanelCollapsed,
     gameState,
   } = opts;
-
-  const hasPanelContent = () =>
-    !!(
-      boardSelection.value ||
-      dataCategory.value ||
-      dataFocus.value ||
-      selectedSheetId.value
-    );
-
-  if (hasPanelContent()) {
-    rightPanelCollapsed.value = false;
-  }
 
   watch(
     gameState,

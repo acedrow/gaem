@@ -186,7 +186,7 @@ function exhaustEnemy() {
 .damage-input {
   font-size: 0.78rem;
   padding: 0.25rem 0.4rem;
-  border-radius: 6px;
+  border-radius: 0;
   border: 1px solid var(--color-border);
   background: var(--color-surface-raised);
   color: var(--color-text);

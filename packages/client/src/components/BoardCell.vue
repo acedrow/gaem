@@ -203,7 +203,7 @@ const enemyHp = computed(() => {
 .cell {
   position: relative;
   border: none;
-  border-radius: 4px;
+  border-radius: 0;
   min-height: 28px;
   padding: 0;
   cursor: default;

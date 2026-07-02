@@ -57,7 +57,7 @@ const emit = defineEmits<{
   position: fixed;
   min-width: 140px;
   padding: 0.25rem;
-  border-radius: 8px;
+  border-radius: 0;
   border: 1px solid #30363d;
   background: #161b22;
   box-shadow: 0 8px 24px #01040999;
@@ -66,7 +66,7 @@ const emit = defineEmits<{
   display: block;
   width: 100%;
   border: none;
-  border-radius: 6px;
+  border-radius: 0;
   background: transparent;
   color: #e6edf3;
   padding: 0.4rem 0.65rem;

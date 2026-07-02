@@ -649,7 +649,7 @@ onUnmounted(() => {
   flex: 1;
   min-width: 0;
   border: 1px solid #388bfd;
-  border-radius: 6px;
+  border-radius: 0;
   background: #0d1117;
   color: #e6edf3;
   padding: 0.2rem 0.45rem;

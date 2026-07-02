@@ -176,7 +176,7 @@ defineExpose({ fieldInputEl });
   flex: 1;
   min-width: 0;
   border: 1px solid var(--color-accent-muted);
-  border-radius: 6px;
+  border-radius: 0;
   background: var(--color-bg);
   color: var(--color-text);
   padding: 0.2rem 0.45rem;

@@ -16,7 +16,7 @@ type PlayerProfileOption = PlayerProfile & { isActive?: boolean };
 
 const { apiFetch, fetchPlayerProfiles } = useApi();
 const { role } = useSession();
-const { selectedSheetId, sheetsExpanded, sheetsVersion, rightPanelCollapsed, selectSheet } =
+const { selectedSheetId, sheetsExpanded, sheetsVersion, selectSheet } =
   useCharacterSheetSelection();
 const { clearBoardSelection, selectSheetFromNav } = useBoardSelection();
 const { dataCategory, dataExpanded, selectDataCategory } = useInfoDataSelection();
@@ -78,7 +78,6 @@ function onSelectData(category: DataCategory) {
   clearBoardSelection();
   selectSheet(null);
   selectDataCategory(category);
-  rightPanelCollapsed.value = false;
   activeTab.value = "info";
 }
 
@@ -239,7 +238,7 @@ watch(sheetsVersion, () => {
   align-items: center;
   justify-content: space-between;
   padding: 0.5rem 0.65rem;
-  border-radius: 8px;
+  border-radius: 0;
   color: #8b949e;
   text-decoration: none;
   font-weight: 600;
@@ -286,7 +285,7 @@ watch(sheetsVersion, () => {
   gap: 0.1rem;
   padding: 0.4rem 0.55rem;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: 0;
   background: transparent;
   color: #8b949e;
   text-align: left;
@@ -333,7 +332,7 @@ watch(sheetsVersion, () => {
   margin-top: 0.25rem;
   padding: 0.35rem 0.55rem;
   border: 1px dashed #30363d;
-  border-radius: 6px;
+  border-radius: 0;
   background: transparent;
   color: #8b949e;
   font-size: 0.8rem;
@@ -381,7 +380,7 @@ watch(sheetsVersion, () => {
 
 .input {
   border: 1px solid #30363d;
-  border-radius: 8px;
+  border-radius: 0;
   background: #0d1117;
   color: #e6edf3;
   padding: 0.55rem 0.65rem;

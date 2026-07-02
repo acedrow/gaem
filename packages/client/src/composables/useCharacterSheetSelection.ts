@@ -8,8 +8,6 @@ const persisted = readPersistedUi();
 const selectedSheetId = ref<string | null>(persisted.selectedSheetId);
 const sheetsExpanded = ref(persisted.sheetsExpanded);
 const sheetsVersion = ref(0);
-const sidebarCollapsed = ref(false);
-const rightPanelCollapsed = ref(false);
 
 export function useCharacterSheetSelection() {
   const { clearDataCategory } = useInfoDataSelection();
@@ -18,7 +16,6 @@ export function useCharacterSheetSelection() {
     if (id) clearDataCategory();
     selectedSheetId.value = id;
     if (id) {
-      rightPanelCollapsed.value = false;
       activeTab.value = "info";
     }
   }
@@ -31,8 +28,6 @@ export function useCharacterSheetSelection() {
     selectedSheetId,
     sheetsExpanded,
     sheetsVersion,
-    sidebarCollapsed,
-    rightPanelCollapsed,
     selectSheet,
     notifySheetsChanged,
   };

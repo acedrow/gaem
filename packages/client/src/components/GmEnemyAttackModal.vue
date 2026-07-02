@@ -130,7 +130,7 @@ function apply() {
 .select,
 .input {
   padding: 0.35rem 0.5rem;
-  border-radius: 6px;
+  border-radius: 0;
   border: 1px solid var(--color-border);
   background: var(--color-bg);
   color: var(--color-text);

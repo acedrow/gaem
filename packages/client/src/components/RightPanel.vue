@@ -20,7 +20,7 @@ import PatternsPanel from "./PatternsPanel.vue";
 import SettingsPanel from "./SettingsPanel.vue";
 import TurnOrderPanel from "./TurnOrderPanel.vue";
 
-const { selectedSheetId, rightPanelCollapsed } = useCharacterSheetSelection();
+const { selectedSheetId } = useCharacterSheetSelection();
 const { boardSelection } = useBoardSelection();
 const { dataCategory, dataFocus, dataFocusReturnCategory } = useInfoDataSelection();
 const { gameState } = useGameState();
@@ -35,18 +35,8 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
 </script>
 
 <template>
-  <aside class="right-panel" :class="{ collapsed: rightPanelCollapsed }">
-    <button
-      class="panel-toggle right-toggle"
-      type="button"
-      :title="rightPanelCollapsed ? 'Expand panel' : 'Collapse panel'"
-      @click="rightPanelCollapsed = !rightPanelCollapsed"
-    >
-      {{ rightPanelCollapsed ? "◂" : "▸" }}
-    </button>
-
-    <template v-if="!rightPanelCollapsed">
-      <div class="tabs">
+  <aside class="right-panel">
+    <div class="tabs">
         <button
           type="button"
           class="tab"
@@ -165,7 +155,6 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
         <SettingsPanel v-if="activeTab === 'settings'" />
         <AssistedActionPanel v-if="activeTab === 'console'" />
       </div>
-    </template>
   </aside>
 </template>
 
@@ -179,11 +168,6 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
   border-left: 1px solid #30363d;
   background: #0d1117;
   overflow: hidden;
-  transition: width 0.2s ease;
-}
-
-.right-panel.collapsed {
-  width: 1.75rem;
 }
 
 .right-panel :deep(.panel) {
@@ -240,10 +224,5 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
   display: flex;
   flex-direction: column;
   overflow: hidden;
-}
-
-.panel-toggle {
-  left: -0.625rem;
-  border-radius: 6px 0 0 6px;
 }
 </style>

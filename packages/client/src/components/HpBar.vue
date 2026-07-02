@@ -116,7 +116,7 @@ function cancelEdit() {
 .hp-inline-input {
   width: 2.75rem;
   border: 1px solid var(--color-accent);
-  border-radius: 4px;
+  border-radius: 0;
   background: var(--color-bg);
   color: var(--color-text);
   font: inherit;

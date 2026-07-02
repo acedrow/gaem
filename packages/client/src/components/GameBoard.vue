@@ -1262,7 +1262,7 @@ onUnmounted(() => {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: 0;
   border: 1px solid var(--color-border);
   background: var(--color-surface);
 }

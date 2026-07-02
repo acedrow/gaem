@@ -19,7 +19,7 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 const { isGm } = useSession();
 const { clearBoardSelection } = useBoardSelection();
 const { selectDataFocus } = useInfoDataSelection();
-const { rightPanelCollapsed, selectSheet } = useCharacterSheetSelection();
+const { selectSheet } = useCharacterSheetSelection();
 const { sheets, loadSheets } = useCharacterSheets();
 
 watch(query, (value) => {
@@ -55,7 +55,6 @@ function onSelect(result: GameDataSearchResult) {
   } else if (result.kind !== "characterSheet") {
     selectDataFocus({ kind: result.kind, name: result.name });
   }
-  rightPanelCollapsed.value = false;
 }
 
 onMounted(() => {
@@ -120,7 +119,7 @@ onMounted(() => {
 
 .search-input {
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: 0;
   background: var(--color-bg);
   color: var(--color-text);
   padding: 0.55rem 0.75rem;
@@ -143,7 +142,7 @@ onMounted(() => {
   align-items: flex-start;
   gap: 0.15rem;
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: 0;
   background: var(--color-surface);
   color: var(--color-text);
   padding: 0.55rem 0.75rem;

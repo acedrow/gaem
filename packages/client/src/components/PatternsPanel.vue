@@ -277,11 +277,11 @@ function onModifierInput(id: keyof PatternModifierValues, value: number) {
 }
 
 .step-btn:first-child {
-  border-radius: 6px 0 0 6px;
+  border-radius: 0;
 }
 
 .step-btn:last-child {
-  border-radius: 0 6px 6px 0;
+  border-radius: 0;
 }
 
 .step-btn:hover:not(:disabled) {
@@ -405,7 +405,7 @@ function onModifierInput(id: keyof PatternModifierValues, value: number) {
 
 .pattern-item {
   border: 1px solid #21262d;
-  border-radius: 8px;
+  border-radius: 0;
 }
 
 .pattern-item.selected {
