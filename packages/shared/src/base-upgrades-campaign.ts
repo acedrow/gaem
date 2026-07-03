@@ -212,12 +212,16 @@ export function applyBaseCampaignAction(state: GameState, action: BaseCampaignAc
     case "demolish": {
       const constructedSet = new Set(constructed);
       const toRemove = getDependentConstructedIds(constructedSet, action.upgradeId);
-      const parts: string[] = [];
+      const logOrder = [action.upgradeId, ...toRemove.filter((id) => id !== action.upgradeId)];
       for (const id of toRemove) {
         const upgrade = getBaseUpgradeById(id)!;
         refundCost(resources, upgrade.cost);
         const idx = constructed.indexOf(id);
         if (idx >= 0) constructed.splice(idx, 1);
+      }
+      const parts: string[] = [];
+      for (const id of logOrder) {
+        const upgrade = getBaseUpgradeById(id)!;
         const costStr = formatCostDelta(upgrade.cost, "+");
         const prefix = id === action.upgradeId ? "Demolished" : "also demolished";
         parts.push(`${prefix} ${upgrade.name}${costStr ? ` (${costStr})` : ""}`);
