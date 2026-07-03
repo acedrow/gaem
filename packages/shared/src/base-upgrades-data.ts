@@ -35,4 +35,4 @@ export function getBaseUpgradeById(id: string): BaseUpgrade | undefined {
 }
 
 export const BASE_UPGRADE_CARD_WIDTH = 280;
-export const BASE_UPGRADE_CARD_HEIGHT = 320;
+export const BASE_UPGRADE_CARD_HEIGHT = 400;

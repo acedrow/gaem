@@ -217,7 +217,7 @@ function visibleOptions(upgrade: BaseUpgrade) {
 }
 
 .upgrade-card-header {
-  padding: 0.65rem 0.75rem;
+  padding: 0.85rem 0.85rem;
   border-bottom: 1px solid var(--color-border);
   background: var(--color-surface);
 }
@@ -225,11 +225,11 @@ function visibleOptions(upgrade: BaseUpgrade) {
 .upgrade-card-title {
   margin: 0;
   font-family: var(--font-heading);
-  font-size: 0.82rem;
+  font-size: 1.6rem;
   font-weight: 500;
-  letter-spacing: 0.04rem;
-  line-height: 1.25;
+  line-height: 1.3;
   color: var(--color-text);
+  letter-spacing: 0.05rem;
 }
 
 .upgrade-costs {

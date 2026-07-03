@@ -4,7 +4,7 @@
     "name": "Archontic Longinomechanical Pneuma-Engineering Bay",
     "flavor": "We scaled the walls of Ogdoad and devoured the knowledge therein and by their own hands crafted a new sun that illuminated the lands of Heaven in an earthly light.",
     "cost": { "soulfire": 1 },
-    "prerequisites": ["pronoia-arms-modification"],
+    "prerequisites": ["pronoia-arms-modification", "synthetic-spinther-manufacturing"],
     "primaryUnlock": "Unlocks HALO units for deployment and unlocks the following options:",
     "options": {
       "weapons": ["Regrettable Precaution"],
@@ -14,7 +14,7 @@
       "gear": [],
       "haloSystems": []
     },
-    "layout": { "x": 80, "y": 380 }
+    "layout": { "x": 80, "y": 600 }
   },
   {
     "id": "ancilia-tactical-production",
@@ -57,7 +57,7 @@
       ],
       "haloSystems": []
     },
-    "layout": { "x": 0, "y": 0 }
+    "layout": { "x": -30, "y": 0 }
   },
   {
     "id": "aponoia-expedited-enlightenment",
@@ -91,7 +91,7 @@
       "gear": [],
       "haloSystems": ["Emergency Bythos Shunt"]
     },
-    "layout": { "x": 360, "y": 760 }
+    "layout": { "x": 280, "y": 1100 }
   },
   {
     "id": "choic-spatial-manipulation",
@@ -125,7 +125,7 @@
       "gear": [],
       "haloSystems": ["Katagnosis Plating"]
     },
-    "layout": { "x": 1400, "y": 380 }
+    "layout": { "x": 1400, "y": 520 }
   },
   {
     "id": "agnoia-triumph-chamber",
@@ -142,14 +142,14 @@
       "gear": ["Weighted Push (Armor)", "Leviathan-Eyed Consecration Protocol (Weapon)"],
       "haloSystems": []
     },
-    "layout": { "x": 1700, "y": 760 }
+    "layout": { "x": 1700, "y": 1040 }
   },
   {
     "id": "hebdomas-aerial-support",
     "name": "HEBDOMAS Aerial Support Wing",
     "flavor": "Forgotten Sophia rose in the sky and covered the world with her body and held together the cracks of the world and her love suffused the world and took upon herself the 148 Suffering.",
     "cost": { "soulfire": 2, "brimstone": 2 },
-    "prerequisites": ["ancilia-tactical-production"],
+    "prerequisites": [],
     "primaryUnlock": "Unlocks the Off-Grid Munitions Support and unlocks the following options:",
     "options": {
       "weapons": ["Paradigm-Shattering Cauldron"],
@@ -159,14 +159,14 @@
       "gear": [],
       "haloSystems": ["HALO Unit Multi-Systems Array", "AEIDIS Combat Drop Protocols"]
     },
-    "layout": { "x": 640, "y": 380 }
+    "layout": { "x": 480, "y": 600 }
   },
   {
     "id": "eros-management-vault",
     "name": "EROS Management Vault Systems",
     "flavor": "But there laid in silence a final hidden place, abandoned by the archons and forgotten by all the eyes of all the worlds. Humanity's lost children wept and their cries echoed through the halls of Apocryphon and so began the Great Mourning.",
     "cost": { "soulfire": 4, "brimstone": 3 },
-    "prerequisites": ["choic-spatial-manipulation"],
+    "prerequisites": ["choic-spatial-manipulation", "ancilia-tactical-production"],
     "primaryUnlock": "Unlocks Legendary Arms and unlocks the following options:",
     "options": {
       "weapons": ["Longinus Driver"],
@@ -176,7 +176,7 @@
       "gear": ["Weapon Link (Weapon)", "Ablative Pseudo-Soul (Armor)"],
       "haloSystems": []
     },
-    "layout": { "x": 1100, "y": 760 }
+    "layout": { "x": 1100, "y": 1040 }
   },
   {
     "id": "gnostic-synthesis-chamber",
@@ -193,14 +193,14 @@
       "gear": [],
       "haloSystems": []
     },
-    "layout": { "x": 1700, "y": 380 }
+    "layout": { "x": 1700, "y": 520 }
   },
   {
     "id": "synthetic-spinther-manufacturing",
     "name": "Synthetic Spinther Manufacturing Lab",
     "flavor": "With the lens of final truth Humanity peered into the void and saw golden pathways illuminated by their own forgotten flesh and they followed them to Valentia, the unassailed fortress of the Archons.",
     "cost": { "brimstone": 4, "soulfire": 5 },
-    "prerequisites": ["hebdomas-aerial-support"],
+    "prerequisites": [],
     "primaryUnlock": "Unlocks Vehicles for deployment and unlocks the following options:",
     "options": {
       "weapons": ["Catalytic-Actuated Positron Rifle"],
@@ -210,7 +210,7 @@
       "gear": [],
       "haloSystems": []
     },
-    "layout": { "x": 640, "y": 760 }
+    "layout": { "x": 320, "y": 0 }
   },
   {
     "id": "ignorance-devouring-anchor",
