@@ -14,7 +14,7 @@ const persisted = readPersistedUi();
 const boardSelection = ref<BoardSelection | null>(persisted.boardSelection);
 
 export function useBoardSelection() {
-  const { selectSheet } = useCharacterSheetSelection();
+  const { selectSheet, cancelGearPick, gearPick } = useCharacterSheetSelection();
   const { gameState } = useGameState();
   const { clearDataCategory, dataCategory, dataFocus } = useInfoDataSelection();
 
@@ -27,6 +27,10 @@ export function useBoardSelection() {
   }
 
   function closeRightPanel() {
+    if (gearPick.value) {
+      cancelGearPick();
+      return;
+    }
     if (boardSelection.value) clearBoardSelection();
     else if (dataCategory.value || dataFocus.value) clearDataCategory();
     else selectSheet(null);

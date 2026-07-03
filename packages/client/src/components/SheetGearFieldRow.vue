@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { PlayerArmor, PlayerClass, PlayerWeapon } from "@gaem/shared";
-import { nextTick, ref } from "vue";
+import { ref } from "vue";
 
 import PlayerItemDetail from "./PlayerItemDetail.vue";
 import RuleText from "./RuleText.vue";
@@ -10,7 +10,6 @@ defineProps<{
   value: string;
   kind: "classes" | "armor" | "weapons";
   item: PlayerClass | PlayerArmor | PlayerWeapon | undefined;
-  editing: boolean;
   canEdit?: boolean;
 }>();
 
@@ -19,55 +18,44 @@ const emit = defineEmits<{
 }>();
 
 const detailOpen = ref(false);
-const fieldInputEl = ref<HTMLInputElement | HTMLSelectElement | null>(null);
-
-async function onStartEdit() {
-  emit("startEdit");
-  await nextTick();
-  fieldInputEl.value?.focus();
-  if (fieldInputEl.value instanceof HTMLInputElement) fieldInputEl.value.select();
-}
 
 function toggleDetail() {
   detailOpen.value = !detailOpen.value;
 }
-
-defineExpose({ fieldInputEl });
 </script>
 
 <template>
   <div class="gear-field">
     <div class="field-row">
-      <template v-if="!editing">
-        <span class="field-label">{{ label }}:</span>
-        <span class="field-value">{{ value || "—" }}</span>
-        <button
-          v-if="item"
-          type="button"
-          class="detail-toggle"
-          :aria-expanded="detailOpen"
-          :aria-label="`${detailOpen ? 'Hide' : 'Show'} ${label.toLowerCase()} details`"
-          @click="toggleDetail"
-        >
-          <span class="chevron" aria-hidden="true">{{ detailOpen ? "▾" : "▸" }}</span>
-        </button>
-        <button
-          v-if="canEdit"
-          type="button"
-          class="edit-btn"
-          :aria-label="`Edit ${label.toLowerCase()}`"
-          @click="onStartEdit"
-        >
-          <slot name="edit-icon" />
-        </button>
-      </template>
-      <template v-else>
-        <span class="field-label">{{ label }}:</span>
-        <slot name="input" :input-el="fieldInputEl" />
-      </template>
+      <span class="field-label">{{ label }}:</span>
+      <span class="field-value">{{ value || "—" }}</span>
+      <button
+        v-if="item"
+        type="button"
+        class="detail-toggle"
+        :aria-expanded="detailOpen"
+        :aria-label="`${detailOpen ? 'Hide' : 'Show'} ${label.toLowerCase()} details`"
+        @click="toggleDetail"
+      >
+        <span class="chevron" aria-hidden="true">{{ detailOpen ? "▾" : "▸" }}</span>
+      </button>
+      <button
+        v-if="canEdit"
+        type="button"
+        class="edit-btn"
+        :aria-label="`Change ${label.toLowerCase()}`"
+        @click="emit('startEdit')"
+      >
+        <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+          <path
+            d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.387 8.387L2.5 14.5l1.126-3.666 8.387-8.387z"
+            fill="currentColor"
+          />
+        </svg>
+      </button>
     </div>
 
-    <div v-if="!editing && detailOpen && item" class="field-detail">
+    <div v-if="detailOpen && item" class="field-detail">
       <p v-if="'summary' in item && item.summary" class="item-summary">{{ item.summary }}</p>
       <p v-if="item.description" class="item-description">
         <RuleText :text="item.description" />
@@ -149,10 +137,9 @@ defineExpose({ fieldInputEl });
   background: var(--color-surface);
 }
 
-:deep(.edit-btn .icon) {
+.edit-btn .icon {
   width: 0.75rem;
   height: 0.75rem;
-  fill: currentColor;
 }
 
 .field-detail {
@@ -170,17 +157,5 @@ defineExpose({ fieldInputEl });
   margin: 0 0 0.4rem;
   font-weight: 600;
   color: var(--color-text);
-}
-
-:deep(.field-input) {
-  flex: 1;
-  min-width: 0;
-  border: 1px solid var(--color-accent-muted);
-  border-radius: 0;
-  background: var(--color-bg);
-  color: var(--color-text);
-  padding: 0.2rem 0.45rem;
-  font: inherit;
-  font-size: 0.9rem;
 }
 </style>

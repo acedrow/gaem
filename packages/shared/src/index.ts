@@ -10,6 +10,7 @@ export * from "./enemy-data.js";
 export * from "./pattern-data.js";
 export * from "./effects-data.js";
 export * from "./base-upgrades-data.js";
+export * from "./base-upgrades-campaign.js";
 export * from "./patterns.js";
 export * from "./rule-text.js";
 export * from "./weapon-patterns.js";

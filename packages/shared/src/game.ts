@@ -829,6 +829,12 @@ export function normalizeGameState(state: GameState, map?: GameMap): GameState {
   if (state.showReversals === undefined) {
     state.showReversals = true;
   }
+  if (!state.partyResources) {
+    state.partyResources = { hellsteel: 0, soulfire: 0, brimstone: 0 };
+  }
+  if (!state.constructedBaseUpgrades) {
+    state.constructedBaseUpgrades = [];
+  }
   if (!state.combat && state.roundPhase !== "deployment") {
     state.combat = createDefaultCombatState(state.players.length);
   }

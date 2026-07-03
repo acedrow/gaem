@@ -1,18 +1,40 @@
-import { ref } from "vue";
+import type { CharacterSheet } from "@gaem/shared";
+import { computed, ref } from "vue";
 
 import { readPersistedUi } from "./uiPersist.js";
+import { useApi } from "./useApi.js";
 import { activeTab } from "./useGameConsole.js";
+import { useGameState } from "./useGameState.js";
 import { useInfoDataSelection } from "./useInfoDataSelection.js";
+
+export type GearField = "class" | "armor" | "weapon";
+
+export type GearPick = {
+  sheetId: string;
+  field: GearField;
+  currentValue: string;
+};
 
 const persisted = readPersistedUi();
 const selectedSheetId = ref<string | null>(persisted.selectedSheetId);
 const sheetsExpanded = ref(persisted.sheetsExpanded);
 const sheetsVersion = ref(0);
+const gearPick = ref<GearPick | null>(null);
 
 export function useCharacterSheetSelection() {
+  const { apiFetch } = useApi();
+  const { gameState, send } = useGameState();
   const { clearDataCategory } = useInfoDataSelection();
 
+  const gearPickCategory = computed((): "armor" | "classes" | "weapons" | null => {
+    const field = gearPick.value?.field;
+    if (!field) return null;
+    if (field === "class") return "classes";
+    return field;
+  });
+
   function selectSheet(id: string | null) {
+    gearPick.value = null;
     if (id) clearDataCategory();
     selectedSheetId.value = id;
     if (id) {
@@ -24,11 +46,60 @@ export function useCharacterSheetSelection() {
     sheetsVersion.value++;
   }
 
+  function cancelGearPick() {
+    gearPick.value = null;
+  }
+
+  function startGearPick(sheetId: string, field: GearField, currentValue: string) {
+    clearDataCategory();
+    gearPick.value = { sheetId, field, currentValue };
+    activeTab.value = "info";
+  }
+
+  async function equipGear(name: string): Promise<string | null> {
+    const pick = gearPick.value;
+    if (!pick) return null;
+    try {
+      const res = await apiFetch(`/api/character-sheets/${pick.sheetId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [pick.field]: name }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        return data?.error ?? "Failed to save";
+      }
+      const data = (await res.json()) as { sheet: CharacterSheet };
+      const boardPlayer = gameState.value?.players.find(
+        (p) => p.characterSheetId === pick.sheetId,
+      );
+      if (boardPlayer) {
+        send({
+          type: "syncPlayerSheet",
+          characterSheetId: pick.sheetId,
+          class: data.sheet.class,
+          armor: data.sheet.armor,
+          weapon: data.sheet.weapon,
+        });
+      }
+      notifySheetsChanged();
+      gearPick.value = null;
+      return null;
+    } catch {
+      return "Unable to save";
+    }
+  }
+
   return {
     selectedSheetId,
     sheetsExpanded,
     sheetsVersion,
+    gearPick,
+    gearPickCategory,
     selectSheet,
     notifySheetsChanged,
+    cancelGearPick,
+    startGearPick,
+    equipGear,
   };
 }

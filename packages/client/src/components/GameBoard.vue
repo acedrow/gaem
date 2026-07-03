@@ -1214,7 +1214,7 @@ onUnmounted(() => {
           <span class="damage-indicator-text">-{{ indicator.amount }}</span>
         </div>
       </div>
-      <button v-if="isTransformed" class="reset-zoom-btn" type="button" @click="fitToView">
+      <button v-if="isTransformed" class="reset-zoom-btn" type="button" @click="fitToView(true)">
         Reset zoom
       </button>
     </div>

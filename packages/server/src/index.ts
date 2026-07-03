@@ -20,6 +20,7 @@ import {
   applyEnemyMove,
   applyMove,
   applyPhaseAction,
+  applyBaseCampaignAction,
   characterTargetLabel,
   CONSOLE_MSG_CONNECTED,
   CONSOLE_MSG_DISCONNECTED,
@@ -37,6 +38,7 @@ import {
   validateEnemyMove,
   validateMove,
   validatePhaseAction,
+  validateBaseCampaignAction,
 } from "@gaem/shared";
 import express from "express";
 import { WebSocketServer, type WebSocket } from "ws";
@@ -558,6 +560,22 @@ wss.on("connection", (ws: WebSocket) => {
         return;
       }
       const message = applyPhaseAction(gameState, parsed.action, ctx);
+      broadcastConsole(actorForSocket(ws), message);
+      broadcastState();
+      return;
+    }
+
+    if (parsed.type === "baseCampaignAction") {
+      if (!role) {
+        sendError(ws, "Not joined");
+        return;
+      }
+      const err = validateBaseCampaignAction(gameState, parsed.action);
+      if (err) {
+        sendError(ws, err);
+        return;
+      }
+      const message = applyBaseCampaignAction(gameState, parsed.action);
       broadcastConsole(actorForSocket(ws), message);
       broadcastState();
       return;

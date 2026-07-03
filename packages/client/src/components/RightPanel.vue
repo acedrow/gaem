@@ -16,11 +16,12 @@ import InfoSearchPanel from "./InfoSearchPanel.vue";
 import PlayerBoardPanel from "./PlayerBoardPanel.vue";
 import PlayerDataPanel from "./PlayerDataPanel.vue";
 import ParacletusEnemiesPanel from "./ParacletusEnemiesPanel.vue";
+import PartyResourcesPanel from "./PartyResourcesPanel.vue";
 import PatternsPanel from "./PatternsPanel.vue";
 import SettingsPanel from "./SettingsPanel.vue";
 import TurnOrderPanel from "./TurnOrderPanel.vue";
 
-const { selectedSheetId } = useCharacterSheetSelection();
+const { selectedSheetId, gearPickCategory } = useCharacterSheetSelection();
 const { boardSelection } = useBoardSelection();
 const { dataCategory, dataFocus, dataFocusReturnCategory } = useInfoDataSelection();
 const { gameState } = useGameState();
@@ -138,6 +139,15 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
           <EffectsPanel
             v-else-if="dataCategory === 'effects'"
             key="effects"
+          />
+          <PartyResourcesPanel
+            v-else-if="dataCategory === 'resources'"
+            key="resources"
+          />
+          <PlayerDataPanel
+            v-else-if="gearPickCategory"
+            :key="`pick-${gearPickCategory}`"
+            :category="gearPickCategory"
           />
           <PlayerDataPanel
             v-else-if="dataCategory === 'armor' || dataCategory === 'classes' || dataCategory === 'weapons'"

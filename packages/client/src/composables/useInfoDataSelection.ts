@@ -4,7 +4,7 @@ import { readPersistedUi } from "./uiPersist.js";
 import { useEnemySpawnSelection } from "./useEnemySpawnSelection.js";
 import { usePatternSelection } from "./usePatternSelection.js";
 
-export type DataCategory = "armor" | "classes" | "weapons" | "effects" | "patterns" | "paracletus";
+export type DataCategory = "armor" | "classes" | "weapons" | "resources" | "effects" | "patterns" | "paracletus";
 export type DataFocusKind = DataCategory | "enemy";
 
 export type DataFocus = {

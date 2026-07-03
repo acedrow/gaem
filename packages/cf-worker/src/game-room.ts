@@ -5,6 +5,7 @@ import {
   applyEnemyMove,
   applyMove,
   applyPhaseAction,
+  applyBaseCampaignAction,
   characterTargetLabel,
   CONSOLE_MSG_CONNECTED,
   CONSOLE_MSG_DISCONNECTED,
@@ -21,6 +22,7 @@ import {
   validateEnemyMove,
   validateMove,
   validatePhaseAction,
+  validateBaseCampaignAction,
 } from "@gaem/shared";
 
 import type { Env } from "./env.js";
@@ -372,6 +374,23 @@ export class GameRoom {
         return;
       }
       const message = applyPhaseAction(this.gameState, parsed.action, ctx);
+      const actor = await this.actorForSocket(ws);
+      await this.broadcastConsole(actor, message);
+      await this.broadcastState();
+      return;
+    }
+
+    if (parsed.type === "baseCampaignAction") {
+      if (!att?.role) {
+        this.sendError(ws, "Not joined");
+        return;
+      }
+      const err = validateBaseCampaignAction(this.gameState, parsed.action);
+      if (err) {
+        this.sendError(ws, err);
+        return;
+      }
+      const message = applyBaseCampaignAction(this.gameState, parsed.action);
       const actor = await this.actorForSocket(ws);
       await this.broadcastConsole(actor, message);
       await this.broadcastState();

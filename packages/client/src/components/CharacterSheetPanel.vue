@@ -5,9 +5,6 @@ import {
   getClassByName,
   getClassMaxHp,
   getWeaponByName,
-  PLAYER_ARMOR,
-  PLAYER_CLASSES,
-  PLAYER_WEAPONS,
 } from "@gaem/shared";
 import { computed, nextTick, onUnmounted, ref, watch } from "vue";
 
@@ -21,14 +18,14 @@ import { useGameState } from "../composables/useGameState.js";
 import { useSession } from "../composables/useSession.js";
 
 type PlayerProfileOption = PlayerProfile & { isActive?: boolean };
-type EditableField = "name" | "class" | "armor" | "weapon" | "player";
+type EditableField = "name" | "player";
 
 const props = defineProps<{ sheetId: string }>();
 
 const { apiFetch, fetchPortraitUrl, fetchPlayerProfiles } = useApi();
 const { role, playerProfile } = useSession();
 const { gameState, send } = useGameState();
-const { selectSheet, notifySheetsChanged } = useCharacterSheetSelection();
+const { selectSheet, notifySheetsChanged, startGearPick, gearPick } = useCharacterSheetSelection();
 const { closeRightPanel } = useBoardSelection();
 
 const sheet = ref<CharacterSheet | null>(null);
@@ -49,9 +46,6 @@ const form = ref({
 });
 const editingField = ref<EditableField | null>(null);
 const fieldInputEl = ref<HTMLInputElement | HTMLSelectElement | null>(null);
-const classFieldEl = ref<InstanceType<typeof SheetGearFieldRow> | null>(null);
-const armorFieldEl = ref<InstanceType<typeof SheetGearFieldRow> | null>(null);
-const weaponFieldEl = ref<InstanceType<typeof SheetGearFieldRow> | null>(null);
 
 const canEdit = computed(() => {
   if (!sheet.value) return false;
@@ -168,17 +162,14 @@ function startFieldEdit(field: EditableField) {
   if (!canEdit.value) return;
   editingField.value = field;
   nextTick(() => {
-    const el =
-      field === "class"
-        ? classFieldEl.value?.fieldInputEl
-        : field === "armor"
-          ? armorFieldEl.value?.fieldInputEl
-          : field === "weapon"
-            ? weaponFieldEl.value?.fieldInputEl
-            : fieldInputEl.value;
-    el?.focus();
-    if (el instanceof HTMLInputElement) el.select();
+    fieldInputEl.value?.focus();
+    if (fieldInputEl.value instanceof HTMLInputElement) fieldInputEl.value.select();
   });
+}
+
+function startGearFieldEdit(field: "class" | "armor" | "weapon") {
+  if (!canEdit.value || !sheet.value) return;
+  startGearPick(props.sheetId, field, form.value[field]);
 }
 
 async function commitFieldEdit() {
@@ -254,6 +245,10 @@ watch(
   },
   { immediate: true }
 );
+
+watch(gearPick, (pick, prev) => {
+  if (prev && !pick) loadSheet();
+});
 
 onUnmounted(() => {
   if (portraitUrl.value) URL.revokeObjectURL(portraitUrl.value);
@@ -370,97 +365,31 @@ onUnmounted(() => {
           </div>
 
           <SheetGearFieldRow
-            ref="classFieldEl"
             label="Class"
             :value="form.class"
             kind="classes"
             :item="selectedClass"
-            :editing="editingField === 'class'"
             :can-edit="canEdit"
-            @start-edit="startFieldEdit('class')"
-          >
-            <template #edit-icon>
-              <svg class="icon"><use href="#icon-pencil" /></svg>
-            </template>
-            <template #input="{ inputEl }">
-              <select
-                :ref="inputEl"
-                v-model="form.class"
-                class="field-input"
-                required
-                @change="commitFieldEdit"
-                @blur="commitFieldEdit"
-                @keydown.esc.prevent="cancelFieldEdit"
-              >
-                <option value="" disabled>Select class</option>
-                <option v-for="c in PLAYER_CLASSES" :key="c.name" :value="c.name">
-                  {{ c.name }}
-                </option>
-              </select>
-            </template>
-          </SheetGearFieldRow>
+            @start-edit="startGearFieldEdit('class')"
+          />
 
           <SheetGearFieldRow
-            ref="armorFieldEl"
             label="Armor"
             :value="form.armor"
             kind="armor"
             :item="selectedArmor"
-            :editing="editingField === 'armor'"
             :can-edit="canEdit"
-            @start-edit="startFieldEdit('armor')"
-          >
-            <template #edit-icon>
-              <svg class="icon"><use href="#icon-pencil" /></svg>
-            </template>
-            <template #input="{ inputEl }">
-              <select
-                :ref="inputEl"
-                v-model="form.armor"
-                class="field-input"
-                required
-                @change="commitFieldEdit"
-                @blur="commitFieldEdit"
-                @keydown.esc.prevent="cancelFieldEdit"
-              >
-                <option value="" disabled>Select armor</option>
-                <option v-for="a in PLAYER_ARMOR" :key="a.name" :value="a.name">
-                  {{ a.name }}
-                </option>
-              </select>
-            </template>
-          </SheetGearFieldRow>
+            @start-edit="startGearFieldEdit('armor')"
+          />
 
           <SheetGearFieldRow
-            ref="weaponFieldEl"
             label="Weapon"
             :value="form.weapon"
             kind="weapons"
             :item="selectedWeapon"
-            :editing="editingField === 'weapon'"
             :can-edit="canEdit"
-            @start-edit="startFieldEdit('weapon')"
-          >
-            <template #edit-icon>
-              <svg class="icon"><use href="#icon-pencil" /></svg>
-            </template>
-            <template #input="{ inputEl }">
-              <select
-                :ref="inputEl"
-                v-model="form.weapon"
-                class="field-input"
-                required
-                @change="commitFieldEdit"
-                @blur="commitFieldEdit"
-                @keydown.esc.prevent="cancelFieldEdit"
-              >
-                <option value="" disabled>Select weapon</option>
-                <option v-for="w in PLAYER_WEAPONS" :key="w.name" :value="w.name">
-                  {{ w.name }}
-                </option>
-              </select>
-            </template>
-          </SheetGearFieldRow>
+            @start-edit="startGearFieldEdit('weapon')"
+          />
         </div>
       </div>
     </div>

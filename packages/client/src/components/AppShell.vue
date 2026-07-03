@@ -23,9 +23,10 @@ import SideNav from "./SideNav.vue";
 
 const router = useRouter();
 const { role, playerProfile, clearSession } = useSession();
-const { selectedSheetId, sheetsExpanded } = useCharacterSheetSelection();
-const { boardSelection, selectBoardPlayer } = useBoardSelection();
-const { dataCategory, dataFocus, dataFocusReturnCategory, dataExpanded } = useInfoDataSelection();
+const { selectedSheetId, sheetsExpanded, selectSheet } = useCharacterSheetSelection();
+const { boardSelection, selectBoardPlayer, clearBoardSelection, selectSheetFromNav } = useBoardSelection();
+const { dataCategory, dataFocus, dataFocusReturnCategory, dataExpanded, clearDataCategory, selectDataCategory } =
+  useInfoDataSelection();
 const { connection } = useGameConnection();
 const { gameState, yourPlayerId, send } = useGameState();
 
@@ -42,9 +43,16 @@ onMounted(() => {
     dataExpanded,
     gameState,
   });
+  if (activeMainTab.value === "baseUpgrades") {
+    openResourcesPanel();
+  }
 });
 
 const mapName = computed(() => gameState.value?.mapName ?? gameState.value?.mapId ?? null);
+
+const centerHeaderTitle = computed(() =>
+  activeMainTab.value === "baseUpgrades" ? "Base Upgrades" : mapName.value,
+);
 
 const roundStatus = computed(() => {
   const s = gameState.value;
@@ -110,8 +118,36 @@ function onPhaseAction() {
   send({ type: "phaseAction", action });
 }
 
+function openResourcesPanel() {
+  clearBoardSelection();
+  selectSheet(null);
+  selectDataCategory("resources");
+  activeTab.value = "info";
+}
+
+function openTaccomInfoPanel() {
+  if (role.value === "gm") {
+    clearBoardSelection();
+    selectSheet(null);
+    clearDataCategory();
+    activeTab.value = "info";
+    return;
+  }
+  if (role.value === "player" && yourPlayerId.value) {
+    const player = gameState.value?.players.find((p) => p.id === yourPlayerId.value);
+    if (player?.characterSheetId) {
+      selectSheetFromNav(player.characterSheetId);
+    }
+  }
+}
+
 function selectMainTab(tab: "taccom" | "baseUpgrades") {
   activeMainTab.value = tab;
+  if (tab === "baseUpgrades") {
+    openResourcesPanel();
+  } else {
+    openTaccomInfoPanel();
+  }
 }
 
 function onOverworldClick() {
@@ -203,12 +239,12 @@ function onOverworldClick() {
             </svg>
           </button>
         </div>
-        <h1 class="map-title">{{ mapName }}</h1>
-        <p v-if="roundStatus" class="round-status">
+        <h1 class="map-title">{{ centerHeaderTitle }}</h1>
+        <p v-if="activeMainTab === 'taccom' && roundStatus" class="round-status">
           Round {{ roundStatus.round }} · {{ roundStatus.phase }} · {{ roundStatus.turn }}
         </p>
         <button
-          v-if="phaseAction"
+          v-if="activeMainTab === 'taccom' && phaseAction"
           class="phase-action-btn"
           type="button"
           @click="onPhaseAction"

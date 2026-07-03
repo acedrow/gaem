@@ -113,7 +113,7 @@ async function createSheet() {
 
 watch(sheetsExpanded, (expanded) => {
   if (expanded && sheets.value.length === 0 && !loading.value) loadSheets();
-});
+}, { immediate: true });
 
 watch(sheetsVersion, () => {
   if (sheetsExpanded.value) loadSheets();
@@ -172,6 +172,14 @@ watch(sheetsVersion, () => {
         @click="onSelectData('weapons')"
       >
         <span class="sheet-name">Weapons</span>
+      </button>
+      <button
+        class="sheet-item"
+        :class="{ selected: dataCategory === 'resources' }"
+        type="button"
+        @click="onSelectData('resources')"
+      >
+        <span class="sheet-name">Resources</span>
       </button>
       <button
         class="sheet-item"

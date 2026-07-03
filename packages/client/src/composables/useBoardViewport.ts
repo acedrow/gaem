@@ -6,6 +6,7 @@ import { readPersistedViewport, writePersistedViewport } from "./uiPersist.js";
 const CONTENT_PAD = 0;
 const ZOOM_MAX_FACTOR = 4;
 const PAN_MIN_VISIBLE_FRACTION = 0.2;
+const FOCUS_ANIM_MS = 350;
 
 function clampPanAxis(pan: number, scaledSize: number, viewportSize: number): number {
   const minVisible = Math.min(
@@ -28,10 +29,12 @@ export function useBoardViewport(
   const fitScale = ref(1);
   const fitPanX = ref(0);
   const fitPanY = ref(0);
+  const stageAnimating = ref(false);
 
   const stageStyle = computed(() => ({
     transform: `translate(${panX.value}px, ${panY.value}px) scale(${scale.value})`,
     "--board-scale": String(scale.value),
+    ...(stageAnimating.value ? { transition: `transform ${FOCUS_ANIM_MS}ms ease-out` } : {}),
   }));
 
   const isTransformed = computed(
@@ -84,18 +87,65 @@ export function useBoardViewport(
     panY.value = clampPanAxis(panY.value, scaledH, el.clientHeight);
   }
 
-  function fitToView() {
+  function fitToView(animate = false) {
     const el = viewportEl.value;
     const size = el ? viewportSize(el) : null;
     if (!el || !size || !isReady.value) return;
     const fit = computeFitTransform(size.vw, size.vh);
-    scale.value = fit.scale;
-    panX.value = fit.panX;
-    panY.value = fit.panY;
     fitScale.value = fit.scale;
     fitPanX.value = fit.panX;
     fitPanY.value = fit.panY;
+    if (animate) {
+      animateViewportTo(fit.scale, fit.panX, fit.panY);
+      return;
+    }
+    cancelStageAnimation();
+    scale.value = fit.scale;
+    panX.value = fit.panX;
+    panY.value = fit.panY;
     persistViewport();
+  }
+
+  let stageAnimTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function cancelStageAnimation() {
+    if (stageAnimTimer) clearTimeout(stageAnimTimer);
+    stageAnimTimer = null;
+    stageAnimating.value = false;
+  }
+
+  function animateViewportTo(nextScale: number, nextPanX: number, nextPanY: number) {
+    cancelStageAnimation();
+    stageAnimating.value = true;
+    requestAnimationFrame(() => {
+      scale.value = nextScale;
+      panX.value = nextPanX;
+      panY.value = nextPanY;
+      persistViewport();
+      stageAnimTimer = setTimeout(() => {
+        stageAnimating.value = false;
+        stageAnimTimer = null;
+      }, FOCUS_ANIM_MS);
+    });
+  }
+
+  function focusOnRect(contentX: number, contentY: number, contentW: number, contentH: number, padding = 48) {
+    const el = viewportEl.value;
+    const size = el ? viewportSize(el) : null;
+    if (!el || !size || !isReady.value) return;
+    updateFitState();
+    const maxS = fitScale.value * ZOOM_MAX_FACTOR;
+    const availW = Math.max(1, size.vw - padding * 2);
+    const availH = Math.max(1, size.vh - padding * 2);
+    const nextScale = Math.min(maxS, Math.min(availW / contentW, availH / contentH));
+    const cx = contentX + contentW / 2;
+    const cy = contentY + contentH / 2;
+    let nextPanX = size.vw / 2 - cx * nextScale;
+    let nextPanY = size.vh / 2 - cy * nextScale;
+    const { w, h } = getContentSize();
+    nextPanX = clampPanAxis(nextPanX, w * nextScale, el.clientWidth);
+    nextPanY = clampPanAxis(nextPanY, h * nextScale, el.clientHeight);
+    animateViewportTo(nextScale, nextPanX, nextPanY);
   }
 
   function restoreOrFit() {
@@ -187,6 +237,7 @@ export function useBoardViewport(
 
   function onWheel(e: WheelEvent) {
     if (!viewportEl.value) return;
+    cancelStageAnimation();
     e.preventDefault();
 
     if (e.ctrlKey || e.metaKey) {
@@ -213,6 +264,7 @@ export function useBoardViewport(
   }
 
   function disconnect() {
+    cancelStageAnimation();
     if (wheelFrame) cancelAnimationFrame(wheelFrame);
     if (resizeFrame) cancelAnimationFrame(resizeFrame);
     if (persistTimer) clearTimeout(persistTimer);
@@ -235,6 +287,7 @@ export function useBoardViewport(
     stageStyle,
     isTransformed,
     fitToView,
+    focusOnRect,
     restoreOrFit,
     onWheel,
     observeViewport,

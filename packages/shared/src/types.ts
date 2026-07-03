@@ -119,6 +119,15 @@ export type DamageEvent = {
   amount: number;
 };
 
+export type PartyResourceKey = "hellsteel" | "soulfire" | "brimstone";
+
+export type PartyResources = Record<PartyResourceKey, number>;
+
+export type BaseCampaignAction =
+  | { kind: "construct"; upgradeId: string }
+  | { kind: "demolish"; upgradeId: string }
+  | { kind: "adjustResource"; resource: PartyResourceKey; delta: number };
+
 export type GameState = {
   mapId: string;
   mapName: string;
@@ -137,6 +146,8 @@ export type GameState = {
   showReversals?: boolean;
   combat?: CombatState;
   damageEvents?: DamageEvent[];
+  partyResources?: PartyResources;
+  constructedBaseUpgrades?: string[];
 };
 
 /**
@@ -213,4 +224,5 @@ export type ClientMessage =
     }
   | { type: "phaseAction"; action: PhaseAction }
   | { type: "setEnforceTurns"; enforceTurns: boolean }
-  | { type: "setShowReversals"; showReversals: boolean };
+  | { type: "setShowReversals"; showReversals: boolean }
+  | { type: "baseCampaignAction"; action: BaseCampaignAction };
