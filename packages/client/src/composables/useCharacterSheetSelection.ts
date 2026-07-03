@@ -7,7 +7,7 @@ import { activeTab } from "./useGameConsole.js";
 import { useGameState } from "./useGameState.js";
 import { useInfoDataSelection } from "./useInfoDataSelection.js";
 
-export type GearField = "class" | "armor" | "weapon";
+export type GearField = "class" | "armor" | "weapon" | "equipment" | "gear" | "weapon2";
 
 export type GearPick = {
   sheetId: string;
@@ -26,10 +26,11 @@ export function useCharacterSheetSelection() {
   const { gameState, send } = useGameState();
   const { clearDataCategory } = useInfoDataSelection();
 
-  const gearPickCategory = computed((): "armor" | "classes" | "weapons" | null => {
+  const gearPickCategory = computed((): "armor" | "classes" | "weapons" | "equipment" | "gear" | null => {
     const field = gearPick.value?.field;
     if (!field) return null;
     if (field === "class") return "classes";
+    if (field === "weapon" || field === "weapon2") return "weapons";
     return field;
   });
 
@@ -80,6 +81,9 @@ export function useCharacterSheetSelection() {
           class: data.sheet.class,
           armor: data.sheet.armor,
           weapon: data.sheet.weapon,
+          equipment: data.sheet.equipment,
+          gear: data.sheet.gear,
+          weapon2: data.sheet.weapon2,
         });
       }
       notifySheetsChanged();

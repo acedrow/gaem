@@ -191,7 +191,7 @@ app.get("/api/character-sheets", (req, res) => {
 app.post("/api/character-sheets", (req, res) => {
   const auth = parseAuth(req, res);
   if (!auth) return;
-  createSheetHandler(auth, req, res, hasProfile);
+  createSheetHandler(auth, req, res, hasProfile, gameState.constructedBaseUpgrades ?? []);
 });
 
 app.get("/api/character-sheets/:id", (req, res) => {
@@ -207,6 +207,7 @@ app.patch("/api/character-sheets/:id", (req, res) => {
     actor: actorForAuth(auth),
     sheetOnBoard: gameState.players.some((p) => p.characterSheetId === req.params.id),
     logConsole: appendConsole,
+    constructedIds: gameState.constructedBaseUpgrades ?? [],
   });
 });
 
@@ -491,6 +492,9 @@ wss.on("connection", (ws: WebSocket) => {
         parsed.class,
         parsed.armor,
         parsed.weapon,
+        parsed.equipment,
+        parsed.gear,
+        parsed.weapon2,
       );
       if (err) {
         sendError(ws, err);
@@ -513,23 +517,6 @@ wss.on("connection", (ws: WebSocket) => {
       broadcastConsole(
         actorForSocket(ws),
         parsed.enforceTurns ? "Enforce turns enabled" : "Enforce turns disabled",
-      );
-      broadcastState();
-      return;
-    }
-
-    if (parsed.type === "setShowReversals") {
-      if (socketRole.get(ws) !== "gm") {
-        sendError(ws, "Only the game master can do that");
-        return;
-      }
-      gameState.showReversals = parsed.showReversals;
-      if (!parsed.showReversals && gameState.combat) {
-        gameState.combat.pendingReaction = null;
-      }
-      broadcastConsole(
-        actorForSocket(ws),
-        parsed.showReversals ? "Reversals shown" : "Reversals hidden",
       );
       broadcastState();
       return;

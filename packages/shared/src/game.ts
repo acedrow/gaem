@@ -714,6 +714,9 @@ export function syncPlayerSheet(
   className: string,
   armor?: string,
   weapon?: string,
+  equipment?: string,
+  gear?: string,
+  weapon2?: string,
 ): string | null {
   const player = state.players.find((p) => p.characterSheetId === characterSheetId);
   if (!player) return "Player not on board";
@@ -721,6 +724,9 @@ export function syncPlayerSheet(
     className,
     armor: armor ?? player.armor ?? "",
     weapon: weapon ?? player.weapon ?? "",
+    equipment: equipment ?? player.equipment,
+    gear: gear ?? player.gear,
+    weapon2: weapon2 ?? player.weapon2,
   });
   return null;
 }
@@ -825,9 +831,6 @@ export function normalizeGameState(state: GameState, map?: GameMap): GameState {
   }
   if (state.enforceTurns === undefined) {
     state.enforceTurns = true;
-  }
-  if (state.showReversals === undefined) {
-    state.showReversals = true;
   }
   if (!state.partyResources) {
     state.partyResources = { hellsteel: 0, soulfire: 0, brimstone: 0 };

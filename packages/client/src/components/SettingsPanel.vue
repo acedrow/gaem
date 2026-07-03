@@ -1,21 +1,9 @@
 <script setup lang="ts">
-import { computed } from "vue";
-
-import { useGameState } from "../composables/useGameState.js";
 import { usePlayerSettings } from "../composables/usePlayerSettings.js";
-import { useSession } from "../composables/useSession.js";
 import { useTheme } from "../composables/useTheme.js";
 
-const { isGm } = useSession();
-const { gameState, send } = useGameState();
 const { showHealthBars, showConnectionsInConsole } = usePlayerSettings();
 const { theme, themes } = useTheme();
-
-const showReversals = computed(() => gameState.value?.showReversals !== false);
-
-function setShowReversals(value: boolean) {
-  send({ type: "setShowReversals", showReversals: value });
-}
 </script>
 
 <template>
@@ -77,24 +65,6 @@ function setShowReversals(value: boolean) {
           <span class="theme-label">{{ option.label }}</span>
         </button>
       </div>
-
-      <template v-if="isGm">
-        <h3 class="settings-section-heading">GM Settings</h3>
-
-        <label class="setting-row">
-          <span class="setting-label">Show reversals</span>
-          <button
-            type="button"
-            role="switch"
-            class="toggle"
-            :class="{ on: showReversals }"
-            :aria-checked="showReversals"
-            @click="setShowReversals(!showReversals)"
-          >
-            <span class="toggle-thumb" />
-          </button>
-        </label>
-      </template>
     </div>
   </div>
 </template>

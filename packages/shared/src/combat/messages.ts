@@ -1,4 +1,5 @@
 import type { GaemRole, ClientMessage } from "../types.js";
+import { isCampaignFeatureUnlocked } from "../base-upgrades-unlocks.js";
 import type {
   AssistedOutcome,
   GmEnemyAction,
@@ -441,7 +442,7 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
         const target = state.players.find((p) => p.id === action.targetPlayerId);
         const armor = target ? getArmorByName(target.armor ?? "") : undefined;
         if (
-          state.showReversals !== false &&
+          isCampaignFeatureUnlocked("reversals", state.constructedBaseUpgrades ?? []) &&
           target &&
           armor?.reversal &&
           (target.reversalCharges ?? 0) > 0
@@ -565,7 +566,9 @@ export function validateAssistedOutcome(_state: GameState, _outcome: AssistedOut
 export { applyAssistedOutcome };
 
 export function validateTriggerReversal(state: GameState, playerId: string): string | null {
-  if (state.showReversals === false) return "Reversals disabled";
+  if (!isCampaignFeatureUnlocked("reversals", state.constructedBaseUpgrades ?? [])) {
+    return "Reversals disabled";
+  }
   const reaction = state.combat?.pendingReaction;
   if (!reaction || reaction.playerId !== playerId) return "No reversal pending";
   const player = state.players.find((p) => p.id === playerId);
@@ -589,7 +592,9 @@ export function applyTriggerReversal(state: GameState, playerId: string): string
 }
 
 export function validateDeclineReversal(state: GameState, playerId: string): string | null {
-  if (state.showReversals === false) return "Reversals disabled";
+  if (!isCampaignFeatureUnlocked("reversals", state.constructedBaseUpgrades ?? [])) {
+    return "Reversals disabled";
+  }
   const reaction = state.combat?.pendingReaction;
   if (!reaction || reaction.playerId !== playerId) return "No reversal pending";
   return null;

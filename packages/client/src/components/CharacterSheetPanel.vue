@@ -3,8 +3,10 @@ import type { CharacterSheet, PlayerProfile } from "@gaem/shared";
 import {
   getArmorByName,
   getClassByName,
-  getClassMaxHp,
+  getEquipmentByName,
+  getGearByName,
   getWeaponByName,
+  getClassMaxHp,
 } from "@gaem/shared";
 import { computed, nextTick, onUnmounted, ref, watch } from "vue";
 
@@ -13,7 +15,8 @@ import HpBar from "./HpBar.vue";
 import SheetGearFieldRow from "./SheetGearFieldRow.vue";
 import { useApi } from "../composables/useApi.js";
 import { useBoardSelection } from "../composables/useBoardSelection.js";
-import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
+import { useCampaignUnlocks } from "../composables/useCampaignUnlocks.js";
+import { useCharacterSheetSelection, type GearField } from "../composables/useCharacterSheetSelection.js";
 import { useGameState } from "../composables/useGameState.js";
 import { useSession } from "../composables/useSession.js";
 
@@ -27,6 +30,7 @@ const { role, playerProfile } = useSession();
 const { gameState, send } = useGameState();
 const { selectSheet, notifySheetsChanged, startGearPick, gearPick } = useCharacterSheetSelection();
 const { closeRightPanel } = useBoardSelection();
+const { hasEquipmentSlot, hasGearSlot, hasSecondWeaponSlot } = useCampaignUnlocks();
 
 const sheet = ref<CharacterSheet | null>(null);
 const profiles = ref<PlayerProfileOption[]>([]);
@@ -43,6 +47,9 @@ const form = ref({
   class: "",
   armor: "",
   weapon: "",
+  equipment: "",
+  gear: "",
+  weapon2: "",
 });
 const editingField = ref<EditableField | null>(null);
 const fieldInputEl = ref<HTMLInputElement | HTMLSelectElement | null>(null);
@@ -63,6 +70,9 @@ const currentHp = computed(() => boardPlayer.value?.hp ?? 0);
 const selectedClass = computed(() => getClassByName(form.value.class));
 const selectedArmor = computed(() => getArmorByName(form.value.armor));
 const selectedWeapon = computed(() => getWeaponByName(form.value.weapon));
+const selectedEquipment = computed(() => getEquipmentByName(form.value.equipment));
+const selectedGear = computed(() => getGearByName(form.value.gear));
+const selectedWeapon2 = computed(() => getWeaponByName(form.value.weapon2));
 const speed = computed(() => selectedArmor.value?.speed);
 const selectedProfileName = computed(
   () => profiles.value.find((p) => p.id === form.value.player)?.name ?? form.value.player
@@ -96,6 +106,9 @@ async function loadSheet() {
       class: data.sheet.class,
       armor: data.sheet.armor,
       weapon: data.sheet.weapon,
+      equipment: data.sheet.equipment ?? "",
+      gear: data.sheet.gear ?? "",
+      weapon2: data.sheet.weapon2 ?? "",
     };
     await loadPortrait();
   } catch {
@@ -116,6 +129,9 @@ async function saveSheet() {
       class: form.value.class,
       armor: form.value.armor,
       weapon: form.value.weapon,
+      equipment: form.value.equipment,
+      gear: form.value.gear,
+      weapon2: form.value.weapon2,
     };
     if (role.value === "gm") body.player = form.value.player;
 
@@ -132,13 +148,16 @@ async function saveSheet() {
     sheet.value = data.sheet;
     notifySheetsChanged();
     if (boardPlayer.value) {
-      send({
-        type: "syncPlayerSheet",
-        characterSheetId: props.sheetId,
-        class: form.value.class,
-        armor: form.value.armor,
-        weapon: form.value.weapon,
-      });
+        send({
+          type: "syncPlayerSheet",
+          characterSheetId: props.sheetId,
+          class: form.value.class,
+          armor: form.value.armor,
+          weapon: form.value.weapon,
+          equipment: form.value.equipment,
+          gear: form.value.gear,
+          weapon2: form.value.weapon2,
+        });
     }
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Unable to save";
@@ -155,6 +174,9 @@ function resetFormFromSheet() {
     class: sheet.value.class,
     armor: sheet.value.armor,
     weapon: sheet.value.weapon,
+    equipment: sheet.value.equipment ?? "",
+    gear: sheet.value.gear ?? "",
+    weapon2: sheet.value.weapon2 ?? "",
   };
 }
 
@@ -167,7 +189,7 @@ function startFieldEdit(field: EditableField) {
   });
 }
 
-function startGearFieldEdit(field: "class" | "armor" | "weapon") {
+function startGearFieldEdit(field: GearField) {
   if (!canEdit.value || !sheet.value) return;
   startGearPick(props.sheetId, field, form.value[field]);
 }
@@ -389,6 +411,36 @@ onUnmounted(() => {
             :item="selectedWeapon"
             :can-edit="canEdit"
             @start-edit="startGearFieldEdit('weapon')"
+          />
+
+          <SheetGearFieldRow
+            v-if="hasSecondWeaponSlot"
+            label="Weapon 2"
+            :value="form.weapon2"
+            kind="weapons"
+            :item="selectedWeapon2"
+            :can-edit="canEdit"
+            @start-edit="startGearFieldEdit('weapon2')"
+          />
+
+          <SheetGearFieldRow
+            v-if="hasEquipmentSlot"
+            label="Equipment"
+            :value="form.equipment"
+            kind="equipment"
+            :item="selectedEquipment"
+            :can-edit="canEdit"
+            @start-edit="startGearFieldEdit('equipment')"
+          />
+
+          <SheetGearFieldRow
+            v-if="hasGearSlot"
+            label="Gear"
+            :value="form.gear"
+            kind="gear"
+            :item="selectedGear"
+            :can-edit="canEdit"
+            @start-edit="startGearFieldEdit('gear')"
           />
         </div>
       </div>

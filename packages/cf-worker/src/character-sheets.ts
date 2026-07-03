@@ -59,6 +59,14 @@ export function portraitExt(contentType: string): string | null {
   return PORTRAIT_TYPES[contentType] ?? null;
 }
 
+async function getConstructedBaseUpgrades(env: Env): Promise<string[]> {
+  const roomId = env.GAME_ROOM.idFromName("default");
+  const stub = env.GAME_ROOM.get(roomId);
+  const res = await stub.fetch("http://internal/internal/campaign-unlocks");
+  const data = (await res.json()) as { constructedBaseUpgrades: string[] };
+  return data.constructedBaseUpgrades ?? [];
+}
+
 type CreateBody = {
   player?: unknown;
   name?: unknown;
@@ -103,11 +111,15 @@ export async function handleCreateCharacterSheet(
     return Response.json({ error: "Player profile not found" }, { status: 400 });
   }
 
-  const refError = validateCharacterSheetRefs({
-    class: className,
-    armor,
-    weapon,
-  });
+  const constructedIds = await getConstructedBaseUpgrades(env);
+  const refError = validateCharacterSheetRefs(
+    {
+      class: className,
+      armor,
+      weapon,
+    },
+    constructedIds,
+  );
   if (refError) {
     return Response.json({ error: refError }, { status: 400 });
   }
@@ -148,6 +160,9 @@ type PatchBody = {
   class?: unknown;
   armor?: unknown;
   weapon?: unknown;
+  equipment?: unknown;
+  gear?: unknown;
+  weapon2?: unknown;
   player?: unknown;
 };
 
@@ -173,6 +188,9 @@ export async function handlePatchCharacterSheet(
     class: sheet.class,
     armor: sheet.armor,
     weapon: sheet.weapon,
+    equipment: sheet.equipment,
+    gear: sheet.gear,
+    weapon2: sheet.weapon2,
   };
 
   const body = (await request.json().catch(() => null)) as PatchBody | null;
@@ -203,7 +221,14 @@ export async function handlePatchCharacterSheet(
     sheet.name = name;
   }
 
-  const refFields: { class?: string; armor?: string; weapon?: string } = {};
+  const refFields: {
+    class?: string;
+    armor?: string;
+    weapon?: string;
+    equipment?: string;
+    gear?: string;
+    weapon2?: string;
+  } = {};
   if (body.class !== undefined) {
     refFields.class = typeof body.class === "string" ? body.class.trim() : "";
   }
@@ -213,8 +238,25 @@ export async function handlePatchCharacterSheet(
   if (body.weapon !== undefined) {
     refFields.weapon = typeof body.weapon === "string" ? body.weapon.trim() : "";
   }
+  if (body.equipment !== undefined) {
+    refFields.equipment = typeof body.equipment === "string" ? body.equipment.trim() : "";
+  }
+  if (body.gear !== undefined) {
+    refFields.gear = typeof body.gear === "string" ? body.gear.trim() : "";
+  }
+  if (body.weapon2 !== undefined) {
+    refFields.weapon2 = typeof body.weapon2 === "string" ? body.weapon2.trim() : "";
+  }
 
-  const refError = validateCharacterSheetRefs(refFields);
+  const constructedIds = await getConstructedBaseUpgrades(env);
+  const refError = validateCharacterSheetRefs(refFields, constructedIds, {
+    class: sheet.class,
+    armor: sheet.armor,
+    weapon: sheet.weapon,
+    equipment: sheet.equipment,
+    gear: sheet.gear,
+    weapon2: sheet.weapon2,
+  });
   if (refError) {
     return Response.json({ error: refError }, { status: 400 });
   }
@@ -222,6 +264,9 @@ export async function handlePatchCharacterSheet(
   if (refFields.class !== undefined) sheet.class = refFields.class;
   if (refFields.armor !== undefined) sheet.armor = refFields.armor;
   if (refFields.weapon !== undefined) sheet.weapon = refFields.weapon;
+  if (refFields.equipment !== undefined) sheet.equipment = refFields.equipment || undefined;
+  if (refFields.gear !== undefined) sheet.gear = refFields.gear || undefined;
+  if (refFields.weapon2 !== undefined) sheet.weapon2 = refFields.weapon2 || undefined;
 
   sheet.updatedAt = new Date().toISOString();
   await saveCharacterSheet(env, sheet);
@@ -245,6 +290,9 @@ export async function handlePatchCharacterSheet(
       class: sheet.class,
       armor: sheet.armor,
       weapon: sheet.weapon,
+      equipment: sheet.equipment,
+      gear: sheet.gear,
+      weapon2: sheet.weapon2,
     },
     onBoardData.onBoard,
   );

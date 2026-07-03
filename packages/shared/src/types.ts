@@ -70,6 +70,9 @@ export type Player = {
   class?: string;
   armor?: string;
   weapon?: string;
+  equipment?: string;
+  gear?: string;
+  weapon2?: string;
   speed?: number;
   hp?: number;
   equipmentUses?: number;
@@ -143,7 +146,6 @@ export type GameState = {
   actedPlayerIds: string[];
   turnLog: RoundTurnLog[];
   enforceTurns?: boolean;
-  showReversals?: boolean;
   combat?: CombatState;
   damageEvents?: DamageEvent[];
   partyResources?: PartyResources;
@@ -174,6 +176,9 @@ export type CharacterSheet = {
   class: string;
   armor: string;
   weapon: string;
+  equipment?: string;
+  gear?: string;
+  weapon2?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -207,6 +212,9 @@ export type ClientMessage =
       class: string;
       armor?: string;
       weapon?: string;
+      equipment?: string;
+      gear?: string;
+      weapon2?: string;
     }
   | { type: "playerAction"; action: PlayerAction }
   | { type: "gmEnemyAction"; action: GmEnemyAction }
@@ -224,5 +232,4 @@ export type ClientMessage =
     }
   | { type: "phaseAction"; action: PhaseAction }
   | { type: "setEnforceTurns"; enforceTurns: boolean }
-  | { type: "setShowReversals"; showReversals: boolean }
   | { type: "baseCampaignAction"; action: BaseCampaignAction };

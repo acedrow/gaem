@@ -15,7 +15,7 @@ import ModalDialog from "./ModalDialog.vue";
 type PlayerProfileOption = PlayerProfile & { isActive?: boolean };
 
 const { apiFetch, fetchPlayerProfiles } = useApi();
-const { role } = useSession();
+const { role, playerProfile } = useSession();
 const { selectedSheetId, sheetsExpanded, sheetsVersion, selectSheet } =
   useCharacterSheetSelection();
 const { clearBoardSelection, selectSheetFromNav } = useBoardSelection();
@@ -41,6 +41,17 @@ const profileNameById = computed(() => {
   const map = new Map<string, string>();
   for (const p of profiles.value) map.set(p.id, p.name);
   return map;
+});
+
+const sortedSheets = computed(() => {
+  const ownProfileId = role.value === "player" ? playerProfile.value?.id : null;
+  if (!ownProfileId) return sheets.value;
+  return [...sheets.value].sort((a, b) => {
+    const aOwn = a.player === ownProfileId;
+    const bOwn = b.player === ownProfileId;
+    if (aOwn !== bOwn) return aOwn ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
 });
 
 async function loadSheets() {
@@ -131,7 +142,7 @@ watch(sheetsVersion, () => {
       <p v-if="loading" class="sublist-muted">Loading…</p>
       <p v-else-if="loadError" class="sublist-error">{{ loadError }}</p>
       <template v-else>
-        <button v-for="sheet in sheets" :key="sheet.id" class="sheet-item"
+        <button v-for="sheet in sortedSheets" :key="sheet.id" class="sheet-item"
           :class="{ selected: selectedSheetId === sheet.id }" type="button" @click="onSelectSheet(sheet.id)">
           <span class="sheet-name">{{ sheet.name }}</span>
           <span class="sheet-meta">
@@ -172,6 +183,22 @@ watch(sheetsVersion, () => {
         @click="onSelectData('weapons')"
       >
         <span class="sheet-name">Weapons</span>
+      </button>
+      <button
+        class="sheet-item"
+        :class="{ selected: dataCategory === 'equipment' }"
+        type="button"
+        @click="onSelectData('equipment')"
+      >
+        <span class="sheet-name">Equipment</span>
+      </button>
+      <button
+        class="sheet-item"
+        :class="{ selected: dataCategory === 'gear' }"
+        type="button"
+        @click="onSelectData('gear')"
+      >
+        <span class="sheet-name">Gear</span>
       </button>
       <button
         class="sheet-item"

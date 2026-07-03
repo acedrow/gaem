@@ -261,7 +261,6 @@ export function createInitialStateFromMap(map: GameMap): GameState {
     actedPlayerIds: [],
     turnLog: [],
     enforceTurns: true,
-    showReversals: true,
     partyResources: { hellsteel: 0, soulfire: 0, brimstone: 0 },
     constructedBaseUpgrades: [],
   };

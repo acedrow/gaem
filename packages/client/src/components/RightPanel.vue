@@ -150,7 +150,7 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
             :category="gearPickCategory"
           />
           <PlayerDataPanel
-            v-else-if="dataCategory === 'armor' || dataCategory === 'classes' || dataCategory === 'weapons'"
+            v-else-if="dataCategory === 'armor' || dataCategory === 'classes' || dataCategory === 'weapons' || dataCategory === 'equipment' || dataCategory === 'gear'"
             :key="dataCategory"
             :category="dataCategory"
           />

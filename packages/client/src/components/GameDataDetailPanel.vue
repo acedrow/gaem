@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { getArmorByName, getClassByName, getEffectById, getWeaponByName } from "@gaem/shared";
+import { getArmorByName, getClassByName, getEffectById, getEquipmentByName, getGearByName, getWeaponByName } from "@gaem/shared";
 import { computed } from "vue";
 
 import { useBoardSelection } from "../composables/useBoardSelection.js";
@@ -23,6 +23,12 @@ const playerArmor = computed(() =>
 const playerWeapon = computed(() =>
   props.focus.kind === "weapons" ? getWeaponByName(props.focus.name) : undefined,
 );
+const playerEquipment = computed(() =>
+  props.focus.kind === "equipment" ? getEquipmentByName(props.focus.name) : undefined,
+);
+const playerGear = computed(() =>
+  props.focus.kind === "gear" ? getGearByName(props.focus.name) : undefined,
+);
 const ruleEffect = computed(() =>
   props.focus.kind === "effects" ? getEffectById(props.focus.name) : undefined,
 );
@@ -31,7 +37,7 @@ const title = computed(() => props.focus.name);
 const categoryLabel = computed(() => kindLabel(props.focus.kind));
 
 const item = computed(
-  () => playerClass.value ?? playerArmor.value ?? playerWeapon.value,
+  () => playerClass.value ?? playerArmor.value ?? playerWeapon.value ?? playerEquipment.value ?? playerGear.value,
 );
 </script>
 

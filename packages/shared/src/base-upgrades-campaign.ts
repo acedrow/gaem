@@ -3,6 +3,7 @@ import {
   getBaseUpgradeById,
   type BaseUpgradeCost,
 } from "./base-upgrades-data.js";
+import { isCampaignFeatureUnlocked } from "./base-upgrades-unlocks.js";
 import type { BaseCampaignAction, GameState, PartyResourceKey, PartyResources } from "./types.js";
 
 const RESOURCE_LABELS: Record<PartyResourceKey, string> = {
@@ -225,6 +226,9 @@ export function applyBaseCampaignAction(state: GameState, action: BaseCampaignAc
         const costStr = formatCostDelta(upgrade.cost, "+");
         const prefix = id === action.upgradeId ? "Demolished" : "also demolished";
         parts.push(`${prefix} ${upgrade.name}${costStr ? ` (${costStr})` : ""}`);
+      }
+      if (!isCampaignFeatureUnlocked("reversals", constructed) && state.combat) {
+        state.combat.pendingReaction = null;
       }
       return parts.join("; ");
     }

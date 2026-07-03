@@ -4,6 +4,8 @@ import {
   listEnemyListings,
   PLAYER_ARMOR,
   PLAYER_CLASSES,
+  PLAYER_EQUIPMENT,
+  PLAYER_GEAR,
   PLAYER_WEAPONS,
   RULE_EFFECTS,
 } from "@gaem/shared";
@@ -69,6 +71,17 @@ const PLAYER_DATA_INDEX: SearchEntry[] = [
       abilityTextToPlain(item.activeAbility),
       abilityTextToPlain(item.passiveAbility),
     ),
+  })),
+  ...PLAYER_EQUIPMENT.map((item) => ({
+    kind: "equipment" as const,
+    name: item.name,
+    haystack: haystack(item.name, item.description, item.effect),
+  })),
+  ...PLAYER_GEAR.map((item) => ({
+    kind: "gear" as const,
+    name: item.name,
+    subtitle: item.slot === "armor" ? "Armor gear" : "Weapon gear",
+    haystack: haystack(item.name, item.description, item.effect, item.slot),
   })),
   ...RULE_EFFECTS.map((item) => ({
     kind: "effects" as const,
@@ -155,6 +168,8 @@ export function kindLabel(kind: GameDataSearchResultKind): string {
   if (kind === "classes") return "Class";
   if (kind === "armor") return "Armor";
   if (kind === "weapons") return "Weapon";
+  if (kind === "equipment") return "Equipment";
+  if (kind === "gear") return "Gear";
   if (kind === "effects") return "Effect";
   if (kind === "characterSheet") return "Character sheet";
   return "Enemy";

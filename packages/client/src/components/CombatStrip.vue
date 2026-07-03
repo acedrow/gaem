@@ -4,15 +4,15 @@ import { computed } from "vue";
 import { getClassMaxHp, getEffectSummary } from "@gaem/shared";
 
 import { useCombatActions } from "../composables/useCombatActions.js";
-import { useGameState } from "../composables/useGameState.js";
+import { useCampaignUnlocks } from "../composables/useCampaignUnlocks.js";
 import HpBar from "./HpBar.vue";
 
 const props = defineProps<{
   playerId?: string;
 }>();
 
-const { gameState } = useGameState();
-const showReversals = computed(() => gameState.value?.showReversals !== false);
+const { hasReversals } = useCampaignUnlocks();
+const showReversals = computed(() => hasReversals.value);
 
 const {
   activePlayer,

@@ -11,6 +11,8 @@ const DATA_CATEGORIES = new Set<DataCategory>([
   "armor",
   "classes",
   "weapons",
+  "equipment",
+  "gear",
   "resources",
   "effects",
   "patterns",

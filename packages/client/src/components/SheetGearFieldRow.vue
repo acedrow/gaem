@@ -1,5 +1,11 @@
 <script setup lang="ts">
-import type { PlayerArmor, PlayerClass, PlayerWeapon } from "@gaem/shared";
+import type {
+  PlayerArmor,
+  PlayerClass,
+  PlayerEquipment,
+  PlayerGear,
+  PlayerWeapon,
+} from "@gaem/shared";
 import { ref } from "vue";
 
 import PlayerItemDetail from "./PlayerItemDetail.vue";
@@ -8,8 +14,8 @@ import RuleText from "./RuleText.vue";
 defineProps<{
   label: string;
   value: string;
-  kind: "classes" | "armor" | "weapons";
-  item: PlayerClass | PlayerArmor | PlayerWeapon | undefined;
+  kind: "classes" | "armor" | "weapons" | "equipment" | "gear";
+  item: PlayerClass | PlayerArmor | PlayerWeapon | PlayerEquipment | PlayerGear | undefined;
   canEdit?: boolean;
 }>();
 

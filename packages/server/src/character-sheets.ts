@@ -52,7 +52,8 @@ export function createSheetHandler(
   auth: AuthContext,
   req: Request,
   res: Response,
-  hasProfile: (id: string) => boolean
+  hasProfile: (id: string) => boolean,
+  constructedIds: readonly string[] = [],
 ): void {
   const player = typeof req.body?.player === "string" ? req.body.player.trim() : "";
   const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
@@ -73,7 +74,7 @@ export function createSheetHandler(
     return;
   }
 
-  const refError = validateCharacterSheetRefs({ class: className, armor, weapon });
+  const refError = validateCharacterSheetRefs({ class: className, armor, weapon }, constructedIds);
   if (refError) {
     res.status(400).json({ error: refError });
     return;
@@ -118,6 +119,7 @@ export function patchSheetHandler(
     actor: ConsoleActor;
     sheetOnBoard: boolean;
     logConsole: (actor: ConsoleActor, message: string) => void;
+    constructedIds?: readonly string[];
   },
 ): void {
   const sheet = characterSheets.get(id);
@@ -139,6 +141,9 @@ export function patchSheetHandler(
     class: sheet.class,
     armor: sheet.armor,
     weapon: sheet.weapon,
+    equipment: sheet.equipment,
+    gear: sheet.gear,
+    weapon2: sheet.weapon2,
   };
 
   if (req.body?.player !== undefined) {
@@ -163,7 +168,14 @@ export function patchSheetHandler(
     sheet.name = name;
   }
 
-  const refFields: { class?: string; armor?: string; weapon?: string } = {};
+  const refFields: {
+    class?: string;
+    armor?: string;
+    weapon?: string;
+    equipment?: string;
+    gear?: string;
+    weapon2?: string;
+  } = {};
   if (req.body?.class !== undefined) {
     refFields.class = typeof req.body.class === "string" ? req.body.class.trim() : "";
   }
@@ -173,8 +185,25 @@ export function patchSheetHandler(
   if (req.body?.weapon !== undefined) {
     refFields.weapon = typeof req.body.weapon === "string" ? req.body.weapon.trim() : "";
   }
+  if (req.body?.equipment !== undefined) {
+    refFields.equipment = typeof req.body.equipment === "string" ? req.body.equipment.trim() : "";
+  }
+  if (req.body?.gear !== undefined) {
+    refFields.gear = typeof req.body.gear === "string" ? req.body.gear.trim() : "";
+  }
+  if (req.body?.weapon2 !== undefined) {
+    refFields.weapon2 = typeof req.body.weapon2 === "string" ? req.body.weapon2.trim() : "";
+  }
 
-  const refError = validateCharacterSheetRefs(refFields);
+  const constructedIds = opts?.constructedIds ?? [];
+  const refError = validateCharacterSheetRefs(refFields, constructedIds, {
+    class: sheet.class,
+    armor: sheet.armor,
+    weapon: sheet.weapon,
+    equipment: sheet.equipment,
+    gear: sheet.gear,
+    weapon2: sheet.weapon2,
+  });
   if (refError) {
     res.status(400).json({ error: refError });
     return;
@@ -183,6 +212,9 @@ export function patchSheetHandler(
   if (refFields.class !== undefined) sheet.class = refFields.class;
   if (refFields.armor !== undefined) sheet.armor = refFields.armor;
   if (refFields.weapon !== undefined) sheet.weapon = refFields.weapon;
+  if (refFields.equipment !== undefined) sheet.equipment = refFields.equipment || undefined;
+  if (refFields.gear !== undefined) sheet.gear = refFields.gear || undefined;
+  if (refFields.weapon2 !== undefined) sheet.weapon2 = refFields.weapon2 || undefined;
 
   sheet.updatedAt = new Date().toISOString();
   characterSheets.set(sheet.id, sheet);
@@ -198,6 +230,9 @@ export function patchSheetHandler(
         class: sheet.class,
         armor: sheet.armor,
         weapon: sheet.weapon,
+        equipment: sheet.equipment,
+        gear: sheet.gear,
+        weapon2: sheet.weapon2,
       },
       opts.sheetOnBoard,
     );

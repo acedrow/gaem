@@ -1,19 +1,25 @@
 <script setup lang="ts">
-import type { PlayerArmor, PlayerClass, PlayerWeapon } from "@gaem/shared";
+import type {
+  PlayerArmor,
+  PlayerClass,
+  PlayerEquipment,
+  PlayerGear,
+  PlayerWeapon,
+} from "@gaem/shared";
 import { computed } from "vue";
 
-import { useGameState } from "../composables/useGameState.js";
+import { useCampaignUnlocks } from "../composables/useCampaignUnlocks.js";
 import AbilityBlock from "./AbilityBlock.vue";
 import RuleText from "./RuleText.vue";
 import WeaponPatternDiagram from "./WeaponPatternDiagram.vue";
 
 defineProps<{
-  item: PlayerClass | PlayerArmor | PlayerWeapon;
-  kind: "classes" | "armor" | "weapons";
+  item: PlayerClass | PlayerArmor | PlayerWeapon | PlayerEquipment | PlayerGear;
+  kind: "classes" | "armor" | "weapons" | "equipment" | "gear";
 }>();
 
-const { gameState } = useGameState();
-const showReversals = computed(() => gameState.value?.showReversals !== false);
+const { hasReversals } = useCampaignUnlocks();
+const showReversals = computed(() => hasReversals.value);
 </script>
 
 <template>
@@ -86,6 +92,16 @@ const showReversals = computed(() => gameState.value?.showReversals !== false);
         </div>
       </div>
     </template>
+  </template>
+
+  <template v-else-if="kind === 'equipment' || kind === 'gear'">
+    <p v-if="kind === 'gear'" class="item-stat">
+      {{ (item as PlayerGear).slot === "armor" ? "Armor gear" : "Weapon gear" }}
+    </p>
+    <p class="item-ability">
+      <span class="ability-label">Effect</span>
+      <RuleText :text="(item as PlayerEquipment | PlayerGear).effect" />
+    </p>
   </template>
 
   <template v-else>

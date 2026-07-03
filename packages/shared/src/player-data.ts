@@ -1,17 +1,25 @@
 import armorJson from "./data/player/armor.json" with { type: "json" };
 import classesJson from "./data/player/classes.json" with { type: "json" };
+import equipmentJson from "./data/player/equipment.json" with { type: "json" };
+import gearJson from "./data/player/gear.json" with { type: "json" };
 import weaponsJson from "./data/player/weapons.json" with { type: "json" };
 import type { Player } from "./types.js";
 import { RULE_EFFECTS, getEffectSummary as getEffectSummaryFromData } from "./effects-data.js";
 import type { RuleEffect } from "./effects-data.js";
 import type { StructuredArmorAction, WeaponAttackSpec } from "./combat/types.js";
 import type { AbilityText } from "./rule-text.js";
+import {
+  validateCharacterSheetLoadout,
+  type CharacterSheetLoadoutFields,
+} from "./base-upgrades-unlocks.js";
 
 export type { StructuredArmorAction, WeaponAttackSpec, AbilityText };
 
 type ClassJson = (typeof classesJson)[number];
 type ArmorJson = (typeof armorJson)[number];
 type WeaponJson = (typeof weaponsJson)[number];
+type EquipmentJson = (typeof equipmentJson)[number];
+type GearJson = (typeof gearJson)[number];
 
 export type PlayerClass = Omit<ClassJson, "activeAbility" | "passiveAbility"> & {
   activeAbility?: AbilityText;
@@ -27,16 +35,22 @@ export type PlayerWeapon = Omit<WeaponJson, "activeAbility" | "passiveAbility"> 
   passiveAbility?: AbilityText;
   attack?: WeaponAttackSpec;
 };
+export type PlayerEquipment = EquipmentJson;
+export type PlayerGear = GearJson;
 export type EffectGlossaryEntry = RuleEffect;
 
 export const PLAYER_CLASSES = classesJson as PlayerClass[];
 export const PLAYER_ARMOR = armorJson as PlayerArmor[];
 export const PLAYER_WEAPONS = weaponsJson as PlayerWeapon[];
+export const PLAYER_EQUIPMENT = equipmentJson as PlayerEquipment[];
+export const PLAYER_GEAR = gearJson as PlayerGear[];
 export const EFFECT_GLOSSARY = RULE_EFFECTS;
 
 const classNames = new Set(PLAYER_CLASSES.map((c) => c.name));
 const armorNames = new Set(PLAYER_ARMOR.map((a) => a.name));
 const weaponNames = new Set(PLAYER_WEAPONS.map((w) => w.name));
+const equipmentNames = new Set(PLAYER_EQUIPMENT.map((e) => e.name));
+const gearNames = new Set(PLAYER_GEAR.map((g) => g.name));
 
 export function getClassByName(name: string): PlayerClass | undefined {
   return PLAYER_CLASSES.find((c) => c.name === name);
@@ -55,6 +69,14 @@ export function getWeaponByName(name: string): PlayerWeapon | undefined {
   return PLAYER_WEAPONS.find((w) => w.name === name);
 }
 
+export function getEquipmentByName(name: string): PlayerEquipment | undefined {
+  return PLAYER_EQUIPMENT.find((e) => e.name === name);
+}
+
+export function getGearByName(name: string): PlayerGear | undefined {
+  return PLAYER_GEAR.find((g) => g.name === name);
+}
+
 export function getArmorSpeed(armorName: string | undefined): number {
   if (!armorName) return 4;
   return getArmorByName(armorName)?.speed ?? 4;
@@ -62,11 +84,21 @@ export function getArmorSpeed(armorName: string | undefined): number {
 
 export function applyLoadoutToPlayer(
   player: Player,
-  loadout: { className: string; armor: string; weapon: string },
+  loadout: {
+    className: string;
+    armor: string;
+    weapon: string;
+    equipment?: string;
+    gear?: string;
+    weapon2?: string;
+  },
 ): void {
   player.class = loadout.className;
   player.armor = loadout.armor;
   player.weapon = loadout.weapon;
+  player.equipment = loadout.equipment || undefined;
+  player.gear = loadout.gear || undefined;
+  player.weapon2 = loadout.weapon2 || undefined;
   player.speed = getArmorSpeed(loadout.armor);
   const armor = getArmorByName(loadout.armor);
   if (armor?.reversal?.charges != null) {
@@ -84,11 +116,11 @@ function normalizePlayerHp(player: Player): number {
 
 export { getEffectSummaryFromData as getEffectSummary };
 
-export function validateCharacterSheetRefs(fields: {
-  class?: string;
-  armor?: string;
-  weapon?: string;
-}): string | null {
+export function validateCharacterSheetRefs(
+  fields: CharacterSheetLoadoutFields,
+  constructedIds: readonly string[] = [],
+  existing?: CharacterSheetLoadoutFields,
+): string | null {
   if (fields.class !== undefined && !classNames.has(fields.class)) {
     return `Invalid class: ${fields.class}`;
   }
@@ -98,5 +130,14 @@ export function validateCharacterSheetRefs(fields: {
   if (fields.weapon !== undefined && !weaponNames.has(fields.weapon)) {
     return `Invalid weapon: ${fields.weapon}`;
   }
-  return null;
+  if (fields.equipment !== undefined && fields.equipment && !equipmentNames.has(fields.equipment)) {
+    return `Invalid equipment: ${fields.equipment}`;
+  }
+  if (fields.gear !== undefined && fields.gear && !gearNames.has(fields.gear)) {
+    return `Invalid gear: ${fields.gear}`;
+  }
+  if (fields.weapon2 !== undefined && fields.weapon2 && !weaponNames.has(fields.weapon2)) {
+    return `Invalid weapon: ${fields.weapon2}`;
+  }
+  return validateCharacterSheetLoadout(fields, constructedIds, existing);
 }

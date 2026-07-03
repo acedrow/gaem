@@ -39,7 +39,15 @@ async function resolveSheetForJoin(
   env: Env,
   playerKey: string,
   characterSheetId?: string
-): Promise<{ className?: string; characterSheetId?: string; armor?: string; weapon?: string }> {
+): Promise<{
+  className?: string;
+  characterSheetId?: string;
+  armor?: string;
+  weapon?: string;
+  equipment?: string;
+  gear?: string;
+  weapon2?: string;
+}> {
   if (characterSheetId) {
     const sheet = await getCharacterSheet(env, characterSheetId);
     if (sheet?.player === playerKey) {
@@ -48,6 +56,9 @@ async function resolveSheetForJoin(
         characterSheetId: sheet.id,
         armor: sheet.armor,
         weapon: sheet.weapon,
+        equipment: sheet.equipment,
+        gear: sheet.gear,
+        weapon2: sheet.weapon2,
       };
     }
   }
@@ -59,6 +70,9 @@ async function resolveSheetForJoin(
         characterSheetId: sheet.id,
         armor: sheet.armor,
         weapon: sheet.weapon,
+        equipment: sheet.equipment,
+        gear: sheet.gear,
+        weapon2: sheet.weapon2,
       }
     : {};
 }
@@ -122,6 +136,11 @@ export class GameRoom {
       const sheetId = url.searchParams.get("sheetId");
       const onBoard = !!sheetId && this.gameState.players.some((p) => p.characterSheetId === sheetId);
       return Response.json({ onBoard });
+    }
+    if (url.pathname === "/internal/campaign-unlocks") {
+      return Response.json({
+        constructedBaseUpgrades: this.gameState.constructedBaseUpgrades ?? [],
+      });
     }
 
     if (request.headers.get("Upgrade") !== "websocket") {
@@ -305,6 +324,9 @@ export class GameRoom {
         parsed.class,
         parsed.armor,
         parsed.weapon,
+        parsed.equipment,
+        parsed.gear,
+        parsed.weapon2,
       );
       if (err) {
         this.sendError(ws, err);
@@ -326,24 +348,6 @@ export class GameRoom {
       await this.broadcastConsole(
         actor,
         parsed.enforceTurns ? "Enforce turns enabled" : "Enforce turns disabled",
-      );
-      await this.broadcastState();
-      return;
-    }
-
-    if (parsed.type === "setShowReversals") {
-      if (att?.role !== "gm") {
-        this.sendError(ws, "Only the game master can do that");
-        return;
-      }
-      this.gameState.showReversals = parsed.showReversals;
-      if (!parsed.showReversals && this.gameState.combat) {
-        this.gameState.combat.pendingReaction = null;
-      }
-      const actor = await this.actorForSocket(ws);
-      await this.broadcastConsole(
-        actor,
-        parsed.showReversals ? "Reversals shown" : "Reversals hidden",
       );
       await this.broadcastState();
       return;
