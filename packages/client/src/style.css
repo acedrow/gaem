@@ -1,4 +1,13 @@
 @import "./palette.css";
+@import "./themes.css";
+
+@font-face {
+  font-family: "Highshade";
+  src: url("./assets/fonts/Highshade.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
 
 *,
 *::before,
@@ -35,6 +44,25 @@ select {
   min-height: 100vh;
 }
 
+h1,
+h2,
+h3,
+.panel-title,
+.panel-heading,
+.map-title,
+.round-heading,
+.round-label,
+.modal-title,
+.section-title,
+.settings-section-heading,
+.ability-section-title,
+.tooltip-heading,
+.brand {
+  font-family: var(--font-heading);
+  font-weight: 500;
+  font-size: 1.5rem;
+}
+
 .panel {
   height: 100%;
   display: flex;
@@ -65,8 +93,6 @@ select {
 
 .panel-title {
   margin: 0;
-  font-size: 1.1rem;
-  font-weight: 600;
   color: var(--color-text);
 }
 
@@ -298,8 +324,6 @@ select {
 
 .modal-title {
   margin: 0 0 1rem;
-  font-size: 1.1rem;
-  font-weight: 600;
 }
 
 .modal-actions {

@@ -81,9 +81,6 @@ const parsed = computed(() => {
 
 .ability-section-title {
   margin: 0.45rem 0 0.15rem;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--color-text);
 }

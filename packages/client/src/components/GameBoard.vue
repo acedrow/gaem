@@ -497,7 +497,6 @@ const tooltipData = computed(() => {
 });
 
 const BOARD_CELL_GAP = 3;
-const BOARD_WRAP_PAD = 12;
 
 const tooltipStyle = computed(() => {
   const cell = hoveredCell.value;
@@ -507,8 +506,8 @@ const tooltipStyle = computed(() => {
   const gridH = gridW * (s.height / s.width);
   const cellW = (gridW - (s.width - 1) * BOARD_CELL_GAP) / s.width;
   const cellH = (gridH - (s.height - 1) * BOARD_CELL_GAP) / s.height;
-  const cellLeft = BOARD_WRAP_PAD + cell.x * (cellW + BOARD_CELL_GAP);
-  const cellTop = BOARD_WRAP_PAD + cell.y * (cellH + BOARD_CELL_GAP);
+  const cellLeft = cell.x * (cellW + BOARD_CELL_GAP);
+  const cellTop = cell.y * (cellH + BOARD_CELL_GAP);
   const centerX = cellLeft + cellW / 2;
   return {
     left: `${panX.value + centerX * scale.value}px`,
@@ -524,8 +523,8 @@ function damageIndicatorStyle(x: number, y: number) {
   const gridH = gridW * (s.height / s.width);
   const cellW = (gridW - (s.width - 1) * BOARD_CELL_GAP) / s.width;
   const cellH = (gridH - (s.height - 1) * BOARD_CELL_GAP) / s.height;
-  const centerX = BOARD_WRAP_PAD + x * (cellW + BOARD_CELL_GAP) + cellW / 2;
-  const centerY = BOARD_WRAP_PAD + y * (cellH + BOARD_CELL_GAP) + cellH / 2;
+  const centerX = x * (cellW + BOARD_CELL_GAP) + cellW / 2;
+  const centerY = y * (cellH + BOARD_CELL_GAP) + cellH / 2;
   const tokenBottomOffset = ((cellH - 8) / 2) * scale.value;
   return {
     left: `${panX.value + centerX * scale.value}px`,
@@ -1119,9 +1118,8 @@ onUnmounted(() => {
         @wheel.prevent="onWheel"
       >
         <div class="board-stage" :style="stageStyle">
-          <div class="board-wrap">
-            <div class="board" :style="gridStyle">
-              <BoardCell
+          <div class="board" :style="gridStyle">
+            <BoardCell
                 v-for="c in cells"
                 :key="c.key"
                 v-memo="[
@@ -1154,7 +1152,6 @@ onUnmounted(() => {
                 @enemy-click="onEnemyCellClick(c.x, c.y, cellStateByKey.get(c.key)!.enemyAnchor!.id)"
                 @deploy-pointer-down="onDeployPointerDown($event, cellStateByKey.get(c.key)!.player!)"
               />
-            </div>
           </div>
         </div>
 
@@ -1262,9 +1259,6 @@ onUnmounted(() => {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  border-radius: 0;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
 }
 
 .reset-zoom-btn {
@@ -1292,12 +1286,8 @@ onUnmounted(() => {
   will-change: transform;
 }
 
-.board-wrap {
-  width: fit-content;
-  padding: 0.75rem;
-}
-
 .board {
+  width: fit-content;
   display: grid;
   gap: 3px;
   aspect-ratio: v-bind(boardAspectRatio);
@@ -1355,9 +1345,6 @@ onUnmounted(() => {
   display: block;
   margin-bottom: 0.15rem;
   color: var(--color-muted);
-  font-size: 0.62rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 

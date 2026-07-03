@@ -203,7 +203,6 @@ function joinAsSelectedPlayer() {
 
 .modal-title {
   margin: 0 0 0.25rem;
-  font-size: 1.1rem;
 }
 
 .profile-list {

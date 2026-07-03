@@ -117,9 +117,6 @@ function sendGmAction(action: PhaseAction) {
 
 .round-heading {
   margin: 0;
-  font-size: 1.1rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
 }
 
 .round-heading.muted {
@@ -245,10 +242,7 @@ function sendGmAction(action: PhaseAction) {
 
 .round-label {
   margin: 0 0 0.4rem;
-  font-size: 0.75rem;
-  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
   color: var(--color-muted);
 }
 

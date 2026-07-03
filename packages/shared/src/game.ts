@@ -1,4 +1,4 @@
-import type { Enemy, GameState, GaemRole, PhaseAction, Player, TerrainObject, TurnHolder } from "./types.js";
+import type { Enemy, GameMap, GameState, GaemRole, PhaseAction, Player, TerrainObject, TurnHolder } from "./types.js";
 import { playerLabel } from "./console.js";
 import { createDefaultActionBudget, createDefaultCombatState } from "./combat/types.js";
 import { tickRoundCountdowns, tickUnitEndOfTurn } from "./combat/effects.js";
@@ -798,8 +798,11 @@ export function resolvePlayerForJoin(
   return { playerId };
 }
 
-export function normalizeGameState(state: GameState): GameState {
-  if (!state.mapName) {
+export function normalizeGameState(state: GameState, map?: GameMap): GameState {
+  if (map) {
+    state.mapId = map.id;
+    state.mapName = map.name ?? map.id;
+  } else if (!state.mapName) {
     state.mapName = state.mapId;
   }
   if (!state.enemies) {

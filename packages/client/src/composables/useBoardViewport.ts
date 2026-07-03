@@ -3,7 +3,7 @@ import { computed, nextTick, ref, watch } from "vue";
 
 import { readPersistedViewport, writePersistedViewport } from "./uiPersist.js";
 
-const BOARD_PAD = 24;
+const BOARD_PAD = 0;
 const ZOOM_MAX_FACTOR = 4;
 const PAN_MIN_VISIBLE_FRACTION = 0.2;
 

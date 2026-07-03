@@ -75,11 +75,8 @@ function toggle(sectionTitle: string, id: string) {
 
 .section-title {
   margin: 0 0 0.5rem;
-  font-size: 0.75rem;
-  font-weight: 600;
   color: var(--color-muted);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .item-header {

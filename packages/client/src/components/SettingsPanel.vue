@@ -4,10 +4,12 @@ import { computed } from "vue";
 import { useGameState } from "../composables/useGameState.js";
 import { usePlayerSettings } from "../composables/usePlayerSettings.js";
 import { useSession } from "../composables/useSession.js";
+import { useTheme } from "../composables/useTheme.js";
 
 const { isGm } = useSession();
 const { gameState, send } = useGameState();
 const { showHealthBars, showConnectionsInConsole } = usePlayerSettings();
+const { theme, themes } = useTheme();
 
 const showReversals = computed(() => gameState.value?.showReversals !== false);
 
@@ -51,6 +53,31 @@ function setShowReversals(value: boolean) {
         </button>
       </label>
 
+      <h3 class="settings-section-heading">Themes</h3>
+
+      <div class="theme-options" role="radiogroup" aria-label="Color theme">
+        <button
+          v-for="option in themes"
+          :key="option.id"
+          type="button"
+          role="radio"
+          class="theme-option"
+          :class="{ active: theme === option.id }"
+          :aria-checked="theme === option.id"
+          @click="theme = option.id"
+        >
+          <span class="theme-swatch" aria-hidden="true">
+            <span
+              v-for="(color, index) in option.swatch"
+              :key="index"
+              class="theme-swatch-chip"
+              :style="{ background: color }"
+            />
+          </span>
+          <span class="theme-label">{{ option.label }}</span>
+        </button>
+      </div>
+
       <template v-if="isGm">
         <h3 class="settings-section-heading">GM Settings</h3>
 
@@ -89,9 +116,6 @@ function setShowReversals(value: boolean) {
 
 .panel-heading {
   margin: 0;
-  font-size: 1.1rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
 }
 
 .settings-list {
@@ -103,9 +127,6 @@ function setShowReversals(value: boolean) {
 
 .settings-section-heading {
   margin: 0.5rem 0 0;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--color-muted);
 }
@@ -154,5 +175,54 @@ function setShowReversals(value: boolean) {
 
 .toggle.on .toggle-thumb {
   transform: translateX(1rem);
+}
+
+.theme-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.theme-option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: 0.55rem 0.65rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.theme-option:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-border-strong);
+}
+
+.theme-option.active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-tint-bg-faint);
+}
+
+.theme-swatch {
+  display: flex;
+  flex-shrink: 0;
+  overflow: hidden;
+  width: 2.75rem;
+  height: 1.25rem;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+}
+
+.theme-swatch-chip {
+  flex: 1;
+}
+
+.theme-label {
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 </style>

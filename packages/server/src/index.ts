@@ -614,7 +614,7 @@ async function loadMap(): Promise<void> {
   );
   const raw = await readFile(join(mapsDir, `${DEFAULT_MAP_ID}.json`), "utf8");
   const map = parseGameMap(JSON.parse(raw));
-  gameState = normalizeGameState(createInitialStateFromMap(map));
+  gameState = normalizeGameState(createInitialStateFromMap(map), map);
 }
 
 loadMap()

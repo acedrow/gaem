@@ -178,9 +178,6 @@ function onModifierInput(id: keyof PatternModifierValues, value: number) {
 
 .panel-title {
   margin: 0;
-  font-size: 1.1rem;
-  font-weight: 700;
-  line-height: 1.3;
 }
 
 .close-btn {

@@ -178,6 +178,8 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
 .tabs {
   display: flex;
   flex-shrink: 0;
+  box-sizing: border-box;
+  min-height: var(--chrome-header-height);
   border-bottom: 1px solid var(--color-border);
   padding: 0 0.5rem;
 }

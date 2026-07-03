@@ -92,11 +92,14 @@ export class GameRoom {
     this.env = env;
     this.ctx.blockConcurrencyWhile(async () => {
       const stored = await this.ctx.storage.get<GameState>(GAME_STATE_KEY);
+      const map = await getMap(this.env, stored?.mapId ?? DEFAULT_MAP_ID);
       if (stored) {
-        this.gameState = normalizeGameState(stored);
+        this.gameState = normalizeGameState(stored, map);
+        if (stored.mapName !== this.gameState.mapName) {
+          await this.ctx.storage.put(GAME_STATE_KEY, this.gameState);
+        }
       } else {
-        const map = await getMap(this.env, DEFAULT_MAP_ID);
-        this.gameState = createInitialStateFromMap(map);
+        this.gameState = normalizeGameState(createInitialStateFromMap(map), map);
         await this.ctx.storage.put(GAME_STATE_KEY, this.gameState);
       }
       this.reconcilePlayersFromSockets();
