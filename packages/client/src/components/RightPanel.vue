@@ -36,29 +36,29 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
 
 <template>
   <aside class="right-panel">
-    <div class="tabs">
+    <div class="chrome-tabs">
         <button
           type="button"
-          class="tab"
+          class="chrome-tab"
           :class="{ active: activeTab === 'console' }"
           title="Console"
           aria-label="Console"
           @click="activeTab = 'console'"
         >
-          <svg class="tab-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <svg class="chrome-tab-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <rect x="1.75" y="2.75" width="12.5" height="10.5" rx="1.5" stroke="currentColor" stroke-width="1.25" />
             <path d="M9.5 5.5L6.5 10.5" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" />
           </svg>
         </button>
         <button
           type="button"
-          class="tab"
+          class="chrome-tab"
           :class="{ active: activeTab === 'info' }"
           title="Info"
           aria-label="Info"
           @click="activeTab = 'info'"
         >
-          <svg class="tab-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <svg class="chrome-tab-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.25" />
             <circle cx="8" cy="5.25" r="0.75" fill="currentColor" />
             <path d="M8 7.25v4" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" />
@@ -66,13 +66,13 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
         </button>
         <button
           type="button"
-          class="tab"
+          class="chrome-tab"
           :class="{ active: activeTab === 'turnOrder' }"
           title="Turn order"
           aria-label="Turn order"
           @click="activeTab = 'turnOrder'"
         >
-          <svg class="tab-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <svg class="chrome-tab-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path d="M4 2.5h8M4 13.5h8" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" />
             <path
               d="M6 2.5v2.25l2 2.25-2 2.25v2.25M10 2.5v2.25l-2 2.25 2 2.25v2.25"
@@ -85,13 +85,13 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
         </button>
         <button
           type="button"
-          class="tab"
+          class="chrome-tab"
           :class="{ active: activeTab === 'settings' }"
           title="Settings"
           aria-label="Settings"
           @click="activeTab = 'settings'"
         >
-          <svg class="tab-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <svg class="chrome-tab-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path
               d="M9.75 4.25a0.65 0.65 0 0 0 0 0.95l1.05 1.05a0.65 0.65 0 0 0 0.95 0l2.5-2.5a4 4 0 0 1-5.3 5.3l-4.6 4.6a1.4 1.4 0 0 1-2-2l4.6-4.6a4 4 0 0 1 5.3-5.3l-2.5 2.5z"
               stroke="currentColor"
@@ -175,41 +175,13 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
   min-height: 0;
 }
 
-.tabs {
-  display: flex;
-  flex-shrink: 0;
-  box-sizing: border-box;
-  min-height: var(--chrome-header-height);
+.right-panel .chrome-tabs {
   border-bottom: 1px solid var(--color-border);
   padding: 0 0.5rem;
 }
 
-.tab {
+.right-panel .chrome-tab {
   flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  color: var(--color-muted);
-  padding: 0.65rem 0.5rem;
-  cursor: pointer;
-  margin-bottom: -1px;
-}
-
-.tab-icon {
-  width: 1rem;
-  height: 1rem;
-}
-
-.tab:hover {
-  color: var(--color-text);
-}
-
-.tab.active {
-  color: var(--color-text);
-  border-bottom-color: var(--color-accent);
 }
 
 .tab-body {

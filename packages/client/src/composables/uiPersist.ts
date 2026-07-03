@@ -3,6 +3,7 @@ import { watch, type Ref } from "vue";
 import type { BoardSelection } from "./useBoardSelection.js";
 import type { DataCategory, DataFocus } from "./useInfoDataSelection.js";
 import type { RightPanelTab } from "./useGameConsole.js";
+import type { MainSectionTab } from "./useMainSectionTab.js";
 
 const STORAGE_KEY = "gaem-ui";
 
@@ -16,6 +17,7 @@ const DATA_CATEGORIES = new Set<DataCategory>([
 ]);
 
 const RIGHT_PANEL_TABS = new Set<RightPanelTab>(["console", "info", "turnOrder", "settings"]);
+const MAIN_SECTION_TABS = new Set<MainSectionTab>(["taccom", "baseUpgrades"]);
 
 export type PersistedViewport = {
   boardKey: string;
@@ -31,6 +33,7 @@ export type PersistedUi = {
   dataFocus: DataFocus | null;
   dataFocusReturnCategory: DataCategory | null;
   activeTab: RightPanelTab;
+  activeMainTab: MainSectionTab;
   sheetsExpanded: boolean;
   dataExpanded: boolean;
   viewport: PersistedViewport | null;
@@ -43,6 +46,7 @@ const DEFAULT_UI: PersistedUi = {
   dataFocus: null,
   dataFocusReturnCategory: null,
   activeTab: "info",
+  activeMainTab: "taccom",
   sheetsExpanded: false,
   dataExpanded: false,
   viewport: null,
@@ -101,6 +105,10 @@ function parsePersistedUi(raw: string): PersistedUi {
         parsed.activeTab && RIGHT_PANEL_TABS.has(parsed.activeTab)
           ? parsed.activeTab
           : DEFAULT_UI.activeTab,
+      activeMainTab:
+        parsed.activeMainTab && MAIN_SECTION_TABS.has(parsed.activeMainTab)
+          ? parsed.activeMainTab
+          : DEFAULT_UI.activeMainTab,
       sheetsExpanded: parsed.sheetsExpanded === true,
       dataExpanded: parsed.dataExpanded === true,
       viewport: isViewport(parsed.viewport) ? parsed.viewport : null,
@@ -156,6 +164,7 @@ export function initUiPersistence(opts: {
   dataFocus: Ref<DataFocus | null>;
   dataFocusReturnCategory: Ref<DataCategory | null>;
   activeTab: Ref<RightPanelTab>;
+  activeMainTab: Ref<MainSectionTab>;
   sheetsExpanded: Ref<boolean>;
   dataExpanded: Ref<boolean>;
   gameState: Ref<{ players: { id: string }[]; enemies: { id: string }[] } | null>;
@@ -167,6 +176,7 @@ export function initUiPersistence(opts: {
     dataFocus,
     dataFocusReturnCategory,
     activeTab,
+    activeMainTab,
     sheetsExpanded,
     dataExpanded,
     gameState,
@@ -194,6 +204,7 @@ export function initUiPersistence(opts: {
       dataFocus,
       dataFocusReturnCategory,
       activeTab,
+      activeMainTab,
       sheetsExpanded,
       dataExpanded,
     ],
@@ -205,6 +216,7 @@ export function initUiPersistence(opts: {
         dataFocus: dataFocus.value,
         dataFocusReturnCategory: dataFocusReturnCategory.value,
         activeTab: activeTab.value,
+        activeMainTab: activeMainTab.value,
         sheetsExpanded: sheetsExpanded.value,
         dataExpanded: dataExpanded.value,
       }));

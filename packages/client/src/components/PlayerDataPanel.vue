@@ -63,10 +63,6 @@ function toggle(name: string) {
 </template>
 
 <style scoped>
-.item-name {
-  font-weight: 600;
-}
-
 .chevron {
   color: var(--color-muted);
   font-size: 1.5rem;

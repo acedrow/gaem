@@ -10,9 +10,12 @@ import { activeTab } from "../composables/useGameConsole.js";
 import { useGameConnection } from "../composables/useGameConnection.js";
 import { useGameState } from "../composables/useGameState.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
+import { activeMainTab } from "../composables/useMainSectionTab.js";
 import { useSession } from "../composables/useSession.js";
+import { showToast } from "../composables/useToasts.js";
 import { initUiPersistence } from "../composables/uiPersist.js";
 import ActionBar from "./ActionBar.vue";
+import BaseUpgradesPanel from "./BaseUpgradesPanel.vue";
 import GmActionBar from "./GmActionBar.vue";
 import GameBoard from "./GameBoard.vue";
 import RightPanel from "./RightPanel.vue";
@@ -34,6 +37,7 @@ onMounted(() => {
     dataFocus,
     dataFocusReturnCategory,
     activeTab,
+    activeMainTab,
     sheetsExpanded,
     dataExpanded,
     gameState,
@@ -105,6 +109,14 @@ function onPhaseAction() {
   }
   send({ type: "phaseAction", action });
 }
+
+function selectMainTab(tab: "taccom" | "baseUpgrades") {
+  activeMainTab.value = tab;
+}
+
+function onOverworldClick() {
+  showToast("Work in progress", "info");
+}
 </script>
 
 <template>
@@ -127,6 +139,65 @@ function onPhaseAction() {
 
     <main class="main">
       <header v-if="gameState" class="center-header">
+        <div class="center-tabs chrome-tabs">
+          <button
+            type="button"
+            class="chrome-tab"
+            :class="{ active: activeMainTab === 'taccom' }"
+            title="TACCOM"
+            aria-label="TACCOM"
+            @click="selectMainTab('taccom')"
+          >
+            <svg class="chrome-tab-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.25" />
+              <path d="M8 2.5v2M8 11.5v2M2.5 8h2M11.5 8h2" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" />
+              <circle cx="8" cy="8" r="1.25" fill="currentColor" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="chrome-tab"
+            title="Overworld"
+            aria-label="Overworld"
+            @click="onOverworldClick"
+          >
+            <svg class="chrome-tab-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path
+                d="M2.5 4.5h11v8a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-8z"
+                stroke="currentColor"
+                stroke-width="1.25"
+                stroke-linejoin="round"
+              />
+              <path d="M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5" stroke="currentColor" stroke-width="1.25" />
+              <path d="M2.5 7.5h11" stroke="currentColor" stroke-width="1.25" />
+              <circle cx="6" cy="10" r="0.75" fill="currentColor" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="chrome-tab"
+            :class="{ active: activeMainTab === 'baseUpgrades' }"
+            title="Base Upgrades"
+            aria-label="Base Upgrades"
+            @click="selectMainTab('baseUpgrades')"
+          >
+            <svg class="chrome-tab-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path
+                d="M5.5 2.5h5l1.5 3.5H4l1.5-3.5z"
+                stroke="currentColor"
+                stroke-width="1.25"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M4 6h8v6.5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6z"
+                stroke="currentColor"
+                stroke-width="1.25"
+                stroke-linejoin="round"
+              />
+              <path d="M6.5 9h3" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" />
+            </svg>
+          </button>
+        </div>
         <h1 class="map-title">{{ mapName }}</h1>
         <p v-if="roundStatus" class="round-status">
           Round {{ roundStatus.round }} · {{ roundStatus.phase }} · {{ roundStatus.turn }}
@@ -140,13 +211,16 @@ function onPhaseAction() {
           {{ phaseAction.label }}
         </button>
       </header>
-      <ActionBar />
-      <GmActionBar />
-      <GameBoard
-        v-if="role"
-        :role="role"
-        :player-profile="playerProfile"
-      />
+      <template v-if="activeMainTab === 'taccom'">
+        <ActionBar />
+        <GmActionBar />
+        <GameBoard
+          v-if="role"
+          :role="role"
+          :player-profile="playerProfile"
+        />
+      </template>
+      <BaseUpgradesPanel v-else />
     </main>
 
     <RightPanel v-if="role" />
@@ -269,6 +343,11 @@ function onPhaseAction() {
   margin: 0 -0.75rem;
   padding: 0 0.75rem;
   border-bottom: 1px solid var(--color-border);
+}
+
+.center-tabs {
+  flex-shrink: 0;
+  margin-bottom: -1px;
 }
 
 .map-title {

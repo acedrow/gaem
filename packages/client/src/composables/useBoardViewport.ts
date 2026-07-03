@@ -3,7 +3,7 @@ import { computed, nextTick, ref, watch } from "vue";
 
 import { readPersistedViewport, writePersistedViewport } from "./uiPersist.js";
 
-const BOARD_PAD = 0;
+const CONTENT_PAD = 0;
 const ZOOM_MAX_FACTOR = 4;
 const PAN_MIN_VISIBLE_FRACTION = 0.2;
 
@@ -17,11 +17,10 @@ function clampPanAxis(pan: number, scaledSize: number, viewportSize: number): nu
 
 export function useBoardViewport(
   viewportEl: Ref<HTMLElement | null>,
-  boardWidthPx: Ref<number>,
-  hasGameState: Ref<boolean>,
-  boardHeight: Ref<number>,
-  boardWidth: Ref<number>,
-  boardKey: Ref<string | null>,
+  contentWidthPx: Ref<number>,
+  contentHeightPx: Ref<number>,
+  isReady: Ref<boolean>,
+  viewportKey: Ref<string | null>,
 ) {
   const scale = ref(1);
   const panX = ref(0);
@@ -42,10 +41,11 @@ export function useBoardViewport(
       Math.abs(panY.value - fitPanY.value) > 1,
   );
 
-  function getBoardSize() {
-    const innerW = boardWidthPx.value;
-    const innerH = innerW * (boardHeight.value / boardWidth.value);
-    return { w: innerW + BOARD_PAD, h: innerH + BOARD_PAD };
+  function getContentSize() {
+    return {
+      w: contentWidthPx.value + CONTENT_PAD,
+      h: contentHeightPx.value + CONTENT_PAD,
+    };
   }
 
   function viewportSize(el: HTMLElement): { vw: number; vh: number } | null {
@@ -55,7 +55,7 @@ export function useBoardViewport(
   }
 
   function computeFitTransform(vw: number, vh: number) {
-    const { w, h } = getBoardSize();
+    const { w, h } = getContentSize();
     const s = Math.min(vw / w, vh / h);
     return { scale: s, panX: (vw - w * s) / 2, panY: (vh - h * s) / 2 };
   }
@@ -77,7 +77,7 @@ export function useBoardViewport(
     const minS = fitScale.value;
     const maxS = fitScale.value * ZOOM_MAX_FACTOR;
     scale.value = Math.min(maxS, Math.max(minS, scale.value));
-    const { w, h } = getBoardSize();
+    const { w, h } = getContentSize();
     const scaledW = w * scale.value;
     const scaledH = h * scale.value;
     panX.value = clampPanAxis(panX.value, scaledW, el.clientWidth);
@@ -87,7 +87,7 @@ export function useBoardViewport(
   function fitToView() {
     const el = viewportEl.value;
     const size = el ? viewportSize(el) : null;
-    if (!el || !size || !hasGameState.value) return;
+    if (!el || !size || !isReady.value) return;
     const fit = computeFitTransform(size.vw, size.vh);
     scale.value = fit.scale;
     panX.value = fit.panX;
@@ -100,8 +100,8 @@ export function useBoardViewport(
 
   function restoreOrFit() {
     const el = viewportEl.value;
-    const key = boardKey.value;
-    if (!el || !hasGameState.value || !key) return;
+    const key = viewportKey.value;
+    if (!el || !isReady.value || !key) return;
     updateFitState();
     const saved = readPersistedViewport(key);
     if (saved && saved.scale > 0) {
@@ -118,7 +118,7 @@ export function useBoardViewport(
   let persistTimer: ReturnType<typeof setTimeout> | null = null;
 
   function persistViewport() {
-    const key = boardKey.value;
+    const key = viewportKey.value;
     if (!key) return;
     if (persistTimer) clearTimeout(persistTimer);
     persistTimer = setTimeout(() => {
@@ -220,7 +220,7 @@ export function useBoardViewport(
   }
 
   watch(
-    [viewportEl, boardKey, hasGameState],
+    [viewportEl, viewportKey, isReady],
     ([el, key, ready]) => {
       if (!el || !key || !ready) return;
       nextTick(restoreOrFit);

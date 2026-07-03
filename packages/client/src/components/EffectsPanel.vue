@@ -85,10 +85,6 @@ function toggle(sectionTitle: string, id: string) {
   gap: 0.5rem;
 }
 
-.item-name {
-  font-weight: 600;
-}
-
 .chevron {
   color: var(--color-muted);
   font-size: 1.5rem;

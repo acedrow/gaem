@@ -1,0 +1,298 @@
+<script setup lang="ts">
+import {
+  BASE_UPGRADES,
+  BASE_UPGRADE_CARD_HEIGHT,
+  BASE_UPGRADE_CARD_WIDTH,
+  type BaseUpgrade,
+  type BaseUpgradeCost,
+} from "@gaem/shared";
+import { computed, onUnmounted, ref, watch } from "vue";
+
+import { useBoardViewport } from "../composables/useBoardViewport.js";
+
+const CARD_W = BASE_UPGRADE_CARD_WIDTH;
+const CARD_H = BASE_UPGRADE_CARD_HEIGHT;
+const CANVAS_PAD = 80;
+
+const upgradeById = new Map(BASE_UPGRADES.map((u) => [u.id, u]));
+
+const viewportEl = ref<HTMLElement | null>(null);
+const viewportKey = ref("base-upgrades");
+const isReady = ref(true);
+
+const contentWidthPx = computed(() => {
+  let maxX = 0;
+  for (const u of BASE_UPGRADES) {
+    maxX = Math.max(maxX, u.layout.x + CARD_W);
+  }
+  return maxX + CANVAS_PAD;
+});
+
+const contentHeightPx = computed(() => {
+  let maxY = 0;
+  for (const u of BASE_UPGRADES) {
+    maxY = Math.max(maxY, u.layout.y + CARD_H);
+  }
+  return maxY + CANVAS_PAD;
+});
+
+const {
+  stageStyle,
+  isTransformed,
+  fitToView,
+  onWheel,
+  observeViewport,
+  disconnect,
+} = useBoardViewport(viewportEl, contentWidthPx, contentHeightPx, isReady, viewportKey);
+
+watch(viewportEl, (el, prev) => {
+  observeViewport(el, prev);
+});
+
+onUnmounted(() => {
+  disconnect();
+});
+
+type Connection = {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+};
+
+const connections = computed((): Connection[] => {
+  const lines: Connection[] = [];
+  for (const upgrade of BASE_UPGRADES) {
+    for (const prereqId of upgrade.prerequisites) {
+      const prereq = upgradeById.get(prereqId);
+      if (!prereq) continue;
+      lines.push({
+        x1: prereq.layout.x + CARD_W / 2,
+        y1: prereq.layout.y + CARD_H,
+        x2: upgrade.layout.x + CARD_W / 2,
+        y2: upgrade.layout.y,
+      });
+    }
+  }
+  return lines;
+});
+
+const optionGroups: { key: keyof BaseUpgrade["options"]; label: string }[] = [
+  { key: "weapons", label: "Weaponry" },
+  { key: "armor", label: "Armor" },
+  { key: "classes", label: "Classes" },
+  { key: "equipment", label: "Equipment" },
+  { key: "gear", label: "Gear" },
+  { key: "haloSystems", label: "HALO System" },
+];
+
+function costParts(cost: BaseUpgradeCost): string[] {
+  const parts: string[] = [];
+  if (cost.hellsteel) parts.push(`${cost.hellsteel} Hellsteel`);
+  if (cost.soulfire) parts.push(`${cost.soulfire} Soulfire`);
+  if (cost.brimstone) parts.push(`${cost.brimstone} Brimstone`);
+  return parts;
+}
+
+function visibleOptions(upgrade: BaseUpgrade) {
+  return optionGroups.filter((g) => upgrade.options[g.key].length > 0);
+}
+</script>
+
+<template>
+  <div class="base-upgrades-root">
+    <div
+      ref="viewportEl"
+      class="base-upgrades-viewport"
+      @wheel.prevent="onWheel"
+    >
+      <div class="base-upgrades-stage" :style="stageStyle">
+        <svg
+          class="base-upgrades-connections"
+          :width="contentWidthPx"
+          :height="contentHeightPx"
+          aria-hidden="true"
+        >
+          <line
+            v-for="(line, i) in connections"
+            :key="i"
+            :x1="line.x1"
+            :y1="line.y1"
+            :x2="line.x2"
+            :y2="line.y2"
+            class="connection-line"
+          />
+        </svg>
+        <article
+          v-for="upgrade in BASE_UPGRADES"
+          :key="upgrade.id"
+          class="upgrade-card list-card"
+          :style="{ left: `${upgrade.layout.x}px`, top: `${upgrade.layout.y}px` }"
+        >
+          <header class="upgrade-card-header">
+            <h2 class="upgrade-card-title">{{ upgrade.name }}</h2>
+            <div v-if="costParts(upgrade.cost).length" class="upgrade-costs">
+              <span
+                v-for="part in costParts(upgrade.cost)"
+                :key="part"
+                class="upgrade-cost-chip"
+              >{{ part }}</span>
+            </div>
+          </header>
+          <div class="upgrade-card-body">
+            <p class="upgrade-flavor">{{ upgrade.flavor }}</p>
+            <p class="upgrade-unlock">{{ upgrade.primaryUnlock }}</p>
+            <div
+              v-for="group in visibleOptions(upgrade)"
+              :key="group.key"
+              class="upgrade-option-group"
+            >
+              <span class="upgrade-option-label">{{ group.label }}</span>
+              <ul class="upgrade-option-list">
+                <li v-for="item in upgrade.options[group.key]" :key="item">{{ item }}</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+      </div>
+    </div>
+    <button
+      v-if="isTransformed"
+      type="button"
+      class="reset-zoom-btn"
+      @click="fitToView"
+    >
+      Reset zoom
+    </button>
+  </div>
+</template>
+
+<style scoped>
+.base-upgrades-root {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.base-upgrades-viewport {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.base-upgrades-stage {
+  position: relative;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.base-upgrades-connections {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.connection-line {
+  stroke: var(--color-border);
+  stroke-width: 2;
+}
+
+.upgrade-card {
+  position: absolute;
+  width: v-bind('`${CARD_W}px`');
+  min-height: v-bind('`${CARD_H}px`');
+  z-index: 1;
+}
+
+.upgrade-card-header {
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.upgrade-card-title {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 0.82rem;
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--color-text);
+}
+
+.upgrade-costs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+}
+
+.upgrade-cost-chip {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: var(--color-accent-subtle-bg);
+  color: var(--color-accent-bright);
+  border: 1px solid var(--color-accent-muted);
+}
+
+.upgrade-card-body {
+  padding: 0.65rem 0.75rem;
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+
+.upgrade-flavor {
+  margin: 0 0 0.6rem;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.upgrade-unlock {
+  margin: 0 0 0.6rem;
+  color: var(--color-text);
+  line-height: 1.4;
+}
+
+.upgrade-option-group {
+  margin-top: 0.45rem;
+}
+
+.upgrade-option-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text);
+  margin-bottom: 0.2rem;
+}
+
+.upgrade-option-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  line-height: 1.35;
+}
+
+.reset-zoom-btn {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  z-index: 2;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: 0.35rem 0.65rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.reset-zoom-btn:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-accent-muted);
+}
+</style>

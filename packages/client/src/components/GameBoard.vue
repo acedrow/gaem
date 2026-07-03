@@ -136,6 +136,9 @@ const boardHeight = computed(() => gameState.value?.height ?? 1);
 const boardKey = computed(() =>
   gameState.value ? `${gameState.value.width}x${gameState.value.height}` : null,
 );
+const contentHeightPx = computed(() =>
+  boardWidthPx.value * (boardHeight.value / boardWidth.value),
+);
 
 const {
   scale,
@@ -150,9 +153,8 @@ const {
 } = useBoardViewport(
   viewportEl,
   boardWidthPx,
+  contentHeightPx,
   hasGameState,
-  boardHeight,
-  boardWidth,
   boardKey,
 );
 

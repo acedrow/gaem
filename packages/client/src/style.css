@@ -71,6 +71,40 @@ h3,
   padding: 1rem;
 }
 
+.chrome-tabs {
+  display: flex;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  min-height: var(--chrome-header-height);
+}
+
+.chrome-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--color-muted);
+  padding: 0.65rem 0.75rem;
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+
+.chrome-tab-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.chrome-tab:hover {
+  color: var(--color-text);
+}
+
+.chrome-tab.active {
+  color: var(--color-text);
+  border-bottom-color: var(--color-accent);
+}
+
 .panel-header {
   display: flex;
   align-items: flex-start;
@@ -269,6 +303,11 @@ h3,
 .list-card-header:hover,
 .list-card-header.expanded {
   background: var(--color-surface-hover);
+}
+
+.item-name {
+  font-weight: 500;
+  font-size: 1.1rem;
 }
 
 .list-card-body {
