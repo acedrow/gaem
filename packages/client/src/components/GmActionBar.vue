@@ -85,7 +85,7 @@ function exhaustEnemy() {
 </script>
 
 <template>
-  <div v-if="showGmCombatUi" class="action-bar panel gm-bar">
+  <div v-if="showGmCombatUi" class="action-bar gm-bar">
     <div v-if="!activeEnemy" class="hint-row">
       <span class="hint">Select an enemy on the board to move or attack</span>
       <span v-if="queue.length" class="queue-inline">
@@ -136,9 +136,13 @@ function exhaustEnemy() {
 .action-bar {
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
   gap: 0.5rem;
   padding: 0.65rem 0.75rem;
   margin: 0 0.75rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
 }
 
 .budget-row,

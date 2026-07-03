@@ -48,6 +48,12 @@ export function useBoardViewport(
     return { w: innerW + BOARD_PAD, h: innerH + BOARD_PAD };
   }
 
+  function viewportSize(el: HTMLElement): { vw: number; vh: number } | null {
+    const vw = el.clientWidth;
+    const vh = el.clientHeight;
+    return vw > 0 && vh > 0 ? { vw, vh } : null;
+  }
+
   function computeFitTransform(vw: number, vh: number) {
     const { w, h } = getBoardSize();
     const s = Math.min(vw / w, vh / h);
@@ -57,7 +63,9 @@ export function useBoardViewport(
   function updateFitState() {
     const el = viewportEl.value;
     if (!el) return;
-    const fit = computeFitTransform(el.clientWidth, el.clientHeight);
+    const size = viewportSize(el);
+    if (!size) return;
+    const fit = computeFitTransform(size.vw, size.vh);
     fitScale.value = fit.scale;
     fitPanX.value = fit.panX;
     fitPanY.value = fit.panY;
@@ -65,7 +73,7 @@ export function useBoardViewport(
 
   function clampView() {
     const el = viewportEl.value;
-    if (!el) return;
+    if (!el || !viewportSize(el)) return;
     const minS = fitScale.value;
     const maxS = fitScale.value * ZOOM_MAX_FACTOR;
     scale.value = Math.min(maxS, Math.max(minS, scale.value));
@@ -78,8 +86,9 @@ export function useBoardViewport(
 
   function fitToView() {
     const el = viewportEl.value;
-    if (!el || !hasGameState.value) return;
-    const fit = computeFitTransform(el.clientWidth, el.clientHeight);
+    const size = el ? viewportSize(el) : null;
+    if (!el || !size || !hasGameState.value) return;
+    const fit = computeFitTransform(size.vw, size.vh);
     scale.value = fit.scale;
     panX.value = fit.panX;
     panY.value = fit.panY;
@@ -95,7 +104,7 @@ export function useBoardViewport(
     if (!el || !hasGameState.value || !key) return;
     updateFitState();
     const saved = readPersistedViewport(key);
-    if (saved) {
+    if (saved && saved.scale > 0) {
       scale.value = saved.scale;
       panX.value = saved.panX;
       panY.value = saved.panY;
@@ -117,9 +126,15 @@ export function useBoardViewport(
     }, 150);
   }
 
+  let resizeFrame = 0;
+
   const resizeObserver = new ResizeObserver(() => {
     const wasFit = !isTransformed.value;
-    nextTick(() => {
+    if (resizeFrame) cancelAnimationFrame(resizeFrame);
+    resizeFrame = requestAnimationFrame(() => {
+      resizeFrame = 0;
+      const el = viewportEl.value;
+      if (!el || !viewportSize(el)) return;
       if (wasFit) fitToView();
       else {
         updateFitState();
@@ -199,6 +214,7 @@ export function useBoardViewport(
 
   function disconnect() {
     if (wheelFrame) cancelAnimationFrame(wheelFrame);
+    if (resizeFrame) cancelAnimationFrame(resizeFrame);
     if (persistTimer) clearTimeout(persistTimer);
     resizeObserver.disconnect();
   }

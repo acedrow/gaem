@@ -50,7 +50,7 @@ function pickMode(next: typeof mode.value) {
 </script>
 
 <template>
-  <div v-if="showPlayerActionBar" class="action-bar panel">
+  <div v-if="showPlayerActionBar" class="action-bar">
     <div class="budget-row">
       <span class="chip" :class="{ spent: !canMain }">Main</span>
       <span class="chip" :class="{ spent: !canSupport }">Support</span>
@@ -141,9 +141,13 @@ function pickMode(next: typeof mode.value) {
 .action-bar {
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
   gap: 0.5rem;
   padding: 0.65rem 0.75rem;
   margin: 0 0.75rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
 }
 
 .budget-row,
