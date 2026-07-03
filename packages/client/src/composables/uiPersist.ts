@@ -1,11 +1,13 @@
 import { watch, type Ref } from "vue";
+import type { GaemRole } from "@gaem/shared";
 
 import type { BoardSelection } from "./useBoardSelection.js";
 import type { DataCategory, DataFocus } from "./useInfoDataSelection.js";
 import type { RightPanelTab } from "./useGameConsole.js";
 import type { MainSectionTab } from "./useMainSectionTab.js";
+import { useSession } from "./useSession.js";
 
-const STORAGE_KEY = "gaem-ui";
+const LEGACY_STORAGE_KEY = "gaem-ui";
 
 const DATA_CATEGORIES = new Set<DataCategory>([
   "armor",
@@ -121,24 +123,55 @@ function parsePersistedUi(raw: string): PersistedUi {
   }
 }
 
+function uiStorageKey(role: GaemRole | null, playerId: string | null): string | null {
+  if (role === "gm") return "gaem-ui:gm";
+  if (role === "player" && playerId) return `gaem-ui:player:${playerId}`;
+  return null;
+}
+
+const { role, playerProfile } = useSession();
+
+function readFromStorage(key: string | null): PersistedUi {
+  if (!key) return { ...DEFAULT_UI };
+  try {
+    let raw = localStorage.getItem(key);
+    if (!raw && key === "gaem-ui:gm") {
+      const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (legacy) {
+        localStorage.setItem(key, legacy);
+        raw = legacy;
+      }
+    }
+    return raw ? parsePersistedUi(raw) : { ...DEFAULT_UI };
+  } catch {
+    return { ...DEFAULT_UI };
+  }
+}
+
 let cached: PersistedUi | null = null;
+let cachedKey: string | null = null;
+
+function invalidateCache() {
+  cached = null;
+  cachedKey = null;
+}
 
 export function readPersistedUi(): PersistedUi {
-  if (cached) return cached;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    cached = raw ? parsePersistedUi(raw) : { ...DEFAULT_UI };
-  } catch {
-    cached = { ...DEFAULT_UI };
-  }
+  const key = uiStorageKey(role.value, playerProfile.value?.id ?? null);
+  if (cached && cachedKey === key) return cached;
+  cachedKey = key;
+  cached = readFromStorage(key);
   return cached;
 }
 
 export function writePersistedUi(patch: Partial<PersistedUi>) {
+  const key = uiStorageKey(role.value, playerProfile.value?.id ?? null);
+  if (!key) return;
   const next = { ...readPersistedUi(), ...patch };
   cached = next;
+  cachedKey = key;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    localStorage.setItem(key, JSON.stringify(next));
   } catch {
     // ignore quota / private browsing
   }
@@ -160,7 +193,7 @@ function schedulePersist(snapshot: () => Partial<PersistedUi>) {
   persistTimer = setTimeout(() => writePersistedUi(snapshot()), 150);
 }
 
-export function initUiPersistence(opts: {
+export type UiPersistRefs = {
   boardSelection: Ref<BoardSelection | null>;
   selectedSheetId: Ref<string | null>;
   dataCategory: Ref<DataCategory | null>;
@@ -170,6 +203,21 @@ export function initUiPersistence(opts: {
   activeMainTab: Ref<MainSectionTab>;
   sheetsExpanded: Ref<boolean>;
   dataExpanded: Ref<boolean>;
+};
+
+export function applyPersistedUiState(refs: UiPersistRefs, persisted: PersistedUi = readPersistedUi()) {
+  refs.boardSelection.value = persisted.boardSelection;
+  refs.selectedSheetId.value = persisted.selectedSheetId;
+  refs.dataCategory.value = persisted.dataCategory;
+  refs.dataFocus.value = persisted.dataFocus;
+  refs.dataFocusReturnCategory.value = persisted.dataFocusReturnCategory;
+  refs.activeTab.value = persisted.activeTab;
+  refs.activeMainTab.value = persisted.activeMainTab;
+  refs.sheetsExpanded.value = persisted.sheetsExpanded;
+  refs.dataExpanded.value = persisted.dataExpanded;
+}
+
+export function initUiPersistence(opts: UiPersistRefs & {
   gameState: Ref<{ players: { id: string }[]; enemies: { id: string }[] } | null>;
 }) {
   const {
@@ -184,6 +232,27 @@ export function initUiPersistence(opts: {
     dataExpanded,
     gameState,
   } = opts;
+
+  const refs: UiPersistRefs = {
+    boardSelection,
+    selectedSheetId,
+    dataCategory,
+    dataFocus,
+    dataFocusReturnCategory,
+    activeTab,
+    activeMainTab,
+    sheetsExpanded,
+    dataExpanded,
+  };
+
+  watch(
+    [role, playerProfile],
+    () => {
+      invalidateCache();
+      applyPersistedUiState(refs);
+    },
+    { deep: true },
+  );
 
   watch(
     gameState,

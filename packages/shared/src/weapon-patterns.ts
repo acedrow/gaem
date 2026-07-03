@@ -60,7 +60,11 @@ export function attackSpecHasDiagram(spec: WeaponAttackSpec): boolean {
 
 export function buildPatternGrid(
   tiles: RelativeTile[],
-  options?: { healTiles?: RelativeTile[]; showOrigin?: boolean },
+  options?: {
+    healTiles?: RelativeTile[];
+    boundsTiles?: RelativeTile[];
+    showOrigin?: boolean;
+  },
 ): PatternGrid {
   const showOrigin = options?.showOrigin ?? true;
   const healKeys = new Set((options?.healTiles ?? []).map((t) => `${t[0]},${t[1]}`));
@@ -81,6 +85,7 @@ export function buildPatternGrid(
   if (showOrigin) mark(0, 0);
   for (const [x, y] of tiles) mark(x, y);
   for (const [x, y] of options?.healTiles ?? []) mark(x, y);
+  for (const [x, y] of options?.boundsTiles ?? []) mark(x, y);
 
   if (!Number.isFinite(minX)) {
     return { minX: 0, minY: 0, width: 1, height: 1, cells: [["empty"]] };

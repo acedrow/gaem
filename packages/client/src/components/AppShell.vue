@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { PhaseAction } from "@gaem/shared";
-import { remainingPlayerIds, roundPhaseLabel, turnHolderLabel } from "@gaem/shared";
+import { isPlayerDowned, remainingPlayerIds, roundPhaseLabel, turnHolderLabel } from "@gaem/shared";
 import { computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 
@@ -64,6 +64,13 @@ const roundStatus = computed(() => {
   };
 });
 
+const yourPlayer = computed(() => {
+  const s = gameState.value;
+  const id = yourPlayerId.value;
+  if (!s || !id) return null;
+  return s.players.find((p) => p.id === id) ?? null;
+});
+
 const phaseAction = computed((): { label: string; action: PhaseAction } | null => {
   const s = gameState.value;
   if (!s || !role.value) return null;
@@ -78,6 +85,8 @@ const phaseAction = computed((): { label: string; action: PhaseAction } | null =
     s.roundPhase === "playersChoice" &&
     role.value === "player" &&
     yourPlayerId.value &&
+    yourPlayer.value &&
+    !isPlayerDowned(yourPlayer.value) &&
     !s.actedPlayerIds.includes(yourPlayerId.value)
   ) {
     return { label: "Take turn", action: "takeTurn" };

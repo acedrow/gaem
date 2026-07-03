@@ -25,7 +25,10 @@ export type WeaponBombPattern = {
   name: string;
   damage: string;
   range?: string;
+  description?: string;
   tiles: RelativeTile[];
+  healTiles?: RelativeTile[];
+  boundsTiles?: RelativeTile[];
   heal?: boolean;
   effects?: string[];
 };

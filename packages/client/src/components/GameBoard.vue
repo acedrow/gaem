@@ -16,6 +16,7 @@ import {
   getEnemyScaleByName,
   getPlayerMaxHp,
   getWeaponAttackSpec,
+  isPlayerDowned,
   isRangeTargetAttack,
   isWalkable,
   manhattanDistance,
@@ -35,6 +36,7 @@ import { useCombatActions } from "../composables/useCombatActions.js";
 import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useBoardViewport } from "../composables/useBoardViewport.js";
 import { useDamageIndicators } from "../composables/useDamageIndicators.js";
+import { useEnemyDeathAnimations } from "../composables/useEnemyDeathAnimations.js";
 import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
 import { useCharacterSheets } from "../composables/useCharacterSheets.js";
 import { useEnemySpawnSelection } from "../composables/useEnemySpawnSelection.js";
@@ -183,6 +185,13 @@ const { send, connect, disconnect: disconnectSocket } = useGameSocket({
     }
   },
 });
+
+function finalizeDefeatedEnemy(enemyId: string) {
+  if (props.role !== "gm") return;
+  send({ type: "removeEnemy", enemyId });
+}
+
+const { isEnemyDying } = useEnemyDeathAnimations(gameState, finalizeDefeatedEnemy);
 
 const gridStyle = computed(() => {
   const s = gameState.value;
@@ -472,6 +481,7 @@ const cellStateByKey = computed(() => {
       turnEnded: player
         ? s.roundPhase !== "deployment" && s.actedPlayerIds.includes(player.id)
         : enemy?.exhausted ?? false,
+      playerDowned: player ? isPlayerDowned(player) : false,
       playerPortraitUrl: player?.characterSheetId
         ? portraitUrlFor(player.characterSheetId)
         : null,
@@ -1133,6 +1143,8 @@ onUnmounted(() => {
                   selectedEnemyId === cellStateByKey.get(c.key)?.enemyAnchor?.id,
                   cellStateByKey.get(c.key)?.player?.hp,
                   cellStateByKey.get(c.key)?.enemyAnchor?.hp,
+                  !!cellStateByKey.get(c.key)?.enemyAnchor &&
+                    isEnemyDying(cellStateByKey.get(c.key)!.enemyAnchor!.id),
                   showHealthBars,
                   showEnemyHealthBars,
                 ]"
@@ -1147,6 +1159,7 @@ onUnmounted(() => {
                 :player-hue="cellStateByKey.get(c.key)?.player ? hueFromId(cellStateByKey.get(c.key)!.player!.id) : null"
                 :show-health-bars="showHealthBars"
                 :show-enemy-health-bars="showEnemyHealthBars"
+                :enemy-dying="!!cellStateByKey.get(c.key)?.enemyAnchor && isEnemyDying(cellStateByKey.get(c.key)!.enemyAnchor!.id)"
                 @click="onCellClick(c.x, c.y)"
                 @hover="onCellHover(c.x, c.y, c.key)"
                 @unhover="onCellUnhover"
@@ -1348,6 +1361,10 @@ onUnmounted(() => {
   margin-bottom: 0.15rem;
   color: var(--color-muted);
   text-transform: uppercase;
+  font-family: inherit;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
 .tooltip-row {

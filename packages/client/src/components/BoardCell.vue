@@ -20,6 +20,7 @@ export type CellRenderState = {
   enemyAnchor: Enemy | undefined;
   effectStacks?: EffectStacks;
   turnEnded?: boolean;
+  playerDowned?: boolean;
   playerPortraitUrl?: string | null;
 };
 
@@ -37,6 +38,7 @@ const props = defineProps<{
   isEnemySelected: boolean;
   showHealthBars: boolean;
   showEnemyHealthBars: boolean;
+  enemyDying?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -127,6 +129,7 @@ const enemyHp = computed(() => {
       'pattern-secondary': cell.patternSecondary,
       'pattern-recoil': cell.patternRecoil,
       'scaled-enemy-effects': scaledEnemyEffects,
+      'enemy-dying': enemyDying,
     }"
     @click="emit('click')"
     @mouseenter="emit('hover')"
@@ -135,7 +138,7 @@ const enemyHp = computed(() => {
     <span
       v-if="cell.enemyAnchor"
       class="piece enemy"
-      :class="{ selected: isEnemySelected, 'turn-ended': cell.turnEnded }"
+      :class="{ selected: isEnemySelected, 'turn-ended': cell.turnEnded, dying: enemyDying }"
       :style="enemyPieceStyle(cell.enemyAnchor)"
       @click.stop="emit('enemyClick')"
     >
@@ -158,7 +161,8 @@ const enemyHp = computed(() => {
         selected: isPlayerSelected,
         draggable: canDragDeploy,
         dragging: draggingDeploy && canDragDeploy,
-        'turn-ended': cell.turnEnded,
+        'turn-ended': cell.turnEnded && !cell.playerDowned,
+        'player-downed': cell.playerDowned,
         'has-portrait': !!cell.playerPortraitUrl,
       }"
       :style="!cell.playerPortraitUrl && playerHue != null ? { background: `hsl(${playerHue} 70% 45%)` } : undefined"
@@ -171,9 +175,20 @@ const enemyHp = computed(() => {
         alt=""
         class="portrait-img"
       />
-      <span v-if="cell.turnEnded && !cell.playerPortraitUrl" class="turn-ended-shade" aria-hidden="true"></span>
-      <span v-if="cell.turnEnded" class="turn-ended-zzz" aria-hidden="true">
+      <span
+        v-if="cell.playerDowned || (cell.turnEnded && !cell.playerPortraitUrl)"
+        class="turn-ended-shade"
+        aria-hidden="true"
+      ></span>
+      <span v-if="cell.turnEnded && !cell.playerDowned" class="turn-ended-zzz" aria-hidden="true">
         <span class="z z1">z</span><span class="z z2">z</span><span class="z z3">z</span>
+      </span>
+      <span v-if="cell.playerDowned" class="player-down-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+          <path
+            d="M12 2a5 5 0 0 0-5 5c0 1.74.89 3.27 2.24 4.17C7.77 12.03 6 14.13 6 16.5V18h12v-1.5c0-2.37-1.77-4.47-3.24-5.33A4.99 4.99 0 0 0 17 7a5 5 0 0 0-5-5Zm-1.5 15v2h3v-2h-3Z"
+          />
+        </svg>
       </span>
       <HpBar
         v-if="showHealthBars && playerHp"
@@ -273,6 +288,21 @@ const enemyHp = computed(() => {
   z-index: 4;
 }
 
+.cell.enemy-dying .piece.enemy,
+.cell.enemy-dying .effect-badges {
+  pointer-events: none;
+  animation: enemy-death-fade 0.75s ease-in-out 2.25s forwards;
+}
+
+@keyframes enemy-death-fade {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
 .piece {
   position: absolute;
   inset: 4px;
@@ -294,8 +324,21 @@ const enemyHp = computed(() => {
   border-radius: 50%;
 }
 
-.piece.turn-ended .portrait-img {
+.piece.turn-ended .portrait-img,
+.piece.player-downed .portrait-img {
   filter: brightness(0.42) saturate(0.65);
+}
+
+.player-down-icon {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  color: var(--color-text);
+  opacity: 0.92;
+  filter: drop-shadow(var(--shadow-text));
 }
 
 .turn-ended-shade {

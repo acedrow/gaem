@@ -409,45 +409,50 @@ wss.on("connection", (ws: WebSocket) => {
 
     const role = socketRole.get(ws);
     if (parsed.type === "moveEnemy" || parsed.type === "addEnemy" || parsed.type === "removeEnemy") {
-      if (role !== "gm") {
-        sendError(ws, "Only the game master can manage enemies");
-        return;
-      }
-      if (parsed.type === "moveEnemy") {
+      if (parsed.type === "removeEnemy") {
         const enemy = gameState.enemies.find((e) => e.id === parsed.enemyId);
-        const err = validateEnemyMove(gameState, parsed.enemyId, parsed.x, parsed.y);
-        if (err) {
-          sendError(ws, err);
-          return;
-        }
-        applyEnemyMove(gameState, parsed.enemyId, parsed.x, parsed.y);
-        if (enemy) {
-          broadcastConsole(actorForSocket(ws), `moved ${enemyLabel(enemy)} to (${parsed.x}, ${parsed.y})`);
-        }
-      } else if (parsed.type === "addEnemy") {
-        const id = randomUUID();
-        const err = addEnemy(gameState, {
-          id,
-          x: parsed.x,
-          y: parsed.y,
-          ...(parsed.name !== undefined ? { name: parsed.name } : {}),
-        });
-        if (err) {
-          sendError(ws, err);
-          return;
-        }
-        const enemy = gameState.enemies.find((e) => e.id === id);
-        if (enemy) {
-          broadcastConsole(actorForSocket(ws), `spawned ${enemyLabel(enemy)} at (${parsed.x}, ${parsed.y})`);
-        }
-      } else {
-        const enemy = gameState.enemies.find((e) => e.id === parsed.enemyId);
-        if (!removeEnemy(gameState, parsed.enemyId)) {
+        if (!enemy) {
           sendError(ws, "Unknown enemy");
           return;
         }
-        if (enemy) {
-          broadcastConsole(actorForSocket(ws), `removed ${enemyLabel(enemy)}`);
+        if (role !== "gm" && (enemy.hp ?? 0) > 0) {
+          sendError(ws, "Only the game master can manage enemies");
+          return;
+        }
+        removeEnemy(gameState, parsed.enemyId);
+        broadcastConsole(actorForSocket(ws), `removed ${enemyLabel(enemy)}`);
+      } else {
+        if (role !== "gm") {
+          sendError(ws, "Only the game master can manage enemies");
+          return;
+        }
+        if (parsed.type === "moveEnemy") {
+          const enemy = gameState.enemies.find((e) => e.id === parsed.enemyId);
+          const err = validateEnemyMove(gameState, parsed.enemyId, parsed.x, parsed.y);
+          if (err) {
+            sendError(ws, err);
+            return;
+          }
+          applyEnemyMove(gameState, parsed.enemyId, parsed.x, parsed.y);
+          if (enemy) {
+            broadcastConsole(actorForSocket(ws), `moved ${enemyLabel(enemy)} to (${parsed.x}, ${parsed.y})`);
+          }
+        } else {
+          const id = randomUUID();
+          const err = addEnemy(gameState, {
+            id,
+            x: parsed.x,
+            y: parsed.y,
+            ...(parsed.name !== undefined ? { name: parsed.name } : {}),
+          });
+          if (err) {
+            sendError(ws, err);
+            return;
+          }
+          const enemy = gameState.enemies.find((e) => e.id === id);
+          if (enemy) {
+            broadcastConsole(actorForSocket(ws), `spawned ${enemyLabel(enemy)} at (${parsed.x}, ${parsed.y})`);
+          }
         }
       }
       broadcastState();

@@ -3,14 +3,14 @@ import { getEnemyMaxHp, getPlayerMaxHp } from "@gaem/shared";
 import type { Ref } from "vue";
 import { onUnmounted, ref, watch } from "vue";
 
+import { DAMAGE_ANIMATION_DURATION_MS } from "../lib/damageAnimationTiming.js";
+
 export type DamageIndicator = {
   id: string;
   x: number;
   y: number;
   amount: number;
 };
-
-const DURATION_MS = 3000;
 
 function snapshotUnitHp(state: GameState): Map<string, { hp: number; x: number; y: number }> {
   const m = new Map<string, { hp: number; x: number; y: number }>();
@@ -38,7 +38,7 @@ export function useDamageIndicators(gameState: Ref<GameState | null>) {
     const timer = setTimeout(() => {
       dismiss(id);
       timers.delete(timer);
-    }, DURATION_MS);
+    }, DAMAGE_ANIMATION_DURATION_MS);
     timers.add(timer);
   }
 

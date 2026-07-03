@@ -123,6 +123,10 @@ export function canRewindPhase(state: GameState): boolean {
   return true;
 }
 
+export function canResetPhase(state: GameState): boolean {
+  return state.roundPhase === "playerTurn" && state.turn?.role === "player";
+}
+
 function resetToRoundStart(state: GameState): void {
   state.roundPhase = state.round === 1 ? "deployment" : "startRoundEffects";
   state.turn = { role: "gm" };
@@ -137,10 +141,18 @@ function resetToCombatStart(state: GameState): void {
 
 export function remainingPlayerIds(state: GameState): string[] {
   const acted = new Set(state.actedPlayerIds);
-  return state.players.filter((p) => !acted.has(p.id)).map((p) => p.id);
+  return state.players
+    .filter((p) => !acted.has(p.id) && !isPlayerDowned(p))
+    .map((p) => p.id);
+}
+
+export function isPlayerDowned(player: Player): boolean {
+  return (player.hp ?? 0) <= 0;
 }
 
 export function canPlayerMove(state: GameState, playerId: string): boolean {
+  const player = state.players.find((p) => p.id === playerId);
+  if (player && isPlayerDowned(player)) return false;
   if (state.enforceTurns === false) {
     return state.players.some((p) => p.id === playerId);
   }
@@ -235,12 +247,15 @@ export function validatePhaseAction(
       if (ctx.role !== "gm") return "Only the game master can do that";
       if (state.roundPhase !== "startRoundEffects") return "Wrong phase";
       return null;
-    case "takeTurn":
+    case "takeTurn": {
       if (ctx.role !== "player" || !ctx.playerId) return "Only players can take a turn";
       if (state.roundPhase !== "playersChoice") return "Wrong phase";
       if (state.actedPlayerIds.includes(ctx.playerId)) return "Already acted this round";
-      if (!state.players.some((p) => p.id === ctx.playerId)) return "Unknown player";
+      const player = state.players.find((p) => p.id === ctx.playerId);
+      if (!player) return "Unknown player";
+      if (isPlayerDowned(player)) return "You are down";
       return null;
+    }
     case "endPlayerTurn":
       if (ctx.role !== "player" || !ctx.playerId) return "Only players can end their turn";
       if (state.roundPhase !== "playerTurn") return "Wrong phase";
@@ -276,6 +291,10 @@ export function validatePhaseAction(
     case "rewindPhase":
       if (ctx.role !== "gm") return "Only the game master can do that";
       if (!canRewindPhase(state)) return "Already at the first phase of the round";
+      return null;
+    case "resetPhase":
+      if (ctx.role !== "gm") return "Only the game master can do that";
+      if (!canResetPhase(state)) return "No player turn in progress";
       return null;
   }
 }
@@ -433,6 +452,13 @@ export function applyPhaseAction(
         case "deployment":
           return "Already at the first phase of the round";
       }
+    }
+    case "resetPhase": {
+      const playerId = state.turn?.role === "player" ? state.turn.playerId : null;
+      if (!playerId) return "No player turn in progress";
+      resetPlayerTurnActions(state, playerId);
+      const player = state.players.find((p) => p.id === playerId);
+      return `Reset ${playerLabel(player!)}'s actions`;
     }
   }
 }

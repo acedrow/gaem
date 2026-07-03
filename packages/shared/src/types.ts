@@ -109,7 +109,8 @@ export type PhaseAction =
   | "gmEndTurn"
   | "endDeployment"
   | "resetCombat"
-  | "rewindPhase";
+  | "rewindPhase"
+  | "resetPhase";
 
 export type RoundTurnLog = {
   round: number;

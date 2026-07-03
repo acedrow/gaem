@@ -3,6 +3,8 @@ import type { WeaponAttackSpec, WeaponBombPattern, WeaponPatternLevel } from "@g
 import { attackSpecHasDiagram, buildPatternGrid } from "@gaem/shared";
 import { computed, ref } from "vue";
 
+import RuleText from "./RuleText.vue";
+
 const props = defineProps<{
   attack: WeaponAttackSpec;
 }>();
@@ -53,9 +55,12 @@ const displayGrid = computed(() => {
   }
 
   const tiles = activeLevel.value?.tiles ?? activeBomb.value?.tiles ?? props.attack.tiles ?? [];
-  const healTiles = activeBomb.value?.heal ? activeBomb.value.tiles : undefined;
+  const healTiles =
+    activeBomb.value?.healTiles ??
+    (activeBomb.value?.heal ? activeBomb.value.tiles : undefined);
   return buildPatternGrid(tiles, {
-    healTiles: activeBomb.value?.heal ? healTiles : undefined,
+    healTiles,
+    boundsTiles: activeBomb.value?.boundsTiles,
     showOrigin: !activeBomb.value,
   });
 });
@@ -105,11 +110,15 @@ const displayGrid = computed(() => {
         v-for="(cell, index) in displayGrid.cells.flat()"
         :key="index"
         class="pattern-cell"
-        :class="cell"
+        :class="[cell, { 'heal-blue': cell === 'heal' }]"
       >
         <span v-if="cell === 'origin'" class="origin-mark" aria-hidden="true">▶</span>
       </span>
     </div>
+
+    <p v-if="activeBomb?.description" class="weapon-pattern-description">
+      <RuleText :text="activeBomb.description" />
+    </p>
   </div>
 </template>
 
@@ -183,9 +192,9 @@ const displayGrid = computed(() => {
   border-color: var(--color-pattern-orange-dark);
 }
 
-.pattern-cell.heal {
-  background: var(--color-accent-bright);
-  border-color: var(--color-accent);
+.pattern-cell.heal-blue {
+  background: #4a8fd4;
+  border-color: #2d6aad;
 }
 
 .pattern-cell.origin {
@@ -201,5 +210,12 @@ const displayGrid = computed(() => {
 
 .pattern-cell.empty {
   opacity: 0.35;
+}
+
+.weapon-pattern-description {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--color-muted);
 }
 </style>

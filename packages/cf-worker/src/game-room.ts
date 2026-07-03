@@ -243,48 +243,53 @@ export class GameRoom {
     }
 
     if (parsed.type === "moveEnemy" || parsed.type === "addEnemy" || parsed.type === "removeEnemy") {
-      if (att?.role !== "gm") {
-        this.sendError(ws, "Only the game master can manage enemies");
-        return;
-      }
-      if (parsed.type === "moveEnemy") {
+      if (parsed.type === "removeEnemy") {
         const enemy = this.gameState.enemies.find((e) => e.id === parsed.enemyId);
-        const err = validateEnemyMove(this.gameState, parsed.enemyId, parsed.x, parsed.y);
-        if (err) {
-          this.sendError(ws, err);
-          return;
-        }
-        applyEnemyMove(this.gameState, parsed.enemyId, parsed.x, parsed.y);
-        if (enemy) {
-          const actor = await this.actorForSocket(ws);
-          this.broadcastConsole(actor, `moved ${enemyLabel(enemy)} to (${parsed.x}, ${parsed.y})`);
-        }
-      } else if (parsed.type === "addEnemy") {
-        const id = crypto.randomUUID();
-        const err = addEnemy(this.gameState, {
-          id,
-          x: parsed.x,
-          y: parsed.y,
-          ...(parsed.name !== undefined ? { name: parsed.name } : {}),
-        });
-        if (err) {
-          this.sendError(ws, err);
-          return;
-        }
-        const enemy = this.gameState.enemies.find((e) => e.id === id);
-        if (enemy) {
-          const actor = await this.actorForSocket(ws);
-          this.broadcastConsole(actor, `spawned ${enemyLabel(enemy)} at (${parsed.x}, ${parsed.y})`);
-        }
-      } else {
-        const enemy = this.gameState.enemies.find((e) => e.id === parsed.enemyId);
-        if (!removeEnemy(this.gameState, parsed.enemyId)) {
+        if (!enemy) {
           this.sendError(ws, "Unknown enemy");
           return;
         }
-        if (enemy) {
-          const actor = await this.actorForSocket(ws);
-          this.broadcastConsole(actor, `removed ${enemyLabel(enemy)}`);
+        if (att?.role !== "gm" && (enemy.hp ?? 0) > 0) {
+          this.sendError(ws, "Only the game master can manage enemies");
+          return;
+        }
+        removeEnemy(this.gameState, parsed.enemyId);
+        const actor = await this.actorForSocket(ws);
+        this.broadcastConsole(actor, `removed ${enemyLabel(enemy)}`);
+      } else {
+        if (att?.role !== "gm") {
+          this.sendError(ws, "Only the game master can manage enemies");
+          return;
+        }
+        if (parsed.type === "moveEnemy") {
+          const enemy = this.gameState.enemies.find((e) => e.id === parsed.enemyId);
+          const err = validateEnemyMove(this.gameState, parsed.enemyId, parsed.x, parsed.y);
+          if (err) {
+            this.sendError(ws, err);
+            return;
+          }
+          applyEnemyMove(this.gameState, parsed.enemyId, parsed.x, parsed.y);
+          if (enemy) {
+            const actor = await this.actorForSocket(ws);
+            this.broadcastConsole(actor, `moved ${enemyLabel(enemy)} to (${parsed.x}, ${parsed.y})`);
+          }
+        } else {
+          const id = crypto.randomUUID();
+          const err = addEnemy(this.gameState, {
+            id,
+            x: parsed.x,
+            y: parsed.y,
+            ...(parsed.name !== undefined ? { name: parsed.name } : {}),
+          });
+          if (err) {
+            this.sendError(ws, err);
+            return;
+          }
+          const enemy = this.gameState.enemies.find((e) => e.id === id);
+          if (enemy) {
+            const actor = await this.actorForSocket(ws);
+            this.broadcastConsole(actor, `spawned ${enemyLabel(enemy)} at (${parsed.x}, ${parsed.y})`);
+          }
         }
       }
       await this.broadcastState();
