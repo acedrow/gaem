@@ -7,15 +7,15 @@ export type ThemeId = "hellpiercers" | "infernum" | "paracletus" | "hades" | "di
 export type ThemeOption = {
   id: ThemeId;
   label: string;
-  swatch: [string, string, string];
+  swatch: [string, string, string, string, string];
 };
 
 export const THEMES: ThemeOption[] = [
-  { id: "hellpiercers", label: "Hellpiercers", swatch: ["#0d1117", "#161b22", "#388bfd"] },
-  { id: "infernum", label: "Infernum", swatch: ["#070a10", "#0f1520", "#4d9fff"] },
-  { id: "paracletus", label: "Paracletus", swatch: ["#12100e", "#1c1814", "#e8956a"] },
-  { id: "hades", label: "Hades", swatch: ["#120c0c", "#1c1414", "#e05a5a"] },
-  { id: "divinity", label: "Divinity", swatch: ["#faf8f5", "#ffffff", "#b8860b"] },
+  { id: "hellpiercers", label: "Hellpiercers", swatch: ["#0d1117", "#161b22", "#21262d", "#484f58", "#388bfd"] },
+  { id: "infernum", label: "Infernum", swatch: ["#070a10", "#0f1520", "#1a2433", "#3a4a61", "#4d9fff"] },
+  { id: "paracletus", label: "Paracletus", swatch: ["#12100e", "#1c1814", "#2a241e", "#52483d", "#e8956a"] },
+  { id: "hades", label: "Hades", swatch: ["#120c0c", "#1c1414", "#2a1e1e", "#524040", "#e05a5a"] },
+  { id: "divinity", label: "Divinity", swatch: ["#faf8f5", "#ffffff", "#ebe6de", "#b8b0a4", "#b8860b"] },
 ];
 
 const LEGACY_STORAGE_KEY = "gaem-theme";
