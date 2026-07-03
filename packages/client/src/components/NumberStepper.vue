@@ -6,6 +6,7 @@ const props = defineProps<{
   max?: number;
   disabled?: boolean;
   clamp?: (value: number) => number;
+  invertButtons?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -25,8 +26,9 @@ function onChange() {
 }
 
 function adjust(delta: number) {
-  model.value = clampValue(model.value + delta);
-  emit("adjust", delta);
+  const applied = props.invertButtons ? -delta : delta;
+  model.value = clampValue(model.value + applied);
+  emit("adjust", applied);
 }
 </script>
 

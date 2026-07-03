@@ -25,6 +25,17 @@ const diceMax = ref<6 | 10>(6);
 const bonus = ref(0);
 const rolling = ref(false);
 
+const bonusMagnitude = computed({
+  get: () => Math.abs(bonus.value),
+  set: (raw) => {
+    const n = Number(raw);
+    if (Number.isNaN(n)) return;
+    const mag = Math.abs(n);
+    if (n < 0 || bonus.value < 0) bonus.value = -mag;
+    else bonus.value = mag;
+  },
+});
+
 function formatTime(at: number): string {
   const d = new Date(at);
   const mm = String(d.getMonth() + 1).padStart(2, "0");
@@ -112,9 +123,13 @@ onMounted(() => {
         ]"
       />
 
-      <span class="plus-icon" aria-hidden="true">+</span>
+      <span class="plus-icon" aria-hidden="true">{{ bonus < 0 ? "−" : "+" }}</span>
 
-      <NumberStepper v-model="bonus" :disabled="rolling" />
+      <NumberStepper
+        v-model="bonusMagnitude"
+        :disabled="rolling"
+        :invert-buttons="bonus < 0"
+      />
 
       <button type="submit" class="roll-btn" :disabled="rolling">
         {{ rolling ? "…" : "Roll" }}
