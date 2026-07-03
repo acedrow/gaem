@@ -38,7 +38,15 @@ Do **not** commit, push, or open PRs unless the user explicitly asks.
 - **Maps** — `packages/maps/*.json`, synced to KV for cf-worker deploy.
 - **Static game data** — JSON under `packages/shared/src/data/` (enemies, player gear, patterns). Code imports from `src/data/` only.
 
-`HELLPIERCERS v1.02.pdf` (gitignored) is the Hellpiercers rulebook — the design reference when clarifying rules or transcribing data into code.
+## Rules
+
+When clarifying Hellpiercers mechanics or transcribing data into code, consult in order:
+
+1. **`HELLPIERCERS v1.02.pdf`** (gitignored, repo root) — primary rulebook text.
+2. **`scripts/rulebook/errata.md`** — official errata (local copy of [hellpiercers.com/#errata](https://hellpiercers.com/#errata)). Overrides or amends book text where they conflict.
+3. **`scripts/rulebook/developer-clarifications.md`** — Sandy Pug developer answers from the itch.io forum. Use for edge cases not covered by the errata; does not duplicate errata entries.
+
+Don't guess stats or mechanics from memory — check these sources first.
 
 ## Rulebook PDF workflow
 
@@ -69,10 +77,11 @@ npm run rulebook -- --search "fortification" --context 200
 
 **Agent workflow when transcribing rules:**
 
-1. Run `npm run rulebook:setup` if `scripts/rulebook/.venv` is missing.
-2. Search or pull the relevant page(s) from the PDF — don't guess stats from memory.
-3. Add data to `packages/shared/src/data/`.
-4. Match existing JSON field names and tag casing in sibling entries.
+1. Check `scripts/rulebook/errata.md` and `scripts/rulebook/developer-clarifications.md` for overrides or edge cases.
+2. Run `npm run rulebook:setup` if `scripts/rulebook/.venv` is missing.
+3. Search or pull the relevant page(s) from the PDF.
+4. Add data to `packages/shared/src/data/`.
+5. Match existing JSON field names and tag casing in sibling entries.
 
 Direct invocation (same as `npm run rulebook -- …`):
 
