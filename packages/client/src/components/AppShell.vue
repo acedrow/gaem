@@ -138,13 +138,13 @@ function onOverworldClick() {
     </aside>
 
     <main class="main">
-      <header v-if="gameState" class="center-header">
+      <header v-if="role" class="center-header">
         <div class="center-tabs chrome-tabs">
           <button
             type="button"
             class="chrome-tab"
             :class="{ active: activeMainTab === 'taccom' }"
-            title="TACCOM"
+            data-tooltip="TACCOM"
             aria-label="TACCOM"
             @click="selectMainTab('taccom')"
           >
@@ -157,7 +157,7 @@ function onOverworldClick() {
           <button
             type="button"
             class="chrome-tab"
-            title="Overworld"
+            data-tooltip="Overworld"
             aria-label="Overworld"
             @click="onOverworldClick"
           >
@@ -177,24 +177,29 @@ function onOverworldClick() {
             type="button"
             class="chrome-tab"
             :class="{ active: activeMainTab === 'baseUpgrades' }"
-            title="Base Upgrades"
+            data-tooltip="Base Upgrades"
             aria-label="Base Upgrades"
             @click="selectMainTab('baseUpgrades')"
           >
-            <svg class="chrome-tab-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <svg class="chrome-tab-icon chrome-tab-icon-beaker" viewBox="0.5 0.25 15 15.25" fill="none" aria-hidden="true">
               <path
-                d="M5.5 2.5h5l1.5 3.5H4l1.5-3.5z"
+                d="M5.25 5V1.75H10.75V5L12.25 13.25H3.75L5.25 5"
                 stroke="currentColor"
                 stroke-width="1.25"
                 stroke-linejoin="round"
               />
               <path
-                d="M4 6h8v6.5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6z"
+                d="M4.25 2.5H5.25M4.25 3.1H5.25M4.25 3.7H5.25"
                 stroke="currentColor"
                 stroke-width="1.25"
-                stroke-linejoin="round"
+                stroke-linecap="round"
               />
-              <path d="M6.5 9h3" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" />
+              <path
+                d="M4.75 9.5Q6.25 10.1 8 9.5T11.25 9.5"
+                stroke="currentColor"
+                stroke-width="1.25"
+                stroke-linecap="round"
+              />
             </svg>
           </button>
         </div>
@@ -211,16 +216,15 @@ function onOverworldClick() {
           {{ phaseAction.label }}
         </button>
       </header>
-      <template v-if="activeMainTab === 'taccom'">
-        <ActionBar />
-        <GmActionBar />
-        <GameBoard
-          v-if="role"
-          :role="role"
-          :player-profile="playerProfile"
-        />
-      </template>
-      <BaseUpgradesPanel v-else />
+      <ActionBar v-show="activeMainTab === 'taccom'" />
+      <GmActionBar v-show="activeMainTab === 'taccom'" />
+      <GameBoard
+        v-if="role"
+        v-show="activeMainTab === 'taccom'"
+        :role="role"
+        :player-profile="playerProfile"
+      />
+      <BaseUpgradesPanel v-show="activeMainTab === 'baseUpgrades'" />
     </main>
 
     <RightPanel v-if="role" />
@@ -346,8 +350,15 @@ function onOverworldClick() {
 }
 
 .center-tabs {
+  position: relative;
+  z-index: 2;
   flex-shrink: 0;
   margin-bottom: -1px;
+}
+
+.chrome-tab-icon-beaker {
+  width: 1.15rem;
+  height: 1.15rem;
 }
 
 .map-title {

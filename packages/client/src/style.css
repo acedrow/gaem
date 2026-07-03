@@ -61,6 +61,7 @@ h3,
   font-family: var(--font-heading);
   font-weight: 500;
   font-size: 1.5rem;
+  letter-spacing: 0.04rem;
 }
 
 .panel {
@@ -79,6 +80,7 @@ h3,
 }
 
 .chrome-tab {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -89,6 +91,33 @@ h3,
   padding: 0.65rem 0.75rem;
   cursor: pointer;
   margin-bottom: -1px;
+}
+
+.chrome-tab[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: var(--shadow-popover);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.chrome-tab:hover::after,
+.chrome-tab:focus-visible::after {
+  opacity: 1;
 }
 
 .chrome-tab-icon {
@@ -296,6 +325,7 @@ h3,
   font-family: var(--font-heading);
   font-weight: 500;
   font-size: 0.9rem;
+  letter-spacing: 0.04rem;
   text-align: left;
   cursor: pointer;
 }

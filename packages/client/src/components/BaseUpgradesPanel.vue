@@ -6,9 +6,10 @@ import {
   type BaseUpgrade,
   type BaseUpgradeCost,
 } from "@gaem/shared";
-import { computed, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onUnmounted, ref, watch } from "vue";
 
 import { useBoardViewport } from "../composables/useBoardViewport.js";
+import { activeMainTab } from "../composables/useMainSectionTab.js";
 
 const CARD_W = BASE_UPGRADE_CARD_WIDTH;
 const CARD_H = BASE_UPGRADE_CARD_HEIGHT;
@@ -40,6 +41,7 @@ const {
   stageStyle,
   isTransformed,
   fitToView,
+  restoreOrFit,
   onWheel,
   observeViewport,
   disconnect,
@@ -48,6 +50,13 @@ const {
 watch(viewportEl, (el, prev) => {
   observeViewport(el, prev);
 });
+
+watch(
+  () => activeMainTab.value,
+  (tab) => {
+    if (tab === "baseUpgrades") nextTick(restoreOrFit);
+  },
+);
 
 onUnmounted(() => {
   disconnect();
@@ -218,6 +227,7 @@ function visibleOptions(upgrade: BaseUpgrade) {
   font-family: var(--font-heading);
   font-size: 0.82rem;
   font-weight: 500;
+  letter-spacing: 0.04rem;
   line-height: 1.25;
   color: var(--color-text);
 }

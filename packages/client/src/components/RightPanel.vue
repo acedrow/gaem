@@ -41,7 +41,7 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
           type="button"
           class="chrome-tab"
           :class="{ active: activeTab === 'console' }"
-          title="Console"
+          data-tooltip="Console"
           aria-label="Console"
           @click="activeTab = 'console'"
         >
@@ -54,7 +54,7 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
           type="button"
           class="chrome-tab"
           :class="{ active: activeTab === 'info' }"
-          title="Info"
+          data-tooltip="Info"
           aria-label="Info"
           @click="activeTab = 'info'"
         >
@@ -68,7 +68,7 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
           type="button"
           class="chrome-tab"
           :class="{ active: activeTab === 'turnOrder' }"
-          title="Turn order"
+          data-tooltip="Turn order"
           aria-label="Turn order"
           @click="activeTab = 'turnOrder'"
         >
@@ -87,7 +87,7 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
           type="button"
           class="chrome-tab"
           :class="{ active: activeTab === 'settings' }"
-          title="Settings"
+          data-tooltip="Settings"
           aria-label="Settings"
           @click="activeTab = 'settings'"
         >
@@ -176,6 +176,8 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
 }
 
 .right-panel .chrome-tabs {
+  position: relative;
+  z-index: 2;
   border-bottom: 1px solid var(--color-border);
   padding: 0 0.5rem;
 }
