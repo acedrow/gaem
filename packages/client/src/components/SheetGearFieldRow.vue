@@ -17,10 +17,13 @@ defineProps<{
   kind: "classes" | "armor" | "weapons" | "equipment" | "gear";
   item: PlayerClass | PlayerArmor | PlayerWeapon | PlayerEquipment | PlayerGear | undefined;
   canEdit?: boolean;
+  weaponBombIndex?: number;
+  weaponBombSelectable?: boolean;
 }>();
 
 const emit = defineEmits<{
   startEdit: [];
+  "update:weaponBombIndex": [index: number];
 }>();
 
 const detailOpen = ref(false);
@@ -66,7 +69,13 @@ function toggleDetail() {
       <p v-if="item.description" class="item-description">
         <RuleText :text="item.description" />
       </p>
-      <PlayerItemDetail :item="item" :kind="kind" />
+      <PlayerItemDetail
+        :item="item"
+        :kind="kind"
+        :weapon-bomb-index="weaponBombIndex"
+        :weapon-bomb-selectable="weaponBombSelectable"
+        @update:weapon-bomb-index="emit('update:weaponBombIndex', $event)"
+      />
     </div>
 
     <div v-if="$slots.actions" class="field-actions">

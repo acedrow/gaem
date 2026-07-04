@@ -60,7 +60,13 @@ import { isKnownEffectId } from "../effects-data.js";
 import { createPendingAction, addPendingAction, applyAssistedOutcome } from "./pending.js";
 import { markEnemyExhausted, setActiveEnemy } from "./enemy.js";
 import { enemyLabel, playerLabel } from "../console.js";
-import { isRangeTargetAttack, rangeTargetDistance, rangeTargetMax } from "../weapon-patterns.js";
+import {
+  isRangeTargetAttack,
+  patternOriginFromAnchor,
+  rangeTargetDistance,
+  rangeTargetMax,
+  usesAnchoredPatternPlacement,
+} from "../weapon-patterns.js";
 
 export type CombatMessageContext = {
   role: GaemRole;
@@ -152,6 +158,11 @@ export function validatePlayerAction(
           if (!enemy) return "Unknown target";
           if (manhattanDistance(player, enemy) > rangeTargetDistance(spec)) return "Target out of range";
         }
+      } else if (usesAnchoredPatternPlacement(spec)) {
+        if (action.anchorX === undefined || action.anchorY === undefined) return "Select placement";
+        const span = spec.rangeSpan!;
+        const dist = manhattanDistance(player, { x: action.anchorX, y: action.anchorY });
+        if (dist < span.min || dist > span.max) return "Placement out of range";
       }
       return null;
     }
@@ -181,6 +192,15 @@ export function validatePlayerAction(
       const blocked = actionTierBlocked(player, "aux", state);
       if (blocked) return blocked;
       if (!player.weapon2) return "No carried weapon";
+      return null;
+    }
+    case "selectWeaponVariant": {
+      const weapon = getWeaponByName(player.weapon ?? "");
+      const bombs = weapon?.attack?.bombs;
+      if (!bombs?.length) return "Weapon has no variants";
+      if (!Number.isInteger(action.index) || action.index < 0 || action.index >= bombs.length) {
+        return "Invalid variant";
+      }
       return null;
     }
     case "rez": {
@@ -293,11 +313,16 @@ export function applyPlayerAction(
           );
         }
       } else {
+        const direction = usesAnchoredPatternPlacement(spec) ? "e" : action.direction;
+        const attackOrigin =
+          usesAnchoredPatternPlacement(spec) && action.anchorX != null && action.anchorY != null
+            ? patternOriginFromAnchor({ x: action.anchorX, y: action.anchorY }, spec.anchorTile, direction)
+            : { x: player.x, y: player.y };
         result = applyAttackToEnemies(
           state,
           spec,
-          { x: player.x, y: player.y },
-          action.direction,
+          attackOrigin,
+          direction,
           action.damageRoll,
         );
       }
@@ -360,6 +385,13 @@ export function applyPlayerAction(
       player.weapon = player.weapon2!;
       player.weapon2 = primary;
       return `${playerLabel(player)} swapped to ${player.weapon}`;
+    }
+    case "selectWeaponVariant": {
+      const weapon = getWeaponByName(player.weapon ?? "");
+      const bombs = weapon?.attack?.bombs!;
+      if (!player.counters) player.counters = {};
+      player.counters.sabaothBomb = action.index;
+      return `${playerLabel(player)} selected ${bombs[action.index]?.name ?? "variant"}`;
     }
     case "rez": {
       maybeSpendActionTier(state, player.actionBudget, "main");

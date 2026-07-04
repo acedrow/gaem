@@ -3,7 +3,7 @@ import classesJson from "./data/player/classes.json" with { type: "json" };
 import equipmentJson from "./data/player/equipment.json" with { type: "json" };
 import gearJson from "./data/player/gear.json" with { type: "json" };
 import weaponsJson from "./data/player/weapons.json" with { type: "json" };
-import type { Player } from "./types.js";
+import type { CharacterSheet, Player } from "./types.js";
 import { RULE_EFFECTS, getEffectSummary as getEffectSummaryFromData } from "./effects-data.js";
 import type { RuleEffect } from "./effects-data.js";
 import type { StructuredArmorAction, WeaponAttackSpec } from "./combat/types.js";
@@ -106,6 +106,20 @@ export function applyLoadoutToPlayer(
   }
   if (player.equipmentUses === undefined) player.equipmentUses = 1;
   player.hp = normalizePlayerHp(player);
+}
+
+export function syncCharacterSheetWeaponsFromPlayer(
+  sheet: CharacterSheet,
+  player: Pick<Player, "characterSheetId" | "weapon" | "weapon2">,
+): boolean {
+  if (player.characterSheetId !== sheet.id) return false;
+  const weapon = player.weapon ?? sheet.weapon;
+  const weapon2 = player.weapon2;
+  if (sheet.weapon === weapon && sheet.weapon2 === weapon2) return false;
+  sheet.weapon = weapon;
+  sheet.weapon2 = weapon2;
+  sheet.updatedAt = new Date().toISOString();
+  return true;
 }
 
 function normalizePlayerHp(player: Player): number {

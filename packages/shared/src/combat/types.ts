@@ -29,11 +29,14 @@ export type WeaponBombPattern = {
   range?: string;
   description?: string;
   tiles: RelativeTile[];
+  anchorTile?: RelativeTile;
   healTiles?: RelativeTile[];
   boundsTiles?: RelativeTile[];
   heal?: boolean;
   effects?: string[];
 };
+
+export type AttackRangeSpan = { min: number; max: number };
 
 export type WeaponAttackSpec = {
   patternId?: string;
@@ -41,11 +44,14 @@ export type WeaponAttackSpec = {
   levels?: WeaponPatternLevel[];
   bombs?: WeaponBombPattern[];
   rangeTargets?: { range: number; maxTargets: number };
+  rangeSpan?: AttackRangeSpan;
+  anchorTile?: RelativeTile;
   size?: number;
   range?: number;
   width?: number;
   damage: string;
   effects?: string[];
+  heal?: boolean;
 };
 
 export type StructuredArmorAction = {
@@ -96,6 +102,8 @@ export type PlayerAction =
   | {
       action: "attack";
       direction: PatternDirection;
+      anchorX?: number;
+      anchorY?: number;
       damageRoll?: number;
       targetEnemyId?: string;
       targetEnemyIds?: string[];
@@ -106,6 +114,7 @@ export type PlayerAction =
   | { action: "sprintMove"; x: number; y: number }
   | { action: "sprintCancel" }
   | { action: "weaponSwap" }
+  | { action: "selectWeaponVariant"; index: number }
   | { action: "rez"; targetPlayerId: string }
   | { action: "armorAction"; targetEnemyId?: string; targetPlayerId?: string; landingX?: number; landingY?: number; push?: 1 | 2 | 3 }
   | { action: "classActive"; detail?: string; targetEnemyIds?: string[]; targetPlayerIds?: string[] }

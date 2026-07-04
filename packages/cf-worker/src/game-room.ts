@@ -18,6 +18,7 @@ import {
   removePlayer,
   resolvePlayerForJoin,
   setPlayerHp,
+  syncCharacterSheetWeaponsFromPlayer,
   syncPlayerSheet,
   validateEnemyMove,
   validateMove,
@@ -27,7 +28,7 @@ import {
 
 import type { Env } from "./env.js";
 import { appendConsole, loadConsoleEntries } from "./console-log.js";
-import { getCharacterSheet, listCharacterSheets } from "./character-sheets.js";
+import { getCharacterSheet, listCharacterSheets, saveCharacterSheet } from "./character-sheets.js";
 import { getMap } from "./maps.js";
 import { getPlayerProfile, savePlayerProfile } from "./player-profiles.js";
 
@@ -387,6 +388,9 @@ export class GameRoom {
         this.sendError(ws, combatResult.error);
         return;
       }
+      if (parsed.type === "playerAction" && parsed.action.action === "weaponSwap") {
+        await this.persistWeaponSwapToSheet(combatCtx.playerId);
+      }
       const actor = await this.actorForSocket(ws);
       await this.broadcastConsole(actor, combatResult.message);
       await this.broadcastState();
@@ -534,6 +538,17 @@ export class GameRoom {
       ? await getCharacterSheet(this.env, player.characterSheetId)
       : undefined;
     return characterTargetLabel(player, sheet?.name);
+  }
+
+  private async persistWeaponSwapToSheet(playerId: string | null | undefined): Promise<void> {
+    if (!playerId) return;
+    const player = this.gameState.players.find((p) => p.id === playerId);
+    if (!player?.characterSheetId) return;
+    const sheet = await getCharacterSheet(this.env, player.characterSheetId);
+    if (!sheet) return;
+    if (syncCharacterSheetWeaponsFromPlayer(sheet, player)) {
+      await saveCharacterSheet(this.env, sheet);
+    }
   }
 
   private sendConsoleEntry(entry: ConsoleLogEntry): void {

@@ -8,8 +8,10 @@ import {
   getWeaponByName,
   getClassMaxHp,
   isRangeTargetAttack,
+  isRangedPatternAttack,
   resolveCombatAttackSpec,
   rangeTargetMax,
+  usesAnchoredPatternPlacement,
 } from "@gaem/shared";
 import { computed, nextTick, onUnmounted, ref, watch } from "vue";
 
@@ -79,6 +81,18 @@ const boardPlayer = computed(() =>
 
 const boardPlayerId = computed(() => boardPlayer.value?.id ?? null);
 
+watch(
+  () =>
+    boardPlayer.value?.characterSheetId === props.sheetId
+      ? ([boardPlayer.value.weapon, boardPlayer.value.weapon2 ?? ""] as const)
+      : null,
+  (weapons) => {
+    if (!weapons) return;
+    form.value.weapon = weapons[0] ?? form.value.weapon;
+    form.value.weapon2 = weapons[1];
+  },
+);
+
 const {
   showPlayerActionBar,
   canMain,
@@ -88,7 +102,7 @@ const {
   sendPlayerAction,
 } = useCombatActions(() => boardPlayerId.value);
 
-const { mode, rangeAttackTargetIds, setMode, clearMode } = useBoardActionMode();
+const { mode, rangeAttackTargetIds, attackAimed, attackAnchor, setMode, clearMode } = useBoardActionMode();
 
 const showSheetCombatActions = computed(
   () => !!boardPlayer.value && showPlayerActionBar.value,
@@ -133,6 +147,20 @@ function useWeaponAbility() {
 const equippedWeaponName = computed(() => boardPlayer.value?.weapon ?? form.value.weapon);
 const carriedWeaponName = computed(() => boardPlayer.value?.weapon2 ?? form.value.weapon2);
 const canSwapWeapon = computed(() => !!carriedWeaponName.value);
+const weaponBombIndex = computed(() => boardPlayer.value?.counters?.sabaothBomb ?? 0);
+const weaponBombSelectable = computed(
+  () => showSheetCombatActions.value && !!selectedWeapon.value?.attack?.bombs?.length,
+);
+const attackTooltipPinned = computed(
+  () => mode.value === "attack" && !!selectedWeapon.value?.attack?.bombs?.length,
+);
+
+function selectWeaponVariant(index: number) {
+  if (index === weaponBombIndex.value) return;
+  attackAimed.value = false;
+  attackAnchor.value = null;
+  sendPlayerAction({ action: "selectWeaponVariant", index });
+}
 
 const rangeAttackHint = computed(() => {
   if (mode.value !== "attack" || !boardPlayer.value) return null;
@@ -142,6 +170,19 @@ const rangeAttackHint = computed(() => {
   const count = rangeAttackTargetIds.value.length;
   if (max <= 1) return "Click an enemy in range to attack";
   return `Select up to ${max} enemies (${count}/${max}). Click to toggle, empty tile to confirm.`;
+});
+
+const rangedPatternAttackHint = computed(() => {
+  if (mode.value !== "attack" || !boardPlayer.value) return null;
+  const spec = resolveCombatAttackSpec(boardPlayer.value, equippedWeaponName.value);
+  if (!spec || isRangeTargetAttack(spec)) return null;
+  if (usesAnchoredPatternPlacement(spec)) {
+    return "Click a tile in range to place the pattern, then click a highlighted tile to attack";
+  }
+  if (isRangedPatternAttack(spec)) {
+    return "Click a tile in range to aim, then click a highlighted tile to attack";
+  }
+  return null;
 });
 
 function useEquipmentItem() {
@@ -578,11 +619,15 @@ onUnmounted(() => {
             kind="weapons"
             :item="selectedWeapon"
             :can-edit="canEdit"
+            :weapon-bomb-index="weaponBombIndex"
+            :weapon-bomb-selectable="weaponBombSelectable"
+            @update:weapon-bomb-index="selectWeaponVariant"
             @start-edit="startGearFieldEdit('weapon')"
           >
             <template v-if="showSheetCombatActions && selectedWeapon" #actions>
               <SheetActionButton
                 :active="mode === 'attack'"
+                :tooltip-pinned="attackTooltipPinned"
                 :disabled="!canMain || !weaponHasAttack(equippedWeaponName)"
                 @click="toggleWeaponAttack"
               >
@@ -594,6 +639,9 @@ onUnmounted(() => {
                   <WeaponPatternDiagram
                     v-if="selectedWeapon.attack"
                     :attack="selectedWeapon.attack"
+                    :bomb-index="weaponBombIndex"
+                    :selectable="weaponBombSelectable"
+                    @update:bomb-index="selectWeaponVariant"
                   />
                 </template>
               </SheetActionButton>
@@ -617,6 +665,7 @@ onUnmounted(() => {
               </SheetActionButton>
             </template>
             <p v-if="rangeAttackHint" class="range-attack-hint">{{ rangeAttackHint }}</p>
+            <p v-if="rangedPatternAttackHint" class="range-attack-hint">{{ rangedPatternAttackHint }}</p>
           </SheetGearFieldRow>
 
           <SheetGearFieldRow

@@ -1,7 +1,7 @@
 import type { PatternDirection } from "../pattern-data.js";
 import { PATTERN_DIRECTIONS } from "../pattern-data.js";
 import { fixedPatternTilesInBounds } from "../patterns.js";
-import { bespokeTilesInBounds } from "../weapon-patterns.js";
+import { bespokeTilesInBounds, parseAttackRangeSpan, usesAnchoredPatternPlacement } from "../weapon-patterns.js";
 import { buildBoardOccupancy } from "../game.js";
 import { coordKey } from "../map.js";
 import type { Enemy, GameState, Player } from "../types.js";
@@ -66,7 +66,7 @@ export function resolveCombatAttackSpec(
 ): WeaponAttackSpec | null {
   const spec = getWeaponAttackSpec(weaponName);
   if (!spec) return null;
-  if (spec.tiles?.length || spec.rangeTargets || (spec.patternId && spec.size != null)) {
+  if (spec.tiles?.length || spec.rangeTargets || spec.rangeSpan || (spec.patternId && spec.size != null)) {
     return spec;
   }
   const bombIndex = player?.counters?.sabaothBomb ?? 0;
@@ -77,6 +77,9 @@ export function resolveCombatAttackSpec(
       damage: bomb.damage,
       tiles: bomb.tiles,
       effects: bomb.effects,
+      rangeSpan: parseAttackRangeSpan(bomb.range) ?? undefined,
+      anchorTile: bomb.anchorTile,
+      heal: bomb.heal,
     };
   }
   const levelIndex = Math.max(0, Math.min((player?.counters?.heavenBurningLevel ?? 1) - 1, (spec.levels?.length ?? 1) - 1));
@@ -141,7 +144,7 @@ export function collectAttackTiles(
     return bespokeTilesInBounds(
       origin,
       spec.tiles,
-      direction,
+      usesAnchoredPatternPlacement(spec) ? "e" : direction,
       state.width,
       state.height,
     );

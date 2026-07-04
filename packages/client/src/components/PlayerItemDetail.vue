@@ -16,6 +16,12 @@ import WeaponPatternDiagram from "./WeaponPatternDiagram.vue";
 defineProps<{
   item: PlayerClass | PlayerArmor | PlayerWeapon | PlayerEquipment | PlayerGear;
   kind: "classes" | "armor" | "weapons" | "equipment" | "gear";
+  weaponBombIndex?: number;
+  weaponBombSelectable?: boolean;
+}>();
+
+const emit = defineEmits<{
+  "update:weaponBombIndex": [index: number];
 }>();
 
 const { hasReversals } = useCampaignUnlocks();
@@ -108,6 +114,9 @@ const showReversals = computed(() => hasReversals.value);
     <WeaponPatternDiagram
       v-if="(item as PlayerWeapon).attack"
       :attack="(item as PlayerWeapon).attack!"
+      :bomb-index="weaponBombIndex"
+      :selectable="weaponBombSelectable"
+      @update:bomb-index="emit('update:weaponBombIndex', $event)"
     />
     <AbilityBlock
       :content="(item as PlayerWeapon).activeAbility"
@@ -116,6 +125,9 @@ const showReversals = computed(() => hasReversals.value);
     <AbilityBlock
       :content="(item as PlayerWeapon).passiveAbility"
       tier-label="Passive"
+      :selected-section-index="weaponBombSelectable ? weaponBombIndex : undefined"
+      :section-selectable="weaponBombSelectable && !!(item as PlayerWeapon).attack?.bombs?.length"
+      @select-section="emit('update:weaponBombIndex', $event)"
     />
   </template>
 </template>

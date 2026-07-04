@@ -1,16 +1,32 @@
 <script setup lang="ts">
 import type { WeaponAttackSpec, WeaponBombPattern, WeaponPatternLevel } from "@gaem/shared";
 import { attackSpecHasDiagram, buildPatternGrid } from "@gaem/shared";
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 
 import RuleText from "./RuleText.vue";
 
 const props = defineProps<{
   attack: WeaponAttackSpec;
+  bombIndex?: number;
+  selectable?: boolean;
+}>();
+
+const emit = defineEmits<{
+  "update:bombIndex": [index: number];
 }>();
 
 const levelIndex = ref(0);
-const bombIndex = ref(0);
+const localBombIndex = ref(0);
+
+watch(
+  () => props.bombIndex,
+  (index) => {
+    if (index != null) localBombIndex.value = index;
+  },
+  { immediate: true },
+);
+
+const activeBombIndex = computed(() => props.bombIndex ?? localBombIndex.value);
 
 const hasDiagram = computed(() => attackSpecHasDiagram(props.attack));
 
@@ -23,7 +39,7 @@ const activeLevel = computed((): WeaponPatternLevel | null => {
 const activeBomb = computed((): WeaponBombPattern | null => {
   const bombs = props.attack.bombs;
   if (!bombs?.length) return null;
-  return bombs[bombIndex.value] ?? bombs[0] ?? null;
+  return bombs[activeBombIndex.value] ?? bombs[0] ?? null;
 });
 
 const damageLabel = computed(() => {
@@ -64,6 +80,17 @@ const displayGrid = computed(() => {
     showOrigin: !activeBomb.value,
   });
 });
+
+function selectBomb(index: number) {
+  if (index === activeBombIndex.value) return;
+  if (props.selectable) {
+    emit("update:bombIndex", index);
+    return;
+  }
+  if (props.bombIndex == null) {
+    localBombIndex.value = index;
+  }
+}
 </script>
 
 <template>
@@ -92,8 +119,8 @@ const displayGrid = computed(() => {
         :key="bomb.name"
         type="button"
         class="variant-tab"
-        :class="{ active: bombIndex === i }"
-        @click="bombIndex = i"
+        :class="{ active: activeBombIndex === i, selectable }"
+        @click.stop="selectBomb(i)"
       >
         {{ bomb.name }}
       </button>
@@ -160,7 +187,16 @@ const displayGrid = computed(() => {
   font-size: 0.68rem;
   font-weight: 600;
   padding: 0.12rem 0.45rem;
+  cursor: default;
+}
+
+.variant-tab.selectable {
   cursor: pointer;
+}
+
+.variant-tab.selectable:not(.active):hover {
+  border-color: var(--color-accent-muted);
+  color: var(--color-text);
 }
 
 .variant-tab.active {
@@ -208,14 +244,9 @@ const displayGrid = computed(() => {
   line-height: 1;
 }
 
-.pattern-cell.empty {
-  opacity: 0.35;
-}
-
 .weapon-pattern-description {
-  margin: 0.5rem 0 0;
-  font-size: 0.8rem;
-  line-height: 1.45;
+  margin: 0.45rem 0 0;
+  font-size: 0.75rem;
   color: var(--color-muted);
 }
 </style>

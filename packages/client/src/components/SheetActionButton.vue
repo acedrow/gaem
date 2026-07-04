@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { nextTick, ref } from "vue";
+import { nextTick, ref, watch } from "vue";
 
-defineProps<{
+const props = defineProps<{
   disabled?: boolean;
   active?: boolean;
+  tooltipPinned?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -40,7 +41,7 @@ function positionTooltip() {
   };
 }
 
-async function onEnter() {
+async function openTooltip() {
   showTooltip.value = true;
   await nextTick();
   positionTooltip();
@@ -48,9 +49,21 @@ async function onEnter() {
   positionTooltip();
 }
 
-function onLeave() {
-  showTooltip.value = false;
+async function onEnter() {
+  await openTooltip();
 }
+
+function onLeave() {
+  if (!props.tooltipPinned) showTooltip.value = false;
+}
+
+watch(
+  () => props.tooltipPinned,
+  async (pinned) => {
+    if (pinned) await openTooltip();
+  },
+  { immediate: true },
+);
 </script>
 
 <template>

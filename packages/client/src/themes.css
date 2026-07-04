@@ -1,3 +1,14 @@
+:root {
+  --color-board-target-attack: #f85149;
+  --color-board-target-attack-outline: #f8514999;
+  --color-board-target-attack-bg: #f8514922;
+  --color-board-target-attack-bg-faint: #f8514911;
+  --color-board-target-heal: #388bfd;
+  --color-board-target-heal-outline: #388bfd99;
+  --color-board-target-heal-bg: #388bfd22;
+  --color-board-target-heal-bg-faint: #388bfd11;
+}
+
 :root,
 [data-theme="hellpiercers"] {
   --color-bg: #0d1117;

@@ -34,6 +34,7 @@ import {
   removePlayer,
   resolvePlayerForJoin,
   setPlayerHp,
+  syncCharacterSheetWeaponsFromPlayer,
   syncPlayerSheet,
   validateEnemyMove,
   validateMove,
@@ -79,6 +80,17 @@ app.options("*", (_req, res) => {
 });
 
 const playerProfiles = new Map<string, PlayerProfile>();
+
+function persistWeaponSwapToSheet(playerId: string | null | undefined) {
+  if (!playerId) return;
+  const player = gameState.players.find((p) => p.id === playerId);
+  if (!player?.characterSheetId) return;
+  const sheet = characterSheets.get(player.characterSheetId);
+  if (!sheet) return;
+  if (syncCharacterSheetWeaponsFromPlayer(sheet, player)) {
+    characterSheets.set(sheet.id, sheet);
+  }
+}
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true });
@@ -569,6 +581,9 @@ wss.on("connection", (ws: WebSocket) => {
       if ("error" in combatResult) {
         sendError(ws, combatResult.error);
         return;
+      }
+      if (parsed.type === "playerAction" && parsed.action.action === "weaponSwap") {
+        persistWeaponSwapToSheet(combatCtx.playerId);
       }
       broadcastConsole(actorForSocket(ws), combatResult.message);
       broadcastState();

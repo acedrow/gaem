@@ -3,8 +3,10 @@ import { computed } from "vue";
 
 import {
   isRangeTargetAttack,
+  isRangedPatternAttack,
   resolveCombatAttackSpec,
   rangeTargetMax,
+  usesAnchoredPatternPlacement,
 } from "@gaem/shared";
 
 import { useBoardActionMode } from "../composables/useBoardActionMode.js";
@@ -36,13 +38,22 @@ const attackHint = computed(() => {
     return "Click a highlighted tile to aim, then click the attack area to confirm";
   }
   const spec = resolveCombatAttackSpec(activePlayer.value, activePlayer.value.weapon);
-  if (spec && isRangeTargetAttack(spec)) {
+  if (!spec) {
+    return "Click a highlighted tile to aim, then click the attack area to confirm";
+  }
+  if (isRangeTargetAttack(spec)) {
     const max = rangeTargetMax(spec);
     const count = rangeAttackTargetIds.value.length;
     if (max <= 1) {
       return "Click an enemy in range to attack";
     }
     return `Select up to ${max} enemies (${count}/${max}). Click an enemy to toggle, empty tile to confirm.`;
+  }
+  if (usesAnchoredPatternPlacement(spec)) {
+    return "Click a tile in range to place the pattern, then click a highlighted tile to attack";
+  }
+  if (isRangedPatternAttack(spec)) {
+    return "Click a tile in range to aim, then click a highlighted tile to attack";
   }
   return "Click a highlighted tile to aim, then click the attack area to confirm";
 });

@@ -6,6 +6,7 @@ import {
   canGmMoveEnemies,
   canPlayerMove,
   coordKey,
+  collectAttackTiles,
   coordsToKeySet,
   drawableExpansionOptions,
   ensureEnemyMovement,
@@ -17,19 +18,24 @@ import {
   getEnemyScaleByName,
   getPlayerMaxHp,
   isPlayerDowned,
+  isHealAttackSpec,
   isRangeTargetAttack,
+  isRangedPatternAttack,
   isWalkable,
   manhattanDistance,
   movementStepCost,
   playerAttackDirectionsAt,
+  patternOriginFromAnchor,
   previewPlayerAttack,
   PATTERN_DIRECTIONS,
   rangeAttackTileKeys,
   rangeTargetDistance,
   rangeTargetMax,
+  rangedPatternPlacementKeys,
   recoilTilesInBounds,
   resolveCombatAttackSpec,
   tileAt,
+  usesAnchoredPatternPlacement,
   validateEnemyFootprint,
 } from "@gaem/shared";
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
@@ -106,6 +112,7 @@ const {
   mode: boardActionMode,
   attackDirection,
   attackAimed,
+  attackAnchor,
   rangeAttackTargetIds,
   pendingTargetEnemyId,
   pendingTargetPlayerId,
@@ -275,6 +282,27 @@ const patternPrimaryKeys = computed(() => {
   );
 });
 
+const combatTargetHeal = computed(() => {
+  if (boardActionMode.value === "rez") return true;
+  const ctx = attackContext.value;
+  return ctx ? isHealAttackSpec(ctx.spec) : false;
+});
+
+const rezTargetKeys = computed(() => {
+  if (boardActionMode.value !== "rez") return new Set<string>();
+  const me = yourPlayer.value;
+  const s = gameState.value;
+  if (!me || !s) return new Set<string>();
+  const keys = new Set<string>();
+  for (const player of s.players) {
+    if (player.id === me.id) continue;
+    if ((player.hp ?? 0) > 0) continue;
+    if (Math.abs(player.x - me.x) + Math.abs(player.y - me.y) !== 1) continue;
+    keys.add(coordKey(player.x, player.y));
+  }
+  return keys;
+});
+
 const attackContext = computed(() => {
   const me = yourPlayer.value;
   if (boardActionMode.value !== "attack" || !me?.weapon) return null;
@@ -289,7 +317,7 @@ const attackPreviewByDirection = computed(() => {
   if (!ctx || !s) {
     return new Map<PatternDirection, Set<string>>();
   }
-  if (isRangeTargetAttack(ctx.spec)) {
+  if (isRangeTargetAttack(ctx.spec) || usesAnchoredPatternPlacement(ctx.spec)) {
     return new Map<PatternDirection, Set<string>>();
   }
   const map = new Map<PatternDirection, Set<string>>();
@@ -300,9 +328,26 @@ const attackPreviewByDirection = computed(() => {
 });
 
 const combatAttackPrimaryKeys = computed(() => {
-  if (boardActionMode.value !== "attack" || !attackAimed.value) return new Set<string>();
+  if (boardActionMode.value !== "attack") return new Set<string>();
   const ctx = attackContext.value;
-  if (ctx && isRangeTargetAttack(ctx.spec)) return new Set<string>();
+  const s = gameState.value;
+  if (!ctx || !s) return new Set<string>();
+  if (isRangeTargetAttack(ctx.spec)) return new Set<string>();
+
+  if (usesAnchoredPatternPlacement(ctx.spec)) {
+    let origin = attackAimed.value ? attackAnchor.value : null;
+    if (!origin && hoveredCell.value) {
+      const hoverKey = coordKey(hoveredCell.value.x, hoveredCell.value.y);
+      if (combatAttackSecondaryKeys.value.has(hoverKey)) {
+        origin = hoveredCell.value;
+      }
+    }
+    if (!origin) return new Set<string>();
+    const patternOrigin = patternOriginFromAnchor(origin, ctx.spec.anchorTile, "e");
+    return coordsToKeySet(collectAttackTiles(s, patternOrigin, ctx.spec, "e"));
+  }
+
+  if (!attackAimed.value) return new Set<string>();
   return attackPreviewByDirection.value.get(attackDirection.value) ?? new Set<string>();
 });
 
@@ -319,6 +364,13 @@ const combatAttackSecondaryKeys = computed(() => {
       ctx.me,
       rangeTargetDistance(ctx.spec),
     );
+  }
+
+  if (isRangedPatternAttack(ctx.spec)) {
+    if (ctx.spec.rangeSpan) {
+      return rangedPatternPlacementKeys(s, ctx.me, ctx.spec.rangeSpan);
+    }
+    return rangeAttackTileKeys(s, ctx.me, ctx.spec.range!);
   }
 
   const keys = new Set<string>();
@@ -483,11 +535,15 @@ const cellStateByKey = computed(() => {
   const sandboxTurns = s.enforceTurns === false;
   const inMoveMode = boardActionMode.value === "move";
   const inSprintMode = boardActionMode.value === "sprint";
+  const inCombatActionMode =
+    boardActionMode.value != null && !inMoveMode && !inSprintMode;
   const onPlayerTurn =
     s.roundPhase === "playerTurn" &&
     s.turn?.role === "player" &&
     s.turn.playerId === yourPlayerId.value;
-  const showStepMoveHighlights = !sandboxTurns || onPlayerTurn || inMoveMode || inSprintMode;
+  const showStepMoveHighlights =
+    !inCombatActionMode &&
+    (!sandboxTurns || onPlayerTurn || inMoveMode || inSprintMode);
   const me = yourPlayer.value;
   const movementRemaining = me?.actionBudget?.movementRemaining ?? 0;
   const sprintRemaining = me?.actionBudget?.sprintRemaining ?? 0;
@@ -533,13 +589,15 @@ const cellStateByKey = computed(() => {
         !enemy,
       gmMovable: props.role === "gm" && gmEnemyMoveTargetKeys.value.has(c.key),
       gmSpawnable: props.role === "gm" && gmSpawnableKeys.value.has(c.key),
-      patternPrimary:
-        patternPrimaryKeys.value.has(coordKey(c.x, c.y)) ||
+      patternPrimary: patternPrimaryKeys.value.has(coordKey(c.x, c.y)),
+      patternSecondary: patternSecondaryKeys.value.has(coordKey(c.x, c.y)),
+      combatTargetPrimary:
         combatAttackPrimaryKeys.value.has(coordKey(c.x, c.y)) ||
         combatAttackSelectedKeys.value.has(coordKey(c.x, c.y)),
-      patternSecondary:
-        patternSecondaryKeys.value.has(coordKey(c.x, c.y)) ||
-        combatAttackSecondaryKeys.value.has(coordKey(c.x, c.y)),
+      combatTargetSecondary:
+        combatAttackSecondaryKeys.value.has(coordKey(c.x, c.y)) ||
+        rezTargetKeys.value.has(coordKey(c.x, c.y)),
+      combatTargetHeal: combatTargetHeal.value,
       patternRecoil: patternRecoilKeys.value.has(coordKey(c.x, c.y)),
       tile,
       player,
@@ -815,6 +873,53 @@ function handleAttackCellClick(x: number, y: number, targetEnemyId?: string): bo
       targetEnemyIds: [...rangeAttackTargetIds.value],
     });
     clearBoardActionMode();
+    return true;
+  }
+
+  if (usesAnchoredPatternPlacement(ctx.spec)) {
+    const inSecondary = combatAttackSecondaryKeys.value.has(key);
+    const inPrimary = combatAttackPrimaryKeys.value.has(key);
+
+    if (!attackAimed.value) {
+      if (!inSecondary) return false;
+      attackAnchor.value = { x, y };
+      attackAimed.value = true;
+      attackDirection.value = "e";
+      return true;
+    }
+
+    if (inPrimary || inSecondary) {
+      const anchor = attackAnchor.value;
+      if (!anchor) return false;
+      sendPlayerAction({
+        action: "attack",
+        direction: "e",
+        anchorX: anchor.x,
+        anchorY: anchor.y,
+      });
+      clearBoardActionMode();
+      return true;
+    }
+    return false;
+  }
+
+  if (isRangedPatternAttack(ctx.spec)) {
+    if (!combatAttackSecondaryKeys.value.has(key)) return false;
+
+    const dirs = playerAttackDirectionsAt(s, me.id, x, y, ctx.weapon);
+    if (dirs.length === 0) return false;
+
+    if (attackAimed.value && (combatAttackPrimaryKeys.value.has(key) || combatAttackSecondaryKeys.value.has(key))) {
+      sendPlayerAction(attackAction);
+      clearBoardActionMode();
+      return true;
+    }
+
+    const nextDir = attackAimed.value
+      ? (dirs.find((d) => d !== attackDirection.value) ?? dirs[0])
+      : dirs[0];
+    attackDirection.value = nextDir;
+    attackAimed.value = true;
     return true;
   }
 

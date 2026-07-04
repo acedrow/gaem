@@ -1,5 +1,7 @@
 import type { PatternDirection } from "./pattern-data.js";
-import type { RelativeTile, WeaponAttackSpec } from "./combat/types.js";
+import type { AttackRangeSpan, RelativeTile, WeaponAttackSpec } from "./combat/types.js";
+import { coordKey } from "./map.js";
+import type { GameState } from "./types.js";
 
 export type PatternGridCell = "empty" | "origin" | "attack" | "heal";
 
@@ -134,6 +136,62 @@ export function formatWeaponPatternSummary(spec: WeaponAttackSpec): string {
 
 export function isRangeTargetAttack(spec: WeaponAttackSpec): boolean {
   return !!(spec.rangeTargets || (spec.patternId === "range" && spec.range));
+}
+
+export function parseAttackRangeSpan(value: number | string | undefined): AttackRangeSpan | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value === "number") {
+    return value > 0 ? { min: 1, max: value } : null;
+  }
+  const parts = String(value).split("-").map((part) => Number(part.trim()));
+  if (parts.some((n) => !Number.isFinite(n) || n < 1)) return null;
+  if (parts.length === 1) return { min: 1, max: parts[0]! };
+  return { min: Math.min(parts[0]!, parts[1]!), max: Math.max(parts[0]!, parts[1]!) };
+}
+
+export function isHealAttackSpec(spec: WeaponAttackSpec): boolean {
+  return !!(spec.heal || spec.effects?.some((effect) => effect.startsWith("Healing")));
+}
+
+export function usesAnchoredPatternPlacement(spec: WeaponAttackSpec): boolean {
+  return !!(spec.tiles?.length && spec.rangeSpan);
+}
+
+export function patternOriginFromAnchor(
+  anchor: { x: number; y: number },
+  anchorTile: RelativeTile | undefined,
+  direction: PatternDirection,
+): { x: number; y: number } {
+  const [dx, dy] = rotateRelativeTile(anchorTile ?? [0, 0], direction);
+  return { x: anchor.x - dx, y: anchor.y - dy };
+}
+
+export function isRangedPatternAttack(spec: WeaponAttackSpec): boolean {
+  if (isRangeTargetAttack(spec)) return false;
+  const hasPattern = !!(spec.tiles?.length || (spec.patternId && spec.size != null));
+  if (!hasPattern) return false;
+  if (spec.rangeSpan) return true;
+  return !!(spec.patternId && spec.size != null && spec.range != null && spec.range > 0);
+}
+
+export function rangedPatternPlacementKeys(
+  state: GameState,
+  origin: { x: number; y: number },
+  span: AttackRangeSpan,
+): Set<string> {
+  const keys = new Set<string>();
+  for (let dy = -span.max; dy <= span.max; dy++) {
+    for (let dx = -span.max; dx <= span.max; dx++) {
+      if (dx === 0 && dy === 0) continue;
+      const dist = Math.abs(dx) + Math.abs(dy);
+      if (dist < span.min || dist > span.max) continue;
+      const x = origin.x + dx;
+      const y = origin.y + dy;
+      if (x < 0 || y < 0 || x >= state.width || y >= state.height) continue;
+      keys.add(coordKey(x, y));
+    }
+  }
+  return keys;
 }
 
 export function rangeTargetDistance(spec: WeaponAttackSpec): number {

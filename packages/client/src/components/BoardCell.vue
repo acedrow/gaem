@@ -15,6 +15,9 @@ export type CellRenderState = {
   gmSpawnable: boolean;
   patternPrimary: boolean;
   patternSecondary: boolean;
+  combatTargetPrimary: boolean;
+  combatTargetSecondary: boolean;
+  combatTargetHeal: boolean;
   patternRecoil: boolean;
   tile: MapTile | undefined;
   player: Player | undefined;
@@ -129,6 +132,9 @@ const enemyHp = computed(() => {
       'gm-spawnable': cell.gmSpawnable,
       'pattern-primary': cell.patternPrimary,
       'pattern-secondary': cell.patternSecondary,
+      'combat-target-primary': cell.combatTargetPrimary,
+      'combat-target-secondary': cell.combatTargetSecondary,
+      'combat-target-heal': cell.combatTargetHeal,
       'pattern-recoil': cell.patternRecoil,
       'scaled-enemy-effects': scaledEnemyEffects,
       'enemy-dying': enemyDying,
@@ -277,14 +283,69 @@ const enemyHp = computed(() => {
 }
 
 .cell.pattern-primary {
+  cursor: pointer;
+}
+
+.cell.pattern-primary::after {
+  content: "";
+  position: absolute;
+  inset: 0;
   outline: 2px solid var(--color-purple);
   background: var(--color-purple-subtle-bg);
+  z-index: 1;
+  pointer-events: none;
 }
 
 .cell.pattern-secondary {
+  cursor: pointer;
+}
+
+.cell.pattern-secondary::before {
+  content: "";
+  position: absolute;
+  inset: 0;
   outline: 1px dashed var(--color-purple-outline-strong);
   background: var(--color-purple-faint-bg);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.cell.combat-target-primary {
   cursor: pointer;
+}
+
+.cell.combat-target-primary::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  outline: 2px solid var(--color-board-target-attack);
+  background: var(--color-board-target-attack-bg);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.cell.combat-target-primary.combat-target-heal::after {
+  outline-color: var(--color-board-target-heal);
+  background: var(--color-board-target-heal-bg);
+}
+
+.cell.combat-target-secondary {
+  cursor: pointer;
+}
+
+.cell.combat-target-secondary::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  outline: 1px dashed var(--color-board-target-attack-outline);
+  background: var(--color-board-target-attack-bg-faint);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.cell.combat-target-secondary.combat-target-heal::before {
+  outline-color: var(--color-board-target-heal-outline);
+  background: var(--color-board-target-heal-bg-faint);
 }
 
 .cell.pattern-recoil {
