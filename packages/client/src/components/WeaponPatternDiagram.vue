@@ -334,6 +334,7 @@ function selectBomb(index: number) {
   color: var(--color-text);
 }
 
+.variant-tab.active,
 .variant-tab.dual-selected-1,
 .variant-tab.dual-selected-2 {
   border-color: var(--color-accent);
