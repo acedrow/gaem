@@ -8,12 +8,7 @@ import RuleText from "./RuleText.vue";
 const props = defineProps<{
   content: AbilityText | undefined;
   tierLabel?: string;
-  selectedSectionIndex?: number;
-  sectionSelectable?: boolean;
-}>();
-
-const emit = defineEmits<{
-  selectSection: [index: number];
+  hideSections?: boolean;
 }>();
 
 const structured = computed(() =>
@@ -39,25 +34,18 @@ const parsed = computed(() => {
     </div>
     <template v-if="structured">
       <RuleText v-if="structured.intro" class="ability-body" :text="structured.intro" />
-      <template v-for="(section, i) in structured.sections" :key="i">
-        <button
-          v-if="section.title && sectionSelectable"
-          type="button"
-          class="ability-section-title ability-section-select"
-          :class="{ active: selectedSectionIndex === i }"
-          @click="emit('selectSection', i)"
-        >
-          {{ section.title }}
-        </button>
-        <div v-else-if="section.title" class="ability-section-title">{{ section.title }}</div>
-        <ul v-if="section.options.length > 1" class="ability-options">
-          <li v-for="(option, j) in section.options" :key="j">
-            <RuleText :text="option" />
-          </li>
-        </ul>
-        <p v-else-if="section.options[0]" class="ability-section-body">
-          <RuleText :text="section.options[0]" />
-        </p>
+      <template v-if="!hideSections">
+        <template v-for="(section, i) in structured.sections" :key="i">
+          <div v-if="section.title" class="ability-section-title">{{ section.title }}</div>
+          <ul v-if="section.options.length > 1" class="ability-options">
+            <li v-for="(option, j) in section.options" :key="j">
+              <RuleText :text="option" />
+            </li>
+          </ul>
+          <p v-else-if="section.options[0]" class="ability-section-body">
+            <RuleText :text="section.options[0]" />
+          </p>
+        </template>
       </template>
       <RuleText v-if="structured.outro" class="ability-body" :text="structured.outro" />
     </template>
@@ -98,31 +86,6 @@ const parsed = computed(() => {
   margin: 0.45rem 0 0.15rem;
   text-transform: uppercase;
   color: var(--color-text);
-}
-
-.ability-section-select {
-  display: block;
-  width: 100%;
-  padding: 0.2rem 0.35rem;
-  margin-left: -0.35rem;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  font: inherit;
-  text-align: left;
-  text-transform: uppercase;
-  color: var(--color-text);
-  cursor: pointer;
-}
-
-.ability-section-select:not(.active):hover {
-  border-color: var(--color-border);
-  background: var(--color-surface-raised);
-}
-
-.ability-section-select.active {
-  border-color: var(--color-accent);
-  background: var(--color-accent-muted);
 }
 
 .ability-section-body {

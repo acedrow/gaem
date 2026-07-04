@@ -125,9 +125,7 @@ const showReversals = computed(() => hasReversals.value);
     <AbilityBlock
       :content="(item as PlayerWeapon).passiveAbility"
       tier-label="Passive"
-      :selected-section-index="weaponBombSelectable ? weaponBombIndex : undefined"
-      :section-selectable="weaponBombSelectable && !!(item as PlayerWeapon).attack?.bombs?.length"
-      @select-section="emit('update:weaponBombIndex', $event)"
+      :hide-sections="!!(item as PlayerWeapon).attack?.bombs?.length"
     />
   </template>
 </template>
