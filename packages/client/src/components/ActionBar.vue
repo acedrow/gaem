@@ -6,6 +6,7 @@ import {
   isRangeTargetAttack,
   isRangedPatternAttack,
   isSabaothWeaponName,
+  isWarhookWeaponName,
   resolveCombatAttackSpec,
   rangeTargetMax,
   usesAnchoredPatternPlacement,
@@ -36,6 +37,7 @@ const {
   omnistrikeStep,
   omnistrikeBombs,
   omnistrikeAnchors,
+  warhookStep,
   setMode,
   clearMode,
 } = useBoardActionMode();
@@ -46,6 +48,7 @@ const speedLabel = computed(() => {
 });
 
 const isSabaothEquipped = computed(() => isSabaothWeaponName(activePlayer.value?.weapon));
+const isWarhookEquipped = computed(() => isWarhookWeaponName(activePlayer.value?.weapon));
 
 const sabaothAttackSpec = computed(() => {
   const weapon = activePlayer.value?.weapon;
@@ -94,6 +97,12 @@ const omnistrikeHint = computed(() => {
   }
 });
 
+const warhookHint = computed(() => {
+  if (mode.value !== "warhook") return null;
+  if (warhookStep.value === "selectLanding") return "Choose destination tile";
+  return "Click an enemy, obstacle, or wall within range";
+});
+
 function useClassActive() {
   sendPlayerAction({ action: "classActive" });
 }
@@ -102,6 +111,11 @@ function useWeaponActive() {
   if (isSabaothEquipped.value) {
     if (mode.value === "omnistrike") clearMode();
     else setMode("omnistrike");
+    return;
+  }
+  if (isWarhookEquipped.value) {
+    if (mode.value === "warhook") clearMode();
+    else setMode("warhook");
     return;
   }
   sendPlayerAction({ action: "weaponActive" });
@@ -202,7 +216,7 @@ function onDualBombComplete() {
       <button
         type="button"
         class="action-btn"
-        :class="{ active: mode === 'omnistrike' }"
+        :class="{ active: mode === 'omnistrike' || mode === 'warhook' }"
         :disabled="!canUseWeaponActive"
         @click="useWeaponActive"
       >
@@ -242,6 +256,9 @@ function onDualBombComplete() {
     </div>
     <div v-if="omnistrikeHint" class="hint-row">
       <span class="hint">{{ omnistrikeHint }}</span>
+    </div>
+    <div v-if="warhookHint" class="hint-row">
+      <span class="hint">{{ warhookHint }}</span>
     </div>
     <button v-if="mode" type="button" class="action-btn cancel" @click="clearMode">
       Cancel

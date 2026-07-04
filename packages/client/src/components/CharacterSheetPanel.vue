@@ -12,6 +12,7 @@ import {
   isRangeTargetAttack,
   isRangedPatternAttack,
   isSabaothWeaponName,
+  isWarhookWeaponName,
   resolveCombatAttackSpec,
   rangeTargetMax,
   SABAOTH_MAX_CHARGES,
@@ -116,6 +117,7 @@ const {
   omnistrikeStep,
   omnistrikeBombs,
   omnistrikeAnchors,
+  warhookStep,
   setMode,
   clearMode,
 } = useBoardActionMode();
@@ -170,6 +172,11 @@ function useWeaponAbility() {
   if (isSabaothWeaponName(weaponName)) {
     if (mode.value === "omnistrike") clearMode();
     else setMode("omnistrike");
+    return;
+  }
+  if (isWarhookWeaponName(weaponName)) {
+    if (mode.value === "warhook") clearMode();
+    else setMode("warhook");
     return;
   }
   sendPlayerAction({ action: "weaponActive" });
@@ -269,6 +276,12 @@ const omnistrikeHint = computed(() => {
     default:
       return null;
   }
+});
+
+const warhookHint = computed(() => {
+  if (mode.value !== "warhook") return null;
+  if (warhookStep.value === "selectLanding") return "Choose destination tile";
+  return "Click an enemy, obstacle, or wall within range";
 });
 
 function onSheetDualBombIndices(indices: [number | null, number | null]) {
@@ -746,7 +759,7 @@ onUnmounted(() => {
                 </template>
               </SheetActionButton>
               <SheetActionButton
-                :active="mode === 'omnistrike'"
+                :active="mode === 'omnistrike' || mode === 'warhook'"
                 :disabled="!canUseWeaponActive"
                 @click="useWeaponAbility"
               >
@@ -771,6 +784,7 @@ onUnmounted(() => {
             <p v-if="rangeAttackHint" class="range-attack-hint">{{ rangeAttackHint }}</p>
             <p v-if="rangedPatternAttackHint" class="range-attack-hint">{{ rangedPatternAttackHint }}</p>
             <p v-if="omnistrikeHint" class="range-attack-hint">{{ omnistrikeHint }}</p>
+            <p v-if="warhookHint" class="range-attack-hint">{{ warhookHint }}</p>
             <div
               v-if="mode === 'omnistrike' && omnistrikeStep === 'selectBombs' && selectedWeapon?.attack"
               class="omnistrike-picker"

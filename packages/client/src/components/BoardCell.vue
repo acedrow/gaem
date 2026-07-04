@@ -44,6 +44,7 @@ const props = defineProps<{
   showHealthBars: boolean;
   showEnemyHealthBars: boolean;
   enemyDying?: boolean;
+  playerTeleporting?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -166,7 +167,7 @@ const enemyHp = computed(() => {
       />
     </span>
     <span
-      v-if="cell.player"
+      v-if="cell.player && !playerTeleporting"
       class="piece player-piece"
       :class="{
         selected: isPlayerSelected,

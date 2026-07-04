@@ -192,12 +192,23 @@ function beginPlayerTurn(state: GameState, playerId: string): string {
   return `${playerLabel(player!)} took their turn`;
 }
 
+function tickWarhookBlazingImmunity(player: Player): void {
+  const remaining = player.counters?.warhookBlazingImmuneTurns;
+  if (remaining === undefined) return;
+  const next = remaining - 1;
+  if (!player.counters) return;
+  if (next <= 0) delete player.counters.warhookBlazingImmuneTurns;
+  else player.counters.warhookBlazingImmuneTurns = next;
+  if (Object.keys(player.counters).length === 0) delete player.counters;
+}
+
 function finishPlayerTurn(state: GameState, playerId: string, suffix = "ended their turn"): string {
   if (!state.actedPlayerIds.includes(playerId)) {
     state.actedPlayerIds.push(playerId);
   }
   const player = state.players.find((p) => p.id === playerId);
   const ticks = player ? tickUnitEndOfTurn(player) : [];
+  if (player) tickWarhookBlazingImmunity(player);
   state.roundPhase = "gmTurn";
   state.turn = { role: "gm" };
   let msg = `${playerLabel(player!)} ${suffix}`;

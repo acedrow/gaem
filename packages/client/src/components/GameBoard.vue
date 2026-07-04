@@ -42,6 +42,11 @@ import {
   tileAt,
   usesAnchoredPatternPlacement,
   validateEnemyFootprint,
+  warhookAdjacentLandingTiles,
+  warhookNearestLandings,
+  warhookRangeKeys,
+  warhookValidTargetKeys,
+  isWarhookTargetAt,
 } from "@gaem/shared";
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 
@@ -51,6 +56,7 @@ import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useBoardViewport } from "../composables/useBoardViewport.js";
 import { useDamageIndicators } from "../composables/useDamageIndicators.js";
 import { useEnemyDeathAnimations } from "../composables/useEnemyDeathAnimations.js";
+import { usePlayerTeleportAnimation } from "../composables/usePlayerTeleportAnimation.js";
 import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
 import { useCharacterSheets } from "../composables/useCharacterSheets.js";
 import { useEnemySpawnSelection } from "../composables/useEnemySpawnSelection.js";
@@ -129,6 +135,9 @@ const {
   omnistrikeStep,
   omnistrikeBombs,
   omnistrikeAnchors,
+  warhookStep,
+  warhookTarget,
+  warhookLandingOptions,
   clearMode: clearBoardActionMode,
 } = useBoardActionMode();
 const { sendPlayerAction, sendMovePath } = useCombatActions();
@@ -213,6 +222,13 @@ function finalizeDefeatedEnemy(enemyId: string) {
 }
 
 const { isEnemyDying, dyingEnemyIds } = useEnemyDeathAnimations(gameState, finalizeDefeatedEnemy);
+const {
+  active: teleportAnimation,
+  teleportingPlayerIds,
+  startTeleport,
+  finishTeleport,
+} = usePlayerTeleportAnimation(gameState);
+const teleportOverlayAtDest = ref(false);
 
 const gridStyle = computed(() => {
   const s = gameState.value;
@@ -425,6 +441,28 @@ const omnistrikeInvalidKeys = computed(() => {
     return coordsToKeySet(preview.patternTiles);
   }
   return preview.tooCloseKeys;
+});
+
+const warhookPrimaryKeys = computed(() => {
+  if (boardActionMode.value !== "warhook") return new Set<string>();
+  const me = yourPlayer.value;
+  const s = gameState.value;
+  if (!me || !s) return new Set<string>();
+  if (warhookStep.value === "selectLanding" && warhookTarget.value) {
+    return new Set([coordKey(warhookTarget.value.x, warhookTarget.value.y)]);
+  }
+  return warhookValidTargetKeys(s, me);
+});
+
+const warhookSecondaryKeys = computed(() => {
+  if (boardActionMode.value !== "warhook") return new Set<string>();
+  const me = yourPlayer.value;
+  const s = gameState.value;
+  if (!me || !s) return new Set<string>();
+  if (warhookStep.value === "selectLanding") {
+    return coordsToKeySet(warhookLandingOptions.value);
+  }
+  return warhookRangeKeys(s, me);
 });
 
 const combatAttackInvalidKeys = computed(() => {
@@ -742,10 +780,12 @@ const cellStateByKey = computed(() => {
       combatTargetPrimary:
         combatAttackPrimaryKeys.value.has(coordKey(c.x, c.y)) ||
         omnistrikePrimaryKeys.value.has(coordKey(c.x, c.y)) ||
+        warhookPrimaryKeys.value.has(coordKey(c.x, c.y)) ||
         combatAttackSelectedKeys.value.has(coordKey(c.x, c.y)),
       combatTargetSecondary:
         combatAttackSecondaryKeys.value.has(coordKey(c.x, c.y)) ||
         omnistrikeSecondaryKeys.value.has(coordKey(c.x, c.y)) ||
+        warhookSecondaryKeys.value.has(coordKey(c.x, c.y)) ||
         rezTargetKeys.value.has(coordKey(c.x, c.y)),
       combatTargetHeal: combatTargetHeal.value,
       combatTargetInvalid:
@@ -806,7 +846,7 @@ const tooltipStyle = computed(() => {
   };
 });
 
-function damageIndicatorStyle(x: number, y: number) {
+function cellCenterStyle(x: number, y: number) {
   const s = gameState.value;
   if (!s) return undefined;
   const gridW = boardWidthPx.value;
@@ -815,13 +855,76 @@ function damageIndicatorStyle(x: number, y: number) {
   const cellH = (gridH - (s.height - 1) * BOARD_CELL_GAP) / s.height;
   const centerX = x * (cellW + BOARD_CELL_GAP) + cellW / 2;
   const centerY = y * (cellH + BOARD_CELL_GAP) + cellH / 2;
-  const tokenBottomOffset = ((cellH - 8) / 2) * scale.value;
+  const tokenSize = Math.min(cellW, cellH) - 8;
   return {
     left: `${panX.value + centerX * scale.value}px`,
     top: `${panY.value + centerY * scale.value}px`,
+    width: `${tokenSize * scale.value}px`,
+    height: `${tokenSize * scale.value}px`,
     transform: "translate(-50%, -50%)",
+  };
+}
+
+function damageIndicatorStyle(x: number, y: number) {
+  const base = cellCenterStyle(x, y);
+  if (!base) return undefined;
+  const s = gameState.value;
+  if (!s) return undefined;
+  const gridW = boardWidthPx.value;
+  const gridH = gridW * (s.height / s.width);
+  const cellH = (gridH - (s.height - 1) * BOARD_CELL_GAP) / s.height;
+  const tokenBottomOffset = ((cellH - 8) / 2) * scale.value;
+  return {
+    ...base,
     "--damage-rise": `${tokenBottomOffset}px`,
   };
+}
+
+const teleportOverlayPlayer = computed(() => {
+  const anim = teleportAnimation.value;
+  const s = gameState.value;
+  if (!anim || !s) return null;
+  return s.players.find((p) => p.id === anim.playerId) ?? null;
+});
+
+const teleportOverlayStyle = computed(() => {
+  const anim = teleportAnimation.value;
+  if (!anim?.animating) return null;
+  const x = teleportOverlayAtDest.value ? anim.toX : anim.fromX;
+  const y = teleportOverlayAtDest.value ? anim.toY : anim.fromY;
+  return cellCenterStyle(x, y);
+});
+
+let teleportFinishTimer: ReturnType<typeof setTimeout> | null = null;
+
+watch(
+  () => teleportAnimation.value?.animating,
+  (animating) => {
+    if (teleportFinishTimer) {
+      clearTimeout(teleportFinishTimer);
+      teleportFinishTimer = null;
+    }
+    if (!animating) {
+      teleportOverlayAtDest.value = false;
+      return;
+    }
+    teleportOverlayAtDest.value = false;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        teleportOverlayAtDest.value = true;
+      });
+    });
+    teleportFinishTimer = setTimeout(() => finishTeleport(), 450);
+  },
+);
+
+function onTeleportOverlayTransitionEnd(e: TransitionEvent) {
+  if (e.propertyName !== "left" || !teleportOverlayAtDest.value) return;
+  if (teleportFinishTimer) {
+    clearTimeout(teleportFinishTimer);
+    teleportFinishTimer = null;
+  }
+  finishTeleport();
 }
 
 function playerLabel(player: Player): string {
@@ -909,6 +1012,7 @@ function tryMoveSelectedEnemyToAnchor(anchorX: number, anchorY: number): boolean
 function onEnemyCellClick(x: number, y: number, enemyId: string) {
   if (boardActionMode.value === "attack" && handleAttackCellClick(x, y, enemyId)) return;
   if (boardActionMode.value === "omnistrike" && handleOmnistrikeCellClick(x, y)) return;
+  if (boardActionMode.value === "warhook" && handleWarhookCellClick(x, y)) return;
   selectBoardEnemy(enemyId);
 }
 
@@ -1110,6 +1214,63 @@ function handleAttackCellClick(x: number, y: number, targetEnemyId?: string): bo
   return true;
 }
 
+function commitWarhook(landing: { x: number; y: number }) {
+  const me = yourPlayer.value;
+  const target = warhookTarget.value;
+  if (!me || !target) return;
+  startTeleport(me.id, { x: me.x, y: me.y }, landing);
+  sendPlayerAction({
+    action: "weaponActive",
+    warhook: {
+      targetEnemyId: target.enemyId,
+      targetX: target.x,
+      targetY: target.y,
+      landingX: landing.x,
+      landingY: landing.y,
+    },
+  });
+  clearBoardActionMode();
+}
+
+function handleWarhookCellClick(x: number, y: number): boolean {
+  const me = yourPlayer.value;
+  const s = gameState.value;
+  if (!me || !s) return false;
+
+  if (warhookStep.value === "selectLanding") {
+    const key = coordKey(x, y);
+    if (!warhookSecondaryKeys.value.has(key)) return false;
+    const landing = warhookLandingOptions.value.find((t) => t.x === x && t.y === y);
+    if (!landing) return false;
+    commitWarhook(landing);
+    return true;
+  }
+
+  const key = coordKey(x, y);
+  if (!warhookPrimaryKeys.value.has(key)) return false;
+
+  const target = isWarhookTargetAt(s, me, x, y);
+  if (!target) return false;
+
+  const landings = warhookAdjacentLandingTiles(s, me.id, target);
+  if (!landings.length) {
+    showToast("No space adjacent to target");
+    return true;
+  }
+
+  const nearest = warhookNearestLandings(me, landings);
+  if (nearest.length === 1) {
+    warhookTarget.value = target;
+    commitWarhook(nearest[0]!);
+    return true;
+  }
+
+  warhookTarget.value = target;
+  warhookLandingOptions.value = nearest;
+  warhookStep.value = "selectLanding";
+  return true;
+}
+
 function handleOmnistrikeCellClick(x: number, y: number): boolean {
   const ctx = omnistrikeContext.value;
   const s = gameState.value;
@@ -1224,6 +1385,9 @@ function handleCombatCellClick(x: number, y: number): boolean {
   if (m === "omnistrike") {
     return handleOmnistrikeCellClick(x, y);
   }
+  if (m === "warhook") {
+    return handleWarhookCellClick(x, y);
+  }
   if (m === "shove") {
     if (enemy && Math.abs(x - me.x) + Math.abs(y - me.y) === 1) {
       sendPlayerAction({ action: "shove", targetEnemyId: enemy.id });
@@ -1286,7 +1450,7 @@ function handleCombatCellClick(x: number, y: number): boolean {
 
 function onPlayerCellClick(x: number, y: number) {
   if (handleCombatCellClick(x, y)) return;
-  if (boardActionMode.value === "attack" || boardActionMode.value === "omnistrike") return;
+  if (boardActionMode.value === "attack" || boardActionMode.value === "omnistrike" || boardActionMode.value === "warhook") return;
   if (selectOccupantAt(x, y)) return;
   clearBoardSelection();
   tryMove(x, y);
@@ -1572,6 +1736,7 @@ watch(viewportEl, (el, prev) => {
 });
 
 onUnmounted(() => {
+  if (teleportFinishTimer) clearTimeout(teleportFinishTimer);
   window.removeEventListener("keydown", onKeydown);
   disconnectViewport();
   disconnectSocket();
@@ -1607,6 +1772,8 @@ onUnmounted(() => {
                     isEnemyDying(cellStateByKey.get(c.key)!.enemyAnchor!.id),
                   showHealthBars,
                   showEnemyHealthBars,
+                  !!cellStateByKey.get(c.key)?.player &&
+                    teleportingPlayerIds.has(cellStateByKey.get(c.key)!.player!.id),
                 ]"
                 :x="c.x"
                 :y="c.y"
@@ -1620,6 +1787,7 @@ onUnmounted(() => {
                 :show-health-bars="showHealthBars"
                 :show-enemy-health-bars="showEnemyHealthBars"
                 :enemy-dying="!!cellStateByKey.get(c.key)?.enemyAnchor && isEnemyDying(cellStateByKey.get(c.key)!.enemyAnchor!.id)"
+                :player-teleporting="!!cellStateByKey.get(c.key)?.player && teleportingPlayerIds.has(cellStateByKey.get(c.key)!.player!.id)"
                 @click="onCellClick(c.x, c.y)"
                 @hover="onCellHover(c.x, c.y, c.key)"
                 @unhover="onCellUnhover"
@@ -1685,6 +1853,26 @@ onUnmounted(() => {
           :style="damageIndicatorStyle(indicator.x, indicator.y)"
         >
           <span class="damage-indicator-text">-{{ indicator.amount }}</span>
+        </div>
+
+        <div
+          v-if="teleportOverlayStyle && teleportOverlayPlayer"
+          class="teleport-overlay"
+          :class="{ 'teleport-overlay-animating': teleportOverlayAtDest }"
+          :style="[
+            teleportOverlayStyle,
+            !teleportOverlayPlayer.characterSheetId || !portraitUrlFor(teleportOverlayPlayer.characterSheetId)
+              ? { background: `hsl(${hueFromId(teleportOverlayPlayer.id)} 70% 45%)` }
+              : undefined,
+          ]"
+          @transitionend="onTeleportOverlayTransitionEnd"
+        >
+          <img
+            v-if="teleportOverlayPlayer.characterSheetId && portraitUrlFor(teleportOverlayPlayer.characterSheetId)"
+            :src="portraitUrlFor(teleportOverlayPlayer.characterSheetId)!"
+            alt=""
+            class="portrait-img"
+          />
         </div>
       </div>
       <button v-if="isTransformed" class="reset-zoom-btn" type="button" @click="fitToView(true)">
@@ -1772,6 +1960,24 @@ onUnmounted(() => {
   position: absolute;
   white-space: nowrap;
   z-index: 3;
+}
+
+.teleport-overlay {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--color-surface);
+  transition: left 350ms ease, top 350ms ease;
+}
+
+.teleport-overlay .portrait-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: 50%;
 }
 
 .damage-indicator {

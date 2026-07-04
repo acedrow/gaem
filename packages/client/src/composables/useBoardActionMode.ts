@@ -6,6 +6,7 @@ export type BoardActionMode =
   | "move"
   | "attack"
   | "omnistrike"
+  | "warhook"
   | "shove"
   | "sprint"
   | "armorTeleport"
@@ -14,6 +15,7 @@ export type BoardActionMode =
   | null;
 
 export type OmnistrikeStep = "selectBombs" | "placeFirst" | "placeSecond" | "confirm";
+export type WarhookStep = "selectTarget" | "selectLanding";
 
 const mode = ref<BoardActionMode>(null);
 const attackDirection = ref<PatternDirection>("n");
@@ -32,6 +34,15 @@ const omnistrikeAnchors = ref<[{ x: number; y: number } | null, { x: number; y: 
   null,
 ]);
 const omnistrikeAimed = ref(false);
+const warhookStep = ref<WarhookStep>("selectTarget");
+const warhookTarget = ref<{ enemyId?: string; x: number; y: number } | null>(null);
+const warhookLandingOptions = ref<{ x: number; y: number }[]>([]);
+
+function resetWarhookState() {
+  warhookStep.value = "selectTarget";
+  warhookTarget.value = null;
+  warhookLandingOptions.value = [];
+}
 
 function resetOmnistrikeState() {
   omnistrikeStep.value = "selectBombs";
@@ -53,6 +64,7 @@ export function useBoardActionMode() {
     pendingTargetPlayerId.value = null;
     armorLanding.value = null;
     resetOmnistrikeState();
+    resetWarhookState();
   }
 
   function clearMode() {
@@ -86,6 +98,9 @@ export function useBoardActionMode() {
     omnistrikeBombs,
     omnistrikeAnchors,
     omnistrikeAimed,
+    warhookStep,
+    warhookTarget,
+    warhookLandingOptions,
     isActive,
     setMode,
     clearMode,

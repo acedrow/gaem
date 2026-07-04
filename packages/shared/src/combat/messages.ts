@@ -46,9 +46,11 @@ import {
   applyDamageToEnemy,
   applyDamageToPlayer,
   applyOmnistrike,
+  applyWarhook,
   collectAttackTiles,
   enemiesInTiles,
   getWeaponAttackSpec,
+  isWarhookWeaponName,
   manhattanDistance,
   parseEnemyAttackString,
   resolveAttackDamage,
@@ -59,6 +61,7 @@ import {
   hasSabaothBombSelected,
   isSabaothWeaponName,
   validateOmnistrikeAction,
+  validateWarhookAction,
 } from "./attack.js";
 import { applyEffectStacks, clearEffectStacks, parseEffectToken, tickUnitEndOfTurn } from "./effects.js";
 import { isKnownEffectId } from "../effects-data.js";
@@ -288,6 +291,9 @@ export function validatePlayerAction(
       if (isSabaothWeaponName(player.weapon) && action.omnistrike) {
         return validateOmnistrikeAction(state, player, action.omnistrike);
       }
+      if (isWarhookWeaponName(player.weapon) && action.warhook) {
+        return validateWarhookAction(state, player, action.warhook);
+      }
       return null;
     }
     case "useEquipment": {
@@ -493,6 +499,20 @@ export function applyPlayerAction(
           .map((e) => enemyLabel(e!))
           .join(", ");
         let msg = `${playerLabel(player)} used ${result.message} → ${names || "no targets"}`;
+        if (defeated) msg += `; defeated ${defeated}`;
+        return msg;
+      }
+      if (isWarhookWeaponName(player.weapon) && action.warhook) {
+        const result = applyWarhook(state, player, action.warhook);
+        const hitEnemies = result.targets
+          .map((t) => state.enemies.find((e) => e.id === t.enemyId))
+          .filter(Boolean);
+        const names = hitEnemies.map((e) => enemyLabel(e!)).join(", ");
+        const defeated = hitEnemies
+          .filter((e) => (e!.hp ?? 0) <= 0)
+          .map((e) => enemyLabel(e!))
+          .join(", ");
+        let msg = `${playerLabel(player)} used ${result.message} (${result.detail} dmg) → ${names || "no targets"}`;
         if (defeated) msg += `; defeated ${defeated}`;
         return msg;
       }

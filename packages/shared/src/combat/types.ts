@@ -128,6 +128,14 @@ export type PlayerAction =
         bombIndices: [number, number];
         anchors: [{ x: number; y: number }, { x: number; y: number }];
       };
+      warhook?: {
+        targetEnemyId?: string;
+        targetX: number;
+        targetY: number;
+        landingX: number;
+        landingY: number;
+        damageRoll?: number;
+      };
     }
   | { action: "useEquipment"; detail?: string }
   | { action: "interact"; detail?: string };

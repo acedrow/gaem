@@ -7,14 +7,14 @@ import {
   patternOriginFromAnchor,
   usesAnchoredPatternPlacement,
 } from "../weapon-patterns.js";
+import { getEnemyScale, enemyFootprintTiles } from "../enemy-data.js";
 import { buildBoardOccupancy } from "../game.js";
-import { coordKey } from "../map.js";
-import type { Enemy, GameState, Player } from "../types.js";
+import { coordKey, isInBounds, isWalkable, tileAt } from "../map.js";
+import type { Enemy, GameState, MapTile, Player } from "../types.js";
 import { getWeaponByName } from "../player-data.js";
 import type { WeaponAttackSpec } from "./types.js";
 import type { AttackRangeSpan } from "./types.js";
 import { applyBleedBonus, applyEffectStacks, setTileEffect } from "./effects.js";
-import { tileAt } from "../map.js";
 import { parseAndRollDamage } from "./damage.js";
 import { clampHp, getEnemyMaxHp, getPlayerMaxHp } from "../game.js";
 
@@ -564,6 +564,200 @@ export function applyOmnistrike(
 
   const dmgLabel = damageParts.length ? damageParts.join("+") : "0";
   return { message: `Omnistrike (${dmgLabel} dmg)`, targets: allTargets };
+}
+
+export const SETHIAN_WEAPON_NAME = "Sethian Externalized Annihilation Cannon";
+export const WARHOOK_RANGE = 3;
+
+export type WarhookPayload = {
+  targetEnemyId?: string;
+  targetX: number;
+  targetY: number;
+  landingX: number;
+  landingY: number;
+  damageRoll?: number;
+};
+
+export type WarhookTarget = {
+  enemyId?: string;
+  x: number;
+  y: number;
+};
+
+export function isWarhookWeaponName(name: string | undefined | null): boolean {
+  return name === SETHIAN_WEAPON_NAME;
+}
+
+export function isWarhookTerrainTarget(tile: MapTile | undefined): boolean {
+  if (!tile) return false;
+  return tile.terrain.includes("impassable") || tile.terrain.includes("obstacle");
+}
+
+export function warhookRangeKeys(
+  state: GameState,
+  origin: { x: number; y: number },
+): Set<string> {
+  return rangeAttackTileKeys(state, origin, WARHOOK_RANGE);
+}
+
+function warhookTargetFootprint(
+  state: GameState,
+  target: WarhookTarget,
+): { x: number; y: number }[] {
+  if (target.enemyId) {
+    const enemy = state.enemies.find((e) => e.id === target.enemyId);
+    if (!enemy) return [];
+    return enemyFootprintTiles(enemy.x, enemy.y, getEnemyScale(enemy));
+  }
+  return [{ x: target.x, y: target.y }];
+}
+
+export function isWarhookTargetAt(
+  state: GameState,
+  player: Player,
+  x: number,
+  y: number,
+): WarhookTarget | null {
+  if (manhattanDistance(player, { x, y }) > WARHOOK_RANGE) return null;
+  if (!isInBounds(x, y, state.width, state.height)) return null;
+
+  const occ = buildBoardOccupancy(state);
+  const enemy = occ.enemyByKey.get(coordKey(x, y));
+  if (enemy) return { enemyId: enemy.id, x, y };
+
+  const tile = tileAt(state.tiles, x, y);
+  if (isWarhookTerrainTarget(tile)) return { x, y };
+
+  return null;
+}
+
+export function warhookValidTargetKeys(
+  state: GameState,
+  player: Player,
+): Set<string> {
+  const keys = new Set<string>();
+  const rangeKeys = warhookRangeKeys(state, player);
+  const occ = buildBoardOccupancy(state);
+
+  for (const key of rangeKeys) {
+    const [xs, ys] = key.split(",");
+    const x = Number(xs);
+    const y = Number(ys);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+
+    if (occ.enemyByKey.has(key)) {
+      keys.add(key);
+      continue;
+    }
+    const tile = tileAt(state.tiles, x, y);
+    if (isWarhookTerrainTarget(tile)) keys.add(key);
+  }
+
+  return keys;
+}
+
+export function warhookAdjacentLandingTiles(
+  state: GameState,
+  playerId: string,
+  target: WarhookTarget,
+): { x: number; y: number }[] {
+  const footprint = warhookTargetFootprint(state, target);
+  if (!footprint.length) return [];
+
+  const occ = buildBoardOccupancy(state);
+  const seen = new Set<string>();
+  const landings: { x: number; y: number }[] = [];
+
+  for (const ft of footprint) {
+    for (const delta of [
+      { dx: 0, dy: -1 },
+      { dx: 0, dy: 1 },
+      { dx: -1, dy: 0 },
+      { dx: 1, dy: 0 },
+    ]) {
+      const x = ft.x + delta.dx;
+      const y = ft.y + delta.dy;
+      const key = coordKey(x, y);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (!isInBounds(x, y, state.width, state.height)) continue;
+      if (!isWalkable(tileAt(state.tiles, x, y))) continue;
+      const occupant = occ.playerByKey.get(key);
+      if (occupant && occupant.id !== playerId) continue;
+      if (occ.enemyByKey.has(key)) continue;
+      landings.push({ x, y });
+    }
+  }
+
+  return landings;
+}
+
+export function warhookNearestLandings(
+  player: Player,
+  landings: { x: number; y: number }[],
+): { x: number; y: number }[] {
+  if (landings.length <= 1) return landings;
+  let minDist = Infinity;
+  for (const tile of landings) {
+    const d = manhattanDistance(player, tile);
+    if (d < minDist) minDist = d;
+  }
+  return landings.filter((tile) => manhattanDistance(player, tile) === minDist);
+}
+
+export function validateWarhookAction(
+  state: GameState,
+  player: Player,
+  payload: WarhookPayload,
+): string | null {
+  if (!isWarhookWeaponName(player.weapon)) return "Invalid weapon";
+
+  const target = isWarhookTargetAt(state, player, payload.targetX, payload.targetY);
+  if (!target) return "Invalid target";
+  if (payload.targetEnemyId) {
+    if (target.enemyId !== payload.targetEnemyId) return "Invalid target";
+  } else if (target.enemyId) {
+    return "Invalid target";
+  }
+
+  const landings = warhookAdjacentLandingTiles(state, player.id, target);
+  const landing = { x: payload.landingX, y: payload.landingY };
+  if (!landings.some((t) => t.x === landing.x && t.y === landing.y)) {
+    return "Invalid landing space";
+  }
+
+  return null;
+}
+
+export function applyWarhook(
+  state: GameState,
+  player: Player,
+  payload: WarhookPayload,
+): { message: string; detail: string; targets: AttackTarget[] } {
+  player.x = payload.landingX;
+  player.y = payload.landingY;
+
+  if (!player.counters) player.counters = {};
+  player.counters.warhookBlazingImmuneTurns = 2;
+
+  const targets: AttackTarget[] = [];
+  let detail = "0";
+
+  if (payload.targetEnemyId) {
+    const enemy = state.enemies.find((e) => e.id === payload.targetEnemyId);
+    if (enemy) {
+      const spec = getWeaponAttackSpec(player.weapon ?? "");
+      if (spec) {
+        const resolved = resolveAttackDamage(spec, payload.damageRoll);
+        detail = resolved.detail;
+        applyDamageToEnemy(enemy, resolved.total, state);
+      }
+      applyEffectStacks(enemy, ["Blazing:2"]);
+      targets.push({ enemyId: enemy.id, x: enemy.x, y: enemy.y });
+    }
+  }
+
+  return { message: "Canticle Boosted Warhook", detail, targets };
 }
 
 export function parseEnemyAttackString(text: string): ParsedEnemyAttack {

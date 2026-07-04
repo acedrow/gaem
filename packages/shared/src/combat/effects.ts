@@ -7,11 +7,21 @@ export function parseEffectToken(token: string): { id: string; stacks: number } 
   return { id: match[1]!.trim(), stacks: Number(match[2]) };
 }
 
-export function applyEffectStacks(target: { effects?: EffectStacks }, tokens: string[]): void {
+export function applyEffectStacks(
+  target: { effects?: EffectStacks; counters?: Record<string, number> },
+  tokens: string[],
+): void {
   if (!target.effects) target.effects = {};
   for (const token of tokens) {
     const parsed = parseEffectToken(token);
     if (!parsed || parsed.stacks === 0) continue;
+    if (
+      parsed.id === "Blazing" &&
+      parsed.stacks > 0 &&
+      (target.counters?.warhookBlazingImmuneTurns ?? 0) > 0
+    ) {
+      continue;
+    }
     const current = target.effects[parsed.id] ?? 0;
     const next =
       parsed.stacks > 0 && getEffectStacking(parsed.id) === "max"
