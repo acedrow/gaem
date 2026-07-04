@@ -45,6 +45,7 @@ import {
   applyAttackToEnemies,
   applyDamageToEnemy,
   applyDamageToPlayer,
+  applyOmnistrike,
   collectAttackTiles,
   enemiesInTiles,
   getWeaponAttackSpec,
@@ -57,6 +58,7 @@ import {
   ensureSabaothCharges,
   hasSabaothBombSelected,
   isSabaothWeaponName,
+  validateOmnistrikeAction,
 } from "./attack.js";
 import { applyEffectStacks, clearEffectStacks, parseEffectToken, tickUnitEndOfTurn } from "./effects.js";
 import { isKnownEffectId } from "../effects-data.js";
@@ -283,6 +285,9 @@ export function validatePlayerAction(
     case "weaponActive": {
       const blocked = actionTierBlocked(player, "main", state);
       if (blocked) return blocked;
+      if (isSabaothWeaponName(player.weapon) && action.omnistrike) {
+        return validateOmnistrikeAction(state, player, action.omnistrike);
+      }
       return null;
     }
     case "useEquipment": {
@@ -477,6 +482,20 @@ export function applyPlayerAction(
     }
     case "weaponActive": {
       maybeSpendActionTier(state, player.actionBudget, "main");
+      if (isSabaothWeaponName(player.weapon) && action.omnistrike) {
+        const result = applyOmnistrike(state, player, action.omnistrike);
+        const hitEnemies = result.targets
+          .map((t) => state.enemies.find((e) => e.id === t.enemyId))
+          .filter(Boolean);
+        const names = hitEnemies.map((e) => enemyLabel(e!)).join(", ");
+        const defeated = hitEnemies
+          .filter((e) => (e!.hp ?? 0) <= 0)
+          .map((e) => enemyLabel(e!))
+          .join(", ");
+        let msg = `${playerLabel(player)} used ${result.message} → ${names || "no targets"}`;
+        if (defeated) msg += `; defeated ${defeated}`;
+        return msg;
+      }
       const weapon = getWeaponByName(player.weapon ?? "");
       addPendingAction(
         state,

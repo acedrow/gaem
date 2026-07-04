@@ -103,11 +103,22 @@ const {
   canMain,
   canSupport,
   canAux,
+  canUseWeaponActive,
   armorStructured,
   sendPlayerAction,
 } = useCombatActions(() => boardPlayerId.value);
 
-const { mode, rangeAttackTargetIds, attackAimed, attackAnchor, setMode, clearMode } = useBoardActionMode();
+const {
+  mode,
+  rangeAttackTargetIds,
+  attackAimed,
+  attackAnchor,
+  omnistrikeStep,
+  omnistrikeBombs,
+  omnistrikeAnchors,
+  setMode,
+  clearMode,
+} = useBoardActionMode();
 
 const showSheetCombatActions = computed(
   () => !!boardPlayer.value && showPlayerActionBar.value,
@@ -156,6 +167,11 @@ function swapWeapon() {
 function useWeaponAbility() {
   const weaponName = equippedWeaponName.value;
   if (!weaponName) return;
+  if (isSabaothWeaponName(weaponName)) {
+    if (mode.value === "omnistrike") clearMode();
+    else setMode("omnistrike");
+    return;
+  }
   sendPlayerAction({ action: "weaponActive" });
 }
 
@@ -238,6 +254,36 @@ const rangedPatternAttackHint = computed(() => {
   }
   return null;
 });
+
+const omnistrikeHint = computed(() => {
+  if (mode.value !== "omnistrike") return null;
+  switch (omnistrikeStep.value) {
+    case "selectBombs":
+      return "Select two bomb types to combine (tap to toggle).";
+    case "placeFirst":
+      return "Place the first pattern — hover to preview, click to confirm placement.";
+    case "placeSecond":
+      return "Place the second pattern adjacent to or overlapping the first.";
+    case "confirm":
+      return "Click the combined pattern to launch Omnistrike.";
+    default:
+      return null;
+  }
+});
+
+function onSheetDualBombIndices(indices: [number | null, number | null]) {
+  omnistrikeBombs.value = indices;
+  if (indices[0] == null || indices[1] == null) {
+    omnistrikeStep.value = "selectBombs";
+    omnistrikeAnchors.value = [null, null];
+  }
+}
+
+function onSheetDualBombComplete() {
+  if (omnistrikeBombs.value[0] != null && omnistrikeBombs.value[1] != null) {
+    omnistrikeStep.value = "placeFirst";
+  }
+}
 
 function useEquipmentItem() {
   sendPlayerAction({ action: "useEquipment", detail: form.value.equipment });
@@ -699,7 +745,11 @@ onUnmounted(() => {
                   />
                 </template>
               </SheetActionButton>
-              <SheetActionButton :disabled="!canMain" @click="useWeaponAbility">
+              <SheetActionButton
+                :active="mode === 'omnistrike'"
+                :disabled="!canUseWeaponActive"
+                @click="useWeaponAbility"
+              >
                 Active ability
                 <template #tooltip>
                   <AbilityBlock tier-label="Active" :content="selectedWeapon.activeAbility" />
@@ -720,6 +770,20 @@ onUnmounted(() => {
             </template>
             <p v-if="rangeAttackHint" class="range-attack-hint">{{ rangeAttackHint }}</p>
             <p v-if="rangedPatternAttackHint" class="range-attack-hint">{{ rangedPatternAttackHint }}</p>
+            <p v-if="omnistrikeHint" class="range-attack-hint">{{ omnistrikeHint }}</p>
+            <div
+              v-if="mode === 'omnistrike' && omnistrikeStep === 'selectBombs' && selectedWeapon?.attack"
+              class="omnistrike-picker"
+            >
+              <WeaponPatternDiagram
+                :attack="selectedWeapon.attack"
+                dual-select
+                compact
+                :dual-bomb-indices="omnistrikeBombs"
+                @update:dual-bomb-indices="onSheetDualBombIndices"
+                @dual-complete="onSheetDualBombComplete"
+              />
+            </div>
           </SheetGearFieldRow>
 
           <p v-if="showWeaponCharges && weaponChargesDisplay" class="field-subline">

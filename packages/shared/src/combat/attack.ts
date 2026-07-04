@@ -1,13 +1,20 @@
 import type { PatternDirection } from "../pattern-data.js";
 import { PATTERN_DIRECTIONS } from "../pattern-data.js";
 import { fixedPatternTilesInBounds } from "../patterns.js";
-import { bespokeTilesInBounds, parseAttackRangeSpan, usesAnchoredPatternPlacement } from "../weapon-patterns.js";
+import {
+  bespokeTilesInBounds,
+  parseAttackRangeSpan,
+  patternOriginFromAnchor,
+  usesAnchoredPatternPlacement,
+} from "../weapon-patterns.js";
 import { buildBoardOccupancy } from "../game.js";
 import { coordKey } from "../map.js";
 import type { Enemy, GameState, Player } from "../types.js";
 import { getWeaponByName } from "../player-data.js";
 import type { WeaponAttackSpec } from "./types.js";
-import { applyBleedBonus, applyEffectStacks } from "./effects.js";
+import type { AttackRangeSpan } from "./types.js";
+import { applyBleedBonus, applyEffectStacks, setTileEffect } from "./effects.js";
+import { tileAt } from "../map.js";
 import { parseAndRollDamage } from "./damage.js";
 import { clampHp, getEnemyMaxHp, getPlayerMaxHp } from "../game.js";
 
@@ -285,6 +292,279 @@ export type ParsedEnemyAttack = {
   effects?: string[];
   raw: string;
 };
+
+export const OMNISTRIKE_DIRECTION: PatternDirection = "e";
+
+export type OmnistrikePayload = {
+  bombIndices: [number, number];
+  anchors: [{ x: number; y: number }, { x: number; y: number }];
+};
+
+export function resolveBombAttackSpec(
+  weaponName: string | undefined,
+  bombIndex: number,
+): WeaponAttackSpec | null {
+  const spec = getWeaponAttackSpec(weaponName);
+  const bomb = spec?.bombs?.[bombIndex];
+  if (!spec || !bomb) return null;
+  return {
+    ...spec,
+    damage: bomb.damage,
+    tiles: bomb.tiles,
+    effects: bomb.effects,
+    rangeSpan: parseAttackRangeSpan(bomb.range) ?? undefined,
+    anchorTile: bomb.anchorTile,
+    heal: bomb.heal,
+  };
+}
+
+export function computeOmnistrikeRangeSpan(
+  bombA: WeaponAttackSpec,
+  bombB: WeaponAttackSpec,
+): AttackRangeSpan | null {
+  const spanA = bombA.rangeSpan;
+  const spanB = bombB.rangeSpan;
+  if (!spanA || !spanB) return null;
+  return { min: Math.min(spanA.min, spanB.min), max: Math.max(spanA.max, spanB.max) };
+}
+
+export function collectBombPatternTiles(
+  state: GameState,
+  anchor: { x: number; y: number },
+  bombSpec: WeaponAttackSpec,
+  direction: PatternDirection = OMNISTRIKE_DIRECTION,
+): { x: number; y: number }[] {
+  const origin = patternOriginFromAnchor(anchor, bombSpec.anchorTile, direction);
+  return bespokeTilesInBounds(
+    origin,
+    bombSpec.tiles!,
+    direction,
+    state.width,
+    state.height,
+  );
+}
+
+export function patternsAdjacentOrOverlap(
+  tilesA: { x: number; y: number }[],
+  tilesB: { x: number; y: number }[],
+): boolean {
+  const keysA = new Set(tilesA.map((t) => coordKey(t.x, t.y)));
+  for (const tile of tilesB) {
+    const key = coordKey(tile.x, tile.y);
+    if (keysA.has(key)) return true;
+    if (keysA.has(coordKey(tile.x + 1, tile.y))) return true;
+    if (keysA.has(coordKey(tile.x - 1, tile.y))) return true;
+    if (keysA.has(coordKey(tile.x, tile.y + 1))) return true;
+    if (keysA.has(coordKey(tile.x, tile.y - 1))) return true;
+  }
+  return false;
+}
+
+export function unionPatternTiles(
+  tilesA: { x: number; y: number }[],
+  tilesB: { x: number; y: number }[],
+): { x: number; y: number }[] {
+  const seen = new Set<string>();
+  const result: { x: number; y: number }[] = [];
+  for (const tile of [...tilesA, ...tilesB]) {
+    const key = coordKey(tile.x, tile.y);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(tile);
+  }
+  return result;
+}
+
+export type OmnistrikePlacement = {
+  patternTiles: { x: number; y: number }[];
+  combinedTiles: { x: number; y: number }[];
+  nearestEmptySpaces: number;
+  tooCloseKeys: Set<string>;
+  tooFar: boolean;
+  valid: boolean;
+  adjacentToOther: boolean;
+};
+
+export function evaluateOmnistrikePlacement(
+  user: { x: number; y: number },
+  anchor: { x: number; y: number },
+  bombSpec: WeaponAttackSpec,
+  direction: PatternDirection,
+  state: GameState,
+  combinedSpan: AttackRangeSpan,
+  otherPatternTiles?: { x: number; y: number }[],
+): OmnistrikePlacement {
+  const patternTiles = collectBombPatternTiles(state, anchor, bombSpec, direction);
+  const combinedTiles = otherPatternTiles?.length
+    ? unionPatternTiles(otherPatternTiles, patternTiles)
+    : patternTiles;
+
+  let nearestDist = Infinity;
+  const tooCloseKeys = new Set<string>();
+
+  for (const tile of combinedTiles) {
+    const dist = manhattanDistance(user, tile);
+    nearestDist = Math.min(nearestDist, dist);
+    if (dist - 1 < combinedSpan.min) {
+      tooCloseKeys.add(coordKey(tile.x, tile.y));
+    }
+  }
+
+  const nearestEmptySpaces = nearestDist === Infinity ? Infinity : nearestDist - 1;
+  const tooFar = nearestEmptySpaces > combinedSpan.max;
+  const adjacentToOther = !otherPatternTiles?.length || patternsAdjacentOrOverlap(otherPatternTiles, patternTiles);
+  const valid =
+    patternTiles.length > 0 &&
+    !tooFar &&
+    tooCloseKeys.size === 0 &&
+    adjacentToOther;
+
+  return {
+    patternTiles,
+    combinedTiles,
+    nearestEmptySpaces,
+    tooCloseKeys,
+    tooFar,
+    valid,
+    adjacentToOther,
+  };
+}
+
+export function resolveOmnistrikePlacements(
+  state: GameState,
+  player: Player,
+  payload: OmnistrikePayload,
+): { bombSpecs: [WeaponAttackSpec, WeaponAttackSpec]; combinedSpan: AttackRangeSpan; unionTiles: { x: number; y: number }[] } | null {
+  const weapon = player.weapon;
+  if (!isSabaothWeaponName(weapon)) return null;
+  const [indexA, indexB] = payload.bombIndices;
+  const bombA = resolveBombAttackSpec(weapon, indexA);
+  const bombB = resolveBombAttackSpec(weapon, indexB);
+  if (!bombA || !bombB) return null;
+  const combinedSpan = computeOmnistrikeRangeSpan(bombA, bombB);
+  if (!combinedSpan) return null;
+
+  const tilesA = collectBombPatternTiles(state, payload.anchors[0], bombA, OMNISTRIKE_DIRECTION);
+  const tilesB = collectBombPatternTiles(state, payload.anchors[1], bombB, OMNISTRIKE_DIRECTION);
+  if (!tilesA.length || !tilesB.length) return null;
+  if (!patternsAdjacentOrOverlap(tilesA, tilesB)) return null;
+
+  const placementA = evaluateOmnistrikePlacement(
+    player,
+    payload.anchors[0],
+    bombA,
+    OMNISTRIKE_DIRECTION,
+    state,
+    combinedSpan,
+    tilesB,
+  );
+  const placementB = evaluateOmnistrikePlacement(
+    player,
+    payload.anchors[1],
+    bombB,
+    OMNISTRIKE_DIRECTION,
+    state,
+    combinedSpan,
+    tilesA,
+  );
+  if (!placementA.valid || !placementB.valid) return null;
+
+  return {
+    bombSpecs: [bombA, bombB],
+    combinedSpan,
+    unionTiles: unionPatternTiles(tilesA, tilesB),
+  };
+}
+
+export function validateOmnistrikeAction(
+  state: GameState,
+  player: Player,
+  payload: OmnistrikePayload,
+): string | null {
+  if (!isSabaothWeaponName(player.weapon)) return "Invalid weapon";
+  const weapon = getWeaponByName(player.weapon ?? "");
+  const bombs = weapon?.attack?.bombs;
+  if (!bombs?.length) return "Weapon has no variants";
+  for (const index of payload.bombIndices) {
+    if (!Number.isInteger(index) || index < 0 || index >= bombs.length) return "Invalid variant";
+  }
+  ensureSabaothCharges(player);
+  if ((player.counters?.sabaothCharges ?? 0) <= 0) return "No charges remaining";
+
+  const resolved = resolveOmnistrikePlacements(state, player, payload);
+  if (!resolved) {
+    const [indexA, indexB] = payload.bombIndices;
+    const bombA = resolveBombAttackSpec(player.weapon, indexA);
+    const bombB = resolveBombAttackSpec(player.weapon, indexB);
+    const combinedSpan = bombA && bombB ? computeOmnistrikeRangeSpan(bombA, bombB) : null;
+    if (!combinedSpan) return "Invalid placement";
+
+    const tilesA = collectBombPatternTiles(state, payload.anchors[0], bombA!, OMNISTRIKE_DIRECTION);
+    const tilesB = collectBombPatternTiles(state, payload.anchors[1], bombB!, OMNISTRIKE_DIRECTION);
+    if (!patternsAdjacentOrOverlap(tilesA, tilesB)) return "Patterns must be adjacent or overlap";
+
+    for (const [anchor, spec, other] of [
+      [payload.anchors[0], bombA!, tilesB] as const,
+      [payload.anchors[1], bombB!, tilesA] as const,
+    ]) {
+      const placement = evaluateOmnistrikePlacement(
+        player,
+        anchor,
+        spec,
+        OMNISTRIKE_DIRECTION,
+        state,
+        combinedSpan,
+        other,
+      );
+      if (placement.tooFar) return "outside maximum range";
+      if (placement.tooCloseKeys.size > 0) return "inside minimum range";
+    }
+    return "Placement out of range";
+  }
+  return null;
+}
+
+export function applyOmnistrike(
+  state: GameState,
+  player: Player,
+  payload: OmnistrikePayload,
+): { message: string; targets: AttackTarget[] } {
+  const resolved = resolveOmnistrikePlacements(state, player, payload)!;
+  const { bombSpecs, unionTiles } = resolved;
+  ensureSabaothCharges(player);
+  player.counters!.sabaothCharges = (player.counters!.sabaothCharges ?? 0) - 1;
+
+  const occ = buildBoardOccupancy(state);
+  const seenEnemies = new Set<string>();
+  const allTargets: AttackTarget[] = [];
+  const damageParts: string[] = [];
+
+  for (const bombSpec of bombSpecs) {
+    const { total, detail } = resolveAttackDamage(bombSpec);
+    if (total > 0) damageParts.push(detail);
+    const effects = bombSpec.effects ?? [];
+    for (const tile of unionTiles) {
+      const mapTile = tileAt(state.tiles, tile.x, tile.y);
+      if (mapTile && effects.some((e) => e === "Advantageous")) {
+        setTileEffect(mapTile, "Advantageous:1");
+      }
+      const enemy = occ.enemyByKey.get(coordKey(tile.x, tile.y));
+      if (enemy) {
+        if (total > 0) applyDamageToEnemy(enemy, total, state);
+        applyEffectStacks(enemy, effects);
+        if (!seenEnemies.has(enemy.id)) {
+          seenEnemies.add(enemy.id);
+          allTargets.push({ enemyId: enemy.id, x: tile.x, y: tile.y });
+        }
+      }
+      const ally = occ.playerByKey.get(coordKey(tile.x, tile.y));
+      if (ally) applyEffectStacks(ally, effects);
+    }
+  }
+
+  const dmgLabel = damageParts.length ? damageParts.join("+") : "0";
+  return { message: `Omnistrike (${dmgLabel} dmg)`, targets: allTargets };
+}
 
 export function parseEnemyAttackString(text: string): ParsedEnemyAttack {
   const result: ParsedEnemyAttack = { raw: text };

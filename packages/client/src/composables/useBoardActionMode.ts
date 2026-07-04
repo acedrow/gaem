@@ -5,12 +5,15 @@ import { computed, ref } from "vue";
 export type BoardActionMode =
   | "move"
   | "attack"
+  | "omnistrike"
   | "shove"
   | "sprint"
   | "armorTeleport"
   | "armorPush"
   | "rez"
   | null;
+
+export type OmnistrikeStep = "selectBombs" | "placeFirst" | "placeSecond" | "confirm";
 
 const mode = ref<BoardActionMode>(null);
 const attackDirection = ref<PatternDirection>("n");
@@ -22,6 +25,20 @@ const pendingTargetEnemyId = ref<string | null>(null);
 const pendingTargetPlayerId = ref<string | null>(null);
 const armorLanding = ref<{ x: number; y: number } | null>(null);
 const armorPush = ref<1 | 2 | 3>(1);
+const omnistrikeStep = ref<OmnistrikeStep>("selectBombs");
+const omnistrikeBombs = ref<[number | null, number | null]>([null, null]);
+const omnistrikeAnchors = ref<[{ x: number; y: number } | null, { x: number; y: number } | null]>([
+  null,
+  null,
+]);
+const omnistrikeAimed = ref(false);
+
+function resetOmnistrikeState() {
+  omnistrikeStep.value = "selectBombs";
+  omnistrikeBombs.value = [null, null];
+  omnistrikeAnchors.value = [null, null];
+  omnistrikeAimed.value = false;
+}
 
 export function useBoardActionMode() {
   const isActive = computed(() => mode.value !== null);
@@ -35,6 +52,7 @@ export function useBoardActionMode() {
     pendingTargetEnemyId.value = null;
     pendingTargetPlayerId.value = null;
     armorLanding.value = null;
+    resetOmnistrikeState();
   }
 
   function clearMode() {
@@ -64,6 +82,10 @@ export function useBoardActionMode() {
     pendingTargetPlayerId,
     armorLanding,
     armorPush,
+    omnistrikeStep,
+    omnistrikeBombs,
+    omnistrikeAnchors,
+    omnistrikeAimed,
     isActive,
     setMode,
     clearMode,

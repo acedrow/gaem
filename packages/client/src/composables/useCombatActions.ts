@@ -4,6 +4,7 @@ import {
   createDefaultActionBudget,
   getArmorByName,
   getArmorSpeed,
+  getSabaothChargesRemaining,
   getWeaponAttackSpec,
   hasSabaothBombSelected,
   isSabaothWeaponName,
@@ -87,6 +88,21 @@ export function useCombatActions(playerId?: () => string | null) {
   const canStartSprint = computed(
     () => canAux.value && sprintRemaining.value <= 0,
   );
+
+  const sabaothChargesRemaining = computed(() => {
+    const p = activePlayer.value;
+    if (!p) return null;
+    return getSabaothChargesRemaining(p);
+  });
+
+  const canUseWeaponActive = computed(() => {
+    const p = activePlayer.value;
+    if (!p?.weapon || !canMain.value) return false;
+    if (isSabaothWeaponName(p.weapon)) {
+      return (sabaothChargesRemaining.value ?? 0) > 0;
+    }
+    return true;
+  });
 
   const hasWeaponAttack = computed(() => {
     const p = activePlayer.value;
@@ -185,6 +201,8 @@ export function useCombatActions(playerId?: () => string | null) {
     canStartSprint,
     sprintRemaining,
     hasWeaponAttack,
+    canUseWeaponActive,
+    sabaothChargesRemaining,
     armorStructured,
     pendingActions,
     pendingReaction,

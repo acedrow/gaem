@@ -2,8 +2,10 @@
 import { computed } from "vue";
 
 import {
+  getWeaponAttackSpec,
   isRangeTargetAttack,
   isRangedPatternAttack,
+  isSabaothWeaponName,
   resolveCombatAttackSpec,
   rangeTargetMax,
   usesAnchoredPatternPlacement,
@@ -12,6 +14,7 @@ import {
 import { useBoardActionMode } from "../composables/useBoardActionMode.js";
 import { useCombatActions } from "../composables/useCombatActions.js";
 import ActionBudgetChips from "./ActionBudgetChips.vue";
+import WeaponPatternDiagram from "./WeaponPatternDiagram.vue";
 
 const {
   showPlayerActionBar,
@@ -21,16 +24,33 @@ const {
   canAux,
   canStartSprint,
   hasWeaponAttack,
+  canUseWeaponActive,
   armorStructured,
   activePlayer,
   sendPlayerAction,
 } = useCombatActions();
 
-const { mode, rangeAttackTargetIds, setMode, clearMode } = useBoardActionMode();
+const {
+  mode,
+  rangeAttackTargetIds,
+  omnistrikeStep,
+  omnistrikeBombs,
+  omnistrikeAnchors,
+  setMode,
+  clearMode,
+} = useBoardActionMode();
 
 const speedLabel = computed(() => {
   if (!budget.value) return "—";
   return `${budget.value.movementRemaining}/${budget.value.movementMax}`;
+});
+
+const isSabaothEquipped = computed(() => isSabaothWeaponName(activePlayer.value?.weapon));
+
+const sabaothAttackSpec = computed(() => {
+  const weapon = activePlayer.value?.weapon;
+  if (!weapon) return null;
+  return getWeaponAttackSpec(weapon);
 });
 
 const attackHint = computed(() => {
@@ -58,11 +78,32 @@ const attackHint = computed(() => {
   return "Click a highlighted tile to aim, then click the attack area to confirm";
 });
 
+const omnistrikeHint = computed(() => {
+  if (mode.value !== "omnistrike") return null;
+  switch (omnistrikeStep.value) {
+    case "selectBombs":
+      return "Select two bomb types to combine (tap to toggle).";
+    case "placeFirst":
+      return "Place the first pattern — hover to preview, click to confirm placement.";
+    case "placeSecond":
+      return "Place the second pattern adjacent to or overlapping the first.";
+    case "confirm":
+      return "Click the combined pattern to launch Omnistrike.";
+    default:
+      return null;
+  }
+});
+
 function useClassActive() {
   sendPlayerAction({ action: "classActive" });
 }
 
 function useWeaponActive() {
+  if (isSabaothEquipped.value) {
+    if (mode.value === "omnistrike") clearMode();
+    else setMode("omnistrike");
+    return;
+  }
   sendPlayerAction({ action: "weaponActive" });
 }
 
@@ -83,6 +124,20 @@ function pickMode(next: typeof mode.value) {
   if (mode.value === next) clearMode();
   else if (next === "attack") setMode("attack");
   else setMode(next);
+}
+
+function onDualBombIndices(indices: [number | null, number | null]) {
+  omnistrikeBombs.value = indices;
+  if (indices[0] == null || indices[1] == null) {
+    omnistrikeStep.value = "selectBombs";
+    omnistrikeAnchors.value = [null, null];
+  }
+}
+
+function onDualBombComplete() {
+  if (omnistrikeBombs.value[0] != null && omnistrikeBombs.value[1] != null) {
+    omnistrikeStep.value = "placeFirst";
+  }
 }
 </script>
 
@@ -144,7 +199,13 @@ function pickMode(next: typeof mode.value) {
       >
         Armor
       </button>
-      <button type="button" class="action-btn" :disabled="!canMain" @click="useWeaponActive">
+      <button
+        type="button"
+        class="action-btn"
+        :class="{ active: mode === 'omnistrike' }"
+        :disabled="!canUseWeaponActive"
+        @click="useWeaponActive"
+      >
         Weapon
       </button>
       <button type="button" class="action-btn" :disabled="!canSupport" @click="useEquipment">
@@ -163,8 +224,24 @@ function pickMode(next: typeof mode.value) {
         Rez
       </button>
     </div>
+    <div
+      v-if="mode === 'omnistrike' && omnistrikeStep === 'selectBombs' && sabaothAttackSpec"
+      class="omnistrike-picker-row"
+    >
+      <WeaponPatternDiagram
+        :attack="sabaothAttackSpec"
+        dual-select
+        compact
+        :dual-bomb-indices="omnistrikeBombs"
+        @update:dual-bomb-indices="onDualBombIndices"
+        @dual-complete="onDualBombComplete"
+      />
+    </div>
     <div v-if="mode === 'attack'" class="hint-row">
       <span class="hint">{{ attackHint }}</span>
+    </div>
+    <div v-if="omnistrikeHint" class="hint-row">
+      <span class="hint">{{ omnistrikeHint }}</span>
     </div>
     <button v-if="mode" type="button" class="action-btn cancel" @click="clearMode">
       Cancel
@@ -187,7 +264,8 @@ function pickMode(next: typeof mode.value) {
 
 .budget-row,
 .actions-row,
-.hint-row {
+.hint-row,
+.omnistrike-picker-row {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;

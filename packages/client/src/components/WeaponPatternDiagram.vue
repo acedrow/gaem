@@ -9,11 +9,16 @@ const props = defineProps<{
   attack: WeaponAttackSpec;
   bombIndex?: number;
   selectable?: boolean;
+  dualSelect?: boolean;
+  dualBombIndices?: [number | null, number | null];
+  compact?: boolean;
 }>();
 
 const emit = defineEmits<{
   "update:bombIndex": [index: number];
   requestSelect: [index: number];
+  "update:dualBombIndices": [indices: [number | null, number | null]];
+  dualComplete: [];
 }>();
 
 const levelIndex = ref(0);
@@ -35,6 +40,9 @@ const equippedBombIndex = computed((): number | undefined => {
 });
 const displayBombIndex = computed((): number | undefined => {
   if (hoverBombIndex.value != null) return hoverBombIndex.value;
+  if (props.dualSelect && props.dualBombIndices) {
+    return props.dualBombIndices[0] ?? props.dualBombIndices[1] ?? undefined;
+  }
   return equippedBombIndex.value;
 });
 
@@ -92,7 +100,66 @@ const displayGrid = computed(() => {
   });
 });
 
+function dualSelectionSlots(index: number): (1 | 2)[] {
+  if (!props.dualSelect || !props.dualBombIndices) return [];
+  const slots: (1 | 2)[] = [];
+  if (props.dualBombIndices[0] === index) slots.push(1);
+  if (props.dualBombIndices[1] === index) slots.push(2);
+  return slots;
+}
+
+function toggleDualBomb(index: number) {
+  const current = props.dualBombIndices ?? [null, null];
+  const [a, b] = current;
+
+  if (a === index && b === index) {
+    emit("update:dualBombIndices", [index, null]);
+    return;
+  }
+  if (a === index && b == null) {
+    const next: [number | null, number | null] = [index, index];
+    emit("update:dualBombIndices", next);
+    emit("dualComplete");
+    return;
+  }
+  if (a === index) {
+    emit("update:dualBombIndices", [null, b]);
+    return;
+  }
+  if (b === index) {
+    emit("update:dualBombIndices", [a, null]);
+    return;
+  }
+  if (a == null) {
+    const next: [number | null, number | null] = [index, b];
+    emit("update:dualBombIndices", next);
+    if (next[1] != null) emit("dualComplete");
+    return;
+  }
+  if (b == null) {
+    const next: [number | null, number | null] = [a, index];
+    emit("update:dualBombIndices", next);
+    emit("dualComplete");
+    return;
+  }
+  emit("update:dualBombIndices", [a, index]);
+  emit("dualComplete");
+}
+
+function resetDualSelection() {
+  emit("update:dualBombIndices", [null, null]);
+}
+
+const hasDualSelection = computed(() => {
+  if (!props.dualSelect || !props.dualBombIndices) return false;
+  return props.dualBombIndices[0] != null || props.dualBombIndices[1] != null;
+});
+
 function selectBomb(index: number) {
+  if (props.dualSelect) {
+    toggleDualBomb(index);
+    return;
+  }
   if (equippedBombIndex.value != null && index === equippedBombIndex.value) return;
   if (props.selectable) {
     emit("requestSelect", index);
@@ -106,8 +173,8 @@ function selectBomb(index: number) {
 </script>
 
 <template>
-  <div v-if="hasDiagram" class="weapon-pattern">
-    <div class="weapon-pattern-meta">
+  <div v-if="hasDiagram" class="weapon-pattern" :class="{ compact }">
+    <div v-if="!compact" class="weapon-pattern-meta">
       <span class="weapon-pattern-damage">Damage {{ damageLabel }}</span>
       <span v-if="patternNote" class="weapon-pattern-note">{{ patternNote }}</span>
     </div>
@@ -125,34 +192,46 @@ function selectBomb(index: number) {
       </button>
     </div>
 
-    <div v-if="attack.bombs?.length" class="variant-tabs">
+    <div v-if="attack.bombs?.length" class="variant-tabs-row">
+      <div class="variant-tabs">
+        <button
+          v-for="(bomb, i) in attack.bombs"
+          :key="bomb.name"
+          type="button"
+          class="variant-tab"
+          :class="{
+            active: !dualSelect && equippedBombIndex === i,
+            selectable: selectable || dualSelect,
+            preview: hoverBombIndex === i && equippedBombIndex !== i,
+            'dual-selected-1': dualSelectionSlots(i).includes(1),
+            'dual-selected-2': dualSelectionSlots(i).includes(2),
+          }"
+          @mouseenter="hoverBombIndex = i"
+          @mouseleave="hoverBombIndex = null"
+          @click.stop="selectBomb(i)"
+        >
+          {{ bomb.name }}
+        </button>
+      </div>
       <button
-        v-for="(bomb, i) in attack.bombs"
-        :key="bomb.name"
+        v-if="dualSelect && hasDualSelection"
         type="button"
-        class="variant-tab"
-        :class="{
-          active: equippedBombIndex === i,
-          selectable,
-          preview: hoverBombIndex === i && equippedBombIndex !== i,
-        }"
-        @mouseenter="hoverBombIndex = i"
-        @mouseleave="hoverBombIndex = null"
-        @click.stop="selectBomb(i)"
+        class="dual-reset-btn"
+        @click.stop="resetDualSelection"
       >
-        {{ bomb.name }}
+        Reset choices
       </button>
     </div>
 
     <p
-      v-if="attack.bombs?.length && displayBombIndex == null"
+      v-if="attack.bombs?.length && displayBombIndex == null && !dualSelect"
       class="weapon-pattern-empty"
     >
       Select a bomb type (costs 1 charge).
     </p>
 
     <div
-      v-else
+      v-else-if="!compact || displayBombIndex != null"
       class="pattern-grid"
       :style="{
         gridTemplateColumns: `repeat(${displayGrid.width}, 1.35rem)`,
@@ -197,6 +276,35 @@ function selectBomb(index: number) {
   color: var(--color-muted);
 }
 
+.variant-tabs-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  margin-bottom: 0.45rem;
+}
+
+.variant-tabs-row .variant-tabs {
+  margin-bottom: 0;
+}
+
+.dual-reset-btn {
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-muted);
+  font-family: inherit;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.12rem 0.45rem;
+  cursor: pointer;
+}
+
+.dual-reset-btn:hover {
+  border-color: var(--color-accent-muted);
+  color: var(--color-text);
+}
+
 .variant-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -226,10 +334,24 @@ function selectBomb(index: number) {
   color: var(--color-text);
 }
 
-.variant-tab.active {
+.variant-tab.dual-selected-1,
+.variant-tab.dual-selected-2 {
   border-color: var(--color-accent);
   color: var(--color-text);
   background: var(--color-accent-muted);
+}
+
+.weapon-pattern.compact .variant-tabs-row {
+  margin-bottom: 0;
+}
+
+.weapon-pattern.compact .variant-tabs {
+  margin-bottom: 0;
+}
+
+.weapon-pattern.compact .pattern-grid,
+.weapon-pattern.compact .weapon-pattern-description {
+  display: none;
 }
 
 .pattern-grid {

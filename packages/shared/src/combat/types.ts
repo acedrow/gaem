@@ -118,7 +118,17 @@ export type PlayerAction =
   | { action: "rez"; targetPlayerId: string }
   | { action: "armorAction"; targetEnemyId?: string; targetPlayerId?: string; landingX?: number; landingY?: number; push?: 1 | 2 | 3 }
   | { action: "classActive"; detail?: string; targetEnemyIds?: string[]; targetPlayerIds?: string[] }
-  | { action: "weaponActive"; detail?: string; targetEnemyIds?: string[]; targetPlayerIds?: string[]; direction?: PatternDirection }
+  | {
+      action: "weaponActive";
+      detail?: string;
+      targetEnemyIds?: string[];
+      targetPlayerIds?: string[];
+      direction?: PatternDirection;
+      omnistrike?: {
+        bombIndices: [number, number];
+        anchors: [{ x: number; y: number }, { x: number; y: number }];
+      };
+    }
   | { action: "useEquipment"; detail?: string }
   | { action: "interact"; detail?: string };
 
