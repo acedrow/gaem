@@ -47,6 +47,15 @@ import {
   warhookRangeKeys,
   warhookValidTargetKeys,
   isWarhookTargetAt,
+  isTowerEnemy,
+  yadathanPlacementKeys,
+  towerTeleportLandingKeys,
+  kataptyTargetKeys,
+  keraunoAdjacentEnemyIds,
+  getPlayerTower,
+  getArmorByName,
+  tilesOnSegment,
+  TOWER_IATROS,
 } from "@gaem/shared";
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 
@@ -141,9 +150,12 @@ const {
   warhookStep,
   warhookTarget,
   warhookLandingOptions,
+  towerTeleportStep,
+  towerTeleportLanding,
+  kataptyTargetIds,
   clearMode: clearBoardActionMode,
 } = useBoardActionMode();
-const { sendPlayerAction, sendMovePath } = useCombatActions();
+const { sendPlayerAction, sendMovePath, pendingReaction, reversalExtraAllyIds } = useCombatActions();
 
 const hoveredKey = ref<string | null>(null);
 const hoveredCell = ref<{ x: number; y: number } | null>(null);
@@ -468,6 +480,76 @@ const warhookSecondaryKeys = computed(() => {
   return warhookRangeKeys(s, me);
 });
 
+const armorPlaceTowerKeys = computed(() => {
+  if (boardActionMode.value !== "armorPlaceTower") return new Set<string>();
+  const me = yourPlayer.value;
+  const s = gameState.value;
+  if (!me || !s) return new Set<string>();
+  const armor = getArmorByName(me.armor ?? "");
+  const structured = armor?.armorActionStructured;
+  if (!structured || structured.kind !== "place_tower") return new Set<string>();
+  return yadathanPlacementKeys(s, me, structured.range);
+});
+
+const towerTeleportPrimaryKeys = computed(() => {
+  if (boardActionMode.value !== "towerTeleport") return new Set<string>();
+  const id = yourPlayerId.value;
+  const s = gameState.value;
+  if (!id || !s) return new Set<string>();
+  if (towerTeleportStep.value === "selectKeraunoTarget" && towerTeleportLanding.value) {
+    const adjacent = keraunoAdjacentEnemyIds(s, towerTeleportLanding.value.x, towerTeleportLanding.value.y);
+    const keys = new Set<string>();
+    for (const enemyId of adjacent) {
+      const enemy = s.enemies.find((e) => e.id === enemyId);
+      if (enemy) keys.add(coordKey(enemy.x, enemy.y));
+    }
+    return keys;
+  }
+  return new Set<string>();
+});
+
+const towerTeleportSecondaryKeys = computed(() => {
+  if (boardActionMode.value !== "towerTeleport") return new Set<string>();
+  const id = yourPlayerId.value;
+  const s = gameState.value;
+  if (!id || !s || towerTeleportStep.value === "selectKeraunoTarget") return new Set<string>();
+  return towerTeleportLandingKeys(s, id);
+});
+
+const kataptyPickKeys = computed(() => {
+  if (boardActionMode.value !== "kataptyPick") return new Set<string>();
+  const id = yourPlayerId.value;
+  const s = gameState.value;
+  if (!id || !s) return new Set<string>();
+  return kataptyTargetKeys(s, id);
+});
+
+const reversalLineKeys = computed(() => {
+  const r = pendingReaction.value;
+  const me = yourPlayer.value;
+  const s = gameState.value;
+  const heal = new Set<string>();
+  const damage = new Set<string>();
+  if (!r || !me || !s) return { heal, damage };
+  const tower = getPlayerTower(s, me.id);
+  if (!tower) return { heal, damage };
+  const iatros = tower.name === TOWER_IATROS;
+  const targetSet = iatros ? heal : damage;
+  const lines: { from: { x: number; y: number }; to: { x: number; y: number } }[] = [
+    { from: { x: me.x, y: me.y }, to: { x: tower.x, y: tower.y } },
+  ];
+  for (const allyId of reversalExtraAllyIds.value) {
+    const ally = s.players.find((p) => p.id === allyId);
+    if (ally) lines.push({ from: { x: me.x, y: me.y }, to: { x: ally.x, y: ally.y } });
+  }
+  for (const line of lines) {
+    for (const tile of tilesOnSegment(line.from, line.to)) {
+      targetSet.add(coordKey(tile.x, tile.y));
+    }
+  }
+  return { heal, damage };
+});
+
 const combatAttackInvalidKeys = computed(() => {
   if (attackAimed.value) return new Set<string>();
   const preview = anchoredPlacementPreview.value;
@@ -637,7 +719,7 @@ const gmEnemyMoveTargetKeys = computed(() => {
   const id = selectedEnemyId.value;
   if (!s || !id || !canGmMoveEnemies(s)) return keys;
   const enemy = s.enemies.find((e) => e.id === id);
-  if (!enemy || enemy.exhausted) return keys;
+  if (!enemy || enemy.exhausted || isTowerEnemy(enemy)) return keys;
   if (s.enforceTurns !== false) {
     ensureEnemyMovement(enemy);
     if ((enemy.movementRemaining ?? 0) < 1) return keys;
@@ -741,6 +823,8 @@ const cellStateByKey = computed(() => {
     const player = occ.playerByKey.get(coordKey(c.x, c.y));
     const enemy = occ.enemyByKey.get(coordKey(c.x, c.y));
     const enemyAnchor = occ.enemyAnchorByKey.get(coordKey(c.x, c.y));
+    const objects = occ.terrainObjectsByKey.get(coordKey(c.x, c.y)) ?? [];
+    const hasSeed = objects.some((o) => o.kind === "seed");
 
     const adjacent =
       me != null && Math.abs(c.x - me.x) + Math.abs(c.y - me.y) === 1;
@@ -784,13 +868,25 @@ const cellStateByKey = computed(() => {
         combatAttackPrimaryKeys.value.has(coordKey(c.x, c.y)) ||
         omnistrikePrimaryKeys.value.has(coordKey(c.x, c.y)) ||
         warhookPrimaryKeys.value.has(coordKey(c.x, c.y)) ||
-        combatAttackSelectedKeys.value.has(coordKey(c.x, c.y)),
+        towerTeleportPrimaryKeys.value.has(coordKey(c.x, c.y)) ||
+        combatAttackSelectedKeys.value.has(coordKey(c.x, c.y)) ||
+        reversalLineKeys.value.damage.has(coordKey(c.x, c.y)) ||
+        (boardActionMode.value === "kataptyPick" &&
+          kataptyTargetIds.value.some((id) => {
+            const e = s.enemies.find((en) => en.id === id);
+            return e && e.x === c.x && e.y === c.y;
+          })),
       combatTargetSecondary:
         combatAttackSecondaryKeys.value.has(coordKey(c.x, c.y)) ||
         omnistrikeSecondaryKeys.value.has(coordKey(c.x, c.y)) ||
         warhookSecondaryKeys.value.has(coordKey(c.x, c.y)) ||
+        armorPlaceTowerKeys.value.has(coordKey(c.x, c.y)) ||
+        towerTeleportSecondaryKeys.value.has(coordKey(c.x, c.y)) ||
+        kataptyPickKeys.value.has(coordKey(c.x, c.y)) ||
         rezTargetKeys.value.has(coordKey(c.x, c.y)),
-      combatTargetHeal: combatTargetHeal.value,
+      combatTargetHeal:
+        combatTargetHeal.value ||
+        reversalLineKeys.value.heal.has(coordKey(c.x, c.y)),
       combatTargetInvalid:
         combatAttackInvalidKeys.value.has(coordKey(c.x, c.y)) ||
         omnistrikeInvalidKeys.value.has(coordKey(c.x, c.y)),
@@ -801,11 +897,16 @@ const cellStateByKey = computed(() => {
       effectStacks: player?.effects ?? enemyAnchor?.effects,
       turnEnded: player
         ? s.roundPhase !== "deployment" && s.actedPlayerIds.includes(player.id)
-        : enemy?.exhausted ?? false,
+        : !!(enemy && !isTowerEnemy(enemy) && enemy.exhausted),
       playerDowned: player ? isPlayerDowned(player) : false,
       playerPortraitUrl: player?.characterSheetId
         ? portraitUrlFor(player.characterSheetId)
         : null,
+      hasSeed,
+      towerOwnerHue:
+        enemyAnchor?.kind === "tower" && enemyAnchor.ownerPlayerId
+          ? hueFromId(enemyAnchor.ownerPlayerId)
+          : null,
     });
   }
   return map;
@@ -819,12 +920,14 @@ const tooltipData = computed(() => {
   const key = coordKey(cell.x, cell.y);
   const tile = tileAt(s.tiles, cell.x, cell.y);
   if (!tile) return null;
+  const anchor = occ.enemyByKey.get(key);
   return {
     x: cell.x,
     y: cell.y,
     tile,
     players: occ.playerByKey.has(key) ? [occ.playerByKey.get(key)!] : [],
-    enemies: occ.enemyByKey.has(key) ? [occ.enemyByKey.get(key)!] : [],
+    enemies: anchor && !isTowerEnemy(anchor) ? [anchor] : [],
+    towers: anchor && isTowerEnemy(anchor) ? [anchor] : [],
     objects: occ.terrainObjectsByKey.get(key) ?? [],
   };
 });
@@ -1440,6 +1543,58 @@ function handleCombatCellClick(x: number, y: number): boolean {
     }
     return true;
   }
+  if (m === "armorPlaceTower") {
+    const key = coordKey(x, y);
+    if (!armorPlaceTowerKeys.value.has(key)) return true;
+    sendPlayerAction({ action: "armorAction", x, y });
+    clearBoardActionMode();
+    return true;
+  }
+  if (m === "towerTeleport") {
+    const s = gameState.value;
+    if (!s) return true;
+    const key = coordKey(x, y);
+    if (towerTeleportStep.value === "selectKeraunoTarget" && enemy) {
+      sendPlayerAction({
+        action: "towerTeleport",
+        x: towerTeleportLanding.value!.x,
+        y: towerTeleportLanding.value!.y,
+        keraunoTargetEnemyId: enemy.id,
+      });
+      clearBoardActionMode();
+      return true;
+    }
+    if (!towerTeleportSecondaryKeys.value.has(key)) return true;
+    const tower = getPlayerTower(s, me.id);
+    towerTeleportLanding.value = { x, y };
+    if (tower?.name === "Kerauno") {
+      const adjacent = keraunoAdjacentEnemyIds(s, x, y);
+      if (adjacent.length > 0) {
+        towerTeleportStep.value = "selectKeraunoTarget";
+        return true;
+      }
+    }
+    sendPlayerAction({ action: "towerTeleport", x, y });
+    clearBoardActionMode();
+    return true;
+  }
+  if (m === "kataptyPick") {
+    if (!enemy || isTowerEnemy(enemy)) return true;
+    const key = coordKey(x, y);
+    if (!kataptyPickKeys.value.has(key)) return true;
+    const ids = kataptyTargetIds.value;
+    const idx = ids.indexOf(enemy.id);
+    if (idx >= 0) {
+      kataptyTargetIds.value = ids.filter((id) => id !== enemy.id);
+    } else if (ids.length < 3) {
+      kataptyTargetIds.value = [...ids, enemy.id];
+    }
+    if (kataptyTargetIds.value.length === 3) {
+      sendPlayerAction({ action: "kataptyEndTurn", targetEnemyIds: [...kataptyTargetIds.value] });
+      clearBoardActionMode();
+    }
+    return true;
+  }
   if (m === "rez") {
     if (player && player.id !== me.id && (player.hp ?? 0) <= 0) {
       sendPlayerAction({ action: "rez", targetPlayerId: player.id });
@@ -1453,7 +1608,16 @@ function handleCombatCellClick(x: number, y: number): boolean {
 
 function onPlayerCellClick(x: number, y: number) {
   if (handleCombatCellClick(x, y)) return;
-  if (boardActionMode.value === "attack" || boardActionMode.value === "omnistrike" || boardActionMode.value === "warhook") return;
+  if (
+    boardActionMode.value === "attack" ||
+    boardActionMode.value === "omnistrike" ||
+    boardActionMode.value === "warhook" ||
+    boardActionMode.value === "armorPlaceTower" ||
+    boardActionMode.value === "towerTeleport" ||
+    boardActionMode.value === "kataptyPick"
+  ) {
+    return;
+  }
   if (selectOccupantAt(x, y)) return;
   clearBoardSelection();
   tryMove(x, y);
@@ -1640,7 +1804,7 @@ function endEnemyTurn(enemyId: string): boolean {
   const s = gameState.value;
   if (!s) return false;
   const enemy = s.enemies.find((e) => e.id === enemyId);
-  if (!enemy || enemy.exhausted || !canGmMoveEnemies(s)) return false;
+  if (!enemy || enemy.exhausted || isTowerEnemy(enemy) || !canGmMoveEnemies(s)) return false;
   send({ type: "gmEnemyAction", action: { action: "exhaust", enemyId: enemy.id } });
   return true;
 }
@@ -1819,6 +1983,14 @@ onUnmounted(() => {
                 class="tooltip-row tooltip-effect"
               >
                 {{ effectTooltipLabel(effect.id, effect.stacks) }}
+              </span>
+            </div>
+          </div>
+          <div v-if="tooltipData.towers.length" class="tooltip-section">
+            <span class="tooltip-heading">Towers</span>
+            <div v-for="tower in tooltipData.towers" :key="tower.id" class="tooltip-unit">
+              <span class="tooltip-row">
+                {{ enemyLabel(tower) }}<template v-if="props.role === 'gm'"> · HP {{ formatHp(tower.hp, getEnemyMaxHp(tower)) }}</template>
               </span>
             </div>
           </div>

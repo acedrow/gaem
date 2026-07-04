@@ -12,6 +12,7 @@ import {
   validateCharacterSheetLoadout,
   type CharacterSheetLoadoutFields,
 } from "./base-upgrades-unlocks.js";
+import { isValidYadathanTowerName, isYadathanArmorName, YADATHAN_ARMOR_NAME } from "./combat/yadathan.js";
 
 export type { StructuredArmorAction, WeaponAttackSpec, AbilityText };
 
@@ -91,6 +92,7 @@ export function applyLoadoutToPlayer(
     equipment?: string;
     gear?: string;
     weapon2?: string;
+    yadathanTower?: string;
   },
 ): void {
   player.class = loadout.className;
@@ -105,6 +107,12 @@ export function applyLoadoutToPlayer(
     player.reversalCharges = armor.reversal.charges;
   }
   if (player.equipmentUses === undefined) player.equipmentUses = 1;
+  if (!player.counters) player.counters = {};
+  if (isYadathanArmorName(loadout.armor) && loadout.yadathanTower) {
+    player.yadathanTower = loadout.yadathanTower;
+  } else if (!isYadathanArmorName(loadout.armor)) {
+    player.yadathanTower = undefined;
+  }
   player.hp = normalizePlayerHp(player);
 }
 
@@ -152,6 +160,16 @@ export function validateCharacterSheetRefs(
   }
   if (fields.weapon2 !== undefined && fields.weapon2 && !weaponNames.has(fields.weapon2)) {
     return `Invalid weapon: ${fields.weapon2}`;
+  }
+  const armor = fields.armor ?? existing?.armor;
+  if (armor === YADATHAN_ARMOR_NAME) {
+    const tower = fields.yadathanTower ?? existing?.yadathanTower;
+    if (!tower || !isValidYadathanTowerName(tower)) {
+      return "YADATHAN requires a tower selection";
+    }
+  }
+  if (fields.yadathanTower !== undefined && fields.yadathanTower && !isValidYadathanTowerName(fields.yadathanTower)) {
+    return `Invalid YADATHAN tower: ${fields.yadathanTower}`;
   }
   return validateCharacterSheetLoadout(fields, constructedIds, existing);
 }

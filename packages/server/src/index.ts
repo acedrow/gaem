@@ -160,6 +160,7 @@ function resolveSheetForJoin(
   equipment?: string;
   gear?: string;
   weapon2?: string;
+  yadathanTower?: string;
 } {
   if (characterSheetId) {
     const sheet = characterSheets.get(characterSheetId);
@@ -172,6 +173,7 @@ function resolveSheetForJoin(
         equipment: sheet.equipment,
         gear: sheet.gear,
         weapon2: sheet.weapon2,
+        yadathanTower: sheet.yadathanTower,
       };
     }
   }
@@ -185,6 +187,7 @@ function resolveSheetForJoin(
         equipment: sheet.equipment,
         gear: sheet.gear,
         weapon2: sheet.weapon2,
+        yadathanTower: sheet.yadathanTower,
       }
     : {};
 }
@@ -423,6 +426,7 @@ wss.on("connection", (ws: WebSocket) => {
         equipment: sheetJoin.equipment,
         gear: sheetJoin.gear,
         weapon2: sheetJoin.weapon2,
+        yadathanTower: sheetJoin.yadathanTower,
       });
       if ("error" in resolved) {
         sendError(ws, "Board full");
@@ -531,6 +535,7 @@ wss.on("connection", (ws: WebSocket) => {
         parsed.equipment,
         parsed.gear,
         parsed.weapon2,
+        parsed.yadathanTower,
       );
       if (err) {
         sendError(ws, err);

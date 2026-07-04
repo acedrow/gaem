@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { CharacterSheet, PlayerProfile } from "@gaem/shared";
+import { YADATHAN_ARMOR_NAME } from "@gaem/shared";
 import { computed, ref, watch } from "vue";
 
 import { useApi } from "../composables/useApi.js";
@@ -35,6 +36,14 @@ const createForm = ref({
   class: "",
   armor: "",
   weapon: "",
+  yadathanTower: "",
+});
+
+const createFormValid = computed(() => {
+  const f = createForm.value;
+  if (!f.player || !f.name || !f.class || !f.armor || !f.weapon) return false;
+  if (f.armor === YADATHAN_ARMOR_NAME && !f.yadathanTower) return false;
+  return true;
 });
 
 const profileNameById = computed(() => {
@@ -93,7 +102,7 @@ function onSelectData(category: DataCategory) {
 }
 
 function openCreate() {
-  createForm.value = { player: "", name: "", class: "", armor: "", weapon: "" };
+  createForm.value = { player: "", name: "", class: "", armor: "", weapon: "", yadathanTower: "" };
   createError.value = null;
   showCreate.value = true;
 }
@@ -249,7 +258,7 @@ watch(sheetsVersion, () => {
         <button
           class="cta"
           type="button"
-          :disabled="creating || !createForm.player || !createForm.name || !createForm.class || !createForm.armor || !createForm.weapon"
+          :disabled="creating || !createFormValid"
           @click="createSheet"
         >
           {{ creating ? "Creating…" : "Create" }}

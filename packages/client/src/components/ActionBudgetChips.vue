@@ -1,18 +1,106 @@
 <script setup lang="ts">
-defineProps<{
-  canMain: boolean;
-  canSupport: boolean;
-  canAux: boolean;
+import type { ActionTier } from "@gaem/shared";
+import { ref } from "vue";
+
+import ModalDialog from "./ModalDialog.vue";
+
+const props = defineProps<{
+  interactive?: boolean;
+  mainSpent: boolean;
+  supportSpent: boolean;
+  auxSpent: boolean;
+  mainGranted: boolean;
+  supportGranted: boolean;
+  auxGranted: boolean;
+  canCommitMain: boolean;
+  canCommitSupport: boolean;
+  canCommitAux: boolean;
+  hasteStacks?: number;
 }>();
+
+const emit = defineEmits<{
+  commitHaste: [tier: ActionTier];
+}>();
+
+const pendingTier = ref<ActionTier | null>(null);
+
+const tierLabels: Record<ActionTier, string> = {
+  main: "Main",
+  support: "Support",
+  aux: "Aux",
+};
+
+function chipClass(spent: boolean, granted: boolean, canCommit: boolean) {
+  if (granted) return "chip haste-granted";
+  if (spent && canCommit && props.interactive) return "chip spent clickable";
+  if (spent) return "chip spent";
+  return "chip";
+}
+
+function onChipClick(tier: ActionTier, spent: boolean, canCommit: boolean) {
+  if (!props.interactive || !spent || !canCommit) return;
+  pendingTier.value = tier;
+}
+
+function confirmHaste() {
+  if (!pendingTier.value) return;
+  emit("commitHaste", pendingTier.value);
+  pendingTier.value = null;
+}
+
+function cancelHaste() {
+  pendingTier.value = null;
+}
 </script>
 
 <template>
-  <span class="chip" :class="{ spent: !canMain }">Main</span>
-  <span class="chip" :class="{ spent: !canSupport }">Support</span>
-  <span class="chip" :class="{ spent: !canAux }">Aux</span>
+  <button
+    type="button"
+    class="chip-btn"
+    :class="chipClass(mainSpent, mainGranted, canCommitMain)"
+    :disabled="!interactive || !mainSpent || !canCommitMain"
+    @click="onChipClick('main', mainSpent, canCommitMain)"
+  >
+    Main
+  </button>
+  <button
+    type="button"
+    class="chip-btn"
+    :class="chipClass(supportSpent, supportGranted, canCommitSupport)"
+    :disabled="!interactive || !supportSpent || !canCommitSupport"
+    @click="onChipClick('support', supportSpent, canCommitSupport)"
+  >
+    Support
+  </button>
+  <button
+    type="button"
+    class="chip-btn"
+    :class="chipClass(auxSpent, auxGranted, canCommitAux)"
+    :disabled="!interactive || !auxSpent || !canCommitAux"
+    @click="onChipClick('aux', auxSpent, canCommitAux)"
+  >
+    Aux
+  </button>
+  <span v-if="(hasteStacks ?? 0) > 0" class="chip haste">Haste {{ hasteStacks }}</span>
+
+  <ModalDialog
+    :open="pendingTier != null"
+    title="Spend Haste"
+    @close="cancelHaste"
+  >
+    <p v-if="pendingTier" class="prompt">
+      Would you like to spend Haste to gain an additional
+      {{ tierLabels[pendingTier] }} action?
+    </p>
+    <template #actions>
+      <button type="button" class="btn-secondary" @click="cancelHaste">Cancel</button>
+      <button type="button" class="btn-primary" @click="confirmHaste">Spend Haste</button>
+    </template>
+  </ModalDialog>
 </template>
 
 <style scoped>
+.chip-btn,
 .chip {
   font-size: 0.72rem;
   font-weight: 600;
@@ -23,7 +111,67 @@ defineProps<{
   color: var(--color-text);
 }
 
-.chip.spent {
+.chip-btn {
+  font-family: inherit;
+  cursor: default;
+}
+
+.chip-btn.spent {
   opacity: 0.45;
+}
+
+.chip-btn.clickable {
+  cursor: pointer;
+  opacity: 0.75;
+  border-style: dashed;
+  border-color: var(--color-accent);
+}
+
+.chip-btn.clickable:hover:not(:disabled) {
+  opacity: 1;
+  background: var(--color-accent-muted);
+}
+
+.chip-btn:disabled {
+  cursor: default;
+}
+
+.chip-btn.haste-granted {
+  opacity: 1;
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: var(--color-accent-muted);
+}
+
+.chip.haste {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.prompt {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.btn-primary,
+.btn-secondary {
+  padding: 0.4rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.btn-secondary {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+}
+
+.btn-primary {
+  border: 1px solid var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
 }
 </style>

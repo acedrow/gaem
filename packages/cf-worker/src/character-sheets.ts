@@ -73,6 +73,7 @@ type CreateBody = {
   class?: unknown;
   armor?: unknown;
   weapon?: unknown;
+  yadathanTower?: unknown;
 };
 
 export async function handleListCharacterSheets(
@@ -94,6 +95,8 @@ export async function handleCreateCharacterSheet(
   const className = typeof body?.class === "string" ? body.class.trim() : "";
   const armor = typeof body?.armor === "string" ? body.armor.trim() : "";
   const weapon = typeof body?.weapon === "string" ? body.weapon.trim() : "";
+  const yadathanTower =
+    typeof body?.yadathanTower === "string" ? body.yadathanTower.trim() : undefined;
 
   if (!player || !name || !className || !armor || !weapon) {
     return Response.json(
@@ -117,6 +120,7 @@ export async function handleCreateCharacterSheet(
       class: className,
       armor,
       weapon,
+      yadathanTower,
     },
     constructedIds,
   );
@@ -133,6 +137,7 @@ export async function handleCreateCharacterSheet(
     class: className,
     armor,
     weapon,
+    yadathanTower: yadathanTower || undefined,
     createdAt: now,
     updatedAt: now,
   };
@@ -230,6 +235,7 @@ export async function handlePatchCharacterSheet(
     equipment?: string;
     gear?: string;
     weapon2?: string;
+    yadathanTower?: string;
   } = {};
   if (body.class !== undefined) {
     refFields.class = typeof body.class === "string" ? body.class.trim() : "";
@@ -249,6 +255,10 @@ export async function handlePatchCharacterSheet(
   if (body.weapon2 !== undefined) {
     refFields.weapon2 = typeof body.weapon2 === "string" ? body.weapon2.trim() : "";
   }
+  if (body.yadathanTower !== undefined) {
+    refFields.yadathanTower =
+      typeof body.yadathanTower === "string" ? body.yadathanTower.trim() : "";
+  }
 
   const constructedIds = await getConstructedBaseUpgrades(env);
   const refError = validateCharacterSheetRefs(refFields, constructedIds, {
@@ -258,6 +268,7 @@ export async function handlePatchCharacterSheet(
     equipment: sheet.equipment,
     gear: sheet.gear,
     weapon2: sheet.weapon2,
+    yadathanTower: sheet.yadathanTower,
   });
   if (refError) {
     return Response.json({ error: refError }, { status: 400 });
@@ -269,6 +280,9 @@ export async function handlePatchCharacterSheet(
   if (refFields.equipment !== undefined) sheet.equipment = refFields.equipment || undefined;
   if (refFields.gear !== undefined) sheet.gear = refFields.gear || undefined;
   if (refFields.weapon2 !== undefined) sheet.weapon2 = refFields.weapon2 || undefined;
+  if (refFields.yadathanTower !== undefined) {
+    sheet.yadathanTower = refFields.yadathanTower || undefined;
+  }
 
   if (body.tags !== undefined) {
     if (!Array.isArray(body.tags)) {

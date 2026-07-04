@@ -84,6 +84,7 @@ export function useCharacterSheetSelection() {
           equipment: data.sheet.equipment,
           gear: data.sheet.gear,
           weapon2: data.sheet.weapon2,
+          yadathanTower: data.sheet.yadathanTower,
         });
       }
       notifySheetsChanged();

@@ -3,6 +3,7 @@ import type { PatternDirection } from "@gaem/shared";
 import {
   getEnemyListingByName,
   getEnemySpeed,
+  isTowerEnemy,
   nextPatternDirection,
   parseEnemyAttackString,
   unexhaustedEnemies,
@@ -28,6 +29,10 @@ const activeEnemy = computed(() => {
   return gameState.value?.enemies.find((e) => e.id === id) ?? null;
 });
 
+const activeIsTower = computed(() =>
+  activeEnemy.value ? isTowerEnemy(activeEnemy.value) : false,
+);
+
 const listing = computed(() => getEnemyListingByName(activeEnemy.value?.name));
 
 const speedLabel = computed(() => {
@@ -47,7 +52,7 @@ const selectedAttack = computed(() => parsedAttacks.value[attackIndex.value]);
 const queue = computed(() => {
   const s = gameState.value;
   if (!s) return [];
-  return unexhaustedEnemies(s);
+  return unexhaustedEnemies(s).filter((e) => !isTowerEnemy(e));
 });
 
 watch(selectedEnemyId, () => {
@@ -95,10 +100,10 @@ function exhaustEnemy() {
     <template v-else>
       <div class="budget-row">
         <span class="chip enemy-name">{{ activeEnemy.name ?? activeEnemy.id }}</span>
-        <span v-if="activeEnemy.exhausted" class="chip spent">Exhausted</span>
-        <span v-else class="chip speed">Speed {{ speedLabel }}</span>
+        <span v-if="activeEnemy.exhausted && !activeIsTower" class="chip spent">Exhausted</span>
+        <span v-else-if="!activeIsTower" class="chip speed">Speed {{ speedLabel }}</span>
       </div>
-      <div v-if="listing?.attacks?.length" class="actions-row">
+      <div v-if="listing?.attacks?.length && !activeIsTower" class="actions-row">
         <select v-model="attackIndex" class="select">
           <option v-for="(_, i) in listing.attacks" :key="i" :value="i">
             Attack {{ i + 1 }}

@@ -11,11 +11,15 @@ export type BoardActionMode =
   | "sprint"
   | "armorTeleport"
   | "armorPush"
+  | "armorPlaceTower"
+  | "towerTeleport"
+  | "kataptyPick"
   | "rez"
   | null;
 
 export type OmnistrikeStep = "selectBombs" | "placeFirst" | "placeSecond" | "confirm";
 export type WarhookStep = "selectTarget" | "selectLanding";
+export type TowerTeleportStep = "selectLanding" | "selectKeraunoTarget";
 
 const mode = ref<BoardActionMode>(null);
 const attackDirection = ref<PatternDirection>("n");
@@ -37,6 +41,9 @@ const omnistrikeAimed = ref(false);
 const warhookStep = ref<WarhookStep>("selectTarget");
 const warhookTarget = ref<{ enemyId?: string; x: number; y: number } | null>(null);
 const warhookLandingOptions = ref<{ x: number; y: number }[]>([]);
+const towerTeleportStep = ref<TowerTeleportStep>("selectLanding");
+const towerTeleportLanding = ref<{ x: number; y: number } | null>(null);
+const kataptyTargetIds = ref<string[]>([]);
 
 function resetWarhookState() {
   warhookStep.value = "selectTarget";
@@ -51,6 +58,11 @@ function resetOmnistrikeState() {
   omnistrikeAimed.value = false;
 }
 
+function resetTowerTeleportState() {
+  towerTeleportStep.value = "selectLanding";
+  towerTeleportLanding.value = null;
+}
+
 export function useBoardActionMode() {
   const isActive = computed(() => mode.value !== null);
 
@@ -63,8 +75,10 @@ export function useBoardActionMode() {
     pendingTargetEnemyId.value = null;
     pendingTargetPlayerId.value = null;
     armorLanding.value = null;
+    kataptyTargetIds.value = [];
     resetOmnistrikeState();
     resetWarhookState();
+    resetTowerTeleportState();
   }
 
   function clearMode() {
@@ -101,6 +115,9 @@ export function useBoardActionMode() {
     warhookStep,
     warhookTarget,
     warhookLandingOptions,
+    towerTeleportStep,
+    towerTeleportLanding,
+    kataptyTargetIds,
     isActive,
     setMode,
     clearMode,
@@ -120,6 +137,10 @@ export function buildPlayerActionFromMode(
     targetPlayerId: string | null;
     landing: { x: number; y: number } | null;
     push: 1 | 2 | 3;
+    placeX?: number;
+    placeY?: number;
+    towerLanding?: { x: number; y: number } | null;
+    keraunoTargetEnemyId?: string | null;
   },
 ): PlayerAction | null {
   switch (m) {
@@ -159,6 +180,21 @@ export function buildPlayerActionFromMode(
         targetPlayerId: opts.targetPlayerId ?? undefined,
         push: opts.push,
       };
+    case "armorPlaceTower":
+      if (opts.placeX == null || opts.placeY == null) return null;
+      return { action: "armorAction", x: opts.placeX, y: opts.placeY };
+    case "towerTeleport":
+      if (!opts.towerLanding) return null;
+      return {
+        action: "towerTeleport",
+        x: opts.towerLanding.x,
+        y: opts.towerLanding.y,
+        keraunoTargetEnemyId: opts.keraunoTargetEnemyId ?? undefined,
+      };
+    case "kataptyPick":
+      return opts.targetEnemyIds?.length
+        ? { action: "kataptyEndTurn", targetEnemyIds: opts.targetEnemyIds }
+        : null;
     case "rez":
       return opts.targetPlayerId ? { action: "rez", targetPlayerId: opts.targetPlayerId } : null;
     default:

@@ -48,6 +48,7 @@ async function resolveSheetForJoin(
   equipment?: string;
   gear?: string;
   weapon2?: string;
+  yadathanTower?: string;
 }> {
   if (characterSheetId) {
     const sheet = await getCharacterSheet(env, characterSheetId);
@@ -60,6 +61,7 @@ async function resolveSheetForJoin(
         equipment: sheet.equipment,
         gear: sheet.gear,
         weapon2: sheet.weapon2,
+        yadathanTower: sheet.yadathanTower,
       };
     }
   }
@@ -74,6 +76,7 @@ async function resolveSheetForJoin(
         equipment: sheet.equipment,
         gear: sheet.gear,
         weapon2: sheet.weapon2,
+        yadathanTower: sheet.yadathanTower,
       }
     : {};
 }
@@ -225,6 +228,7 @@ export class GameRoom {
         equipment: sheetJoin.equipment,
         gear: sheetJoin.gear,
         weapon2: sheetJoin.weapon2,
+        yadathanTower: sheetJoin.yadathanTower,
       });
       if ("error" in resolved) {
         this.sendError(ws, "Board full");
@@ -338,6 +342,7 @@ export class GameRoom {
         parsed.equipment,
         parsed.gear,
         parsed.weapon2,
+        parsed.yadathanTower,
       );
       if (err) {
         this.sendError(ws, err);

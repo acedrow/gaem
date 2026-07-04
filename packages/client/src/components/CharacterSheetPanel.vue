@@ -17,6 +17,7 @@ import {
   rangeTargetMax,
   SABAOTH_MAX_CHARGES,
   usesAnchoredPatternPlacement,
+  YADATHAN_ARMOR_NAME,
 } from "@gaem/shared";
 import { computed, nextTick, onUnmounted, ref, watch } from "vue";
 
@@ -27,6 +28,7 @@ import ModalDialog from "./ModalDialog.vue";
 import RuleText from "./RuleText.vue";
 import SheetActionButton from "./SheetActionButton.vue";
 import SheetGearFieldRow from "./SheetGearFieldRow.vue";
+import YadathanTowerPicker from "./YadathanTowerPicker.vue";
 import WeaponPatternDiagram from "./WeaponPatternDiagram.vue";
 import { useApi } from "../composables/useApi.js";
 import { useBoardActionMode } from "../composables/useBoardActionMode.js";
@@ -67,6 +69,7 @@ const form = ref({
   equipment: "",
   gear: "",
   weapon2: "",
+  yadathanTower: "",
   tags: [] as string[],
 });
 const editingField = ref<EditableField | null>(null);
@@ -126,6 +129,8 @@ const showSheetCombatActions = computed(
   () => !!boardPlayer.value && showPlayerActionBar.value,
 );
 
+const showYadathanTowerPick = computed(() => form.value.armor === YADATHAN_ARMOR_NAME);
+
 const combatUiUnlocked = computed(
   () => gameState.value != null && gameState.value.roundPhase !== "deployment",
 );
@@ -151,6 +156,8 @@ function toggleArmorAction() {
   if (!armorStructured.value) return;
   if (armorStructured.value.kind === "teleport_adjacent") {
     setMode(mode.value === "armorTeleport" ? null : "armorTeleport");
+  } else if (armorStructured.value.kind === "place_tower") {
+    setMode(mode.value === "armorPlaceTower" ? null : "armorPlaceTower");
   } else {
     setMode(mode.value === "armorPush" ? null : "armorPush");
   }
@@ -340,7 +347,8 @@ function syncBoardLoadoutIfNeeded() {
     bp.class !== form.value.class ||
     bp.armor !== form.value.armor ||
     (bp.equipment ?? "") !== form.value.equipment ||
-    (bp.gear ?? "") !== form.value.gear;
+    (bp.gear ?? "") !== form.value.gear ||
+    (boardPlayer.value?.yadathanTower ?? "") !== form.value.yadathanTower;
   if (!outOfSync) return;
   send({
     type: "syncPlayerSheet",
@@ -351,6 +359,7 @@ function syncBoardLoadoutIfNeeded() {
     equipment: form.value.equipment,
     gear: form.value.gear,
     weapon2: form.value.weapon2,
+    yadathanTower: form.value.yadathanTower || undefined,
   });
 }
 
@@ -371,6 +380,7 @@ async function loadSheet() {
       equipment: data.sheet.equipment ?? "",
       gear: data.sheet.gear ?? "",
       weapon2: data.sheet.weapon2 ?? "",
+      yadathanTower: data.sheet.yadathanTower ?? "",
       tags: [...(data.sheet.tags ?? [])],
     };
     await loadPortrait();
@@ -398,6 +408,9 @@ async function saveSheet() {
       weapon2: form.value.weapon2,
       tags: form.value.tags,
     };
+    if (form.value.armor === YADATHAN_ARMOR_NAME) {
+      body.yadathanTower = form.value.yadathanTower;
+    }
     if (role.value === "gm") body.player = form.value.player;
 
     const res = await apiFetch(`/api/character-sheets/${props.sheetId}`, {
@@ -422,6 +435,7 @@ async function saveSheet() {
           equipment: form.value.equipment,
           gear: form.value.gear,
           weapon2: form.value.weapon2,
+          yadathanTower: form.value.yadathanTower || undefined,
         });
     }
   } catch (e) {
@@ -442,6 +456,7 @@ function resetFormFromSheet() {
     equipment: sheet.value.equipment ?? "",
     gear: sheet.value.gear ?? "",
     weapon2: sheet.value.weapon2 ?? "",
+    yadathanTower: sheet.value.yadathanTower ?? "",
     tags: [...(sheet.value.tags ?? [])],
   };
   tagsDraft.value = "";
@@ -712,6 +727,7 @@ onUnmounted(() => {
           >
             <template v-if="showSheetCombatActions && selectedArmor" #actions>
               <SheetActionButton
+                :active="mode === 'armorTeleport' || mode === 'armorPush' || mode === 'armorPlaceTower'"
                 :disabled="!canSupport || !armorStructured"
                 @click="toggleArmorAction"
               >
@@ -725,6 +741,14 @@ onUnmounted(() => {
               </SheetActionButton>
             </template>
           </SheetGearFieldRow>
+
+          <YadathanTowerPicker
+            v-if="showYadathanTowerPick"
+            v-model="form.yadathanTower"
+            label="Tower type"
+            :disabled="!canEdit"
+            @update:model-value="saveSheet"
+          />
 
           <SheetGearFieldRow
             label="Equipped weapon"

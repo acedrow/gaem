@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { PhaseAction } from "@gaem/shared";
-import { isPlayerDowned, remainingPlayerIds, roundPhaseLabel, turnHolderLabel } from "@gaem/shared";
+import { isPlayerDowned, kataptyNeedsTargetPick, remainingPlayerIds, roundPhaseLabel, turnHolderLabel } from "@gaem/shared";
 import { computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 
+import { useBoardActionMode } from "../composables/useBoardActionMode.js";
 import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
 import { activeTab } from "../composables/useGameConsole.js";
@@ -17,6 +18,7 @@ import { initUiPersistence } from "../composables/uiPersist.js";
 import ActionBar from "./ActionBar.vue";
 import BaseUpgradesPanel from "./BaseUpgradesPanel.vue";
 import GmActionBar from "./GmActionBar.vue";
+import ReversalPrompt from "./ReversalPrompt.vue";
 import GameBoard from "./GameBoard.vue";
 import RightPanel from "./RightPanel.vue";
 import SideNav from "./SideNav.vue";
@@ -29,6 +31,7 @@ const { dataCategory, dataFocus, dataFocusReturnCategory, dataExpanded, clearDat
   useInfoDataSelection();
 const { connection } = useGameConnection();
 const { gameState, yourPlayerId, send } = useGameState();
+const { setMode } = useBoardActionMode();
 
 onMounted(() => {
   initUiPersistence({
@@ -123,6 +126,16 @@ function onPhaseAction() {
   if (action === "takeTurn" && yourPlayerId.value) {
     const player = gameState.value?.players.find((p) => p.id === yourPlayerId.value);
     if (player) selectBoardPlayer(player.id, player.characterSheetId);
+  }
+  if (
+    action === "endPlayerTurn" &&
+    yourPlayerId.value &&
+    gameState.value &&
+    kataptyNeedsTargetPick(gameState.value, yourPlayerId.value)
+  ) {
+    setMode("kataptyPick");
+    showToast("Select up to 3 Katapty targets, then end turn again");
+    return;
   }
   send({ type: "phaseAction", action });
 }
@@ -261,6 +274,7 @@ function onOverworldClick() {
           {{ phaseAction.label }}
         </button>
       </header>
+      <ReversalPrompt v-show="activeMainTab === 'taccom'" />
       <ActionBar v-show="activeMainTab === 'taccom'" />
       <GmActionBar v-show="activeMainTab === 'taccom'" />
       <GameBoard

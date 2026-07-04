@@ -6,7 +6,7 @@ import { playerLabel } from "../console.js";
 import { coordKey, isInBounds, isWalkable, tileAt } from "../map.js";
 import { getArmorSpeed } from "../player-data.js";
 import { movementCostMultiplier } from "./effects.js";
-import { canSpendActionTier, spendActionTier, spendMovement } from "./actions.js";
+import { canUseActionTier, spendActionTierOrHaste, spendMovement } from "./actions.js";
 import { createDefaultActionBudget, type ActionBudget } from "./types.js";
 
 export type MovementStep = { x: number; y: number; cost: number };
@@ -274,7 +274,7 @@ export function validateSprintBegin(state: GameState, playerId: string): string 
     if (speed) player.actionBudget = createDefaultActionBudget(speed);
   }
   if ((player.actionBudget?.sprintRemaining ?? 0) > 0) return "Already sprinting";
-  if (areActionLimitsEnforced(state) && !canSpendActionTier(player.actionBudget, "aux")) {
+  if (areActionLimitsEnforced(state) && !canUseActionTier(player, "aux")) {
     return "Aux action spent";
   }
   if (maxSprintCost(player) <= 0) return "No sprint movement";
@@ -283,7 +283,7 @@ export function validateSprintBegin(state: GameState, playerId: string): string 
 
 export function applySprintBegin(state: GameState, playerId: string): string {
   const player = state.players.find((p) => p.id === playerId)!;
-  if (areActionLimitsEnforced(state)) spendActionTier(player.actionBudget, "aux");
+  if (areActionLimitsEnforced(state)) spendActionTierOrHaste(player, "aux");
   const max = maxSprintCost(player);
   player.actionBudget!.sprintRemaining = max;
   player.actionBudget!.sprintMax = max;

@@ -23,10 +23,16 @@ const {
   canMain,
   canSupport,
   canAux,
+  hasteRemaining,
+  actionBudgetChips,
+  enforceActionLimits,
+  commitHaste,
   canStartSprint,
   hasWeaponAttack,
   canUseWeaponActive,
   armorStructured,
+  canTowerTeleport,
+  canInteractSeed,
   activePlayer,
   sendPlayerAction,
 } = useCombatActions();
@@ -38,6 +44,8 @@ const {
   omnistrikeBombs,
   omnistrikeAnchors,
   warhookStep,
+  towerTeleportStep,
+  kataptyTargetIds,
   setMode,
   clearMode,
 } = useBoardActionMode();
@@ -103,6 +111,40 @@ const warhookHint = computed(() => {
   return "Click an enemy, obstacle, or wall within range";
 });
 
+const armorHint = computed(() => {
+  if (mode.value === "armorPlaceTower") return "Click a tile within Range:2 to place your tower";
+  return null;
+});
+
+const towerTeleportHint = computed(() => {
+  if (mode.value !== "towerTeleport") return null;
+  if (towerTeleportStep.value === "selectKeraunoTarget") return "Select adjacent enemy for Kerauno";
+  return "Spend all remaining Speed — click a tile adjacent to your tower";
+});
+
+const kataptyHint = computed(() => {
+  if (mode.value !== "kataptyPick") return null;
+  return `Select up to 3 Katapty targets (${kataptyTargetIds.value.length}/3), then confirm`;
+});
+
+function confirmKatapty() {
+  if (!kataptyTargetIds.value.length) return;
+  sendPlayerAction({ action: "kataptyEndTurn", targetEnemyIds: [...kataptyTargetIds.value] });
+  clearMode();
+}
+
+function pickArmorMode() {
+  const kind = armorStructured.value?.kind;
+  if (kind === "teleport_adjacent") pickMode("armorTeleport");
+  else if (kind === "place_tower") pickMode("armorPlaceTower");
+  else pickMode("armorPush");
+}
+
+function pickTowerTeleportMode() {
+  if (mode.value === "towerTeleport") clearMode();
+  else setMode("towerTeleport");
+}
+
 function useClassActive() {
   sendPlayerAction({ action: "classActive" });
 }
@@ -158,7 +200,12 @@ function onDualBombComplete() {
 <template>
   <div v-if="showPlayerActionBar" class="action-bar">
     <div class="budget-row">
-      <ActionBudgetChips :can-main="canMain" :can-support="canSupport" :can-aux="canAux" />
+      <ActionBudgetChips
+        :interactive="showPlayerActionBar && enforceActionLimits"
+        v-bind="actionBudgetChips"
+        :haste-stacks="hasteRemaining"
+        @commit-haste="commitHaste"
+      />
       <span class="chip speed">Speed {{ speedLabel }}</span>
     </div>
     <div class="actions-row">
@@ -203,15 +250,23 @@ function onDualBombComplete() {
       <button
         type="button"
         class="action-btn"
-        :class="{ active: mode === 'armorTeleport' || mode === 'armorPush' }"
+        :class="{
+          active:
+            mode === 'armorTeleport' || mode === 'armorPush' || mode === 'armorPlaceTower',
+        }"
         :disabled="!canSupport || !armorStructured"
-        @click="
-          armorStructured?.kind === 'teleport_adjacent'
-            ? pickMode('armorTeleport')
-            : pickMode('armorPush')
-        "
+        @click="pickArmorMode"
       >
         Armor
+      </button>
+      <button
+        v-if="canTowerTeleport"
+        type="button"
+        class="action-btn"
+        :class="{ active: mode === 'towerTeleport' }"
+        @click="pickTowerTeleportMode"
+      >
+        Tower step
       </button>
       <button
         type="button"
@@ -225,7 +280,7 @@ function onDualBombComplete() {
       <button type="button" class="action-btn" :disabled="!canSupport" @click="useEquipment">
         Equip
       </button>
-      <button type="button" class="action-btn" :disabled="!canSupport" @click="useInteract">
+      <button type="button" class="action-btn" :disabled="!canSupport && !canInteractSeed" @click="useInteract">
         Use
       </button>
       <button
@@ -259,6 +314,23 @@ function onDualBombComplete() {
     </div>
     <div v-if="warhookHint" class="hint-row">
       <span class="hint">{{ warhookHint }}</span>
+    </div>
+    <div v-if="armorHint" class="hint-row">
+      <span class="hint">{{ armorHint }}</span>
+    </div>
+    <div v-if="towerTeleportHint" class="hint-row">
+      <span class="hint">{{ towerTeleportHint }}</span>
+    </div>
+    <div v-if="kataptyHint" class="hint-row">
+      <span class="hint">{{ kataptyHint }}</span>
+      <button
+        v-if="kataptyTargetIds.length"
+        type="button"
+        class="action-btn"
+        @click="confirmKatapty"
+      >
+        Confirm Katapty
+      </button>
     </div>
     <button v-if="mode" type="button" class="action-btn cancel" @click="clearMode">
       Cancel

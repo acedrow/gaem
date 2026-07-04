@@ -1,34 +1,40 @@
 <script setup lang="ts">
-import { PLAYER_ARMOR, PLAYER_CLASSES, PLAYER_WEAPONS } from "@gaem/shared";
+import { computed } from "vue";
+
+import { PLAYER_ARMOR, PLAYER_CLASSES, PLAYER_WEAPONS, YADATHAN_ARMOR_NAME } from "@gaem/shared";
 
 import { useCampaignUnlocks } from "../composables/useCampaignUnlocks.js";
+import YadathanTowerPicker from "./YadathanTowerPicker.vue";
+
+export type CharacterSheetFormValue = {
+  player: string;
+  name: string;
+  class: string;
+  armor: string;
+  weapon: string;
+  yadathanTower?: string;
+};
 
 const props = defineProps<{
-  modelValue: {
-    player: string;
-    name: string;
-    class: string;
-    armor: string;
-    weapon: string;
-  };
+  modelValue: CharacterSheetFormValue;
   profiles: { id: string; name: string }[];
   showPlayer?: boolean;
 }>();
 
 const emit = defineEmits<{
-  "update:modelValue": [value: {
-    player: string;
-    name: string;
-    class: string;
-    armor: string;
-    weapon: string;
-  }];
+  "update:modelValue": [value: CharacterSheetFormValue];
 }>();
 
 const { optionUnlocked } = useCampaignUnlocks();
 
-function updateField(field: keyof typeof props.modelValue, value: string) {
-  emit("update:modelValue", { ...props.modelValue, [field]: value });
+const showYadathanTowerPick = computed(() => props.modelValue.armor === YADATHAN_ARMOR_NAME);
+
+function updateField(field: keyof CharacterSheetFormValue, value: string) {
+  const next = { ...props.modelValue, [field]: value };
+  if (field === "armor" && value !== YADATHAN_ARMOR_NAME) {
+    next.yadathanTower = "";
+  }
+  emit("update:modelValue", next);
 }
 </script>
 
@@ -92,6 +98,13 @@ function updateField(field: keyof typeof props.modelValue, value: string) {
       </option>
     </select>
   </label>
+
+  <YadathanTowerPicker
+    v-if="showYadathanTowerPick"
+    :model-value="modelValue.yadathanTower ?? ''"
+    label="Tower type"
+    @update:model-value="updateField('yadathanTower', $event)"
+  />
 
   <label class="modal-field">
     <span>Weapon</span>

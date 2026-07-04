@@ -5,6 +5,7 @@ import { computed } from "vue";
 
 import EffectIcon from "./EffectIcon.vue";
 import HpBar from "./HpBar.vue";
+import TowerIcon from "./TowerIcon.vue";
 
 export type CellRenderState = {
   terrainClass: string | null;
@@ -27,6 +28,8 @@ export type CellRenderState = {
   turnEnded?: boolean;
   playerDowned?: boolean;
   playerPortraitUrl?: string | null;
+  hasSeed?: boolean;
+  towerOwnerHue?: number | null;
 };
 
 const MAX_VISIBLE_EFFECTS = 4;
@@ -73,6 +76,11 @@ const overflowCount = computed(() =>
 function effectTitle(id: string, stacks: number): string {
   const summary = getEffectSummary(id);
   return summary ? `${id}:${stacks} — ${summary}` : `${id}:${stacks}`;
+}
+
+function towerIconSize(enemy: Enemy): number {
+  const scale = getEnemyScale(enemy);
+  return scale > 1 ? 22 : 16;
 }
 
 const ENEMY_SCALE_GAP = 3;
@@ -146,14 +154,32 @@ const enemyHp = computed(() => {
     @mouseenter="emit('hover')"
     @mouseleave="emit('unhover')"
   >
+    <span v-if="cell.hasSeed" class="seed-marker" title="Seed" />
     <span v-if="cell.combatTargetInvalid" class="combat-target-invalid-mark" aria-hidden="true" />
     <span
       v-if="cell.enemyAnchor"
       class="piece enemy"
-      :class="{ selected: isEnemySelected, 'turn-ended': cell.turnEnded, dying: enemyDying }"
-      :style="enemyPieceStyle(cell.enemyAnchor)"
+      :class="{
+        selected: isEnemySelected,
+        'turn-ended': cell.turnEnded,
+        dying: enemyDying,
+        'tower-piece': cell.enemyAnchor.kind === 'tower',
+      }"
+      :style="[
+        enemyPieceStyle(cell.enemyAnchor),
+        cell.towerOwnerHue != null
+          ? { background: `hsl(${cell.towerOwnerHue} 55% 38%)`, borderColor: `hsl(${cell.towerOwnerHue} 70% 55%)` }
+          : {},
+      ]"
       @click.stop="emit('enemyClick')"
     >
+      <span
+        v-if="cell.enemyAnchor.kind === 'tower'"
+        class="tower-icon-wrap"
+        :title="cell.enemyAnchor.name ?? 'Tower'"
+      >
+        <TowerIcon :size="towerIconSize(cell.enemyAnchor)" />
+      </span>
       <span v-if="cell.turnEnded" class="turn-ended-shade" aria-hidden="true"></span>
       <span v-if="cell.turnEnded" class="turn-ended-zzz" aria-hidden="true">
         <span class="z z1">z</span><span class="z z2">z</span><span class="z z3">z</span>
@@ -555,5 +581,35 @@ const enemyHp = computed(() => {
   line-height: 1.4;
   color: var(--color-muted);
   pointer-events: auto;
+}
+
+.tower-piece {
+  border: 2px solid var(--color-accent, #c9a227);
+  border-radius: 5px;
+  background: var(--color-surface-raised);
+}
+
+.tower-icon-wrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-on-accent, #f5f0e6);
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+  pointer-events: none;
+}
+
+.seed-marker {
+  position: absolute;
+  bottom: 2px;
+  left: 2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #6ecf6e;
+  border: 1px solid #2d6b2d;
+  z-index: 4;
+  pointer-events: none;
 }
 </style>

@@ -5,6 +5,7 @@ import {
   getEnemyMaxHp,
   getEnemyScale,
   getEnemySpeed,
+  isTowerEnemy,
   unexhaustedEnemies,
 } from "@gaem/shared";
 import { computed, ref } from "vue";
@@ -69,10 +70,12 @@ const bossBudget = computed(() => {
 const queue = computed(() => {
   const s = gameState.value;
   if (!s) return [];
-  return unexhaustedEnemies(s);
+  return unexhaustedEnemies(s).filter((e) => !isTowerEnemy(e));
 });
 
-const showUseAttack = computed(() => isGm.value && showGmCombatUi.value && !!activeEnemy.value);
+const showUseAttack = computed(
+  () => isGm.value && showGmCombatUi.value && !!activeEnemy.value && !isTowerEnemy(activeEnemy.value!),
+);
 
 const enemySpeedLabel = computed(() => {
   const enemy = activeEnemy.value;
@@ -95,7 +98,7 @@ function commitHp(hp: number) {
 
 function endEnemyTurn() {
   const enemy = activeEnemy.value;
-  if (!enemy || enemy.exhausted) return;
+  if (!enemy || enemy.exhausted || isTowerEnemy(enemy)) return;
   send({ type: "gmEnemyAction", action: { action: "exhaust", enemyId: enemy.id } });
 }
 </script>
@@ -118,7 +121,10 @@ function endEnemyTurn() {
           @commit="commitHp"
         />
 
-        <div v-if="showGmCombatUi && activeEnemy && !activeEnemy.exhausted" class="enemy-actions">
+        <div
+          v-if="showGmCombatUi && activeEnemy && !activeEnemy.exhausted && !isTowerEnemy(activeEnemy)"
+          class="enemy-actions"
+        >
           <button type="button" class="action-btn end-turn-btn" @click="endEnemyTurn">
             End turn
           </button>
@@ -131,7 +137,10 @@ function endEnemyTurn() {
           <span v-if="listing.speed != null || activeEnemy" class="stat">Speed: {{ enemySpeedLabel ?? listing.speed }}</span>
           <span v-if="listing.actions" class="stat">Actions: {{ listing.actions }}</span>
           <span v-if="bossBudget != null" class="stat">Boss budget: {{ bossBudget }}</span>
-          <span v-if="activeEnemy?.exhausted" class="stat exhausted">Exhausted</span>
+          <span
+            v-if="activeEnemy?.exhausted && !isTowerEnemy(activeEnemy)"
+            class="stat exhausted"
+          >Exhausted</span>
           <span v-if="listing.agnosiaHp != null" class="stat">Agnosia HP: {{ listing.agnosiaHp }}</span>
         </div>
 

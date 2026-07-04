@@ -129,6 +129,7 @@
     "speed": 5,
     "specialMovement": "You may spend all of your Speed during your turn to teleport to a space adjacent to one of your existing towers. This does not trigger Provoke.",
     "armorAction": "Demiurge's Hammer — Place your tower within Range:2. You may only have one active tower at a time. If you place a tower on a battlefield with a tower already present, the older tower vanishes as soon as your new tower is placed.",
+    "armorActionStructured": { "tier": "support", "kind": "place_tower", "range": 2 },
     "towers": [
       {
         "name": "Katapty",

@@ -1,5 +1,6 @@
 import type {
   ActionBudget,
+  ActionTier,
   AssistedOutcome,
   CombatState,
   EffectStacks,
@@ -42,6 +43,8 @@ export type Enemy = {
   effects?: EffectStacks;
   exhausted?: boolean;
   agnosiaTriggered?: boolean;
+  kind?: "enemy" | "tower";
+  ownerPlayerId?: string;
 };
 
 export type TerrainObject = {
@@ -49,6 +52,8 @@ export type TerrainObject = {
   x: number;
   y: number;
   name?: string;
+  kind?: "seed";
+  ownerPlayerId?: string;
 };
 
 export type GameMap = {
@@ -70,6 +75,7 @@ export type Player = {
   class?: string;
   armor?: string;
   weapon?: string;
+  yadathanTower?: string;
   equipment?: string;
   gear?: string;
   weapon2?: string;
@@ -78,6 +84,7 @@ export type Player = {
   equipmentUses?: number;
   reversalCharges?: number;
   actionBudget?: ActionBudget;
+  hasteActionTier?: ActionTier;
   turnStartX?: number;
   turnStartY?: number;
   effects?: EffectStacks;
@@ -184,6 +191,7 @@ export type CharacterSheet = {
   gear?: string;
   weapon2?: string;
   tags?: string[];
+  yadathanTower?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -221,11 +229,12 @@ export type ClientMessage =
       equipment?: string;
       gear?: string;
       weapon2?: string;
+      yadathanTower?: string;
     }
   | { type: "playerAction"; action: PlayerAction }
   | { type: "gmEnemyAction"; action: GmEnemyAction }
   | { type: "applyAssistedOutcome"; outcome: AssistedOutcome }
-  | { type: "triggerReversal" }
+  | { type: "triggerReversal"; extraAllyIds?: string[] }
   | { type: "declineReversal" }
   | {
       type: "applyEffect";

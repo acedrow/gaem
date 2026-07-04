@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
-import { getEffectSummary } from "@gaem/shared";
+import { getEffectSummary, isYadathanArmorName } from "@gaem/shared";
 
 import { useBoardActionMode } from "../composables/useBoardActionMode.js";
 import { useCombatActions } from "../composables/useCombatActions.js";
@@ -17,8 +17,13 @@ const {
   canMain,
   canSupport,
   canAux,
+  hasteRemaining,
+  actionBudgetChips,
+  enforceActionLimits,
+  commitHaste,
   canStartSprint,
   canResetMovement,
+  canTowerTeleport,
   activePlayer,
   effectPills,
   resetMovement,
@@ -32,6 +37,10 @@ const speedLabel = computed(() => {
 });
 
 const pills = computed(() => (activePlayer.value ? effectPills(activePlayer.value) : []));
+
+const showTowerStep = computed(
+  () => activePlayer.value && isYadathanArmorName(activePlayer.value.armor),
+);
 
 function pillTitle(token: string) {
   const id = token.split(":")[0] ?? token;
@@ -47,13 +56,23 @@ function pickSprintMode() {
   if (mode.value === "sprint") clearMode();
   else setMode("sprint");
 }
+
+function pickTowerTeleportMode() {
+  if (mode.value === "towerTeleport") clearMode();
+  else setMode("towerTeleport");
+}
 </script>
 
 <template>
   <div v-if="activePlayer && (showPlayerActionBar || pills.length)" class="sheet-combat-wrap">
     <div v-if="showPlayerActionBar" class="sheet-combat">
       <div class="budget-row">
-        <ActionBudgetChips :can-main="canMain" :can-support="canSupport" :can-aux="canAux" />
+        <ActionBudgetChips
+          :interactive="showPlayerActionBar && enforceActionLimits"
+          v-bind="actionBudgetChips"
+          :haste-stacks="hasteRemaining"
+          @commit-haste="commitHaste"
+        />
       </div>
 
       <div class="speed-row">
@@ -76,16 +95,25 @@ function pickSprintMode() {
             <AbilityBlock tier-label="Aux action" content="Sprint — Move up to half your Speed." />
           </template>
         </SheetActionButton>
+        <SheetActionButton
+          v-if="showTowerStep"
+          :active="mode === 'towerTeleport'"
+          :disabled="!canTowerTeleport"
+          @click="pickTowerTeleportMode"
+        >
+          Tower step
+          <template #tooltip>
+            <AbilityBlock
+              tier-label="Special movement"
+              content="Spend all remaining Speed to teleport adjacent to your tower."
+            />
+          </template>
+        </SheetActionButton>
       </div>
     </div>
 
-    <div v-if="pills.length" class="effect-bar">
-      <span
-        v-for="pill in pills"
-        :key="pill"
-        class="effect-pill"
-        :title="pillTitle(pill)"
-      >
+    <div v-if="pills.length" class="effect-pills">
+      <span v-for="pill in pills" :key="pill" class="effect-pill" :title="pillTitle(pill)">
         {{ pill }}
       </span>
     </div>
@@ -97,54 +125,30 @@ function pickSprintMode() {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--color-border);
 }
 
 .sheet-combat {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.45rem;
 }
 
-.budget-row {
+.budget-row,
+.speed-row {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
   align-items: center;
 }
 
-.speed-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
 .stat {
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   color: var(--color-muted);
-  font-weight: 600;
-}
-
-.effect-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-}
-
-.effect-pill {
-  font-size: 0.7rem;
-  padding: 0.12rem 0.4rem;
-  border-radius: 999px;
-  background: var(--color-danger-tint-bg);
-  border: 1px solid var(--color-danger-tint-border);
-  color: var(--color-danger-light);
 }
 
 .sheet-action-btn {
   font-size: 0.72rem;
-  padding: 0.2rem 0.5rem;
+  padding: 0.2rem 0.45rem;
   border-radius: 6px;
   border: 1px solid var(--color-border);
   background: var(--color-surface-raised);
@@ -154,11 +158,20 @@ function pickSprintMode() {
 
 .sheet-action-btn:disabled {
   opacity: 0.4;
-  cursor: not-allowed;
+  cursor: default;
 }
 
-.sheet-action-btn:not(:disabled):hover {
-  border-color: var(--color-accent-muted);
-  color: var(--color-accent-bright);
+.effect-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.effect-pill {
+  font-size: 0.68rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 999px;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
 }
 </style>

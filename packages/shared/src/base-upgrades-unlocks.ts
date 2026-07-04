@@ -128,6 +128,7 @@ export type CharacterSheetLoadoutFields = {
   equipment?: string;
   gear?: string;
   weapon2?: string;
+  yadathanTower?: string;
 };
 
 export function validateCharacterSheetLoadout(

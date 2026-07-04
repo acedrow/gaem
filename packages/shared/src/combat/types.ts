@@ -54,11 +54,11 @@ export type WeaponAttackSpec = {
   heal?: boolean;
 };
 
-export type StructuredArmorAction = {
-  tier: "support";
-  kind: "teleport_adjacent" | "push_recoil" | "assisted";
-  push?: number;
-};
+export type StructuredArmorAction =
+  | { tier: "support"; kind: "teleport_adjacent" }
+  | { tier: "support"; kind: "push_recoil"; push?: number }
+  | { tier: "support"; kind: "place_tower"; range: number }
+  | { tier: "support"; kind: "assisted" };
 
 export type AssistedActionKind =
   | "classActive"
@@ -89,6 +89,7 @@ export type PendingReaction = {
   sourceEnemyId?: string;
   trigger: string;
   label: string;
+  incomingDamage?: number;
 };
 
 export type CombatState = {
@@ -116,7 +117,18 @@ export type PlayerAction =
   | { action: "weaponSwap" }
   | { action: "selectWeaponVariant"; index: number }
   | { action: "rez"; targetPlayerId: string }
-  | { action: "armorAction"; targetEnemyId?: string; targetPlayerId?: string; landingX?: number; landingY?: number; push?: 1 | 2 | 3 }
+  | {
+      action: "armorAction";
+      targetEnemyId?: string;
+      targetPlayerId?: string;
+      landingX?: number;
+      landingY?: number;
+      push?: 1 | 2 | 3;
+      x?: number;
+      y?: number;
+    }
+  | { action: "towerTeleport"; x: number; y: number; keraunoTargetEnemyId?: string }
+  | { action: "kataptyEndTurn"; targetEnemyIds?: string[] }
   | { action: "classActive"; detail?: string; targetEnemyIds?: string[]; targetPlayerIds?: string[] }
   | {
       action: "weaponActive";
@@ -138,7 +150,8 @@ export type PlayerAction =
       };
     }
   | { action: "useEquipment"; detail?: string }
-  | { action: "interact"; detail?: string };
+  | { action: "interact"; detail?: string }
+  | { action: "commitHaste"; tier: ActionTier };
 
 export type GmEnemyAction =
   | { action: "move"; enemyId: string; path: { x: number; y: number }[] }

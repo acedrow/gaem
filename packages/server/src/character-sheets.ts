@@ -60,6 +60,8 @@ export function createSheetHandler(
   const className = typeof req.body?.class === "string" ? req.body.class.trim() : "";
   const armor = typeof req.body?.armor === "string" ? req.body.armor.trim() : "";
   const weapon = typeof req.body?.weapon === "string" ? req.body.weapon.trim() : "";
+  const yadathanTower =
+    typeof req.body?.yadathanTower === "string" ? req.body.yadathanTower.trim() : undefined;
 
   if (!player || !name || !className || !armor || !weapon) {
     res.status(400).json({ error: "player, name, class, armor, and weapon are required" });
@@ -74,7 +76,10 @@ export function createSheetHandler(
     return;
   }
 
-  const refError = validateCharacterSheetRefs({ class: className, armor, weapon }, constructedIds);
+  const refError = validateCharacterSheetRefs(
+    { class: className, armor, weapon, yadathanTower },
+    constructedIds,
+  );
   if (refError) {
     res.status(400).json({ error: refError });
     return;
@@ -89,6 +94,7 @@ export function createSheetHandler(
     class: className,
     armor,
     weapon,
+    yadathanTower: yadathanTower || undefined,
     createdAt: now,
     updatedAt: now,
   };
@@ -176,6 +182,7 @@ export function patchSheetHandler(
     equipment?: string;
     gear?: string;
     weapon2?: string;
+    yadathanTower?: string;
   } = {};
   if (req.body?.class !== undefined) {
     refFields.class = typeof req.body.class === "string" ? req.body.class.trim() : "";
@@ -195,6 +202,10 @@ export function patchSheetHandler(
   if (req.body?.weapon2 !== undefined) {
     refFields.weapon2 = typeof req.body.weapon2 === "string" ? req.body.weapon2.trim() : "";
   }
+  if (req.body?.yadathanTower !== undefined) {
+    refFields.yadathanTower =
+      typeof req.body.yadathanTower === "string" ? req.body.yadathanTower.trim() : "";
+  }
 
   const constructedIds = opts?.constructedIds ?? [];
   const refError = validateCharacterSheetRefs(refFields, constructedIds, {
@@ -204,6 +215,7 @@ export function patchSheetHandler(
     equipment: sheet.equipment,
     gear: sheet.gear,
     weapon2: sheet.weapon2,
+    yadathanTower: sheet.yadathanTower,
   });
   if (refError) {
     res.status(400).json({ error: refError });
@@ -216,6 +228,9 @@ export function patchSheetHandler(
   if (refFields.equipment !== undefined) sheet.equipment = refFields.equipment || undefined;
   if (refFields.gear !== undefined) sheet.gear = refFields.gear || undefined;
   if (refFields.weapon2 !== undefined) sheet.weapon2 = refFields.weapon2 || undefined;
+  if (refFields.yadathanTower !== undefined) {
+    sheet.yadathanTower = refFields.yadathanTower || undefined;
+  }
 
   if (req.body?.tags !== undefined) {
     if (!Array.isArray(req.body.tags)) {

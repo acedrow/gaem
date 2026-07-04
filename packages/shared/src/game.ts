@@ -8,6 +8,7 @@ import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprint
 import { applyLoadoutToPlayer, getClassMaxHp, getArmorSpeed } from "./player-data.js";
 import { coordKey, isFootprintInBounds, isInBounds, isWalkable, tileAt } from "./map.js";
 import { isOrthogonallyAdjacent } from "./patterns.js";
+import { kataptyNeedsTargetPick, resolveYadathanEndOfTurn } from "./combat/yadathan.js";
 
 export type BoardOccupancy = {
   playerByKey: Map<string, Player>;
@@ -188,6 +189,11 @@ function beginPlayerTurn(state: GameState, playerId: string): string {
     player.actionBudget = createDefaultActionBudget(speed);
     player.turnStartX = player.x;
     player.turnStartY = player.y;
+    delete player.hasteActionTier;
+    if (player.counters?.kataptyResolved != null) {
+      delete player.counters.kataptyResolved;
+      if (Object.keys(player.counters).length === 0) delete player.counters;
+    }
   }
   return `${playerLabel(player!)} took their turn`;
 }
@@ -208,11 +214,16 @@ function finishPlayerTurn(state: GameState, playerId: string, suffix = "ended th
   }
   const player = state.players.find((p) => p.id === playerId);
   const ticks = player ? tickUnitEndOfTurn(player) : [];
-  if (player) tickWarhookBlazingImmunity(player);
+  if (player) {
+    delete player.hasteActionTier;
+    tickWarhookBlazingImmunity(player);
+  }
+  const yadathanMsgs = player ? resolveYadathanEndOfTurn(state, player) : [];
   state.roundPhase = "gmTurn";
   state.turn = { role: "gm" };
   let msg = `${playerLabel(player!)} ${suffix}`;
   if (ticks.length) msg += `. ${ticks.join("; ")}`;
+  if (yadathanMsgs.length) msg += `. ${yadathanMsgs.join("; ")}`;
   return msg;
 }
 
@@ -281,6 +292,12 @@ export function validatePhaseAction(
       if (state.roundPhase !== "playerTurn") return "Wrong phase";
       if (state.turn?.role !== "player" || state.turn.playerId !== ctx.playerId) {
         return "Not your turn";
+      }
+      if (kataptyNeedsTargetPick(state, ctx.playerId)) {
+        const player = state.players.find((p) => p.id === ctx.playerId);
+        if (!player?.counters?.kataptyResolved) {
+          return "Select Katapty targets before ending turn";
+        }
       }
       return null;
     case "endGmTurn":
@@ -764,6 +781,7 @@ export function syncPlayerSheet(
   equipment?: string,
   gear?: string,
   weapon2?: string,
+  yadathanTower?: string,
 ): string | null {
   const player = state.players.find((p) => p.characterSheetId === characterSheetId);
   if (!player) return "Player not on board";
@@ -774,6 +792,7 @@ export function syncPlayerSheet(
     equipment: equipment ?? player.equipment,
     gear: gear ?? player.gear,
     weapon2: weapon2 ?? player.weapon2,
+    yadathanTower,
   });
   return null;
 }
@@ -792,6 +811,7 @@ export function resolvePlayerForJoin(
     equipment?: string;
     gear?: string;
     weapon2?: string;
+    yadathanTower?: string;
   },
 ): { playerId: string } | { error: "board_full" } {
   const {
@@ -806,6 +826,7 @@ export function resolvePlayerForJoin(
     equipment,
     gear,
     weapon2,
+    yadathanTower,
   } = opts;
   const isMatch = (p: Player) => playerMatchesProfile(p, playerKey, nickname);
   const matches = state.players.filter(isMatch);
@@ -840,7 +861,7 @@ export function resolvePlayerForJoin(
     if (!joined) return { error: "board_full" };
     const entry = state.players.find((p) => p.id === newId);
     if (entry && className && armor && weapon) {
-      applyLoadoutToPlayer(entry, { className, armor, weapon, equipment, gear, weapon2 });
+      applyLoadoutToPlayer(entry, { className, armor, weapon, equipment, gear, weapon2, yadathanTower });
     }
     state.actedPlayerIds.push(newId);
     return { playerId: newId };
@@ -870,6 +891,7 @@ export function resolvePlayerForJoin(
         equipment: equipment ?? player.equipment,
         gear: gear ?? player.gear,
         weapon2: weapon2 ?? player.weapon2,
+        yadathanTower,
       });
     }
   }

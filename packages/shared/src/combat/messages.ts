@@ -23,11 +23,7 @@ import { getEnemyScale, enemyFootprintTiles, ensureEnemyMovement, spendEnemyMove
 import { buildBoardOccupancy } from "../game.js";
 import { coordKey, isInBounds, isWalkable, tileAt } from "../map.js";
 import { isOrthogonallyAdjacent } from "../patterns.js";
-import {
-  canSpendActionTier,
-  effectiveActionBlocked,
-  spendActionTier,
-} from "./actions.js";
+import { actionTierBlockedReason, applyCommitHaste, spendActionTierOrHaste, validateCommitHaste } from "./actions.js";
 import {
   adjacentEnemies,
   applyMovementPath,
@@ -76,6 +72,21 @@ import {
   rangeTargetMax,
   usesAnchoredPatternPlacement,
 } from "../weapon-patterns.js";
+import {
+  applyKataptyStrike,
+  applyPlaceTower,
+  applySeedInteract,
+  applyTowerTeleport,
+  applyYadathanReversal,
+  getPlayerTower,
+  getSeedAt,
+  isYadathanArmorName,
+  validateKataptyEndTurn,
+  validatePlaceTower,
+  validateSeedInteract,
+  validateTowerTeleport,
+  yadathanReversalEligible,
+} from "./yadathan.js";
 
 export type CombatMessageContext = {
   role: GaemRole;
@@ -84,21 +95,11 @@ export type CombatMessageContext = {
 
 function actionTierBlocked(player: Player, tier: ActionTier, state: GameState): string | null {
   if (!areActionLimitsEnforced(state)) return null;
-  if (!canSpendActionTier(player.actionBudget, tier)) {
-    if (tier === "main") return "Main action spent";
-    if (tier === "support") return "Support action spent";
-    return "Aux action spent";
-  }
-  if (effectiveActionBlocked(player, tier)) {
-    if (tier === "main") return "Shock — cannot use Main";
-    if (tier === "aux") return "Shock — cannot use Aux";
-    return "Shock — cannot use Support";
-  }
-  return null;
+  return actionTierBlockedReason(player, tier);
 }
 
-function maybeSpendActionTier(state: GameState, budget: Player["actionBudget"], tier: ActionTier): void {
-  if (areActionLimitsEnforced(state)) spendActionTier(budget, tier);
+function maybeSpendActionTier(state: GameState, player: Player, tier: ActionTier): void {
+  if (areActionLimitsEnforced(state)) spendActionTierOrHaste(player, tier);
 }
 
 export function validateMovePath(
@@ -278,7 +279,17 @@ export function validatePlayerAction(
       if (structured.kind === "push_recoil") {
         if (!action.targetEnemyId && !action.targetPlayerId) return "Select target";
       }
+      if (structured.kind === "place_tower") {
+        if (action.x === undefined || action.y === undefined) return "Select placement tile";
+        return validatePlaceTower(state, player, action.x, action.y, structured.range);
+      }
       return null;
+    }
+    case "towerTeleport": {
+      return validateTowerTeleport(state, player, action.x, action.y, action.keraunoTargetEnemyId);
+    }
+    case "kataptyEndTurn": {
+      return validateKataptyEndTurn(state, player, action.targetEnemyIds);
     }
     case "classActive": {
       const blocked = actionTierBlocked(player, "support", state);
@@ -311,7 +322,14 @@ export function validatePlayerAction(
     case "interact": {
       const blocked = actionTierBlocked(player, "support", state);
       if (blocked) return blocked;
+      if (validateSeedInteract(state, player) === null && getSeedAt(state, player.x, player.y)) {
+        return null;
+      }
       return null;
+    }
+    case "commitHaste": {
+      if (!areActionLimitsEnforced(state)) return "Action limits disabled";
+      return validateCommitHaste(player, action.tier);
     }
   }
 }
@@ -326,7 +344,7 @@ export function applyPlayerAction(
 
   switch (action.action) {
     case "attack": {
-      maybeSpendActionTier(state, player.actionBudget, "main");
+      maybeSpendActionTier(state, player, "main");
       const weapon = resolveAttackWeapon(player, action.weaponName);
       if (!weapon) return "Invalid weapon";
       const spec = resolveCombatAttackSpec(player, weapon);
@@ -381,7 +399,7 @@ export function applyPlayerAction(
       return msg;
     }
     case "shove": {
-      maybeSpendActionTier(state, player.actionBudget, "aux");
+      maybeSpendActionTier(state, player, "aux");
       const occ = buildBoardOccupancy(state);
       let tx: number;
       let ty: number;
@@ -422,7 +440,7 @@ export function applyPlayerAction(
       return applySprintCancel(state, playerId);
     }
     case "weaponSwap": {
-      maybeSpendActionTier(state, player.actionBudget, "aux");
+      maybeSpendActionTier(state, player, "aux");
       const primary = player.weapon;
       player.weapon = player.weapon2!;
       player.weapon2 = primary;
@@ -441,7 +459,7 @@ export function applyPlayerAction(
       return `${playerLabel(player)} selected ${bombs[action.index]?.name ?? "variant"}`;
     }
     case "rez": {
-      maybeSpendActionTier(state, player.actionBudget, "main");
+      maybeSpendActionTier(state, player, "main");
       const target = state.players.find((p) => p.id === action.targetPlayerId)!;
       target.hp = getPlayerMaxHp(target);
       return `${playerLabel(player)} rezzed ${playerLabel(target)}`;
@@ -453,10 +471,10 @@ export function applyPlayerAction(
         const landing = { x: action.landingX!, y: action.landingY! };
         player.x = landing.x;
         player.y = landing.y;
-        maybeSpendActionTier(state, player.actionBudget, "support");
+        maybeSpendActionTier(state, player, "support");
         return `${playerLabel(player)} used ${armor.name} armor action`;
       }
-      maybeSpendActionTier(state, player.actionBudget, "support");
+      maybeSpendActionTier(state, player, "support");
       if (structured.kind === "push_recoil") {
         const push = action.push ?? structured.push ?? 1;
         addPendingAction(
@@ -470,10 +488,26 @@ export function applyPlayerAction(
         );
         return `${playerLabel(player)} used ${armor.name} armor action (pending GM)`;
       }
+      if (structured.kind === "place_tower" && action.x != null && action.y != null) {
+        const result = applyPlaceTower(state, player, action.x, action.y);
+        if ("error" in result) return result.error;
+        return `${playerLabel(player)} ${result.message}`;
+      }
       return `${playerLabel(player)} used armor action`;
     }
+    case "towerTeleport": {
+      const msg = applyTowerTeleport(state, player, action.x, action.y, action.keraunoTargetEnemyId);
+      return `${playerLabel(player)} ${msg}`;
+    }
+    case "kataptyEndTurn": {
+      const tower = getPlayerTower(state, player.id)!;
+      const strikeMsg = applyKataptyStrike(state, tower, action.targetEnemyIds ?? []);
+      if (!player.counters) player.counters = {};
+      player.counters.kataptyResolved = 1;
+      return `${playerLabel(player)} ${strikeMsg}`;
+    }
     case "classActive": {
-      maybeSpendActionTier(state, player.actionBudget, "support");
+      maybeSpendActionTier(state, player, "support");
       const cls = player.class ?? "Class";
       addPendingAction(
         state,
@@ -487,7 +521,7 @@ export function applyPlayerAction(
       return `${playerLabel(player)} used ${cls} active (pending GM)`;
     }
     case "weaponActive": {
-      maybeSpendActionTier(state, player.actionBudget, "main");
+      maybeSpendActionTier(state, player, "main");
       if (isSabaothWeaponName(player.weapon) && action.omnistrike) {
         const result = applyOmnistrike(state, player, action.omnistrike);
         const hitEnemies = result.targets
@@ -530,7 +564,7 @@ export function applyPlayerAction(
       return `${playerLabel(player)} used weapon active (pending GM)`;
     }
     case "useEquipment": {
-      maybeSpendActionTier(state, player.actionBudget, "support");
+      maybeSpendActionTier(state, player, "support");
       if (areActionLimitsEnforced(state)) player.equipmentUses = 0;
       addPendingAction(
         state,
@@ -542,7 +576,9 @@ export function applyPlayerAction(
       return `${playerLabel(player)} used equipment (pending GM)`;
     }
     case "interact": {
-      maybeSpendActionTier(state, player.actionBudget, "support");
+      maybeSpendActionTier(state, player, "support");
+      const seedMsg = applySeedInteract(state, player);
+      if (seedMsg) return `${playerLabel(player)} ${seedMsg}`;
       addPendingAction(
         state,
         createPendingAction("interact", "Interact", {
@@ -551,6 +587,10 @@ export function applyPlayerAction(
         }),
       );
       return `${playerLabel(player)} interacted (pending GM)`;
+    }
+    case "commitHaste": {
+      const detail = applyCommitHaste(player, action.tier);
+      return `${playerLabel(player)} ${detail}`;
     }
   }
 }
@@ -634,17 +674,20 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
       if (action.targetPlayerId && state.combat) {
         const target = state.players.find((p) => p.id === action.targetPlayerId);
         const armor = target ? getArmorByName(target.armor ?? "") : undefined;
-        if (
+        const reversalOk =
           isCampaignFeatureUnlocked("reversals", state.constructedBaseUpgrades ?? []) &&
           target &&
           armor?.reversal &&
-          (target.reversalCharges ?? 0) > 0
-        ) {
+          (target.reversalCharges ?? 0) > 0 &&
+          (!isYadathanArmorName(target.armor) || yadathanReversalEligible(state, target.id));
+        if (reversalOk) {
+          const incomingDamage = action.damage ?? parsed.damage ?? 0;
           state.combat.pendingReaction = {
             playerId: target.id,
             sourceEnemyId: enemy.id,
-            trigger: armor.reversal.trigger,
-            label: `${armor.name} Reversal`,
+            trigger: armor!.reversal!.trigger,
+            label: `${armor!.name} Reversal`,
+            incomingDamage: incomingDamage > 0 ? incomingDamage : undefined,
           };
         }
       }
@@ -769,11 +812,27 @@ export function validateTriggerReversal(state: GameState, playerId: string): str
   return null;
 }
 
-export function applyTriggerReversal(state: GameState, playerId: string): string {
+export function applyTriggerReversal(
+  state: GameState,
+  playerId: string,
+  extraAllyIds: string[] = [],
+): string {
   const player = state.players.find((p) => p.id === playerId)!;
+  const reaction = state.combat?.pendingReaction;
+  const incomingDamage = reaction?.incomingDamage ?? 1;
   player.reversalCharges = (player.reversalCharges ?? 0) - 1;
+  const extraCount = extraAllyIds.length;
+  if (extraCount > 0) {
+    player.reversalCharges = Math.max(0, (player.reversalCharges ?? 0) - extraCount);
+  }
   if (state.combat) state.combat.pendingReaction = null;
   const armor = getArmorByName(player.armor ?? "");
+
+  if (isYadathanArmorName(player.armor)) {
+    const detail = applyYadathanReversal(state, player, incomingDamage, extraAllyIds);
+    return `${playerLabel(player)} triggered Reversal — ${detail}`;
+  }
+
   addPendingAction(
     state,
     createPendingAction("reversal", `${armor?.name ?? "Armor"} Reversal`, {
@@ -898,7 +957,10 @@ export function handleCombatMessage(
       if (!ctx.playerId) return { handled: true, error: "Only players can trigger reversal" };
       const err = validateTriggerReversal(state, ctx.playerId);
       if (err) return { handled: true, error: err };
-      return { handled: true, message: applyTriggerReversal(state, ctx.playerId) };
+      return {
+        handled: true,
+        message: applyTriggerReversal(state, ctx.playerId, parsed.extraAllyIds ?? []),
+      };
     }
     case "declineReversal": {
       if (!ctx.playerId) return { handled: true, error: "Only players can decline reversal" };

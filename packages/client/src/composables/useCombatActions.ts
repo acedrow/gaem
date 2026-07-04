@@ -1,16 +1,22 @@
-import type { Player } from "@gaem/shared";
+import type { ActionTier, Player } from "@gaem/shared";
 import {
+  canCommitHasteForTier,
   canSpendActionTier,
+  canUseActionTier,
   createDefaultActionBudget,
   getArmorByName,
   getArmorSpeed,
   getSabaothChargesRemaining,
   getWeaponAttackSpec,
+  getPlayerTower,
+  getSeedAt,
   hasSabaothBombSelected,
+  hasteStacks,
   isSabaothWeaponName,
+  isYadathanArmorName,
   previewPlayerAttack,
 } from "@gaem/shared";
-import { computed } from "vue";
+import { computed, ref } from "vue";
 
 import { useGameState } from "./useGameState.js";
 import { useSession } from "./useSession.js";
@@ -67,21 +73,46 @@ export function useCombatActions(playerId?: () => string | null) {
     return null;
   });
 
-  const canMain = computed(
-    () =>
-      !enforceActionLimits.value ||
-      !!(budget.value && canSpendActionTier(budget.value, "main")),
-  );
-  const canSupport = computed(
-    () =>
-      !enforceActionLimits.value ||
-      !!(budget.value && canSpendActionTier(budget.value, "support")),
-  );
-  const canAux = computed(
-    () =>
-      !enforceActionLimits.value ||
-      !!(budget.value && canSpendActionTier(budget.value, "aux")),
-  );
+  const canMain = computed(() => {
+    if (!enforceActionLimits.value) return true;
+    const p = activePlayer.value;
+    return !!p && canUseActionTier(p, "main");
+  });
+  const canSupport = computed(() => {
+    if (!enforceActionLimits.value) return true;
+    const p = activePlayer.value;
+    return !!p && canUseActionTier(p, "support");
+  });
+  const canAux = computed(() => {
+    if (!enforceActionLimits.value) return true;
+    const p = activePlayer.value;
+    return !!p && canUseActionTier(p, "aux");
+  });
+
+  const hasteRemaining = computed(() => hasteStacks(activePlayer.value ?? {}));
+
+  const hasteGrantedTier = computed(() => activePlayer.value?.hasteActionTier ?? null);
+
+  const actionBudgetChips = computed(() => {
+    const p = activePlayer.value;
+    const b = budget.value;
+    const granted = hasteGrantedTier.value;
+    const tierSpent = (tier: ActionTier) => !!b && !canSpendActionTier(b, tier);
+    const tierGranted = (tier: ActionTier) => granted === tier;
+    const canCommit = (tier: ActionTier) =>
+      !!p && enforceActionLimits.value && canCommitHasteForTier(p, tier);
+    return {
+      mainSpent: tierSpent("main"),
+      supportSpent: tierSpent("support"),
+      auxSpent: tierSpent("aux"),
+      mainGranted: tierGranted("main"),
+      supportGranted: tierGranted("support"),
+      auxGranted: tierGranted("aux"),
+      canCommitMain: canCommit("main"),
+      canCommitSupport: canCommit("support"),
+      canCommitAux: canCommit("aux"),
+    };
+  });
 
   const sprintRemaining = computed(() => budget.value?.sprintRemaining ?? 0);
 
@@ -116,6 +147,21 @@ export function useCombatActions(playerId?: () => string | null) {
     return armor?.armorActionStructured;
   });
 
+  const canTowerTeleport = computed(() => {
+    const p = activePlayer.value;
+    const s = gameState.value;
+    if (!p || !s || !isYadathanArmorName(p.armor)) return false;
+    if ((p.actionBudget?.movementRemaining ?? 0) <= 0) return false;
+    return !!getPlayerTower(s, p.id);
+  });
+
+  const canInteractSeed = computed(() => {
+    const p = activePlayer.value;
+    const s = gameState.value;
+    if (!p || !s) return false;
+    return !!getSeedAt(s, p.x, p.y);
+  });
+
   const pendingActions = computed(() => gameState.value?.combat?.pendingActions ?? []);
   const pendingReaction = computed(() => {
     const id = activePlayerId.value;
@@ -123,6 +169,8 @@ export function useCombatActions(playerId?: () => string | null) {
     if (!id || !r || r.playerId !== id) return null;
     return r;
   });
+
+  const reversalExtraAllyIds = ref<string[]>([]);
 
   const hasSpentActionTier = computed(() => {
     if (!enforceActionLimits.value || !budget.value) return false;
@@ -148,6 +196,10 @@ export function useCombatActions(playerId?: () => string | null) {
     );
   });
 
+  function commitHaste(tier: ActionTier) {
+    sendPlayerAction({ action: "commitHaste", tier });
+  }
+
   function sendPlayerAction(action: import("@gaem/shared").PlayerAction) {
     send({ type: "playerAction", action });
   }
@@ -164,12 +216,14 @@ export function useCombatActions(playerId?: () => string | null) {
     send({ type: "applyAssistedOutcome", outcome });
   }
 
-  function triggerReversal() {
-    send({ type: "triggerReversal" });
+  function triggerReversal(extraAllyIds: string[] = []) {
+    send({ type: "triggerReversal", extraAllyIds: extraAllyIds.length ? extraAllyIds : undefined });
+    reversalExtraAllyIds.value = [];
   }
 
   function declineReversal() {
     send({ type: "declineReversal" });
+    reversalExtraAllyIds.value = [];
   }
 
   function attackPreview(direction: import("@gaem/shared").PatternDirection) {
@@ -198,17 +252,24 @@ export function useCombatActions(playerId?: () => string | null) {
     canMain,
     canSupport,
     canAux,
+    hasteRemaining,
+    hasteGrantedTier,
+    actionBudgetChips,
     canStartSprint,
     sprintRemaining,
     hasWeaponAttack,
     canUseWeaponActive,
     sabaothChargesRemaining,
     armorStructured,
+    canTowerTeleport,
+    canInteractSeed,
     pendingActions,
     pendingReaction,
+    reversalExtraAllyIds,
     hasSpentActionTier,
     canResetMovement,
     sendPlayerAction,
+    commitHaste,
     resetMovement,
     sendMovePath,
     applyAssisted,
