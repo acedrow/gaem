@@ -26,6 +26,7 @@ export function useCombatActions(playerId?: () => string | null) {
   });
 
   const enforceTurns = computed(() => gameState.value?.enforceTurns !== false);
+  const enforceActionLimits = computed(() => gameState.value?.enforceActionLimits !== false);
 
   const isPlayerTurn = computed(() => {
     const s = gameState.value;
@@ -56,16 +57,34 @@ export function useCombatActions(playerId?: () => string | null) {
     const s = gameState.value;
     if (!p) return null;
     if (p.actionBudget) return p.actionBudget;
-    if (s?.enforceTurns === false) {
+    if (s?.enforceTurns === false || s?.enforceActionLimits === false) {
       const speed = p.speed ?? getArmorSpeed(p.armor);
       if (speed) return createDefaultActionBudget(speed);
     }
     return null;
   });
 
-  const canMain = computed(() => budget.value && canSpendActionTier(budget.value, "main"));
-  const canSupport = computed(() => budget.value && canSpendActionTier(budget.value, "support"));
-  const canAux = computed(() => budget.value && canSpendActionTier(budget.value, "aux"));
+  const canMain = computed(
+    () =>
+      !enforceActionLimits.value ||
+      !!(budget.value && canSpendActionTier(budget.value, "main")),
+  );
+  const canSupport = computed(
+    () =>
+      !enforceActionLimits.value ||
+      !!(budget.value && canSpendActionTier(budget.value, "support")),
+  );
+  const canAux = computed(
+    () =>
+      !enforceActionLimits.value ||
+      !!(budget.value && canSpendActionTier(budget.value, "aux")),
+  );
+
+  const sprintRemaining = computed(() => budget.value?.sprintRemaining ?? 0);
+
+  const canStartSprint = computed(
+    () => canAux.value && sprintRemaining.value <= 0,
+  );
 
   const hasWeaponAttack = computed(() => {
     const p = activePlayer.value;
@@ -85,8 +104,36 @@ export function useCombatActions(playerId?: () => string | null) {
     return r;
   });
 
+  const hasSpentActionTier = computed(() => {
+    if (!enforceActionLimits.value || !budget.value) return false;
+    return !budget.value.main || !budget.value.support || !budget.value.aux;
+  });
+
+  const hasPendingPlayerActions = computed(() => {
+    const id = activePlayerId.value;
+    if (!id) return false;
+    return pendingActions.value.some((p) => p.actorPlayerId === id);
+  });
+
+  const canResetMovement = computed(() => {
+    if (!showPlayerActionBar.value || !activePlayer.value) return false;
+    if (hasSpentActionTier.value || hasPendingPlayerActions.value) return false;
+    const p = activePlayer.value;
+    if (p.turnStartX === undefined || p.turnStartY === undefined) return false;
+    if (!budget.value) return false;
+    return (
+      p.x !== p.turnStartX ||
+      p.y !== p.turnStartY ||
+      budget.value.movementRemaining < budget.value.movementMax
+    );
+  });
+
   function sendPlayerAction(action: import("@gaem/shared").PlayerAction) {
     send({ type: "playerAction", action });
+  }
+
+  function resetMovement() {
+    send({ type: "resetMovement" });
   }
 
   function sendMovePath(path: { x: number; y: number }[]) {
@@ -123,6 +170,7 @@ export function useCombatActions(playerId?: () => string | null) {
     activePlayer,
     activePlayerId,
     enforceTurns,
+    enforceActionLimits,
     isPlayerTurn,
     showPlayerActionBar,
     showGmCombatUi,
@@ -130,11 +178,16 @@ export function useCombatActions(playerId?: () => string | null) {
     canMain,
     canSupport,
     canAux,
+    canStartSprint,
+    sprintRemaining,
     hasWeaponAttack,
     armorStructured,
     pendingActions,
     pendingReaction,
+    hasSpentActionTier,
+    canResetMovement,
     sendPlayerAction,
+    resetMovement,
     sendMovePath,
     applyAssisted,
     triggerReversal,

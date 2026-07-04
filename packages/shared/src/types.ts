@@ -78,6 +78,8 @@ export type Player = {
   equipmentUses?: number;
   reversalCharges?: number;
   actionBudget?: ActionBudget;
+  turnStartX?: number;
+  turnStartY?: number;
   effects?: EffectStacks;
   counters?: Record<string, number>;
 };
@@ -147,6 +149,7 @@ export type GameState = {
   actedPlayerIds: string[];
   turnLog: RoundTurnLog[];
   enforceTurns?: boolean;
+  enforceActionLimits?: boolean;
   combat?: CombatState;
   damageEvents?: DamageEvent[];
   partyResources?: PartyResources;
@@ -180,6 +183,7 @@ export type CharacterSheet = {
   equipment?: string;
   gear?: string;
   weapon2?: string;
+  tags?: string[];
   createdAt: string;
   updatedAt: string;
 };
@@ -202,6 +206,7 @@ export type ClientMessage =
     }
   | { type: "move"; x: number; y: number }
   | { type: "movePath"; path: { x: number; y: number }[] }
+  | { type: "resetMovement" }
   | { type: "moveEnemy"; enemyId: string; x: number; y: number }
   | { type: "addEnemy"; x: number; y: number; name?: string }
   | { type: "removeEnemy"; enemyId: string }
@@ -233,4 +238,5 @@ export type ClientMessage =
     }
   | { type: "phaseAction"; action: PhaseAction }
   | { type: "setEnforceTurns"; enforceTurns: boolean }
+  | { type: "setEnforceActionLimits"; enforceActionLimits: boolean }
   | { type: "baseCampaignAction"; action: BaseCampaignAction };

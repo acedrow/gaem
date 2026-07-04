@@ -11,6 +11,7 @@ import {
   ensureEnemyMovement,
   enemyFootprintTiles,
   fixedPatternTilesInBounds,
+  findPlayerMovementPath,
   getEnemyMaxHp,
   getEnemyScale,
   getEnemyScaleByName,
@@ -20,6 +21,7 @@ import {
   isRangeTargetAttack,
   isWalkable,
   manhattanDistance,
+  movementStepCost,
   playerAttackDirectionsAt,
   previewPlayerAttack,
   PATTERN_DIRECTIONS,
@@ -101,6 +103,7 @@ const {
 
 const {
   mode: boardActionMode,
+  attackWeapon,
   attackDirection,
   attackAimed,
   pendingTargetEnemyId,
@@ -278,20 +281,22 @@ const attackPreviewByDirection = computed(() => {
   if (boardActionMode.value !== "attack" || !s || !me) {
     return new Map<PatternDirection, Set<string>>();
   }
-  const spec = getWeaponAttackSpec(me.weapon);
+  const weaponName = attackWeapon.value ?? me.weapon;
+  const spec = getWeaponAttackSpec(weaponName);
   if (!spec || isRangeTargetAttack(spec)) {
     return new Map<PatternDirection, Set<string>>();
   }
   const map = new Map<PatternDirection, Set<string>>();
   for (const direction of PATTERN_DIRECTIONS) {
-    map.set(direction, coordsToKeySet(previewPlayerAttack(s, me.id, direction)));
+    map.set(direction, coordsToKeySet(previewPlayerAttack(s, me.id, direction, weaponName)));
   }
   return map;
 });
 
 const combatAttackPrimaryKeys = computed(() => {
   if (boardActionMode.value !== "attack" || !attackAimed.value) return new Set<string>();
-  const spec = getWeaponAttackSpec(yourPlayer.value?.weapon);
+  const weaponName = attackWeapon.value ?? yourPlayer.value?.weapon;
+  const spec = getWeaponAttackSpec(weaponName);
   if (spec && isRangeTargetAttack(spec)) return new Set<string>();
   return attackPreviewByDirection.value.get(attackDirection.value) ?? new Set<string>();
 });
@@ -300,7 +305,8 @@ const combatAttackSecondaryKeys = computed(() => {
   if (boardActionMode.value !== "attack" || !gameState.value || !yourPlayer.value) {
     return new Set<string>();
   }
-  const spec = getWeaponAttackSpec(yourPlayer.value.weapon);
+  const weaponName = attackWeapon.value ?? yourPlayer.value.weapon;
+  const spec = getWeaponAttackSpec(weaponName);
   if (!spec) return new Set<string>();
 
   if (isRangeTargetAttack(spec)) {
@@ -427,6 +433,26 @@ const yourPlayer = computed(() => {
   return s.players.find((p) => p.id === id);
 });
 
+let sprintModePrev: typeof boardActionMode.value = null;
+watch(boardActionMode, (mode) => {
+  if (mode === "sprint" && sprintModePrev !== "sprint") {
+    sendPlayerAction({ action: "sprint" });
+  } else if (sprintModePrev === "sprint" && mode !== "sprint") {
+    const remaining = yourPlayer.value?.actionBudget?.sprintRemaining ?? 0;
+    if (remaining > 0) sendPlayerAction({ action: "sprintCancel" });
+  }
+  sprintModePrev = mode;
+});
+
+watch(
+  () => yourPlayer.value?.actionBudget?.sprintRemaining ?? 0,
+  (remaining, prev) => {
+    if (boardActionMode.value === "sprint" && prev > 0 && remaining <= 0) {
+      clearBoardActionMode();
+    }
+  },
+);
+
 const cellStateByKey = computed(() => {
   const map = new Map<string, CellRenderState>();
   const s = gameState.value;
@@ -438,7 +464,18 @@ const cellStateByKey = computed(() => {
     !!yourPlayerId.value &&
     canPlayerMove(s, yourPlayerId.value);
   const isDeployment = s.roundPhase === "deployment";
+  const unlimitedMove = s.enforceActionLimits === false;
+  const sandboxTurns = s.enforceTurns === false;
+  const inMoveMode = boardActionMode.value === "move";
+  const inSprintMode = boardActionMode.value === "sprint";
+  const onPlayerTurn =
+    s.roundPhase === "playerTurn" &&
+    s.turn?.role === "player" &&
+    s.turn.playerId === yourPlayerId.value;
+  const showStepMoveHighlights = !sandboxTurns || onPlayerTurn || inMoveMode || inSprintMode;
   const me = yourPlayer.value;
+  const movementRemaining = me?.actionBudget?.movementRemaining ?? 0;
+  const sprintRemaining = me?.actionBudget?.sprintRemaining ?? 0;
 
   for (const c of cells.value) {
     const tile = tileAt(s.tiles, c.x, c.y);
@@ -448,6 +485,18 @@ const cellStateByKey = computed(() => {
 
     const adjacent =
       me != null && Math.abs(c.x - me.x) + Math.abs(c.y - me.y) === 1;
+    const stepBase =
+      playerCanMove &&
+      !isDeployment &&
+      isWalkable(tile) &&
+      !player &&
+      !enemy &&
+      adjacent &&
+      showStepMoveHighlights;
+    const stepCost = me && stepBase ? movementStepCost(s, me, c.x, c.y) : Infinity;
+    const showRegularStep =
+      stepBase && !inSprintMode && stepCost <= movementRemaining && movementRemaining > 0;
+    const showSprintStep = stepBase && inSprintMode && stepCost <= sprintRemaining && sprintRemaining > 0;
 
     map.set(c.key, {
       terrainClass: terrainClass(tile),
@@ -455,9 +504,11 @@ const cellStateByKey = computed(() => {
         playerCanMove &&
         !isDeployment &&
         isWalkable(tile) &&
-        adjacent &&
         !player &&
-        !enemy,
+        !enemy &&
+        unlimitedMove &&
+        inMoveMode,
+      moveSecondary: showRegularStep || showSprintStep,
       deployable:
         isDeployment &&
         props.role === "player" &&
@@ -662,16 +713,12 @@ function arrowTarget(key: string, origin: { x: number; y: number }): { x: number
 
 function tryMove(x: number, y: number) {
   if (props.role !== "player") return;
+  if (boardActionMode.value === "sprint") return;
   if (!yourPlayerId.value || !gameState.value) return;
   if (!canPlayerMove(gameState.value, yourPlayerId.value)) return;
   const deploying = gameState.value.roundPhase === "deployment";
   const cell = cellStateByKey.value.get(boardCellKey(x, y));
-  if (!deploying && !cell?.movable && !cell?.deployable) {
-    const me = yourPlayer.value;
-    if (!me || Math.abs(x - me.x) + Math.abs(y - me.y) !== 1) return;
-    const occ = occupancy.value;
-    if (occ?.enemyByKey.has(coordKey(x, y))) return;
-  }
+  if (!deploying && !cell?.movable && !cell?.deployable && !cell?.moveSecondary) return;
   if (deploying && !cell?.deployable) return;
   send({ type: "move", x, y });
 }
@@ -712,10 +759,16 @@ function handleAttackCellClick(x: number, y: number, targetEnemyId?: string): bo
   const me = yourPlayer.value;
   const s = gameState.value;
   if (!me || !s) return false;
-  const spec = getWeaponAttackSpec(me.weapon);
+  const weaponName = attackWeapon.value ?? me.weapon;
+  const spec = getWeaponAttackSpec(weaponName);
   if (!spec) return false;
 
   const key = coordKey(x, y);
+  const attackAction = {
+    action: "attack" as const,
+    direction: attackDirection.value,
+    weaponName: attackWeapon.value ?? undefined,
+  };
 
   if (isRangeTargetAttack(spec)) {
     if (!combatAttackSecondaryKeys.value.has(key)) return false;
@@ -724,19 +777,18 @@ function handleAttackCellClick(x: number, y: number, targetEnemyId?: string): bo
     if (!enemy) return false;
     if (manhattanDistance(me, enemy) > rangeTargetDistance(spec)) return false;
     sendPlayerAction({
-      action: "attack",
-      direction: attackDirection.value,
+      ...attackAction,
       targetEnemyId,
     });
     clearBoardActionMode();
     return true;
   }
 
-  const dirs = playerAttackDirectionsAt(s, me.id, x, y);
+  const dirs = playerAttackDirectionsAt(s, me.id, x, y, weaponName);
   if (dirs.length === 0) return false;
 
   if (attackAimed.value && combatAttackPrimaryKeys.value.has(key)) {
-    sendPlayerAction({ action: "attack", direction: attackDirection.value });
+    sendPlayerAction(attackAction);
     clearBoardActionMode();
     return true;
   }
@@ -760,7 +812,15 @@ function handleCombatCellClick(x: number, y: number): boolean {
   const me = yourPlayer.value;
 
   if (m === "move") {
-    sendMovePath([{ x, y }]);
+    const s = gameState.value;
+    const id = yourPlayerId.value;
+    if (s && id && s.enforceActionLimits === false) {
+      const path = findPlayerMovementPath(s, id, { x, y });
+      if (path) sendMovePath(path);
+    } else {
+      if (!cellStateByKey.value.get(boardCellKey(x, y))?.moveSecondary) return true;
+      sendMovePath([{ x, y }]);
+    }
     return true;
   }
   if (m === "attack") {
@@ -780,8 +840,8 @@ function handleCombatCellClick(x: number, y: number): boolean {
     return true;
   }
   if (m === "sprint") {
-    sendPlayerAction({ action: "sprint", path: [{ x, y }] });
-    clearBoardActionMode();
+    if (!cellStateByKey.value.get(boardCellKey(x, y))?.moveSecondary) return true;
+    sendPlayerAction({ action: "sprintMove", x, y });
     return true;
   }
   if (m === "armorTeleport") {

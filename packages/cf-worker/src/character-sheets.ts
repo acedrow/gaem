@@ -163,6 +163,7 @@ type PatchBody = {
   equipment?: unknown;
   gear?: unknown;
   weapon2?: unknown;
+  tags?: unknown;
   player?: unknown;
 };
 
@@ -191,6 +192,7 @@ export async function handlePatchCharacterSheet(
     equipment: sheet.equipment,
     gear: sheet.gear,
     weapon2: sheet.weapon2,
+    tags: sheet.tags,
   };
 
   const body = (await request.json().catch(() => null)) as PatchBody | null;
@@ -268,6 +270,17 @@ export async function handlePatchCharacterSheet(
   if (refFields.gear !== undefined) sheet.gear = refFields.gear || undefined;
   if (refFields.weapon2 !== undefined) sheet.weapon2 = refFields.weapon2 || undefined;
 
+  if (body.tags !== undefined) {
+    if (!Array.isArray(body.tags)) {
+      return Response.json({ error: "Invalid tags" }, { status: 400 });
+    }
+    const tags = body.tags
+      .filter((t): t is string => typeof t === "string")
+      .map((t) => t.trim())
+      .filter(Boolean);
+    sheet.tags = tags.length ? tags : undefined;
+  }
+
   sheet.updatedAt = new Date().toISOString();
   await saveCharacterSheet(env, sheet);
 
@@ -293,6 +306,7 @@ export async function handlePatchCharacterSheet(
       equipment: sheet.equipment,
       gear: sheet.gear,
       weapon2: sheet.weapon2,
+      tags: sheet.tags,
     },
     onBoardData.onBoard,
   );

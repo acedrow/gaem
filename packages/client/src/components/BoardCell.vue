@@ -9,6 +9,7 @@ import HpBar from "./HpBar.vue";
 export type CellRenderState = {
   terrainClass: string | null;
   movable: boolean;
+  moveSecondary: boolean;
   deployable: boolean;
   gmMovable: boolean;
   gmSpawnable: boolean;
@@ -122,6 +123,7 @@ const enemyHp = computed(() => {
     :class="{
       [cell.terrainClass ?? '']: !!cell.terrainClass,
       movable: cell.movable,
+      'move-secondary': cell.moveSecondary,
       deployable: cell.deployable,
       'gm-movable': cell.gmMovable,
       'gm-spawnable': cell.gmSpawnable,
@@ -251,6 +253,12 @@ const enemyHp = computed(() => {
 .cell.movable {
   cursor: pointer;
   outline: 1px dashed var(--color-accent-muted);
+}
+
+.cell.move-secondary {
+  cursor: pointer;
+  outline: 1px dashed var(--color-purple-outline-strong);
+  background: var(--color-purple-faint-bg);
 }
 
 .cell.deployable {

@@ -144,6 +144,7 @@ export function patchSheetHandler(
     equipment: sheet.equipment,
     gear: sheet.gear,
     weapon2: sheet.weapon2,
+    tags: sheet.tags,
   };
 
   if (req.body?.player !== undefined) {
@@ -216,6 +217,18 @@ export function patchSheetHandler(
   if (refFields.gear !== undefined) sheet.gear = refFields.gear || undefined;
   if (refFields.weapon2 !== undefined) sheet.weapon2 = refFields.weapon2 || undefined;
 
+  if (req.body?.tags !== undefined) {
+    if (!Array.isArray(req.body.tags)) {
+      res.status(400).json({ error: "Invalid tags" });
+      return;
+    }
+    const tags = req.body.tags
+      .filter((t: unknown): t is string => typeof t === "string")
+      .map((t: string) => t.trim())
+      .filter(Boolean);
+    sheet.tags = tags.length ? tags : undefined;
+  }
+
   sheet.updatedAt = new Date().toISOString();
   characterSheets.set(sheet.id, sheet);
   if (opts) {
@@ -233,6 +246,7 @@ export function patchSheetHandler(
         equipment: sheet.equipment,
         gear: sheet.gear,
         weapon2: sheet.weapon2,
+        tags: sheet.tags,
       },
       opts.sheetOnBoard,
     );

@@ -24,12 +24,7 @@ body,
 body {
   margin: 0;
   min-height: 100vh;
-  font-family:
-    system-ui,
-    -apple-system,
-    Segoe UI,
-    Roboto,
-    sans-serif;
+  font-family: var(--font-body);
   background: var(--color-bg-body);
   color: var(--color-text);
 }
@@ -55,7 +50,6 @@ h3,
 .modal-title,
 .section-title,
 .settings-section-heading,
-.ability-section-title,
 .brand {
   font-family: var(--font-heading);
   font-weight: 500;
@@ -166,6 +160,7 @@ h3,
 
 .panel-kicker {
   margin: 0 0 0.15rem;
+  font-family: inherit;
   font-size: 0.7rem;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -354,13 +349,31 @@ h3,
   border: 1px solid var(--color-accent);
   background: var(--color-accent-muted);
   color: var(--color-text);
+  font-family: inherit;
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
+.ability-section-title {
+  margin: 0.45rem 0 0.15rem;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text);
+}
+
+.tag,
+.enemy-tag,
+.locked-chip {
+  font-family: var(--font-body);
+}
+
 .rule-term {
+  font-family: inherit;
   font-weight: 600;
   color: var(--color-text);
 }
@@ -452,15 +465,49 @@ h3,
   color: var(--color-danger);
 }
 
-.hp-bar-block {
+.hp-bar-block:not(.compact):not(.inline) {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "label values"
+    "track track";
+  gap: 0.35rem 0;
   margin-bottom: 0.75rem;
 }
 
-.hp-bar-header {
+.hp-bar-block:not(.compact):not(.inline) .hp-bar-label {
+  grid-area: label;
+  align-self: baseline;
+}
+
+.hp-bar-block:not(.compact):not(.inline) .hp-bar-values {
+  grid-area: values;
+  align-self: baseline;
+}
+
+.hp-bar-block:not(.compact):not(.inline) .hp-bar-track {
+  grid-area: track;
+}
+
+.hp-bar-block.inline {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 0.35rem;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.hp-bar-block.inline .hp-bar-label {
+  order: 1;
+}
+
+.hp-bar-block.inline .hp-bar-track {
+  order: 2;
+  flex: 1;
+  min-width: 0;
+}
+
+.hp-bar-block.inline .hp-bar-values {
+  order: 3;
 }
 
 .hp-bar-label {

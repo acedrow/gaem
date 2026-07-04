@@ -254,8 +254,10 @@ export class GameRoom {
           return;
         }
         removeEnemy(this.gameState, parsed.enemyId);
-        const actor = await this.actorForSocket(ws);
-        this.broadcastConsole(actor, `removed ${enemyLabel(enemy)}`);
+        if ((enemy.hp ?? 0) > 0) {
+          const actor = await this.actorForSocket(ws);
+          this.broadcastConsole(actor, `removed ${enemyLabel(enemy)}`);
+        }
       } else {
         if (att?.role !== "gm") {
           this.sendError(ws, "Only the game master can manage enemies");
@@ -353,6 +355,23 @@ export class GameRoom {
       await this.broadcastConsole(
         actor,
         parsed.enforceTurns ? "Enforce turns enabled" : "Enforce turns disabled",
+      );
+      await this.broadcastState();
+      return;
+    }
+
+    if (parsed.type === "setEnforceActionLimits") {
+      if (att?.role !== "gm") {
+        this.sendError(ws, "Only the game master can do that");
+        return;
+      }
+      this.gameState.enforceActionLimits = parsed.enforceActionLimits;
+      const actor = await this.actorForSocket(ws);
+      await this.broadcastConsole(
+        actor,
+        parsed.enforceActionLimits
+          ? "Enforce action limits enabled"
+          : "Enforce action limits disabled",
       );
       await this.broadcastState();
       return;

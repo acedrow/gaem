@@ -5,7 +5,7 @@ import type {
   GmEnemyAction,
   PlayerAction,
 } from "./types.js";
-import type { GameState } from "../types.js";
+import type { GameState, Player } from "../types.js";
 import {
   canGmMoveEnemies,
   canPlayerMove,
@@ -13,11 +13,12 @@ import {
   finishGmTurnIfPlayersRemain,
   getEnemyMaxHp,
   getPlayerMaxHp,
+  areActionLimitsEnforced,
   validateEnemyFootprint,
 } from "../game.js";
 import { getArmorByName, getArmorSpeed, getWeaponByName } from "../player-data.js";
 import type { StructuredArmorAction } from "./types.js";
-import { createDefaultActionBudget } from "./types.js";
+import { createDefaultActionBudget, type ActionTier } from "./types.js";
 import { getEnemyScale, enemyFootprintTiles, ensureEnemyMovement, spendEnemyMovement } from "../enemy-data.js";
 import { buildBoardOccupancy } from "../game.js";
 import { coordKey, isInBounds, isWalkable, tileAt } from "../map.js";
@@ -30,7 +31,15 @@ import {
 import {
   adjacentEnemies,
   applyMovementPath,
+  applySprintBegin,
+  applySprintCancel,
+  applySprintMove,
   validateMovementPath,
+  validateResetMovement,
+  applyResetMovement,
+  validateSprintBegin,
+  validateSprintCancel,
+  validateSprintMove,
 } from "./movement.js";
 import {
   applyAttackToEnemies,
@@ -42,6 +51,7 @@ import {
   manhattanDistance,
   parseEnemyAttackString,
   resolveAttackDamage,
+  resolveAttackWeapon,
 } from "./attack.js";
 import { applyEffectStacks, clearEffectStacks, parseEffectToken, tickUnitEndOfTurn } from "./effects.js";
 import { isKnownEffectId } from "../effects-data.js";
@@ -54,6 +64,25 @@ export type CombatMessageContext = {
   role: GaemRole;
   playerId: string | null;
 };
+
+function actionTierBlocked(player: Player, tier: ActionTier, state: GameState): string | null {
+  if (!areActionLimitsEnforced(state)) return null;
+  if (!canSpendActionTier(player.actionBudget, tier)) {
+    if (tier === "main") return "Main action spent";
+    if (tier === "support") return "Support action spent";
+    return "Aux action spent";
+  }
+  if (effectiveActionBlocked(player, tier)) {
+    if (tier === "main") return "Shock — cannot use Main";
+    if (tier === "aux") return "Shock — cannot use Aux";
+    return "Shock — cannot use Support";
+  }
+  return null;
+}
+
+function maybeSpendActionTier(state: GameState, budget: Player["actionBudget"], tier: ActionTier): void {
+  if (areActionLimitsEnforced(state)) spendActionTier(budget, tier);
+}
 
 export function validateMovePath(
   state: GameState,
@@ -105,9 +134,12 @@ export function validatePlayerAction(
 
   switch (action.action) {
     case "attack": {
-      if (!canSpendActionTier(player.actionBudget, "main")) return "Main action spent";
-      if (effectiveActionBlocked(player, "main")) return "Shock — cannot use Main";
-      const spec = getWeaponAttackSpec(player.weapon);
+      const blocked = actionTierBlocked(player, "main", state);
+      if (blocked) return blocked;
+      const weapon = resolveAttackWeapon(player, action.weaponName);
+      if (!weapon) return "Invalid weapon";
+      const spec = getWeaponAttackSpec(weapon);
+      if (!spec) return "Weapon has no attack profile";
       if (!spec) return "Weapon has no attack profile";
       if (isRangeTargetAttack(spec)) {
         if (!action.targetEnemyId) return "Select target";
@@ -118,8 +150,8 @@ export function validatePlayerAction(
       return null;
     }
     case "shove": {
-      if (!canSpendActionTier(player.actionBudget, "aux")) return "Aux action spent";
-      if (effectiveActionBlocked(player, "aux")) return "Shock — cannot use Aux";
+      const blocked = actionTierBlocked(player, "aux", state);
+      if (blocked) return blocked;
       if (!action.targetEnemyId && !action.targetPlayerId) return "No shove target";
       const tx = action.targetEnemyId
         ? state.enemies.find((e) => e.id === action.targetEnemyId)
@@ -131,14 +163,22 @@ export function validatePlayerAction(
       return null;
     }
     case "sprint": {
-      if (!canSpendActionTier(player.actionBudget, "aux")) return "Aux action spent";
-      return validateMovementPath(state, playerId, action.path, { sprint: true });
+      return validateSprintBegin(state, playerId);
     }
-    case "weaponSwap":
-      if (!canSpendActionTier(player.actionBudget, "aux")) return "Aux action spent";
+    case "sprintMove": {
+      return validateSprintMove(state, playerId, action.x, action.y);
+    }
+    case "sprintCancel": {
+      return validateSprintCancel(state, playerId);
+    }
+    case "weaponSwap": {
+      const blocked = actionTierBlocked(player, "aux", state);
+      if (blocked) return blocked;
       return null;
+    }
     case "rez": {
-      if (!canSpendActionTier(player.actionBudget, "main")) return "Main action spent";
+      const blocked = actionTierBlocked(player, "main", state);
+      if (blocked) return blocked;
       const target = state.players.find((p) => p.id === action.targetPlayerId);
       if (!target) return "Unknown ally";
       if (!isOrthogonallyAdjacent({ x: player.x, y: player.y }, { x: target.x, y: target.y })) {
@@ -148,8 +188,8 @@ export function validatePlayerAction(
       return null;
     }
     case "armorAction": {
-      if (!canSpendActionTier(player.actionBudget, "support")) return "Support action spent";
-      if (effectiveActionBlocked(player, "support")) return "Shock — cannot use Support";
+      const blocked = actionTierBlocked(player, "support", state);
+      if (blocked) return blocked;
       const armor = getArmorByName(player.armor ?? "");
       const structured = armor?.armorActionStructured as StructuredArmorAction | undefined;
       if (!structured) return "Armor action not structured — use assisted flow";
@@ -177,19 +217,33 @@ export function validatePlayerAction(
       }
       return null;
     }
-    case "classActive":
-      if (!canSpendActionTier(player.actionBudget, "support")) return "Support action spent";
+    case "classActive": {
+      const blocked = actionTierBlocked(player, "support", state);
+      if (blocked) return blocked;
       return null;
-    case "weaponActive":
-      if (!canSpendActionTier(player.actionBudget, "main")) return "Main action spent";
+    }
+    case "weaponActive": {
+      const blocked = actionTierBlocked(player, "main", state);
+      if (blocked) return blocked;
       return null;
-    case "useEquipment":
-      if (!canSpendActionTier(player.actionBudget, "support")) return "Support action spent";
-      if (player.equipmentUses !== undefined && player.equipmentUses <= 0) return "Equipment already used";
+    }
+    case "useEquipment": {
+      const blocked = actionTierBlocked(player, "support", state);
+      if (blocked) return blocked;
+      if (
+        areActionLimitsEnforced(state) &&
+        player.equipmentUses !== undefined &&
+        player.equipmentUses <= 0
+      ) {
+        return "Equipment already used";
+      }
       return null;
-    case "interact":
-      if (!canSpendActionTier(player.actionBudget, "support")) return "Support action spent";
+    }
+    case "interact": {
+      const blocked = actionTierBlocked(player, "support", state);
+      if (blocked) return blocked;
       return null;
+    }
   }
 }
 
@@ -203,8 +257,11 @@ export function applyPlayerAction(
 
   switch (action.action) {
     case "attack": {
-      spendActionTier(player.actionBudget, "main");
-      const spec = getWeaponAttackSpec(player.weapon)!;
+      maybeSpendActionTier(state, player.actionBudget, "main");
+      const weapon = resolveAttackWeapon(player, action.weaponName);
+      if (!weapon) return "Invalid weapon";
+      const spec = getWeaponAttackSpec(weapon);
+      if (!spec) return "Weapon has no attack profile";
       let result;
       if (isRangeTargetAttack(spec) && action.targetEnemyId) {
         const enemy = state.enemies.find((e) => e.id === action.targetEnemyId)!;
@@ -226,15 +283,20 @@ export function applyPlayerAction(
           action.damageRoll,
         );
       }
-      const names = result.targets
+      const hitEnemies = result.targets
         .map((t) => state.enemies.find((e) => e.id === t.enemyId))
-        .filter(Boolean)
+        .filter(Boolean);
+      const names = hitEnemies.map((e) => enemyLabel(e!)).join(", ");
+      const defeated = hitEnemies
+        .filter((e) => (e!.hp ?? 0) <= 0)
         .map((e) => enemyLabel(e!))
         .join(", ");
-      return `${playerLabel(player)} attacked (${result.detail} dmg) → ${names || "no targets"}`;
+      let msg = `${playerLabel(player)} attacked (${result.detail} dmg) → ${names || "no targets"}`;
+      if (defeated) msg += `; defeated ${defeated}`;
+      return msg;
     }
     case "shove": {
-      spendActionTier(player.actionBudget, "aux");
+      maybeSpendActionTier(state, player.actionBudget, "aux");
       const occ = buildBoardOccupancy(state);
       let tx: number;
       let ty: number;
@@ -266,17 +328,20 @@ export function applyPlayerAction(
       return `${playerLabel(player)} shoved a target`;
     }
     case "sprint": {
-      spendActionTier(player.actionBudget, "aux");
-      applyMovementPath(state, playerId, action.path, { sprint: true, spendBudget: false });
-      const dest = action.path[action.path.length - 1]!;
-      return `${playerLabel(player)} sprinted to (${dest.x}, ${dest.y})`;
+      return applySprintBegin(state, playerId);
+    }
+    case "sprintMove": {
+      return applySprintMove(state, playerId, action.x, action.y);
+    }
+    case "sprintCancel": {
+      return applySprintCancel(state, playerId);
     }
     case "weaponSwap": {
-      spendActionTier(player.actionBudget, "aux");
+      maybeSpendActionTier(state, player.actionBudget, "aux");
       return `${playerLabel(player)} swapped weapon (assisted loadout)`;
     }
     case "rez": {
-      spendActionTier(player.actionBudget, "main");
+      maybeSpendActionTier(state, player.actionBudget, "main");
       const target = state.players.find((p) => p.id === action.targetPlayerId)!;
       target.hp = getPlayerMaxHp(target);
       return `${playerLabel(player)} rezzed ${playerLabel(target)}`;
@@ -288,10 +353,10 @@ export function applyPlayerAction(
         const landing = { x: action.landingX!, y: action.landingY! };
         player.x = landing.x;
         player.y = landing.y;
-        spendActionTier(player.actionBudget, "support");
+        maybeSpendActionTier(state, player.actionBudget, "support");
         return `${playerLabel(player)} used ${armor.name} armor action`;
       }
-      spendActionTier(player.actionBudget, "support");
+      maybeSpendActionTier(state, player.actionBudget, "support");
       if (structured.kind === "push_recoil") {
         const push = action.push ?? structured.push ?? 1;
         addPendingAction(
@@ -308,7 +373,7 @@ export function applyPlayerAction(
       return `${playerLabel(player)} used armor action`;
     }
     case "classActive": {
-      spendActionTier(player.actionBudget, "support");
+      maybeSpendActionTier(state, player.actionBudget, "support");
       const cls = player.class ?? "Class";
       addPendingAction(
         state,
@@ -322,7 +387,7 @@ export function applyPlayerAction(
       return `${playerLabel(player)} used ${cls} active (pending GM)`;
     }
     case "weaponActive": {
-      spendActionTier(player.actionBudget, "main");
+      maybeSpendActionTier(state, player.actionBudget, "main");
       const weapon = getWeaponByName(player.weapon ?? "");
       addPendingAction(
         state,
@@ -337,8 +402,8 @@ export function applyPlayerAction(
       return `${playerLabel(player)} used weapon active (pending GM)`;
     }
     case "useEquipment": {
-      spendActionTier(player.actionBudget, "support");
-      player.equipmentUses = 0;
+      maybeSpendActionTier(state, player.actionBudget, "support");
+      if (areActionLimitsEnforced(state)) player.equipmentUses = 0;
       addPendingAction(
         state,
         createPendingAction("useEquipment", "Equipment", {
@@ -349,7 +414,7 @@ export function applyPlayerAction(
       return `${playerLabel(player)} used equipment (pending GM)`;
     }
     case "interact": {
-      spendActionTier(player.actionBudget, "support");
+      maybeSpendActionTier(state, player.actionBudget, "support");
       addPendingAction(
         state,
         createPendingAction("interact", "Interact", {
@@ -610,9 +675,11 @@ export function previewPlayerAttack(
   state: GameState,
   playerId: string,
   direction: import("../pattern-data.js").PatternDirection,
+  weaponName?: string,
 ): { x: number; y: number }[] {
   const player = state.players.find((p) => p.id === playerId);
-  const spec = getWeaponAttackSpec(player?.weapon);
+  const weapon = player ? resolveAttackWeapon(player, weaponName) ?? player.weapon : undefined;
+  const spec = getWeaponAttackSpec(weapon);
   if (!player || !spec) return [];
   return collectAttackTiles(state, { x: player.x, y: player.y }, spec, direction);
 }
@@ -657,6 +724,12 @@ export function handleCombatMessage(
       const err = validateMovePath(state, ctx.playerId, parsed.path);
       if (err) return { handled: true, error: err };
       return { handled: true, message: applyMovePath(state, ctx.playerId, parsed.path) };
+    }
+    case "resetMovement": {
+      if (!ctx.playerId) return { handled: true, error: "Only players can reset movement" };
+      const err = validateResetMovement(state, ctx.playerId);
+      if (err) return { handled: true, error: err };
+      return { handled: true, message: applyResetMovement(state, ctx.playerId) };
     }
     case "playerAction": {
       if (!ctx.playerId) return { handled: true, error: "Only players can act" };

@@ -3,6 +3,7 @@ import { computed } from "vue";
 
 import { useBoardActionMode } from "../composables/useBoardActionMode.js";
 import { useCombatActions } from "../composables/useCombatActions.js";
+import ActionBudgetChips from "./ActionBudgetChips.vue";
 
 const {
   showPlayerActionBar,
@@ -10,8 +11,10 @@ const {
   canMain,
   canSupport,
   canAux,
+  canStartSprint,
   hasWeaponAttack,
   armorStructured,
+  activePlayer,
   sendPlayerAction,
 } = useCombatActions();
 
@@ -45,6 +48,7 @@ function weaponSwap() {
 
 function pickMode(next: typeof mode.value) {
   if (mode.value === next) clearMode();
+  else if (next === "attack") setMode("attack", { attackWeapon: activePlayer.value?.weapon });
   else setMode(next);
 }
 </script>
@@ -52,9 +56,7 @@ function pickMode(next: typeof mode.value) {
 <template>
   <div v-if="showPlayerActionBar" class="action-bar">
     <div class="budget-row">
-      <span class="chip" :class="{ spent: !canMain }">Main</span>
-      <span class="chip" :class="{ spent: !canSupport }">Support</span>
-      <span class="chip" :class="{ spent: !canAux }">Aux</span>
+      <ActionBudgetChips :can-main="canMain" :can-support="canSupport" :can-aux="canAux" />
       <span class="chip speed">Speed {{ speedLabel }}</span>
     </div>
     <div class="actions-row">
@@ -83,7 +85,7 @@ function pickMode(next: typeof mode.value) {
         type="button"
         class="action-btn"
         :class="{ active: mode === 'sprint' }"
-        :disabled="!canAux"
+        :disabled="mode !== 'sprint' && !canStartSprint"
         @click="pickMode('sprint')"
       >
         Sprint
@@ -159,7 +161,8 @@ function pickMode(next: typeof mode.value) {
   align-items: center;
 }
 
-.chip {
+.chip.speed {
+  margin-left: auto;
   font-size: 0.72rem;
   font-weight: 600;
   padding: 0.15rem 0.45rem;
@@ -167,14 +170,6 @@ function pickMode(next: typeof mode.value) {
   background: var(--color-surface-raised);
   border: 1px solid var(--color-border);
   color: var(--color-text);
-}
-
-.chip.spent {
-  opacity: 0.45;
-}
-
-.chip.speed {
-  margin-left: auto;
 }
 
 .action-btn {

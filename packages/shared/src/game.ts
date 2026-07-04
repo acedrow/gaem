@@ -97,6 +97,8 @@ function resetPlayerTurnActions(state: GameState, playerId: string): void {
   if (!player) return;
   const speed = player.speed ?? getArmorSpeed(player.armor);
   if (speed) player.actionBudget = createDefaultActionBudget(speed);
+  player.turnStartX = player.x;
+  player.turnStartY = player.y;
   if (state.combat) {
     state.combat.pendingActions = state.combat.pendingActions.filter(
       (p) => p.actorPlayerId !== playerId,
@@ -171,6 +173,10 @@ export function canGmMoveEnemies(state: GameState): boolean {
   return state.roundPhase === "gmTurn" && state.turn?.role === "gm";
 }
 
+export function areActionLimitsEnforced(state: GameState): boolean {
+  return state.enforceActionLimits !== false;
+}
+
 function beginPlayerTurn(state: GameState, playerId: string): string {
   state.roundPhase = "playerTurn";
   state.turn = { role: "player", playerId };
@@ -179,6 +185,8 @@ function beginPlayerTurn(state: GameState, playerId: string): string {
   if (player) {
     const speed = player.speed ?? getArmorSpeed(player.armor);
     player.actionBudget = createDefaultActionBudget(speed);
+    player.turnStartX = player.x;
+    player.turnStartY = player.y;
   }
   return `${playerLabel(player!)} took their turn`;
 }
@@ -857,6 +865,9 @@ export function normalizeGameState(state: GameState, map?: GameMap): GameState {
   }
   if (state.enforceTurns === undefined) {
     state.enforceTurns = true;
+  }
+  if (state.enforceActionLimits === undefined) {
+    state.enforceActionLimits = true;
   }
   if (!state.partyResources) {
     state.partyResources = { hellsteel: 0, soulfire: 0, brimstone: 0 };

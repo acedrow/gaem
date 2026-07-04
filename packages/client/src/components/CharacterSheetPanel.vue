@@ -10,18 +10,24 @@ import {
 } from "@gaem/shared";
 import { computed, nextTick, onUnmounted, ref, watch } from "vue";
 
-import CombatStrip from "./CombatStrip.vue";
+import AbilityBlock from "./AbilityBlock.vue";
+import CharacterSheetCombat from "./CharacterSheetCombat.vue";
 import HpBar from "./HpBar.vue";
+import RuleText from "./RuleText.vue";
+import SheetActionButton from "./SheetActionButton.vue";
 import SheetGearFieldRow from "./SheetGearFieldRow.vue";
+import WeaponPatternDiagram from "./WeaponPatternDiagram.vue";
 import { useApi } from "../composables/useApi.js";
+import { useBoardActionMode } from "../composables/useBoardActionMode.js";
 import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useCampaignUnlocks } from "../composables/useCampaignUnlocks.js";
 import { useCharacterSheetSelection, type GearField } from "../composables/useCharacterSheetSelection.js";
+import { useCombatActions } from "../composables/useCombatActions.js";
 import { useGameState } from "../composables/useGameState.js";
 import { useSession } from "../composables/useSession.js";
 
 type PlayerProfileOption = PlayerProfile & { isActive?: boolean };
-type EditableField = "name" | "player";
+type EditableField = "name" | "player" | "tags";
 
 const props = defineProps<{ sheetId: string }>();
 
@@ -50,9 +56,13 @@ const form = ref({
   equipment: "",
   gear: "",
   weapon2: "",
+  tags: [] as string[],
 });
 const editingField = ref<EditableField | null>(null);
 const fieldInputEl = ref<HTMLInputElement | HTMLSelectElement | null>(null);
+const nameInputEl = ref<HTMLInputElement | null>(null);
+const tagsInputEl = ref<HTMLTextAreaElement | null>(null);
+const tagsDraft = ref("");
 
 const canEdit = computed(() => {
   if (!sheet.value) return false;
@@ -64,6 +74,73 @@ const boardPlayer = computed(() =>
   gameState.value?.players.find((p) => p.characterSheetId === props.sheetId)
 );
 
+const boardPlayerId = computed(() => boardPlayer.value?.id ?? null);
+
+const {
+  showPlayerActionBar,
+  canMain,
+  canSupport,
+  armorStructured,
+  sendPlayerAction,
+} = useCombatActions(() => boardPlayerId.value);
+
+const { mode, attackWeapon, setMode, clearMode } = useBoardActionMode();
+
+const showSheetCombatActions = computed(
+  () => !!boardPlayer.value && showPlayerActionBar.value,
+);
+
+const canUseEquipmentCharge = computed(() => {
+  if (!canSupport.value || !form.value.equipment) return false;
+  const uses = boardPlayer.value?.equipmentUses;
+  if (uses === undefined) return true;
+  return uses > 0;
+});
+
+function weaponHasAttack(weaponName: string) {
+  return !!getWeaponByName(weaponName)?.attack;
+}
+
+function toggleArmorAction() {
+  if (!armorStructured.value) return;
+  if (armorStructured.value.kind === "teleport_adjacent") {
+    setMode(mode.value === "armorTeleport" ? null : "armorTeleport");
+  } else {
+    setMode(mode.value === "armorPush" ? null : "armorPush");
+  }
+}
+
+function toggleWeaponAttack(weaponName: string) {
+  if (mode.value === "attack" && attackWeapon.value === weaponName) clearMode();
+  else setMode("attack", { attackWeapon: weaponName });
+}
+
+const selectedAttackWeapon = computed(
+  () => attackWeapon.value ?? boardPlayer.value?.weapon ?? null,
+);
+
+const weapon1AttackActive = computed(() => {
+  const name = boardPlayer.value?.weapon ?? form.value.weapon;
+  return mode.value === "attack" && !!name && selectedAttackWeapon.value === name;
+});
+
+const weapon2AttackActive = computed(() => {
+  const name = boardPlayer.value?.weapon2 ?? form.value.weapon2;
+  return mode.value === "attack" && !!name && selectedAttackWeapon.value === name;
+});
+
+function useWeaponAbility(weaponName: string) {
+  sendPlayerAction({ action: "weaponActive", detail: weaponName });
+}
+
+function useEquipmentItem() {
+  sendPlayerAction({ action: "useEquipment", detail: form.value.equipment });
+}
+
+function useGearItem() {
+  sendPlayerAction({ action: "interact", detail: form.value.gear });
+}
+
 const maxHp = computed(() => getClassMaxHp(form.value.class));
 const currentHp = computed(() => boardPlayer.value?.hp ?? 0);
 
@@ -73,7 +150,6 @@ const selectedWeapon = computed(() => getWeaponByName(form.value.weapon));
 const selectedEquipment = computed(() => getEquipmentByName(form.value.equipment));
 const selectedGear = computed(() => getGearByName(form.value.gear));
 const selectedWeapon2 = computed(() => getWeaponByName(form.value.weapon2));
-const speed = computed(() => selectedArmor.value?.speed);
 const selectedProfileName = computed(
   () => profiles.value.find((p) => p.id === form.value.player)?.name ?? form.value.player
 );
@@ -109,6 +185,7 @@ async function loadSheet() {
       equipment: data.sheet.equipment ?? "",
       gear: data.sheet.gear ?? "",
       weapon2: data.sheet.weapon2 ?? "",
+      tags: [...(data.sheet.tags ?? [])],
     };
     await loadPortrait();
   } catch {
@@ -124,7 +201,7 @@ async function saveSheet() {
   saving.value = true;
   error.value = null;
   try {
-    const body: Record<string, string> = {
+    const body: Record<string, unknown> = {
       name: form.value.name,
       class: form.value.class,
       armor: form.value.armor,
@@ -132,6 +209,7 @@ async function saveSheet() {
       equipment: form.value.equipment,
       gear: form.value.gear,
       weapon2: form.value.weapon2,
+      tags: form.value.tags,
     };
     if (role.value === "gm") body.player = form.value.player;
 
@@ -177,15 +255,24 @@ function resetFormFromSheet() {
     equipment: sheet.value.equipment ?? "",
     gear: sheet.value.gear ?? "",
     weapon2: sheet.value.weapon2 ?? "",
+    tags: [...(sheet.value.tags ?? [])],
   };
+  tagsDraft.value = "";
+}
+
+function parseTagsDraft(text: string): string[] {
+  return text.split("\n").map((t) => t.trim()).filter(Boolean);
 }
 
 function startFieldEdit(field: EditableField) {
   if (!canEdit.value) return;
+  if (field === "tags") tagsDraft.value = form.value.tags.join("\n");
   editingField.value = field;
   nextTick(() => {
-    fieldInputEl.value?.focus();
-    if (fieldInputEl.value instanceof HTMLInputElement) fieldInputEl.value.select();
+    const el =
+      field === "name" ? nameInputEl.value : field === "tags" ? tagsInputEl.value : fieldInputEl.value;
+    el?.focus();
+    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) el.select();
   });
 }
 
@@ -196,12 +283,17 @@ function startGearFieldEdit(field: GearField) {
 
 async function commitFieldEdit() {
   if (!editingField.value) return;
+  if (editingField.value === "tags") {
+    form.value.tags = parseTagsDraft(tagsDraft.value);
+  }
   editingField.value = null;
+  tagsDraft.value = "";
   await saveSheet();
 }
 
 function cancelFieldEdit() {
   editingField.value = null;
+  tagsDraft.value = "";
   resetFormFromSheet();
 }
 
@@ -288,19 +380,8 @@ onUnmounted(() => {
     </svg>
 
     <div class="panel-header">
-      <h2 class="panel-title">{{ form.name || "Character sheet" }}</h2>
-      <button class="close-btn" type="button" title="Close" @click="closeRightPanel">×</button>
-    </div>
-
-    <p v-if="loading" class="muted">Loading…</p>
-    <p v-else-if="error && !sheet" class="error">{{ error }}</p>
-
-    <div v-else-if="sheet" class="panel-body">
-      <CombatStrip v-if="boardPlayer" :player-id="boardPlayer.id" />
-      <p v-if="error" class="error">{{ error }}</p>
-
-      <div class="layout">
-        <div class="portrait-column">
+      <div v-if="sheet" class="sheet-hero">
+        <div class="portrait-block">
           <div class="portrait-frame" :class="{ editable: canEdit }">
             <img v-if="portraitUrl" :src="portraitUrl" alt="Portrait" class="portrait" />
             <span v-else class="portrait-placeholder">No portrait</span>
@@ -315,19 +396,87 @@ onUnmounted(() => {
               <svg class="icon"><use href="#icon-pencil" /></svg>
             </label>
           </div>
+        </div>
+
+        <div class="sheet-summary">
+          <div class="sheet-title-row">
+            <input
+              v-if="editingField === 'name'"
+              ref="nameInputEl"
+              v-model="form.name"
+              class="panel-title-input"
+              type="text"
+              required
+              @blur="commitFieldEdit"
+              @keydown.enter.prevent="commitFieldEdit"
+              @keydown.esc.prevent="cancelFieldEdit"
+            />
+            <h2
+              v-else
+              class="panel-title"
+              :class="{ editable: canEdit }"
+              @click="canEdit && startFieldEdit('name')"
+            >
+              {{ form.name || "Character sheet" }}
+            </h2>
+            <button class="close-btn" type="button" title="Close" @click="closeRightPanel">×</button>
+          </div>
 
           <HpBar
-            class="portrait-hp-bar"
+            inline
+            class="sheet-hp-bar"
             :current-hp="currentHp"
             :max-hp="maxHp"
             :editable="canEdit && !!boardPlayer"
             @commit="commitHp"
           />
 
-          <p v-if="speed != null" class="speed-stat">Speed {{ speed }}</p>
+          <div class="field-row tags-row">
+            <template v-if="editingField !== 'tags'">
+              <span class="field-label">Tags:</span>
+              <div class="tags">
+                <span v-for="tag in form.tags" :key="tag" class="tag">{{ tag }}</span>
+                <span v-if="!form.tags.length" class="field-value">—</span>
+              </div>
+              <button
+                v-if="canEdit"
+                type="button"
+                class="edit-btn"
+                aria-label="Edit tags"
+                @click="startFieldEdit('tags')"
+              >
+                <svg class="icon"><use href="#icon-pencil" /></svg>
+              </button>
+            </template>
+            <template v-else>
+              <span class="field-label">Tags:</span>
+              <textarea
+                ref="tagsInputEl"
+                v-model="tagsDraft"
+                class="field-input tags-input"
+                rows="3"
+                placeholder="One tag per line"
+                @blur="commitFieldEdit"
+                @keydown.esc.prevent="cancelFieldEdit"
+              />
+            </template>
+          </div>
         </div>
+      </div>
+      <div v-else class="sheet-title-row">
+        <h2 class="panel-title">Character sheet</h2>
+        <button class="close-btn" type="button" title="Close" @click="closeRightPanel">×</button>
+      </div>
+    </div>
 
-        <div class="fields">
+    <p v-if="loading" class="muted">Loading…</p>
+    <p v-else-if="error && !sheet" class="error">{{ error }}</p>
+
+    <div v-else-if="sheet" class="panel-body">
+      <CharacterSheetCombat v-if="boardPlayer" :player-id="boardPlayer.id" />
+      <p v-if="error" class="error">{{ error }}</p>
+
+      <div class="fields">
           <div v-if="role === 'gm'" class="field-row">
             <template v-if="editingField !== 'player'">
               <span class="field-label">Player:</span>
@@ -357,35 +506,6 @@ onUnmounted(() => {
             </template>
           </div>
 
-          <div class="field-row">
-            <template v-if="editingField !== 'name'">
-              <span class="field-label">Name:</span>
-              <span class="field-value">{{ form.name || "—" }}</span>
-              <button
-                v-if="canEdit"
-                type="button"
-                class="edit-btn"
-                aria-label="Edit name"
-                @click="startFieldEdit('name')"
-              >
-                <svg class="icon"><use href="#icon-pencil" /></svg>
-              </button>
-            </template>
-            <template v-else>
-              <span class="field-label">Name:</span>
-              <input
-                ref="fieldInputEl"
-                v-model="form.name"
-                class="field-input"
-                type="text"
-                required
-                @blur="commitFieldEdit"
-                @keydown.enter.prevent="commitFieldEdit"
-                @keydown.esc.prevent="cancelFieldEdit"
-              />
-            </template>
-          </div>
-
           <SheetGearFieldRow
             label="Class"
             :value="form.class"
@@ -402,7 +522,22 @@ onUnmounted(() => {
             :item="selectedArmor"
             :can-edit="canEdit"
             @start-edit="startGearFieldEdit('armor')"
-          />
+          >
+            <template v-if="showSheetCombatActions && selectedArmor" #actions>
+              <SheetActionButton
+                :disabled="!canSupport || !armorStructured"
+                @click="toggleArmorAction"
+              >
+                Active ability
+                <template #tooltip>
+                  <AbilityBlock
+                    tier-label="Armor action"
+                    :content="selectedArmor.armorAction"
+                  />
+                </template>
+              </SheetActionButton>
+            </template>
+          </SheetGearFieldRow>
 
           <SheetGearFieldRow
             label="Weapon"
@@ -411,7 +546,32 @@ onUnmounted(() => {
             :item="selectedWeapon"
             :can-edit="canEdit"
             @start-edit="startGearFieldEdit('weapon')"
-          />
+          >
+            <template v-if="showSheetCombatActions && selectedWeapon" #actions>
+              <SheetActionButton
+                :active="weapon1AttackActive"
+                :disabled="!canMain || !weaponHasAttack(form.weapon)"
+                @click="toggleWeaponAttack(form.weapon)"
+              >
+                Attack
+                <template #tooltip>
+                  <p v-if="selectedWeapon.summary" class="tooltip-summary">
+                    {{ selectedWeapon.summary }}
+                  </p>
+                  <WeaponPatternDiagram
+                    v-if="selectedWeapon.attack"
+                    :attack="selectedWeapon.attack"
+                  />
+                </template>
+              </SheetActionButton>
+              <SheetActionButton :disabled="!canMain" @click="useWeaponAbility(form.weapon)">
+                Active ability
+                <template #tooltip>
+                  <AbilityBlock tier-label="Active" :content="selectedWeapon.activeAbility" />
+                </template>
+              </SheetActionButton>
+            </template>
+          </SheetGearFieldRow>
 
           <SheetGearFieldRow
             v-if="hasSecondWeaponSlot"
@@ -421,7 +581,32 @@ onUnmounted(() => {
             :item="selectedWeapon2"
             :can-edit="canEdit"
             @start-edit="startGearFieldEdit('weapon2')"
-          />
+          >
+            <template v-if="showSheetCombatActions && selectedWeapon2 && form.weapon2" #actions>
+              <SheetActionButton
+                :active="weapon2AttackActive"
+                :disabled="!canMain || !weaponHasAttack(form.weapon2)"
+                @click="toggleWeaponAttack(form.weapon2)"
+              >
+                Attack
+                <template #tooltip>
+                  <p v-if="selectedWeapon2.summary" class="tooltip-summary">
+                    {{ selectedWeapon2.summary }}
+                  </p>
+                  <WeaponPatternDiagram
+                    v-if="selectedWeapon2.attack"
+                    :attack="selectedWeapon2.attack"
+                  />
+                </template>
+              </SheetActionButton>
+              <SheetActionButton :disabled="!canMain" @click="useWeaponAbility(form.weapon2)">
+                Active ability
+                <template #tooltip>
+                  <AbilityBlock tier-label="Active" :content="selectedWeapon2.activeAbility" />
+                </template>
+              </SheetActionButton>
+            </template>
+          </SheetGearFieldRow>
 
           <SheetGearFieldRow
             v-if="hasEquipmentSlot"
@@ -431,7 +616,23 @@ onUnmounted(() => {
             :item="selectedEquipment"
             :can-edit="canEdit"
             @start-edit="startGearFieldEdit('equipment')"
-          />
+          >
+            <template v-if="showSheetCombatActions && selectedEquipment && form.equipment" #actions>
+              <SheetActionButton :disabled="!canUseEquipmentCharge" @click="useEquipmentItem">
+                Use
+                <template #tooltip>
+                  <RuleText :text="selectedEquipment.effect" />
+                </template>
+              </SheetActionButton>
+            </template>
+          </SheetGearFieldRow>
+
+          <p
+            v-if="hasEquipmentSlot && boardPlayer?.equipmentUses != null"
+            class="field-subline"
+          >
+            Equipment charges {{ boardPlayer.equipmentUses ? "●" : "○" }}
+          </p>
 
           <SheetGearFieldRow
             v-if="hasGearSlot"
@@ -441,8 +642,16 @@ onUnmounted(() => {
             :item="selectedGear"
             :can-edit="canEdit"
             @start-edit="startGearFieldEdit('gear')"
-          />
-        </div>
+          >
+            <template v-if="showSheetCombatActions && selectedGear && form.gear" #actions>
+              <SheetActionButton :disabled="!canSupport" @click="useGearItem">
+                Use
+                <template #tooltip>
+                  <RuleText :text="selectedGear.effect" />
+                </template>
+              </SheetActionButton>
+            </template>
+          </SheetGearFieldRow>
       </div>
     </div>
 
@@ -483,15 +692,72 @@ onUnmounted(() => {
 }
 
 .panel-header {
+  flex-shrink: 0;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sheet-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.sheet-summary {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding-top: 0.1rem;
+}
+
+.sheet-title-row {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.5rem;
-  margin-bottom: 1rem;
+}
+
+.portrait-block {
+  flex-shrink: 0;
+}
+
+.sheet-summary :deep(.sheet-hp-bar) {
+  margin-bottom: 0;
 }
 
 .panel-title {
   margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.panel-title.editable {
+  cursor: pointer;
+  border-bottom: 1px dashed transparent;
+}
+
+.panel-title.editable:hover {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent-muted);
+}
+
+.panel-title-input {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  border: 1px solid var(--color-accent);
+  border-radius: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-heading);
+  font-size: 1.5rem;
+  font-weight: 500;
+  letter-spacing: 0.04rem;
+  padding: 0.1rem 0.35rem;
 }
 
 .close-btn {
@@ -509,24 +775,12 @@ onUnmounted(() => {
   color: var(--color-text);
 }
 
-.layout {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.portrait-column {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
 .portrait-frame {
   position: relative;
-  width: 120px;
-  height: 120px;
+  width: 88px;
+  height: 88px;
   border: 1px solid var(--color-border);
-  border-radius: 10px;
+  border-radius: 8px;
   overflow: hidden;
   background: var(--color-surface);
   display: grid;
@@ -546,7 +800,9 @@ onUnmounted(() => {
 
 .portrait-placeholder {
   color: var(--color-muted);
-  font-size: 0.85rem;
+  font-size: 0.72rem;
+  text-align: center;
+  padding: 0 0.25rem;
 }
 
 .portrait-edit-btn {
@@ -582,21 +838,17 @@ onUnmounted(() => {
   fill: currentColor;
 }
 
-.portrait-hp-bar {
-  width: 120px;
-}
-
-.speed-stat {
-  margin: 0;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--color-muted);
-}
-
 .fields {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+
+.field-subline {
+  margin: -0.15rem 0 0 0.35rem;
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  font-weight: 600;
 }
 
 .field-row {
@@ -633,6 +885,32 @@ onUnmounted(() => {
   padding: 0.2rem 0.45rem;
   font: inherit;
   font-size: 0.9rem;
+}
+
+.tags-row {
+  align-items: flex-start;
+}
+
+.tags-row .tags {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.tag {
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  font-size: 0.72rem;
+}
+
+.tags-input {
+  resize: vertical;
+  min-height: 3.5rem;
+  line-height: 1.35;
 }
 
 .edit-btn {

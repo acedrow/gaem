@@ -8,6 +8,7 @@ const props = defineProps<{
   maxHp: number;
   editable?: boolean;
   compact?: boolean;
+  inline?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -48,34 +49,32 @@ function cancelEdit() {
 </script>
 
 <template>
-  <div class="hp-bar-block" :class="{ compact }">
-    <div v-if="!compact" class="hp-bar-header">
-      <span class="hp-bar-label">HP</span>
-      <span class="hp-bar-values">
-        <input
-          v-if="editing"
-          ref="inputEl"
-          v-model.number="draft"
-          class="hp-inline-input"
-          type="number"
-          min="0"
-          :max="maxHp"
-          @blur="commitEdit"
-          @keydown.enter.prevent="commitEdit"
-          @keydown.esc.prevent="cancelEdit"
-        />
-        <button
-          v-else-if="editable"
-          type="button"
-          class="hp-current hp-editable"
-          @click="startEdit"
-        >
-          {{ currentHp }}
-        </button>
-        <span v-else class="hp-current">{{ currentHp }}</span>
-        <span class="hp-max"> / {{ maxHp }}</span>
-      </span>
-    </div>
+  <div class="hp-bar-block" :class="{ compact, inline }">
+    <span v-if="!compact" class="hp-bar-label">HP</span>
+    <span v-if="!compact" class="hp-bar-values">
+      <input
+        v-if="editing"
+        ref="inputEl"
+        v-model.number="draft"
+        class="hp-inline-input"
+        type="number"
+        min="0"
+        :max="maxHp"
+        @blur="commitEdit"
+        @keydown.enter.prevent="commitEdit"
+        @keydown.esc.prevent="cancelEdit"
+      />
+      <button
+        v-else-if="editable"
+        type="button"
+        class="hp-current hp-editable"
+        @click="startEdit"
+      >
+        {{ currentHp }}
+      </button>
+      <span v-else class="hp-current">{{ currentHp }}</span>
+      <span class="hp-max"> / {{ maxHp }}</span>
+    </span>
     <div class="hp-bar-track">
       <div class="hp-bar-fill" :class="hpBarLevel" :style="{ width: `${hpPercent}%` }" />
     </div>

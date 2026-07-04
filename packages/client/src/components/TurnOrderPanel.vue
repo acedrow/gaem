@@ -11,11 +11,16 @@ const { gameState, send } = useGameState();
 
 const round = computed(() => gameState.value?.round ?? null);
 const enforceTurns = computed(() => gameState.value?.enforceTurns !== false);
+const enforceActionLimits = computed(() => gameState.value?.enforceActionLimits !== false);
 const canStepBack = computed(() => (gameState.value ? canRewindPhase(gameState.value) : false));
 const canReset = computed(() => (gameState.value ? canResetPhase(gameState.value) : false));
 
 function setEnforceTurns(value: boolean) {
   send({ type: "setEnforceTurns", enforceTurns: value });
+}
+
+function setEnforceActionLimits(value: boolean) {
+  send({ type: "setEnforceActionLimits", enforceActionLimits: value });
 }
 
 const roundGroups = computed(() => {
@@ -59,6 +64,19 @@ function sendGmAction(action: PhaseAction) {
             :class="{ on: enforceTurns }"
             :aria-checked="enforceTurns"
             @click="setEnforceTurns(!enforceTurns)"
+          >
+            <span class="toggle-thumb" />
+          </button>
+        </label>
+        <label class="enforce-turns">
+          <span class="enforce-label">Enforce action limits</span>
+          <button
+            type="button"
+            role="switch"
+            class="toggle"
+            :class="{ on: enforceActionLimits }"
+            :aria-checked="enforceActionLimits"
+            @click="setEnforceActionLimits(!enforceActionLimits)"
           >
             <span class="toggle-thumb" />
           </button>

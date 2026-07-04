@@ -68,6 +68,10 @@ function toggleDetail() {
       </p>
       <PlayerItemDetail :item="item" :kind="kind" />
     </div>
+
+    <div v-if="$slots.actions" class="field-actions">
+      <slot name="actions" />
+    </div>
   </div>
 </template>
 
@@ -163,5 +167,12 @@ function toggleDetail() {
   margin: 0 0 0.4rem;
   font-weight: 600;
   color: var(--color-text);
+}
+
+.field-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.15rem 0 0.35rem 0.35rem;
 }
 </style>

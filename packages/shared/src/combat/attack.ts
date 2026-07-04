@@ -41,14 +41,24 @@ export function getWeaponAttackSpec(weaponName: string | undefined): WeaponAttac
   return weapon.attack as WeaponAttackSpec;
 }
 
+export function resolveAttackWeapon(player: Player, weaponName?: string): string | null {
+  const primary = player.weapon;
+  if (!weaponName || weaponName === primary) return primary ?? null;
+  if (weaponName === player.weapon2) return weaponName;
+  return null;
+}
+
 export function playerAttackDirectionsAt(
   state: GameState,
   playerId: string,
   x: number,
   y: number,
+  weaponName?: string,
 ): PatternDirection[] {
   const player = state.players.find((p) => p.id === playerId);
-  const spec = getWeaponAttackSpec(player?.weapon);
+  if (!player) return [];
+  const weapon = resolveAttackWeapon(player, weaponName) ?? player.weapon;
+  const spec = getWeaponAttackSpec(weapon);
   if (!player || !spec) return [];
   const origin = { x: player.x, y: player.y };
   const dirs: PatternDirection[] = [];

@@ -420,7 +420,9 @@ wss.on("connection", (ws: WebSocket) => {
           return;
         }
         removeEnemy(gameState, parsed.enemyId);
-        broadcastConsole(actorForSocket(ws), `removed ${enemyLabel(enemy)}`);
+        if ((enemy.hp ?? 0) > 0) {
+          broadcastConsole(actorForSocket(ws), `removed ${enemyLabel(enemy)}`);
+        }
       } else {
         if (role !== "gm") {
           sendError(ws, "Only the game master can manage enemies");
@@ -522,6 +524,22 @@ wss.on("connection", (ws: WebSocket) => {
       broadcastConsole(
         actorForSocket(ws),
         parsed.enforceTurns ? "Enforce turns enabled" : "Enforce turns disabled",
+      );
+      broadcastState();
+      return;
+    }
+
+    if (parsed.type === "setEnforceActionLimits") {
+      if (socketRole.get(ws) !== "gm") {
+        sendError(ws, "Only the game master can do that");
+        return;
+      }
+      gameState.enforceActionLimits = parsed.enforceActionLimits;
+      broadcastConsole(
+        actorForSocket(ws),
+        parsed.enforceActionLimits
+          ? "Enforce action limits enabled"
+          : "Enforce action limits disabled",
       );
       broadcastState();
       return;

@@ -20,6 +20,7 @@ export function logSheetFieldChanges(
     equipment?: string;
     gear?: string;
     weapon2?: string;
+    tags?: string[];
   },
   next: {
     name: string;
@@ -29,6 +30,7 @@ export function logSheetFieldChanges(
     equipment?: string;
     gear?: string;
     weapon2?: string;
+    tags?: string[];
   },
   sheetOnBoard: boolean,
 ): void {
@@ -49,6 +51,9 @@ export function logSheetFieldChanges(
   }
   if (prev.weapon2 !== next.weapon2) {
     log(actor, `set ${label} weapon 2 to ${next.weapon2 || "none"}`);
+  }
+  if (JSON.stringify(prev.tags ?? []) !== JSON.stringify(next.tags ?? [])) {
+    log(actor, `set ${label} tags to ${next.tags?.length ? next.tags.join(", ") : "none"}`);
   }
   if (prev.class !== next.class && !sheetOnBoard) {
     log(actor, `set ${label} class to ${next.class}`);

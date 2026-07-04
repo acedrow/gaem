@@ -36,7 +36,6 @@ export function useEnemyDeathAnimations(
     setDying(next);
     const timer = setTimeout(() => {
       timers.delete(enemyId);
-      clearDeath(enemyId);
       onRemove(enemyId);
     }, DAMAGE_ANIMATION_DURATION_MS);
     timers.set(enemyId, timer);

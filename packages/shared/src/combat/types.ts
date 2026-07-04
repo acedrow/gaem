@@ -9,6 +9,8 @@ export type ActionBudget = {
   aux: boolean;
   movementRemaining: number;
   movementMax: number;
+  sprintRemaining?: number;
+  sprintMax?: number;
 };
 
 export type EffectStacks = Record<string, number>;
@@ -91,9 +93,11 @@ export type CombatState = {
 };
 
 export type PlayerAction =
-  | { action: "attack"; direction: PatternDirection; damageRoll?: number; targetEnemyId?: string }
+  | { action: "attack"; direction: PatternDirection; damageRoll?: number; targetEnemyId?: string; weaponName?: string }
   | { action: "shove"; targetEnemyId?: string; targetPlayerId?: string }
-  | { action: "sprint"; path: { x: number; y: number }[] }
+  | { action: "sprint" }
+  | { action: "sprintMove"; x: number; y: number }
+  | { action: "sprintCancel" }
   | { action: "weaponSwap" }
   | { action: "rez"; targetPlayerId: string }
   | { action: "armorAction"; targetEnemyId?: string; targetPlayerId?: string; landingX?: number; landingY?: number; push?: 1 | 2 | 3 }

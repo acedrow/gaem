@@ -13,6 +13,7 @@ export type BoardActionMode =
   | null;
 
 const mode = ref<BoardActionMode>(null);
+const attackWeapon = ref<string | null>(null);
 const attackDirection = ref<PatternDirection>("n");
 const attackAimed = ref(false);
 const movePath = ref<{ x: number; y: number }[]>([]);
@@ -24,13 +25,14 @@ const armorPush = ref<1 | 2 | 3>(1);
 export function useBoardActionMode() {
   const isActive = computed(() => mode.value !== null);
 
-  function setMode(next: BoardActionMode) {
+  function setMode(next: BoardActionMode, opts?: { attackWeapon?: string }) {
     mode.value = next;
     attackAimed.value = false;
     movePath.value = [];
     pendingTargetEnemyId.value = null;
     pendingTargetPlayerId.value = null;
     armorLanding.value = null;
+    attackWeapon.value = next === "attack" ? (opts?.attackWeapon ?? null) : null;
   }
 
   function clearMode() {
@@ -51,6 +53,7 @@ export function useBoardActionMode() {
 
   return {
     mode,
+    attackWeapon,
     attackDirection,
     attackAimed,
     movePath,
@@ -70,6 +73,7 @@ export function useBoardActionMode() {
 export function buildPlayerActionFromMode(
   m: BoardActionMode,
   opts: {
+    attackWeapon: string | null;
     direction: PatternDirection;
     path: { x: number; y: number }[];
     targetEnemyId: string | null;
@@ -81,14 +85,19 @@ export function buildPlayerActionFromMode(
   switch (m) {
     case "attack":
       return opts.targetEnemyId
-        ? { action: "attack", direction: opts.direction, targetEnemyId: opts.targetEnemyId }
-        : { action: "attack", direction: opts.direction };
+        ? {
+            action: "attack",
+            direction: opts.direction,
+            targetEnemyId: opts.targetEnemyId,
+            weaponName: opts.attackWeapon ?? undefined,
+          }
+        : { action: "attack", direction: opts.direction, weaponName: opts.attackWeapon ?? undefined };
     case "shove":
       if (opts.targetEnemyId) return { action: "shove", targetEnemyId: opts.targetEnemyId };
       if (opts.targetPlayerId) return { action: "shove", targetPlayerId: opts.targetPlayerId };
       return null;
     case "sprint":
-      return opts.path.length ? { action: "sprint", path: opts.path } : null;
+      return opts.path.length ? { action: "sprintMove", x: opts.path[0]!.x, y: opts.path[0]!.y } : null;
     case "armorTeleport":
       if (!opts.targetEnemyId || !opts.landing) return null;
       return {
