@@ -52,13 +52,15 @@ import {
   parseEnemyAttackString,
   resolveAttackDamage,
   resolveAttackWeapon,
+  resolveCombatAttackSpec,
+  resolveRangeAttackTargetIds,
 } from "./attack.js";
 import { applyEffectStacks, clearEffectStacks, parseEffectToken, tickUnitEndOfTurn } from "./effects.js";
 import { isKnownEffectId } from "../effects-data.js";
 import { createPendingAction, addPendingAction, applyAssistedOutcome } from "./pending.js";
 import { markEnemyExhausted, setActiveEnemy } from "./enemy.js";
 import { enemyLabel, playerLabel } from "../console.js";
-import { isRangeTargetAttack, rangeTargetDistance } from "../weapon-patterns.js";
+import { isRangeTargetAttack, rangeTargetDistance, rangeTargetMax } from "../weapon-patterns.js";
 
 export type CombatMessageContext = {
   role: GaemRole;
@@ -138,14 +140,18 @@ export function validatePlayerAction(
       if (blocked) return blocked;
       const weapon = resolveAttackWeapon(player, action.weaponName);
       if (!weapon) return "Invalid weapon";
-      const spec = getWeaponAttackSpec(weapon);
-      if (!spec) return "Weapon has no attack profile";
+      const spec = resolveCombatAttackSpec(player, weapon);
       if (!spec) return "Weapon has no attack profile";
       if (isRangeTargetAttack(spec)) {
-        if (!action.targetEnemyId) return "Select target";
-        const enemy = state.enemies.find((e) => e.id === action.targetEnemyId);
-        if (!enemy) return "Unknown target";
-        if (manhattanDistance(player, enemy) > rangeTargetDistance(spec)) return "Target out of range";
+        const targetIds = resolveRangeAttackTargetIds(action);
+        if (!targetIds.length) return "Select target";
+        const maxTargets = rangeTargetMax(spec);
+        if (targetIds.length > maxTargets) return `Too many targets (max ${maxTargets})`;
+        for (const targetId of targetIds) {
+          const enemy = state.enemies.find((e) => e.id === targetId);
+          if (!enemy) return "Unknown target";
+          if (manhattanDistance(player, enemy) > rangeTargetDistance(spec)) return "Target out of range";
+        }
       }
       return null;
     }
@@ -174,6 +180,7 @@ export function validatePlayerAction(
     case "weaponSwap": {
       const blocked = actionTierBlocked(player, "aux", state);
       if (blocked) return blocked;
+      if (!player.weapon2) return "No carried weapon";
       return null;
     }
     case "rez": {
@@ -260,20 +267,31 @@ export function applyPlayerAction(
       maybeSpendActionTier(state, player.actionBudget, "main");
       const weapon = resolveAttackWeapon(player, action.weaponName);
       if (!weapon) return "Invalid weapon";
-      const spec = getWeaponAttackSpec(weapon);
+      const spec = resolveCombatAttackSpec(player, weapon);
       if (!spec) return "Weapon has no attack profile";
       let result;
-      if (isRangeTargetAttack(spec) && action.targetEnemyId) {
-        const enemy = state.enemies.find((e) => e.id === action.targetEnemyId)!;
-        const { total, detail } = resolveAttackDamage(spec, action.damageRoll);
-        applyDamageToEnemy(enemy, total, state);
-        applyEffectStacks(enemy, spec.effects ?? []);
-        result = {
-          damage: total,
-          detail,
-          targets: [{ enemyId: enemy.id, x: enemy.x, y: enemy.y }],
-          effects: spec.effects ?? [],
-        };
+      if (isRangeTargetAttack(spec)) {
+        const targetIds = resolveRangeAttackTargetIds(action);
+        if (targetIds.length) {
+          const { total, detail } = resolveAttackDamage(spec, action.damageRoll);
+          const effects = spec.effects ?? [];
+          const targets: { enemyId: string; x: number; y: number }[] = [];
+          for (const targetId of targetIds) {
+            const enemy = state.enemies.find((e) => e.id === targetId)!;
+            applyDamageToEnemy(enemy, total, state);
+            applyEffectStacks(enemy, effects);
+            targets.push({ enemyId: enemy.id, x: enemy.x, y: enemy.y });
+          }
+          result = { damage: total, detail, targets, effects };
+        } else {
+          result = applyAttackToEnemies(
+            state,
+            spec,
+            { x: player.x, y: player.y },
+            action.direction,
+            action.damageRoll,
+          );
+        }
       } else {
         result = applyAttackToEnemies(
           state,
@@ -338,7 +356,10 @@ export function applyPlayerAction(
     }
     case "weaponSwap": {
       maybeSpendActionTier(state, player.actionBudget, "aux");
-      return `${playerLabel(player)} swapped weapon (assisted loadout)`;
+      const primary = player.weapon;
+      player.weapon = player.weapon2!;
+      player.weapon2 = primary;
+      return `${playerLabel(player)} swapped to ${player.weapon}`;
     }
     case "rez": {
       maybeSpendActionTier(state, player.actionBudget, "main");
@@ -393,7 +414,7 @@ export function applyPlayerAction(
         state,
         createPendingAction("weaponActive", `${weapon?.name ?? "Weapon"} active`, {
           actorPlayerId: playerId,
-          detail: action.detail,
+          detail: weapon?.name ?? action.detail,
           targetEnemyIds: action.targetEnemyIds,
           targetPlayerIds: action.targetPlayerIds,
           direction: action.direction,
@@ -679,7 +700,7 @@ export function previewPlayerAttack(
 ): { x: number; y: number }[] {
   const player = state.players.find((p) => p.id === playerId);
   const weapon = player ? resolveAttackWeapon(player, weaponName) ?? player.weapon : undefined;
-  const spec = getWeaponAttackSpec(weapon);
+  const spec = player ? resolveCombatAttackSpec(player, weapon) : getWeaponAttackSpec(weapon);
   if (!player || !spec) return [];
   return collectAttackTiles(state, { x: player.x, y: player.y }, spec, direction);
 }

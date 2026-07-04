@@ -1,7 +1,7 @@
 import type { GameState } from "@gaem/shared";
 import { getEnemyMaxHp } from "@gaem/shared";
 import type { Ref } from "vue";
-import { onUnmounted, ref, watch } from "vue";
+import { onUnmounted, readonly, ref, watch } from "vue";
 
 import { DAMAGE_ANIMATION_DURATION_MS } from "../lib/damageAnimationTiming.js";
 
@@ -36,6 +36,7 @@ export function useEnemyDeathAnimations(
     setDying(next);
     const timer = setTimeout(() => {
       timers.delete(enemyId);
+      clearDeath(enemyId);
       onRemove(enemyId);
     }, DAMAGE_ANIMATION_DURATION_MS);
     timers.set(enemyId, timer);
@@ -45,32 +46,44 @@ export function useEnemyDeathAnimations(
     return dyingEnemyIds.value.has(enemyId);
   }
 
-  watch(gameState, (state) => {
-    if (!state) {
-      prevHp = null;
-      return;
-    }
+  watch(
+    () => gameState.value,
+    (state) => {
+      if (!state) {
+        prevHp = null;
+        return;
+      }
 
-    const nextHp = new Map<string, number>();
-    for (const enemy of state.enemies) {
-      nextHp.set(enemy.id, enemy.hp ?? getEnemyMaxHp(enemy));
-    }
+      const nextHp = new Map<string, number>();
+      for (const enemy of state.enemies) {
+        nextHp.set(enemy.id, enemy.hp ?? getEnemyMaxHp(enemy));
+      }
 
-    if (prevHp) {
-      for (const [enemyId, hp] of nextHp) {
-        const before = prevHp.get(enemyId);
-        if (before !== undefined && before > 0 && hp <= 0) {
-          startDeath(enemyId);
+      if (prevHp) {
+        for (const [enemyId, hp] of nextHp) {
+          const before = prevHp.get(enemyId);
+          if (before !== undefined && before > 0 && hp <= 0) {
+            startDeath(enemyId);
+          }
         }
       }
-    }
 
-    for (const enemyId of dyingEnemyIds.value) {
-      if (!nextHp.has(enemyId)) clearDeath(enemyId);
-    }
+      if (state.damageEvents?.length) {
+        for (const enemy of state.enemies) {
+          const hp = enemy.hp ?? getEnemyMaxHp(enemy);
+          if (hp > 0 || dyingEnemyIds.value.has(enemy.id)) continue;
+          const before = prevHp?.get(enemy.id);
+          if (before === undefined || before > 0) startDeath(enemy.id);
+        }
+      }
 
-    prevHp = nextHp;
-  });
+      for (const enemyId of dyingEnemyIds.value) {
+        if (!nextHp.has(enemyId)) clearDeath(enemyId);
+      }
+
+      prevHp = nextHp;
+    },
+  );
 
   onUnmounted(() => {
     for (const timer of timers.values()) clearTimeout(timer);
@@ -79,5 +92,5 @@ export function useEnemyDeathAnimations(
     prevHp = null;
   });
 
-  return { isEnemyDying };
+  return { isEnemyDying, dyingEnemyIds: readonly(dyingEnemyIds) };
 }

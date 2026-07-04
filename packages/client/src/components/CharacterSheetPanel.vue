@@ -7,6 +7,9 @@ import {
   getGearByName,
   getWeaponByName,
   getClassMaxHp,
+  isRangeTargetAttack,
+  resolveCombatAttackSpec,
+  rangeTargetMax,
 } from "@gaem/shared";
 import { computed, nextTick, onUnmounted, ref, watch } from "vue";
 
@@ -80,11 +83,12 @@ const {
   showPlayerActionBar,
   canMain,
   canSupport,
+  canAux,
   armorStructured,
   sendPlayerAction,
 } = useCombatActions(() => boardPlayerId.value);
 
-const { mode, attackWeapon, setMode, clearMode } = useBoardActionMode();
+const { mode, rangeAttackTargetIds, setMode, clearMode } = useBoardActionMode();
 
 const showSheetCombatActions = computed(
   () => !!boardPlayer.value && showPlayerActionBar.value,
@@ -110,28 +114,35 @@ function toggleArmorAction() {
   }
 }
 
-function toggleWeaponAttack(weaponName: string) {
-  if (mode.value === "attack" && attackWeapon.value === weaponName) clearMode();
-  else setMode("attack", { attackWeapon: weaponName });
+function toggleWeaponAttack() {
+  if (mode.value === "attack") clearMode();
+  else setMode("attack");
 }
 
-const selectedAttackWeapon = computed(
-  () => attackWeapon.value ?? boardPlayer.value?.weapon ?? null,
-);
-
-const weapon1AttackActive = computed(() => {
-  const name = boardPlayer.value?.weapon ?? form.value.weapon;
-  return mode.value === "attack" && !!name && selectedAttackWeapon.value === name;
-});
-
-const weapon2AttackActive = computed(() => {
-  const name = boardPlayer.value?.weapon2 ?? form.value.weapon2;
-  return mode.value === "attack" && !!name && selectedAttackWeapon.value === name;
-});
-
-function useWeaponAbility(weaponName: string) {
-  sendPlayerAction({ action: "weaponActive", detail: weaponName });
+function swapWeapon() {
+  clearMode();
+  sendPlayerAction({ action: "weaponSwap" });
 }
+
+function useWeaponAbility() {
+  const weaponName = equippedWeaponName.value;
+  if (!weaponName) return;
+  sendPlayerAction({ action: "weaponActive" });
+}
+
+const equippedWeaponName = computed(() => boardPlayer.value?.weapon ?? form.value.weapon);
+const carriedWeaponName = computed(() => boardPlayer.value?.weapon2 ?? form.value.weapon2);
+const canSwapWeapon = computed(() => !!carriedWeaponName.value);
+
+const rangeAttackHint = computed(() => {
+  if (mode.value !== "attack" || !boardPlayer.value) return null;
+  const spec = resolveCombatAttackSpec(boardPlayer.value, equippedWeaponName.value);
+  if (!spec || !isRangeTargetAttack(spec)) return null;
+  const max = rangeTargetMax(spec);
+  const count = rangeAttackTargetIds.value.length;
+  if (max <= 1) return "Click an enemy in range to attack";
+  return `Select up to ${max} enemies (${count}/${max}). Click to toggle, empty tile to confirm.`;
+});
 
 function useEquipmentItem() {
   sendPlayerAction({ action: "useEquipment", detail: form.value.equipment });
@@ -146,10 +157,10 @@ const currentHp = computed(() => boardPlayer.value?.hp ?? 0);
 
 const selectedClass = computed(() => getClassByName(form.value.class));
 const selectedArmor = computed(() => getArmorByName(form.value.armor));
-const selectedWeapon = computed(() => getWeaponByName(form.value.weapon));
+const selectedWeapon = computed(() => getWeaponByName(equippedWeaponName.value));
 const selectedEquipment = computed(() => getEquipmentByName(form.value.equipment));
 const selectedGear = computed(() => getGearByName(form.value.gear));
-const selectedWeapon2 = computed(() => getWeaponByName(form.value.weapon2));
+const selectedWeapon2 = computed(() => getWeaponByName(carriedWeaponName.value));
 const selectedProfileName = computed(
   () => profiles.value.find((p) => p.id === form.value.player)?.name ?? form.value.player
 );
@@ -166,6 +177,27 @@ async function loadPortrait() {
   }
   if (!sheet.value?.portraitKey) return;
   portraitUrl.value = await fetchPortraitUrl(props.sheetId);
+}
+
+function syncBoardLoadoutIfNeeded() {
+  const bp = boardPlayer.value;
+  if (!bp) return;
+  const outOfSync =
+    bp.class !== form.value.class ||
+    bp.armor !== form.value.armor ||
+    (bp.equipment ?? "") !== form.value.equipment ||
+    (bp.gear ?? "") !== form.value.gear;
+  if (!outOfSync) return;
+  send({
+    type: "syncPlayerSheet",
+    characterSheetId: props.sheetId,
+    class: form.value.class,
+    armor: form.value.armor,
+    weapon: form.value.weapon,
+    equipment: form.value.equipment,
+    gear: form.value.gear,
+    weapon2: form.value.weapon2,
+  });
 }
 
 async function loadSheet() {
@@ -188,6 +220,7 @@ async function loadSheet() {
       tags: [...(data.sheet.tags ?? [])],
     };
     await loadPortrait();
+    syncBoardLoadoutIfNeeded();
   } catch {
     error.value = "Unable to load character sheet";
     sheet.value = null;
@@ -540,8 +573,8 @@ onUnmounted(() => {
           </SheetGearFieldRow>
 
           <SheetGearFieldRow
-            label="Weapon"
-            :value="form.weapon"
+            label="Equipped weapon"
+            :value="equippedWeaponName"
             kind="weapons"
             :item="selectedWeapon"
             :can-edit="canEdit"
@@ -549,9 +582,9 @@ onUnmounted(() => {
           >
             <template v-if="showSheetCombatActions && selectedWeapon" #actions>
               <SheetActionButton
-                :active="weapon1AttackActive"
-                :disabled="!canMain || !weaponHasAttack(form.weapon)"
-                @click="toggleWeaponAttack(form.weapon)"
+                :active="mode === 'attack'"
+                :disabled="!canMain || !weaponHasAttack(equippedWeaponName)"
+                @click="toggleWeaponAttack"
               >
                 Attack
                 <template #tooltip>
@@ -564,49 +597,37 @@ onUnmounted(() => {
                   />
                 </template>
               </SheetActionButton>
-              <SheetActionButton :disabled="!canMain" @click="useWeaponAbility(form.weapon)">
+              <SheetActionButton :disabled="!canMain" @click="useWeaponAbility">
                 Active ability
                 <template #tooltip>
                   <AbilityBlock tier-label="Active" :content="selectedWeapon.activeAbility" />
                 </template>
               </SheetActionButton>
+              <SheetActionButton
+                :disabled="!canAux || !canSwapWeapon"
+                @click="swapWeapon"
+              >
+                Swap
+                <template #tooltip>
+                  <AbilityBlock
+                    tier-label="Aux action"
+                    content="Swap weapon — Switch your equipped and carried weapons."
+                  />
+                </template>
+              </SheetActionButton>
             </template>
+            <p v-if="rangeAttackHint" class="range-attack-hint">{{ rangeAttackHint }}</p>
           </SheetGearFieldRow>
 
           <SheetGearFieldRow
             v-if="hasSecondWeaponSlot"
-            label="Weapon 2"
-            :value="form.weapon2"
+            label="Carried weapon"
+            :value="carriedWeaponName"
             kind="weapons"
             :item="selectedWeapon2"
             :can-edit="canEdit"
             @start-edit="startGearFieldEdit('weapon2')"
-          >
-            <template v-if="showSheetCombatActions && selectedWeapon2 && form.weapon2" #actions>
-              <SheetActionButton
-                :active="weapon2AttackActive"
-                :disabled="!canMain || !weaponHasAttack(form.weapon2)"
-                @click="toggleWeaponAttack(form.weapon2)"
-              >
-                Attack
-                <template #tooltip>
-                  <p v-if="selectedWeapon2.summary" class="tooltip-summary">
-                    {{ selectedWeapon2.summary }}
-                  </p>
-                  <WeaponPatternDiagram
-                    v-if="selectedWeapon2.attack"
-                    :attack="selectedWeapon2.attack"
-                  />
-                </template>
-              </SheetActionButton>
-              <SheetActionButton :disabled="!canMain" @click="useWeaponAbility(form.weapon2)">
-                Active ability
-                <template #tooltip>
-                  <AbilityBlock tier-label="Active" :content="selectedWeapon2.activeAbility" />
-                </template>
-              </SheetActionButton>
-            </template>
-          </SheetGearFieldRow>
+          />
 
           <SheetGearFieldRow
             v-if="hasEquipmentSlot"
@@ -969,5 +990,12 @@ onUnmounted(() => {
 
 .error {
   color: var(--color-danger);
+}
+
+.range-attack-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  color: var(--color-muted);
+  line-height: 1.35;
 }
 </style>

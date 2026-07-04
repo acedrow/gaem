@@ -221,6 +221,9 @@ export class GameRoom {
         characterSheetId: sheetJoin.characterSheetId,
         armor: sheetJoin.armor,
         weapon: sheetJoin.weapon,
+        equipment: sheetJoin.equipment,
+        gear: sheetJoin.gear,
+        weapon2: sheetJoin.weapon2,
       });
       if ("error" in resolved) {
         this.sendError(ws, "Board full");

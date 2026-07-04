@@ -41,7 +41,7 @@ export function logSheetFieldChanges(
     log(actor, `set ${label} armor to ${next.armor}`);
   }
   if (prev.weapon !== next.weapon) {
-    log(actor, `set ${label} weapon to ${next.weapon}`);
+    log(actor, `set ${label} equipped weapon to ${next.weapon}`);
   }
   if (prev.equipment !== next.equipment) {
     log(actor, `set ${label} equipment to ${next.equipment || "none"}`);
@@ -50,7 +50,7 @@ export function logSheetFieldChanges(
     log(actor, `set ${label} gear to ${next.gear || "none"}`);
   }
   if (prev.weapon2 !== next.weapon2) {
-    log(actor, `set ${label} weapon 2 to ${next.weapon2 || "none"}`);
+    log(actor, `set ${label} carried weapon to ${next.weapon2 || "none"}`);
   }
   if (JSON.stringify(prev.tags ?? []) !== JSON.stringify(next.tags ?? [])) {
     log(actor, `set ${label} tags to ${next.tags?.length ? next.tags.join(", ") : "none"}`);

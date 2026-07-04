@@ -16,7 +16,6 @@ import {
   getEnemyScale,
   getEnemyScaleByName,
   getPlayerMaxHp,
-  getWeaponAttackSpec,
   isPlayerDowned,
   isRangeTargetAttack,
   isWalkable,
@@ -27,7 +26,9 @@ import {
   PATTERN_DIRECTIONS,
   rangeAttackTileKeys,
   rangeTargetDistance,
+  rangeTargetMax,
   recoilTilesInBounds,
+  resolveCombatAttackSpec,
   tileAt,
   validateEnemyFootprint,
 } from "@gaem/shared";
@@ -103,9 +104,9 @@ const {
 
 const {
   mode: boardActionMode,
-  attackWeapon,
   attackDirection,
   attackAimed,
+  rangeAttackTargetIds,
   pendingTargetEnemyId,
   pendingTargetPlayerId,
   armorLanding,
@@ -190,11 +191,10 @@ const { send, connect, disconnect: disconnectSocket } = useGameSocket({
 });
 
 function finalizeDefeatedEnemy(enemyId: string) {
-  if (props.role !== "gm") return;
   send({ type: "removeEnemy", enemyId });
 }
 
-const { isEnemyDying } = useEnemyDeathAnimations(gameState, finalizeDefeatedEnemy);
+const { isEnemyDying, dyingEnemyIds } = useEnemyDeathAnimations(gameState, finalizeDefeatedEnemy);
 
 const gridStyle = computed(() => {
   const s = gameState.value;
@@ -275,45 +275,49 @@ const patternPrimaryKeys = computed(() => {
   );
 });
 
-const attackPreviewByDirection = computed(() => {
-  const s = gameState.value;
+const attackContext = computed(() => {
   const me = yourPlayer.value;
-  if (boardActionMode.value !== "attack" || !s || !me) {
+  if (boardActionMode.value !== "attack" || !me?.weapon) return null;
+  const spec = resolveCombatAttackSpec(me, me.weapon);
+  if (!spec) return null;
+  return { me, weapon: me.weapon, spec };
+});
+
+const attackPreviewByDirection = computed(() => {
+  const ctx = attackContext.value;
+  const s = gameState.value;
+  if (!ctx || !s) {
     return new Map<PatternDirection, Set<string>>();
   }
-  const weaponName = attackWeapon.value ?? me.weapon;
-  const spec = getWeaponAttackSpec(weaponName);
-  if (!spec || isRangeTargetAttack(spec)) {
+  if (isRangeTargetAttack(ctx.spec)) {
     return new Map<PatternDirection, Set<string>>();
   }
   const map = new Map<PatternDirection, Set<string>>();
   for (const direction of PATTERN_DIRECTIONS) {
-    map.set(direction, coordsToKeySet(previewPlayerAttack(s, me.id, direction, weaponName)));
+    map.set(direction, coordsToKeySet(previewPlayerAttack(s, ctx.me.id, direction, ctx.weapon)));
   }
   return map;
 });
 
 const combatAttackPrimaryKeys = computed(() => {
   if (boardActionMode.value !== "attack" || !attackAimed.value) return new Set<string>();
-  const weaponName = attackWeapon.value ?? yourPlayer.value?.weapon;
-  const spec = getWeaponAttackSpec(weaponName);
-  if (spec && isRangeTargetAttack(spec)) return new Set<string>();
+  const ctx = attackContext.value;
+  if (ctx && isRangeTargetAttack(ctx.spec)) return new Set<string>();
   return attackPreviewByDirection.value.get(attackDirection.value) ?? new Set<string>();
 });
 
 const combatAttackSecondaryKeys = computed(() => {
-  if (boardActionMode.value !== "attack" || !gameState.value || !yourPlayer.value) {
+  const ctx = attackContext.value;
+  const s = gameState.value;
+  if (!ctx || !s) {
     return new Set<string>();
   }
-  const weaponName = attackWeapon.value ?? yourPlayer.value.weapon;
-  const spec = getWeaponAttackSpec(weaponName);
-  if (!spec) return new Set<string>();
 
-  if (isRangeTargetAttack(spec)) {
+  if (isRangeTargetAttack(ctx.spec)) {
     return rangeAttackTileKeys(
-      gameState.value,
-      yourPlayer.value,
-      rangeTargetDistance(spec),
+      s,
+      ctx.me,
+      rangeTargetDistance(ctx.spec),
     );
   }
 
@@ -321,6 +325,17 @@ const combatAttackSecondaryKeys = computed(() => {
   for (const [direction, tileKeys] of attackPreviewByDirection.value) {
     if (attackAimed.value && direction === attackDirection.value) continue;
     for (const key of tileKeys) keys.add(key);
+  }
+  return keys;
+});
+
+const combatAttackSelectedKeys = computed(() => {
+  const s = gameState.value;
+  if (!s || rangeAttackTargetIds.value.length === 0) return new Set<string>();
+  const keys = new Set<string>();
+  for (const id of rangeAttackTargetIds.value) {
+    const enemy = s.enemies.find((e) => e.id === id);
+    if (enemy) keys.add(coordKey(enemy.x, enemy.y));
   }
   return keys;
 });
@@ -520,7 +535,8 @@ const cellStateByKey = computed(() => {
       gmSpawnable: props.role === "gm" && gmSpawnableKeys.value.has(c.key),
       patternPrimary:
         patternPrimaryKeys.value.has(coordKey(c.x, c.y)) ||
-        combatAttackPrimaryKeys.value.has(coordKey(c.x, c.y)),
+        combatAttackPrimaryKeys.value.has(coordKey(c.x, c.y)) ||
+        combatAttackSelectedKeys.value.has(coordKey(c.x, c.y)),
       patternSecondary:
         patternSecondaryKeys.value.has(coordKey(c.x, c.y)) ||
         combatAttackSecondaryKeys.value.has(coordKey(c.x, c.y)),
@@ -758,33 +774,51 @@ function onDeployPointerUp(e: PointerEvent) {
 function handleAttackCellClick(x: number, y: number, targetEnemyId?: string): boolean {
   const me = yourPlayer.value;
   const s = gameState.value;
-  if (!me || !s) return false;
-  const weaponName = attackWeapon.value ?? me.weapon;
-  const spec = getWeaponAttackSpec(weaponName);
-  if (!spec) return false;
+  const ctx = attackContext.value;
+  if (!me || !s || !ctx) return false;
 
   const key = coordKey(x, y);
   const attackAction = {
     action: "attack" as const,
     direction: attackDirection.value,
-    weaponName: attackWeapon.value ?? undefined,
   };
 
-  if (isRangeTargetAttack(spec)) {
+  if (isRangeTargetAttack(ctx.spec)) {
     if (!combatAttackSecondaryKeys.value.has(key)) return false;
-    if (!targetEnemyId) return true;
-    const enemy = s.enemies.find((e) => e.id === targetEnemyId);
-    if (!enemy) return false;
-    if (manhattanDistance(me, enemy) > rangeTargetDistance(spec)) return false;
+
+    if (targetEnemyId) {
+      const enemy = s.enemies.find((e) => e.id === targetEnemyId);
+      if (!enemy) return false;
+      if (manhattanDistance(me, enemy) > rangeTargetDistance(ctx.spec)) return false;
+
+      const maxTargets = rangeTargetMax(ctx.spec);
+      const selected = rangeAttackTargetIds.value;
+      if (selected.includes(targetEnemyId)) {
+        rangeAttackTargetIds.value = selected.filter((id) => id !== targetEnemyId);
+      } else if (selected.length < maxTargets) {
+        const next = [...selected, targetEnemyId];
+        rangeAttackTargetIds.value = next;
+        if (next.length >= maxTargets) {
+          sendPlayerAction({
+            ...attackAction,
+            targetEnemyIds: next,
+          });
+          clearBoardActionMode();
+        }
+      }
+      return true;
+    }
+
+    if (rangeAttackTargetIds.value.length === 0) return true;
     sendPlayerAction({
       ...attackAction,
-      targetEnemyId,
+      targetEnemyIds: [...rangeAttackTargetIds.value],
     });
     clearBoardActionMode();
     return true;
   }
 
-  const dirs = playerAttackDirectionsAt(s, me.id, x, y, weaponName);
+  const dirs = playerAttackDirectionsAt(s, me.id, x, y, ctx.weapon);
   if (dirs.length === 0) return false;
 
   if (attackAimed.value && combatAttackPrimaryKeys.value.has(key)) {
@@ -1203,6 +1237,7 @@ onUnmounted(() => {
                   selectedEnemyId === cellStateByKey.get(c.key)?.enemyAnchor?.id,
                   cellStateByKey.get(c.key)?.player?.hp,
                   cellStateByKey.get(c.key)?.enemyAnchor?.hp,
+                  dyingEnemyIds.size,
                   !!cellStateByKey.get(c.key)?.enemyAnchor &&
                     isEnemyDying(cellStateByKey.get(c.key)!.enemyAnchor!.id),
                   showHealthBars,

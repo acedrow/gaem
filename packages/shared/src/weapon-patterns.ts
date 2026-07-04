@@ -139,3 +139,7 @@ export function isRangeTargetAttack(spec: WeaponAttackSpec): boolean {
 export function rangeTargetDistance(spec: WeaponAttackSpec): number {
   return spec.rangeTargets?.range ?? spec.range ?? 1;
 }
+
+export function rangeTargetMax(spec: WeaponAttackSpec): number {
+  return spec.rangeTargets?.maxTargets ?? 1;
+}

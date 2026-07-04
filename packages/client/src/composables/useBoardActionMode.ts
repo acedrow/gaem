@@ -13,9 +13,9 @@ export type BoardActionMode =
   | null;
 
 const mode = ref<BoardActionMode>(null);
-const attackWeapon = ref<string | null>(null);
 const attackDirection = ref<PatternDirection>("n");
 const attackAimed = ref(false);
+const rangeAttackTargetIds = ref<string[]>([]);
 const movePath = ref<{ x: number; y: number }[]>([]);
 const pendingTargetEnemyId = ref<string | null>(null);
 const pendingTargetPlayerId = ref<string | null>(null);
@@ -25,14 +25,14 @@ const armorPush = ref<1 | 2 | 3>(1);
 export function useBoardActionMode() {
   const isActive = computed(() => mode.value !== null);
 
-  function setMode(next: BoardActionMode, opts?: { attackWeapon?: string }) {
+  function setMode(next: BoardActionMode) {
     mode.value = next;
     attackAimed.value = false;
+    rangeAttackTargetIds.value = [];
     movePath.value = [];
     pendingTargetEnemyId.value = null;
     pendingTargetPlayerId.value = null;
     armorLanding.value = null;
-    attackWeapon.value = next === "attack" ? (opts?.attackWeapon ?? null) : null;
   }
 
   function clearMode() {
@@ -53,9 +53,9 @@ export function useBoardActionMode() {
 
   return {
     mode,
-    attackWeapon,
     attackDirection,
     attackAimed,
+    rangeAttackTargetIds,
     movePath,
     pendingTargetEnemyId,
     pendingTargetPlayerId,
@@ -73,10 +73,10 @@ export function useBoardActionMode() {
 export function buildPlayerActionFromMode(
   m: BoardActionMode,
   opts: {
-    attackWeapon: string | null;
     direction: PatternDirection;
     path: { x: number; y: number }[];
     targetEnemyId: string | null;
+    targetEnemyIds?: string[];
     targetPlayerId: string | null;
     landing: { x: number; y: number } | null;
     push: 1 | 2 | 3;
@@ -89,9 +89,14 @@ export function buildPlayerActionFromMode(
             action: "attack",
             direction: opts.direction,
             targetEnemyId: opts.targetEnemyId,
-            weaponName: opts.attackWeapon ?? undefined,
           }
-        : { action: "attack", direction: opts.direction, weaponName: opts.attackWeapon ?? undefined };
+        : opts.targetEnemyIds?.length
+          ? {
+              action: "attack",
+              direction: opts.direction,
+              targetEnemyIds: opts.targetEnemyIds,
+            }
+          : { action: "attack", direction: opts.direction };
     case "shove":
       if (opts.targetEnemyId) return { action: "shove", targetEnemyId: opts.targetEnemyId };
       if (opts.targetPlayerId) return { action: "shove", targetPlayerId: opts.targetPlayerId };

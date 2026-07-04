@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
+import {
+  isRangeTargetAttack,
+  resolveCombatAttackSpec,
+  rangeTargetMax,
+} from "@gaem/shared";
+
 import { useBoardActionMode } from "../composables/useBoardActionMode.js";
 import { useCombatActions } from "../composables/useCombatActions.js";
 import ActionBudgetChips from "./ActionBudgetChips.vue";
@@ -18,11 +24,27 @@ const {
   sendPlayerAction,
 } = useCombatActions();
 
-const { mode, setMode, clearMode } = useBoardActionMode();
+const { mode, rangeAttackTargetIds, setMode, clearMode } = useBoardActionMode();
 
 const speedLabel = computed(() => {
   if (!budget.value) return "—";
   return `${budget.value.movementRemaining}/${budget.value.movementMax}`;
+});
+
+const attackHint = computed(() => {
+  if (mode.value !== "attack" || !activePlayer.value?.weapon) {
+    return "Click a highlighted tile to aim, then click the attack area to confirm";
+  }
+  const spec = resolveCombatAttackSpec(activePlayer.value, activePlayer.value.weapon);
+  if (spec && isRangeTargetAttack(spec)) {
+    const max = rangeTargetMax(spec);
+    const count = rangeAttackTargetIds.value.length;
+    if (max <= 1) {
+      return "Click an enemy in range to attack";
+    }
+    return `Select up to ${max} enemies (${count}/${max}). Click an enemy to toggle, empty tile to confirm.`;
+  }
+  return "Click a highlighted tile to aim, then click the attack area to confirm";
 });
 
 function useClassActive() {
@@ -48,7 +70,7 @@ function weaponSwap() {
 
 function pickMode(next: typeof mode.value) {
   if (mode.value === next) clearMode();
-  else if (next === "attack") setMode("attack", { attackWeapon: activePlayer.value?.weapon });
+  else if (next === "attack") setMode("attack");
   else setMode(next);
 }
 </script>
@@ -131,7 +153,7 @@ function pickMode(next: typeof mode.value) {
       </button>
     </div>
     <div v-if="mode === 'attack'" class="hint-row">
-      <span class="hint">Click a highlighted tile to aim, then click the attack area to confirm</span>
+      <span class="hint">{{ attackHint }}</span>
     </div>
     <button v-if="mode" type="button" class="action-btn cancel" @click="clearMode">
       Cancel

@@ -17,6 +17,18 @@ export type AttackTarget = {
   y: number;
 };
 
+export function resolveRangeAttackTargetIds(action: {
+  targetEnemyId?: string;
+  targetEnemyIds?: string[];
+}): string[] {
+  const ids = action.targetEnemyIds?.length
+    ? action.targetEnemyIds
+    : action.targetEnemyId
+      ? [action.targetEnemyId]
+      : [];
+  return [...new Set(ids)];
+}
+
 export function manhattanDistance(a: { x: number; y: number }, b: { x: number; y: number }): number {
   return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 }
@@ -42,10 +54,41 @@ export function getWeaponAttackSpec(weaponName: string | undefined): WeaponAttac
 }
 
 export function resolveAttackWeapon(player: Player, weaponName?: string): string | null {
-  const primary = player.weapon;
-  if (!weaponName || weaponName === primary) return primary ?? null;
-  if (weaponName === player.weapon2) return weaponName;
+  const equipped = player.weapon ?? null;
+  if (!equipped) return null;
+  if (!weaponName || weaponName === equipped) return equipped;
   return null;
+}
+
+export function resolveCombatAttackSpec(
+  player: Player | undefined,
+  weaponName: string | undefined,
+): WeaponAttackSpec | null {
+  const spec = getWeaponAttackSpec(weaponName);
+  if (!spec) return null;
+  if (spec.tiles?.length || spec.rangeTargets || (spec.patternId && spec.size != null)) {
+    return spec;
+  }
+  const bombIndex = player?.counters?.sabaothBomb ?? 0;
+  const bomb = spec.bombs?.[bombIndex] ?? spec.bombs?.[0];
+  if (bomb) {
+    return {
+      ...spec,
+      damage: bomb.damage,
+      tiles: bomb.tiles,
+      effects: bomb.effects,
+    };
+  }
+  const levelIndex = Math.max(0, Math.min((player?.counters?.heavenBurningLevel ?? 1) - 1, (spec.levels?.length ?? 1) - 1));
+  const level = spec.levels?.[levelIndex] ?? spec.levels?.[0];
+  if (level) {
+    return {
+      ...spec,
+      damage: level.damage,
+      tiles: level.tiles,
+    };
+  }
+  return spec;
 }
 
 export function playerAttackDirectionsAt(
@@ -58,7 +101,7 @@ export function playerAttackDirectionsAt(
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return [];
   const weapon = resolveAttackWeapon(player, weaponName) ?? player.weapon;
-  const spec = getWeaponAttackSpec(weapon);
+  const spec = resolveCombatAttackSpec(player, weapon);
   if (!player || !spec) return [];
   const origin = { x: player.x, y: player.y };
   const dirs: PatternDirection[] = [];

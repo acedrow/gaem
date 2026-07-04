@@ -93,7 +93,14 @@ export type CombatState = {
 };
 
 export type PlayerAction =
-  | { action: "attack"; direction: PatternDirection; damageRoll?: number; targetEnemyId?: string; weaponName?: string }
+  | {
+      action: "attack";
+      direction: PatternDirection;
+      damageRoll?: number;
+      targetEnemyId?: string;
+      targetEnemyIds?: string[];
+      weaponName?: string;
+    }
   | { action: "shove"; targetEnemyId?: string; targetPlayerId?: string }
   | { action: "sprint" }
   | { action: "sprintMove"; x: number; y: number }

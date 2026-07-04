@@ -776,9 +776,24 @@ export function resolvePlayerForJoin(
     characterSheetId?: string;
     armor?: string;
     weapon?: string;
+    equipment?: string;
+    gear?: string;
+    weapon2?: string;
   },
 ): { playerId: string } | { error: "board_full" } {
-  const { playerKey, nickname, preferredId, newId, className, characterSheetId, armor, weapon } = opts;
+  const {
+    playerKey,
+    nickname,
+    preferredId,
+    newId,
+    className,
+    characterSheetId,
+    armor,
+    weapon,
+    equipment,
+    gear,
+    weapon2,
+  } = opts;
   const isMatch = (p: Player) => playerMatchesProfile(p, playerKey, nickname);
   const matches = state.players.filter(isMatch);
 
@@ -802,11 +817,18 @@ export function resolvePlayerForJoin(
         class: className,
         armor,
         weapon,
+        equipment,
+        gear,
+        weapon2,
         hp: getClassMaxHp(className),
       },
       { className, armor, weapon },
     );
     if (!joined) return { error: "board_full" };
+    const entry = state.players.find((p) => p.id === newId);
+    if (entry && className && armor && weapon) {
+      applyLoadoutToPlayer(entry, { className, armor, weapon, equipment, gear, weapon2 });
+    }
     state.actedPlayerIds.push(newId);
     return { playerId: newId };
   }
@@ -820,17 +842,21 @@ export function resolvePlayerForJoin(
     player.playerKey = playerKey;
     if (nickname !== undefined) player.nickname = nickname;
     if (characterSheetId !== undefined) player.characterSheetId = characterSheetId;
-    if (className !== undefined) {
+    if (
+      className !== undefined ||
+      armor !== undefined ||
+      weapon !== undefined ||
+      equipment !== undefined ||
+      gear !== undefined ||
+      weapon2 !== undefined
+    ) {
       applyLoadoutToPlayer(player, {
-        className,
+        className: className ?? player.class ?? "",
         armor: armor ?? player.armor ?? "",
         weapon: weapon ?? player.weapon ?? "",
-      });
-    } else if (armor !== undefined || weapon !== undefined) {
-      applyLoadoutToPlayer(player, {
-        className: player.class ?? "",
-        armor: armor ?? player.armor ?? "",
-        weapon: weapon ?? player.weapon ?? "",
+        equipment: equipment ?? player.equipment,
+        gear: gear ?? player.gear,
+        weapon2: weapon2 ?? player.weapon2,
       });
     }
   }

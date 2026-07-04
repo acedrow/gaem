@@ -140,7 +140,15 @@ function hasProfile(id: string): boolean {
 function resolveSheetForJoin(
   playerKey: string,
   characterSheetId?: string
-): { className?: string; characterSheetId?: string; armor?: string; weapon?: string } {
+): {
+  className?: string;
+  characterSheetId?: string;
+  armor?: string;
+  weapon?: string;
+  equipment?: string;
+  gear?: string;
+  weapon2?: string;
+} {
   if (characterSheetId) {
     const sheet = characterSheets.get(characterSheetId);
     if (sheet?.player === playerKey) {
@@ -149,6 +157,9 @@ function resolveSheetForJoin(
         characterSheetId: sheet.id,
         armor: sheet.armor,
         weapon: sheet.weapon,
+        equipment: sheet.equipment,
+        gear: sheet.gear,
+        weapon2: sheet.weapon2,
       };
     }
   }
@@ -159,6 +170,9 @@ function resolveSheetForJoin(
         characterSheetId: sheet.id,
         armor: sheet.armor,
         weapon: sheet.weapon,
+        equipment: sheet.equipment,
+        gear: sheet.gear,
+        weapon2: sheet.weapon2,
       }
     : {};
 }
@@ -394,6 +408,9 @@ wss.on("connection", (ws: WebSocket) => {
         characterSheetId: sheetJoin.characterSheetId,
         armor: sheetJoin.armor,
         weapon: sheetJoin.weapon,
+        equipment: sheetJoin.equipment,
+        gear: sheetJoin.gear,
+        weapon2: sheetJoin.weapon2,
       });
       if ("error" in resolved) {
         sendError(ws, "Board full");
