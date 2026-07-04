@@ -97,9 +97,12 @@ const selectedPlayerId = computed(() =>
   boardSelection.value?.kind === "player" ? boardSelection.value.id : null,
 );
 const { gameState, yourPlayerId } = useGameState();
-const activePlayerSelected = computed(
-  () => !!yourPlayerId.value && selectedPlayerId.value === yourPlayerId.value,
-);
+const activePlayerSelected = computed(() => {
+  const id = yourPlayerId.value;
+  if (!id) return false;
+  if (!selectedPlayerId.value) return true;
+  return selectedPlayerId.value === id;
+});
 const { showHealthBars } = usePlayerSettings();
 const showEnemyHealthBars = computed(() => showHealthBars.value && props.role === "gm");
 const { indicators: damageIndicators } = useDamageIndicators(gameState);
