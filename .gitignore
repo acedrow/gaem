@@ -7,3 +7,4 @@ dist
 .DS_Store
 HELLPIERCERS v1.02.pdf
 scripts/rulebook/.venv
+scripts/rulebook/out

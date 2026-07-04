@@ -75,11 +75,33 @@ npm run rulebook -- --search "Stain Flower"
 npm run rulebook -- --search "fortification" --context 200
 ```
 
+Many weapon/enemy **attack patterns are embedded images**, not extractable as text. Decode them with the same script (requires Pillow — re-run `npm run rulebook:setup` after pulling if image commands fail):
+
+```bash
+# List embedded images on a page (name, dimensions, filter type)
+npm run rulebook -- --page 22 --list-images
+
+# Extract pattern diagrams to PNG (default: scripts/rulebook/out/page-N/, gitignored)
+# By default skips full-page backgrounds; keeps images ≤600px wide/tall
+npm run rulebook -- --page 22 --extract-images
+npm run rulebook -- --from-page 21 --to-page 22 --extract-images
+
+# Include full-page scan/background images
+npm run rulebook -- --page 22 --extract-images --all-images
+
+# Custom output directory
+npm run rulebook -- --page 22 --extract-images --out /tmp/patterns
+```
+
+Open the PNGs to read tile layouts. Orange squares are attack tiles; green (when present) is the origin/player tile. Transcribe relative coordinates into `tiles` arrays in `packages/shared/src/data/` (see sibling weapon entries for `anchorTile`, `healTiles`, `boundsTiles`).
+
+**Do not** write raw `obj.get_data()` bytes to disk — FlateDecode images need decoding via Pillow (`RGB` for `width×height×3` bytes; JPEG `/DCTDecode` via `Image.open`). The script handles this.
+
 **Agent workflow when transcribing rules:**
 
 1. Check `scripts/rulebook/errata.md` and `scripts/rulebook/developer-clarifications.md` for overrides or edge cases.
 2. Run `npm run rulebook:setup` if `scripts/rulebook/.venv` is missing.
-3. Search or pull the relevant page(s) from the PDF.
+3. Search or pull the relevant page(s) from the PDF. For attack patterns, also run `--list-images` / `--extract-images` on those pages.
 4. Add data to `packages/shared/src/data/`.
 5. Match existing JSON field names and tag casing in sibling entries.
 

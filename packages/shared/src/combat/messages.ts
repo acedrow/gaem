@@ -54,6 +54,9 @@ import {
   resolveAttackWeapon,
   resolveCombatAttackSpec,
   resolveRangeAttackTargetIds,
+  ensureSabaothCharges,
+  hasSabaothBombSelected,
+  isSabaothWeaponName,
 } from "./attack.js";
 import { applyEffectStacks, clearEffectStacks, parseEffectToken, tickUnitEndOfTurn } from "./effects.js";
 import { isKnownEffectId } from "../effects-data.js";
@@ -63,6 +66,7 @@ import { enemyLabel, playerLabel } from "../console.js";
 import {
   isRangeTargetAttack,
   patternOriginFromAnchor,
+  evaluateAnchoredPatternPlacement,
   rangeTargetDistance,
   rangeTargetMax,
   usesAnchoredPatternPlacement,
@@ -125,6 +129,26 @@ export function applyMovePath(
   return `${playerLabel(player)} moved to (${dest.x}, ${dest.y})`;
 }
 
+function validateSelectWeaponVariant(
+  state: GameState,
+  player: Player,
+  action: Extract<PlayerAction, { action: "selectWeaponVariant" }>,
+): string | null {
+  if (state.roundPhase === "deployment") return "Wrong phase";
+  const weapon = getWeaponByName(player.weapon ?? "");
+  const bombs = weapon?.attack?.bombs;
+  if (!bombs?.length) return "Weapon has no variants";
+  if (!Number.isInteger(action.index) || action.index < 0 || action.index >= bombs.length) {
+    return "Invalid variant";
+  }
+  ensureSabaothCharges(player);
+  const current = player.counters!.sabaothBomb;
+  if (action.index !== current && player.counters!.sabaothCharges! <= 0) {
+    return "No charges remaining";
+  }
+  return null;
+}
+
 export function validatePlayerAction(
   state: GameState,
   playerId: string,
@@ -132,6 +156,11 @@ export function validatePlayerAction(
 ): string | null {
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return "Unknown player";
+
+  if (action.action === "selectWeaponVariant") {
+    return validateSelectWeaponVariant(state, player, action);
+  }
+
   if (!canPlayerMove(state, playerId)) return "Not your turn";
   if (state.roundPhase === "deployment") return "Wrong phase";
   if (state.enforceTurns !== false && state.roundPhase !== "playerTurn") return "Wrong phase";
@@ -146,6 +175,9 @@ export function validatePlayerAction(
       if (blocked) return blocked;
       const weapon = resolveAttackWeapon(player, action.weaponName);
       if (!weapon) return "Invalid weapon";
+      if (isSabaothWeaponName(weapon) && !hasSabaothBombSelected(player)) {
+        return "Select bomb type";
+      }
       const spec = resolveCombatAttackSpec(player, weapon);
       if (!spec) return "Weapon has no attack profile";
       if (isRangeTargetAttack(spec)) {
@@ -160,9 +192,17 @@ export function validatePlayerAction(
         }
       } else if (usesAnchoredPatternPlacement(spec)) {
         if (action.anchorX === undefined || action.anchorY === undefined) return "Select placement";
-        const span = spec.rangeSpan!;
-        const dist = manhattanDistance(player, { x: action.anchorX, y: action.anchorY });
-        if (dist < span.min || dist > span.max) return "Placement out of range";
+        const direction = "e" as const;
+        const placement = evaluateAnchoredPatternPlacement(
+          player,
+          { x: action.anchorX, y: action.anchorY },
+          spec,
+          direction,
+          state,
+        );
+        if (placement.tooFar) return "outside maximum range";
+        if (placement.tooCloseKeys.size > 0) return "inside minimum range";
+        if (!placement.valid) return "Placement out of range";
       }
       return null;
     }
@@ -192,15 +232,6 @@ export function validatePlayerAction(
       const blocked = actionTierBlocked(player, "aux", state);
       if (blocked) return blocked;
       if (!player.weapon2) return "No carried weapon";
-      return null;
-    }
-    case "selectWeaponVariant": {
-      const weapon = getWeaponByName(player.weapon ?? "");
-      const bombs = weapon?.attack?.bombs;
-      if (!bombs?.length) return "Weapon has no variants";
-      if (!Number.isInteger(action.index) || action.index < 0 || action.index >= bombs.length) {
-        return "Invalid variant";
-      }
       return null;
     }
     case "rez": {
@@ -390,6 +421,11 @@ export function applyPlayerAction(
       const weapon = getWeaponByName(player.weapon ?? "");
       const bombs = weapon?.attack?.bombs!;
       if (!player.counters) player.counters = {};
+      ensureSabaothCharges(player);
+      const current = player.counters.sabaothBomb;
+      if (action.index !== current) {
+        player.counters.sabaothCharges = (player.counters.sabaothCharges ?? 0) - 1;
+      }
       player.counters.sabaothBomb = action.index;
       return `${playerLabel(player)} selected ${bombs[action.index]?.name ?? "variant"}`;
     }

@@ -46,6 +46,46 @@ export function enemiesInRange(
     .map((e) => ({ enemyId: e.id, x: e.x, y: e.y }));
 }
 
+export const SABAOTH_WEAPON_NAME = "Sabaoth-Class Obliteration Charges";
+export const SABAOTH_MAX_CHARGES = 5;
+
+export function isSabaothWeaponName(name: string | undefined | null): boolean {
+  return name === SABAOTH_WEAPON_NAME;
+}
+
+export function playerHasSabaothWeapon(player: Pick<Player, "weapon" | "weapon2">): boolean {
+  return isSabaothWeaponName(player.weapon) || isSabaothWeaponName(player.weapon2);
+}
+
+export function initSabaothCharges(player: Player): void {
+  if (!player.counters) player.counters = {};
+  if (!playerHasSabaothWeapon(player)) {
+    delete player.counters.sabaothBomb;
+    return;
+  }
+  player.counters.sabaothCharges = SABAOTH_MAX_CHARGES;
+  delete player.counters.sabaothBomb;
+}
+
+export function hasSabaothBombSelected(player: Player | undefined): boolean {
+  if (!player || !isSabaothWeaponName(player.weapon)) return false;
+  const index = player.counters?.sabaothBomb;
+  return index != null && index >= 0;
+}
+
+export function ensureSabaothCharges(player: Player): void {
+  if (!playerHasSabaothWeapon(player)) return;
+  if (!player.counters) player.counters = {};
+  if (player.counters.sabaothCharges === undefined) {
+    player.counters.sabaothCharges = SABAOTH_MAX_CHARGES;
+  }
+}
+
+export function getSabaothChargesRemaining(player: Player): number | null {
+  if (!isSabaothWeaponName(player.weapon)) return null;
+  return player.counters?.sabaothCharges ?? SABAOTH_MAX_CHARGES;
+}
+
 export function getWeaponAttackSpec(weaponName: string | undefined): WeaponAttackSpec | null {
   if (!weaponName) return null;
   const weapon = getWeaponByName(weaponName);
@@ -69,9 +109,11 @@ export function resolveCombatAttackSpec(
   if (spec.tiles?.length || spec.rangeTargets || spec.rangeSpan || (spec.patternId && spec.size != null)) {
     return spec;
   }
-  const bombIndex = player?.counters?.sabaothBomb ?? 0;
-  const bomb = spec.bombs?.[bombIndex] ?? spec.bombs?.[0];
-  if (bomb) {
+  if (spec.bombs?.length) {
+    const bombIndex = player?.counters?.sabaothBomb;
+    if (bombIndex == null || bombIndex < 0) return null;
+    const bomb = spec.bombs[bombIndex];
+    if (!bomb) return null;
     return {
       ...spec,
       damage: bomb.damage,

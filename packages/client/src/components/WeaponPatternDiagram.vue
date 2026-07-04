@@ -13,10 +13,12 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   "update:bombIndex": [index: number];
+  requestSelect: [index: number];
 }>();
 
 const levelIndex = ref(0);
 const localBombIndex = ref(0);
+const hoverBombIndex = ref<number | null>(null);
 
 watch(
   () => props.bombIndex,
@@ -26,7 +28,15 @@ watch(
   { immediate: true },
 );
 
-const activeBombIndex = computed(() => props.bombIndex ?? localBombIndex.value);
+const equippedBombIndex = computed((): number | undefined => {
+  if (props.bombIndex !== undefined) return props.bombIndex;
+  if (props.selectable) return undefined;
+  return localBombIndex.value;
+});
+const displayBombIndex = computed((): number | undefined => {
+  if (hoverBombIndex.value != null) return hoverBombIndex.value;
+  return equippedBombIndex.value;
+});
 
 const hasDiagram = computed(() => attackSpecHasDiagram(props.attack));
 
@@ -36,15 +46,16 @@ const activeLevel = computed((): WeaponPatternLevel | null => {
   return levels[levelIndex.value] ?? levels[0] ?? null;
 });
 
-const activeBomb = computed((): WeaponBombPattern | null => {
+const displayBomb = computed((): WeaponBombPattern | null => {
   const bombs = props.attack.bombs;
-  if (!bombs?.length) return null;
-  return bombs[activeBombIndex.value] ?? bombs[0] ?? null;
+  const index = displayBombIndex.value;
+  if (!bombs?.length || index == null) return null;
+  return bombs[index] ?? null;
 });
 
 const damageLabel = computed(() => {
   if (activeLevel.value) return activeLevel.value.damage;
-  if (activeBomb.value) return activeBomb.value.damage;
+  if (displayBomb.value) return displayBomb.value.damage;
   return props.attack.damage;
 });
 
@@ -52,7 +63,7 @@ const patternNote = computed(() => {
   if (props.attack.rangeTargets) {
     return `Up to ${props.attack.rangeTargets.maxTargets} targets within Range:${props.attack.rangeTargets.range}`;
   }
-  if (activeBomb.value?.range) return `Range ${activeBomb.value.range}`;
+  if (displayBomb.value?.range) return `Range ${displayBomb.value.range}`;
   return null;
 });
 
@@ -70,25 +81,26 @@ const displayGrid = computed(() => {
     return buildPatternGrid(tiles);
   }
 
-  const tiles = activeLevel.value?.tiles ?? activeBomb.value?.tiles ?? props.attack.tiles ?? [];
+  const tiles = activeLevel.value?.tiles ?? displayBomb.value?.tiles ?? props.attack.tiles ?? [];
   const healTiles =
-    activeBomb.value?.healTiles ??
-    (activeBomb.value?.heal ? activeBomb.value.tiles : undefined);
+    displayBomb.value?.healTiles ??
+    (displayBomb.value?.heal ? displayBomb.value.tiles : undefined);
   return buildPatternGrid(tiles, {
     healTiles,
-    boundsTiles: activeBomb.value?.boundsTiles,
-    showOrigin: !activeBomb.value,
+    boundsTiles: displayBomb.value?.boundsTiles,
+    showOrigin: !displayBomb.value,
   });
 });
 
 function selectBomb(index: number) {
-  if (index === activeBombIndex.value) return;
+  if (equippedBombIndex.value != null && index === equippedBombIndex.value) return;
   if (props.selectable) {
-    emit("update:bombIndex", index);
+    emit("requestSelect", index);
     return;
   }
   if (props.bombIndex == null) {
     localBombIndex.value = index;
+    emit("update:bombIndex", index);
   }
 }
 </script>
@@ -119,14 +131,28 @@ function selectBomb(index: number) {
         :key="bomb.name"
         type="button"
         class="variant-tab"
-        :class="{ active: activeBombIndex === i, selectable }"
+        :class="{
+          active: equippedBombIndex === i,
+          selectable,
+          preview: hoverBombIndex === i && equippedBombIndex !== i,
+        }"
+        @mouseenter="hoverBombIndex = i"
+        @mouseleave="hoverBombIndex = null"
         @click.stop="selectBomb(i)"
       >
         {{ bomb.name }}
       </button>
     </div>
 
+    <p
+      v-if="attack.bombs?.length && displayBombIndex == null"
+      class="weapon-pattern-empty"
+    >
+      Select a bomb type (costs 1 charge).
+    </p>
+
     <div
+      v-else
       class="pattern-grid"
       :style="{
         gridTemplateColumns: `repeat(${displayGrid.width}, 1.35rem)`,
@@ -143,8 +169,8 @@ function selectBomb(index: number) {
       </span>
     </div>
 
-    <p v-if="activeBomb?.description" class="weapon-pattern-description">
-      <RuleText :text="activeBomb.description" />
+    <p v-if="displayBomb?.description" class="weapon-pattern-description">
+      <RuleText :text="displayBomb.description" />
     </p>
   </div>
 </template>
@@ -194,7 +220,8 @@ function selectBomb(index: number) {
   cursor: pointer;
 }
 
-.variant-tab.selectable:not(.active):hover {
+.variant-tab.selectable:not(.active):hover,
+.variant-tab.preview {
   border-color: var(--color-accent-muted);
   color: var(--color-text);
 }
@@ -248,5 +275,12 @@ function selectBomb(index: number) {
   margin: 0.45rem 0 0;
   font-size: 0.75rem;
   color: var(--color-muted);
+}
+
+.weapon-pattern-empty {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  font-style: italic;
 }
 </style>

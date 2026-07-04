@@ -5,6 +5,8 @@ import {
   getArmorByName,
   getArmorSpeed,
   getWeaponAttackSpec,
+  hasSabaothBombSelected,
+  isSabaothWeaponName,
   previewPlayerAttack,
 } from "@gaem/shared";
 import { computed } from "vue";
@@ -88,7 +90,9 @@ export function useCombatActions(playerId?: () => string | null) {
 
   const hasWeaponAttack = computed(() => {
     const p = activePlayer.value;
-    return !!getWeaponAttackSpec(p?.weapon);
+    if (!getWeaponAttackSpec(p?.weapon)) return false;
+    if (isSabaothWeaponName(p?.weapon) && !hasSabaothBombSelected(p ?? undefined)) return false;
+    return true;
   });
 
   const armorStructured = computed(() => {

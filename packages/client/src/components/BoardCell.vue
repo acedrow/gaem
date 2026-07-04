@@ -18,6 +18,7 @@ export type CellRenderState = {
   combatTargetPrimary: boolean;
   combatTargetSecondary: boolean;
   combatTargetHeal: boolean;
+  combatTargetInvalid: boolean;
   patternRecoil: boolean;
   tile: MapTile | undefined;
   player: Player | undefined;
@@ -135,6 +136,7 @@ const enemyHp = computed(() => {
       'combat-target-primary': cell.combatTargetPrimary,
       'combat-target-secondary': cell.combatTargetSecondary,
       'combat-target-heal': cell.combatTargetHeal,
+      'combat-target-invalid': cell.combatTargetInvalid,
       'pattern-recoil': cell.patternRecoil,
       'scaled-enemy-effects': scaledEnemyEffects,
       'enemy-dying': enemyDying,
@@ -143,6 +145,7 @@ const enemyHp = computed(() => {
     @mouseenter="emit('hover')"
     @mouseleave="emit('unhover')"
   >
+    <span v-if="cell.combatTargetInvalid" class="combat-target-invalid-mark" aria-hidden="true" />
     <span
       v-if="cell.enemyAnchor"
       class="piece enemy"
@@ -346,6 +349,33 @@ const enemyHp = computed(() => {
 .cell.combat-target-secondary.combat-target-heal::before {
   outline-color: var(--color-board-target-heal-outline);
   background: var(--color-board-target-heal-bg-faint);
+}
+
+.combat-target-invalid-mark {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      to top left,
+      transparent calc(50% - 1.5px),
+      var(--color-danger) calc(50% - 1.5px),
+      var(--color-danger) calc(50% + 1.5px),
+      transparent calc(50% + 1.5px)
+    ),
+    linear-gradient(
+      to top right,
+      transparent calc(50% - 1.5px),
+      var(--color-danger) calc(50% - 1.5px),
+      var(--color-danger) calc(50% + 1.5px),
+      transparent calc(50% + 1.5px)
+    );
+  opacity: 0.9;
+}
+
+.cell.combat-target-invalid {
+  cursor: not-allowed;
 }
 
 .cell.pattern-recoil {

@@ -50,7 +50,7 @@ const attackHint = computed(() => {
     return `Select up to ${max} enemies (${count}/${max}). Click an enemy to toggle, empty tile to confirm.`;
   }
   if (usesAnchoredPatternPlacement(spec)) {
-    return "Click a tile in range to place the pattern, then click a highlighted tile to attack";
+    return "Hover to preview, click to place the pattern, then click the pattern to attack";
   }
   if (isRangedPatternAttack(spec)) {
     return "Click a tile in range to aim, then click a highlighted tile to attack";

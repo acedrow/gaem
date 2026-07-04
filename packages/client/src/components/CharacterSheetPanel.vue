@@ -7,10 +7,14 @@ import {
   getGearByName,
   getWeaponByName,
   getClassMaxHp,
+  getSabaothChargesRemaining,
+  hasSabaothBombSelected,
   isRangeTargetAttack,
   isRangedPatternAttack,
+  isSabaothWeaponName,
   resolveCombatAttackSpec,
   rangeTargetMax,
+  SABAOTH_MAX_CHARGES,
   usesAnchoredPatternPlacement,
 } from "@gaem/shared";
 import { computed, nextTick, onUnmounted, ref, watch } from "vue";
@@ -18,6 +22,7 @@ import { computed, nextTick, onUnmounted, ref, watch } from "vue";
 import AbilityBlock from "./AbilityBlock.vue";
 import CharacterSheetCombat from "./CharacterSheetCombat.vue";
 import HpBar from "./HpBar.vue";
+import ModalDialog from "./ModalDialog.vue";
 import RuleText from "./RuleText.vue";
 import SheetActionButton from "./SheetActionButton.vue";
 import SheetGearFieldRow from "./SheetGearFieldRow.vue";
@@ -38,7 +43,7 @@ const props = defineProps<{ sheetId: string }>();
 
 const { apiFetch, fetchPortraitUrl, fetchPlayerProfiles } = useApi();
 const { role, playerProfile } = useSession();
-const { gameState, send } = useGameState();
+const { gameState, yourPlayerId, send } = useGameState();
 const { selectSheet, notifySheetsChanged, startGearPick, gearPick } = useCharacterSheetSelection();
 const { closeRightPanel } = useBoardSelection();
 const { hasEquipmentSlot, hasGearSlot, hasSecondWeaponSlot } = useCampaignUnlocks();
@@ -108,6 +113,10 @@ const showSheetCombatActions = computed(
   () => !!boardPlayer.value && showPlayerActionBar.value,
 );
 
+const combatUiUnlocked = computed(
+  () => gameState.value != null && gameState.value.roundPhase !== "deployment",
+);
+
 const canUseEquipmentCharge = computed(() => {
   if (!canSupport.value || !form.value.equipment) return false;
   const uses = boardPlayer.value?.equipmentUses;
@@ -117,6 +126,12 @@ const canUseEquipmentCharge = computed(() => {
 
 function weaponHasAttack(weaponName: string) {
   return !!getWeaponByName(weaponName)?.attack;
+}
+
+function canUseWeaponAttack(weaponName: string) {
+  if (!weaponHasAttack(weaponName)) return false;
+  if (!isSabaothWeaponName(weaponName)) return true;
+  return hasSabaothBombSelected(boardPlayer.value ?? undefined);
 }
 
 function toggleArmorAction() {
@@ -147,13 +162,52 @@ function useWeaponAbility() {
 const equippedWeaponName = computed(() => boardPlayer.value?.weapon ?? form.value.weapon);
 const carriedWeaponName = computed(() => boardPlayer.value?.weapon2 ?? form.value.weapon2);
 const canSwapWeapon = computed(() => !!carriedWeaponName.value);
-const weaponBombIndex = computed(() => boardPlayer.value?.counters?.sabaothBomb ?? 0);
+const weaponBombIndex = computed(() => boardPlayer.value?.counters?.sabaothBomb);
 const weaponBombSelectable = computed(
-  () => showSheetCombatActions.value && !!selectedWeapon.value?.attack?.bombs?.length,
+  () =>
+    combatUiUnlocked.value &&
+    yourPlayerId.value === boardPlayerId.value &&
+    isSabaothWeaponName(equippedWeaponName.value) &&
+    !!getWeaponByName(equippedWeaponName.value)?.attack?.bombs?.length,
 );
 const attackTooltipPinned = computed(
   () => mode.value === "attack" && !!selectedWeapon.value?.attack?.bombs?.length,
 );
+const weaponVariantConfirmOpen = ref(false);
+const pendingWeaponVariantIndex = ref<number | null>(null);
+const showWeaponCharges = computed(
+  () => combatUiUnlocked.value && isSabaothWeaponName(equippedWeaponName.value) && !!boardPlayer.value,
+);
+const weaponChargesRemaining = computed(() => {
+  const player = boardPlayer.value;
+  if (!player) return null;
+  return getSabaothChargesRemaining(player);
+});
+const weaponChargesDisplay = computed(() => {
+  const remaining = weaponChargesRemaining.value;
+  if (remaining == null) return null;
+  return `${"●".repeat(remaining)}${"○".repeat(SABAOTH_MAX_CHARGES - remaining)}`;
+});
+const canConfirmWeaponVariant = computed(() => (weaponChargesRemaining.value ?? 0) > 0);
+
+function requestWeaponVariantChange(index: number) {
+  if (index === weaponBombIndex.value) return;
+  if (!weaponBombSelectable.value) return;
+  pendingWeaponVariantIndex.value = index;
+  weaponVariantConfirmOpen.value = true;
+}
+
+function confirmWeaponVariantChange() {
+  if (pendingWeaponVariantIndex.value == null) return;
+  selectWeaponVariant(pendingWeaponVariantIndex.value);
+  weaponVariantConfirmOpen.value = false;
+  pendingWeaponVariantIndex.value = null;
+}
+
+function cancelWeaponVariantChange() {
+  weaponVariantConfirmOpen.value = false;
+  pendingWeaponVariantIndex.value = null;
+}
 
 function selectWeaponVariant(index: number) {
   if (index === weaponBombIndex.value) return;
@@ -177,7 +231,7 @@ const rangedPatternAttackHint = computed(() => {
   const spec = resolveCombatAttackSpec(boardPlayer.value, equippedWeaponName.value);
   if (!spec || isRangeTargetAttack(spec)) return null;
   if (usesAnchoredPatternPlacement(spec)) {
-    return "Click a tile in range to place the pattern, then click a highlighted tile to attack";
+    return "Hover to preview, click to place the pattern, then click the pattern to attack";
   }
   if (isRangedPatternAttack(spec)) {
     return "Click a tile in range to aim, then click a highlighted tile to attack";
@@ -621,14 +675,14 @@ onUnmounted(() => {
             :can-edit="canEdit"
             :weapon-bomb-index="weaponBombIndex"
             :weapon-bomb-selectable="weaponBombSelectable"
-            @update:weapon-bomb-index="selectWeaponVariant"
+            @request-weapon-bomb-select="requestWeaponVariantChange"
             @start-edit="startGearFieldEdit('weapon')"
           >
             <template v-if="showSheetCombatActions && selectedWeapon" #actions>
               <SheetActionButton
                 :active="mode === 'attack'"
                 :tooltip-pinned="attackTooltipPinned"
-                :disabled="!canMain || !weaponHasAttack(equippedWeaponName)"
+                :disabled="!canMain || !canUseWeaponAttack(equippedWeaponName)"
                 @click="toggleWeaponAttack"
               >
                 Attack
@@ -641,7 +695,7 @@ onUnmounted(() => {
                     :attack="selectedWeapon.attack"
                     :bomb-index="weaponBombIndex"
                     :selectable="weaponBombSelectable"
-                    @update:bomb-index="selectWeaponVariant"
+                    @request-select="requestWeaponVariantChange"
                   />
                 </template>
               </SheetActionButton>
@@ -667,6 +721,10 @@ onUnmounted(() => {
             <p v-if="rangeAttackHint" class="range-attack-hint">{{ rangeAttackHint }}</p>
             <p v-if="rangedPatternAttackHint" class="range-attack-hint">{{ rangedPatternAttackHint }}</p>
           </SheetGearFieldRow>
+
+          <p v-if="showWeaponCharges && weaponChargesDisplay" class="field-subline">
+            Weapon charges {{ weaponChargesDisplay }}
+          </p>
 
           <SheetGearFieldRow
             v-if="hasSecondWeaponSlot"
@@ -730,6 +788,25 @@ onUnmounted(() => {
         {{ deleting ? "Deleting…" : "Delete" }}
       </button>
     </div>
+
+    <ModalDialog
+      title="Change weapon pattern"
+      :open="weaponVariantConfirmOpen"
+      @close="cancelWeaponVariantChange"
+    >
+      <p class="variant-confirm-text">Confirm changing weapon pattern for 1 charge.</p>
+      <template #actions>
+        <button type="button" class="btn-secondary" @click="cancelWeaponVariantChange">Cancel</button>
+        <button
+          type="button"
+          class="btn-primary"
+          :disabled="!canConfirmWeaponVariant"
+          @click="confirmWeaponVariantChange"
+        >
+          OK
+        </button>
+      </template>
+    </ModalDialog>
   </div>
 </template>
 
@@ -919,6 +996,34 @@ onUnmounted(() => {
   font-size: 0.75rem;
   color: var(--color-muted);
   font-weight: 600;
+}
+
+.variant-confirm-text {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-text);
+}
+
+.btn-primary,
+.btn-secondary {
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.4rem 0.85rem;
+  cursor: pointer;
+}
+
+.btn-secondary {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.btn-primary {
+  border: 1px solid var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-dark);
 }
 
 .field-row {

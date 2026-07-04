@@ -24,6 +24,7 @@ defineProps<{
 const emit = defineEmits<{
   startEdit: [];
   "update:weaponBombIndex": [index: number];
+  requestWeaponBombSelect: [index: number];
 }>();
 
 const detailOpen = ref(false);
@@ -75,6 +76,7 @@ function toggleDetail() {
         :weapon-bomb-index="weaponBombIndex"
         :weapon-bomb-selectable="weaponBombSelectable"
         @update:weapon-bomb-index="emit('update:weaponBombIndex', $event)"
+        @request-weapon-bomb-select="emit('requestWeaponBombSelect', $event)"
       />
     </div>
 

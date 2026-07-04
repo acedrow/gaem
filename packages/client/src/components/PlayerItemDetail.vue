@@ -22,6 +22,7 @@ defineProps<{
 
 const emit = defineEmits<{
   "update:weaponBombIndex": [index: number];
+  requestWeaponBombSelect: [index: number];
 }>();
 
 const { hasReversals } = useCampaignUnlocks();
@@ -117,6 +118,7 @@ const showReversals = computed(() => hasReversals.value);
       :bomb-index="weaponBombIndex"
       :selectable="weaponBombSelectable"
       @update:bomb-index="emit('update:weaponBombIndex', $event)"
+      @request-select="emit('requestWeaponBombSelect', $event)"
     />
     <AbilityBlock
       :content="(item as PlayerWeapon).activeAbility"

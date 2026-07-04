@@ -1,6 +1,7 @@
 import type { Enemy, GameMap, GameState, GaemRole, PhaseAction, Player, TerrainObject, TurnHolder } from "./types.js";
 import { playerLabel } from "./console.js";
 import { createDefaultActionBudget, createDefaultCombatState } from "./combat/types.js";
+import { initSabaothCharges } from "./combat/attack.js";
 import { tickRoundCountdowns, tickUnitEndOfTurn } from "./combat/effects.js";
 import { resetEnemyExhaustion } from "./combat/enemy.js";
 import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles, ensureEnemyMovement, refreshEnemyMovement, spendEnemyMovement } from "./enemy-data.js";
@@ -384,6 +385,7 @@ export function applyPhaseAction(
       for (const player of state.players) {
         if (player.speed == null) player.speed = getArmorSpeed(player.armor);
         if (player.equipmentUses === undefined) player.equipmentUses = 1;
+        initSabaothCharges(player);
       }
       return "Deployment ended — start round effects";
     }

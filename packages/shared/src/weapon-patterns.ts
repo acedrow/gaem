@@ -157,6 +157,63 @@ export function usesAnchoredPatternPlacement(spec: WeaponAttackSpec): boolean {
   return !!(spec.tiles?.length && spec.rangeSpan);
 }
 
+function tileManhattanDistance(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+): number {
+  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+}
+
+export type AnchoredPatternPlacement = {
+  patternTiles: { x: number; y: number }[];
+  patternOrigin: { x: number; y: number };
+  nearestEmptySpaces: number;
+  tooCloseKeys: Set<string>;
+  tooFar: boolean;
+  valid: boolean;
+};
+
+export function evaluateAnchoredPatternPlacement(
+  user: { x: number; y: number },
+  anchor: { x: number; y: number },
+  spec: WeaponAttackSpec,
+  direction: PatternDirection,
+  state: GameState,
+): AnchoredPatternPlacement {
+  const patternOrigin = patternOriginFromAnchor(anchor, spec.anchorTile, direction);
+  const patternTiles = bespokeTilesInBounds(
+    patternOrigin,
+    spec.tiles!,
+    direction,
+    state.width,
+    state.height,
+  );
+  const span = spec.rangeSpan!;
+  let nearestDist = Infinity;
+  const tooCloseKeys = new Set<string>();
+
+  for (const tile of patternTiles) {
+    const dist = tileManhattanDistance(user, tile);
+    nearestDist = Math.min(nearestDist, dist);
+    if (dist - 1 < span.min) {
+      tooCloseKeys.add(coordKey(tile.x, tile.y));
+    }
+  }
+
+  const nearestEmptySpaces = nearestDist === Infinity ? Infinity : nearestDist - 1;
+  const tooFar = nearestEmptySpaces > span.max;
+  const valid = patternTiles.length > 0 && !tooFar && tooCloseKeys.size === 0;
+
+  return {
+    patternTiles,
+    patternOrigin,
+    nearestEmptySpaces,
+    tooCloseKeys,
+    tooFar,
+    valid,
+  };
+}
+
 export function patternOriginFromAnchor(
   anchor: { x: number; y: number },
   anchorTile: RelativeTile | undefined,
