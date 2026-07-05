@@ -5,6 +5,7 @@ import { readPersistedViewport, writePersistedViewport } from "./uiPersist.js";
 
 const CONTENT_PAD = 0;
 const ZOOM_MAX_FACTOR = 4;
+const ZOOM_OUT_MIN_FACTOR = 0.65;
 const PAN_MIN_VISIBLE_FRACTION = 0.2;
 const FOCUS_ANIM_MS = 350;
 
@@ -22,6 +23,7 @@ export function useBoardViewport(
   contentHeightPx: Ref<number>,
   isReady: Ref<boolean>,
   viewportKey: Ref<string | null>,
+  topInsetPx: Ref<number> = ref(0),
 ) {
   const scale = ref(1);
   const panX = ref(0);
@@ -59,8 +61,10 @@ export function useBoardViewport(
 
   function computeFitTransform(vw: number, vh: number) {
     const { w, h } = getContentSize();
-    const s = Math.min(vw / w, vh / h);
-    return { scale: s, panX: (vw - w * s) / 2, panY: (vh - h * s) / 2 };
+    const inset = topInsetPx.value;
+    const availH = Math.max(1, vh - inset);
+    const s = Math.min(vw / w, availH / h);
+    return { scale: s, panX: (vw - w * s) / 2, panY: inset + (availH - h * s) / 2 };
   }
 
   function updateFitState() {
@@ -77,7 +81,7 @@ export function useBoardViewport(
   function clampView() {
     const el = viewportEl.value;
     if (!el || !viewportSize(el)) return;
-    const minS = fitScale.value;
+    const minS = fitScale.value * ZOOM_OUT_MIN_FACTOR;
     const maxS = fitScale.value * ZOOM_MAX_FACTOR;
     scale.value = Math.min(maxS, Math.max(minS, scale.value));
     const { w, h } = getContentSize();
@@ -136,12 +140,12 @@ export function useBoardViewport(
     updateFitState();
     const maxS = fitScale.value * ZOOM_MAX_FACTOR;
     const availW = Math.max(1, size.vw - padding * 2);
-    const availH = Math.max(1, size.vh - padding * 2);
+    const availH = Math.max(1, size.vh - topInsetPx.value - padding * 2);
     const nextScale = Math.min(maxS, Math.min(availW / contentW, availH / contentH));
     const cx = contentX + contentW / 2;
     const cy = contentY + contentH / 2;
     let nextPanX = size.vw / 2 - cx * nextScale;
-    let nextPanY = size.vh / 2 - cy * nextScale;
+    let nextPanY = topInsetPx.value + (size.vh - topInsetPx.value) / 2 - cy * nextScale;
     const { w, h } = getContentSize();
     nextPanX = clampPanAxis(nextPanX, w * nextScale, el.clientWidth);
     nextPanY = clampPanAxis(nextPanY, h * nextScale, el.clientHeight);
@@ -211,7 +215,7 @@ export function useBoardViewport(
     if (pendingZoom) {
       const { deltaY, mx, my } = pendingZoom;
       pendingZoom = null;
-      const minS = fitScale.value;
+      const minS = fitScale.value * ZOOM_OUT_MIN_FACTOR;
       const maxS = fitScale.value * ZOOM_MAX_FACTOR;
       const next = Math.min(maxS, Math.max(minS, scale.value * Math.exp(-deltaY * 0.005)));
       const ratio = next / scale.value;
@@ -279,6 +283,13 @@ export function useBoardViewport(
     },
     { immediate: true },
   );
+
+  watch(topInsetPx, () => {
+    const wasFit = !isTransformed.value;
+    updateFitState();
+    if (wasFit) fitToView();
+    else clampView();
+  });
 
   return {
     scale,

@@ -102,6 +102,7 @@ import BreakerPromptModal from "./BreakerPromptModal.vue";
 const props = defineProps<{
   role: "gm" | "player";
   playerProfile?: { id: string; name: string } | null;
+  overlayEl?: HTMLElement | null;
 }>();
 
 const wsUrl =
@@ -211,6 +212,29 @@ const contentHeightPx = computed(() =>
   boardWidthPx.value * (boardHeight.value / boardWidth.value),
 );
 
+const overlayInsetPx = ref(0);
+let overlayInsetObserver: ResizeObserver | null = null;
+
+function updateOverlayInset() {
+  overlayInsetPx.value = props.overlayEl?.offsetHeight ?? 0;
+}
+
+watch(
+  () => props.overlayEl,
+  (el, prev) => {
+    if (overlayInsetObserver) {
+      overlayInsetObserver.disconnect();
+      overlayInsetObserver = null;
+    }
+    if (prev && prev !== el) overlayInsetPx.value = 0;
+    if (!el) return;
+    overlayInsetObserver = new ResizeObserver(updateOverlayInset);
+    overlayInsetObserver.observe(el);
+    updateOverlayInset();
+  },
+  { flush: "post" },
+);
+
 const {
   scale,
   panX,
@@ -227,6 +251,7 @@ const {
   contentHeightPx,
   hasGameState,
   boardKey,
+  overlayInsetPx,
 );
 
 const playerProfileRef = computed(() => props.playerProfile ?? null);
@@ -2201,6 +2226,7 @@ onUnmounted(() => {
   if (teleportFinishTimer) clearTimeout(teleportFinishTimer);
   if (enemyMoveFinishTimer) clearTimeout(enemyMoveFinishTimer);
   window.removeEventListener("keydown", onKeydown);
+  overlayInsetObserver?.disconnect();
   disconnectViewport();
   disconnectSocket();
 });

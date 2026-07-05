@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { PhaseAction } from "@gaem/shared";
 import { isPlayerDowned, kataptyNeedsTargetPick, remainingPlayerIds, roundPhaseLabel, turnHolderLabel } from "@gaem/shared";
-import { computed, onMounted } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 
 import { useBoardActionMode } from "../composables/useBoardActionMode.js";
@@ -32,6 +32,8 @@ const { dataCategory, dataFocus, dataFocusReturnCategory, dataExpanded, clearDat
 const { connection } = useGameConnection();
 const { gameState, yourPlayerId, send } = useGameState();
 const { setMode } = useBoardActionMode();
+
+const boardOverlaysEl = ref<HTMLElement | null>(null);
 
 onMounted(() => {
   initUiPersistence({
@@ -276,8 +278,8 @@ function onOverworldClick() {
         </button>
       </header>
       <div v-if="role && activeMainTab === 'taccom'" class="board-area">
-        <GameBoard :role="role" :player-profile="playerProfile" />
-        <div class="board-overlays">
+        <GameBoard :role="role" :player-profile="playerProfile" :overlay-el="boardOverlaysEl" />
+        <div ref="boardOverlaysEl" class="board-overlays">
           <ReversalPrompt />
           <ActionBar />
           <GmActionBar />
