@@ -6,6 +6,7 @@ import {
   applyMove,
   applyPhaseAction,
   applyBaseCampaignAction,
+  applySetEnforceTurns,
   characterTargetLabel,
   CONSOLE_MSG_CONNECTED,
   CONSOLE_MSG_DISCONNECTED,
@@ -393,12 +394,9 @@ export class GameRoom {
         this.sendError(ws, "Only the game master can do that");
         return;
       }
-      this.gameState.enforceTurns = parsed.enforceTurns;
+      const message = applySetEnforceTurns(this.gameState, parsed.enforceTurns);
       const actor = await this.actorForSocket(ws);
-      await this.broadcastConsole(
-        actor,
-        parsed.enforceTurns ? "Enforce turns enabled" : "Enforce turns disabled",
-      );
+      await this.broadcastConsole(actor, message);
       await this.broadcastState();
       return;
     }

@@ -169,8 +169,10 @@ function mergeHp(members: Enemy[], prevGroups: Map<string, string[]>): number {
   return total;
 }
 
-export function reconcileSwarmHp(state: GameState): void {
-  const prevGroups = buildSwarmGroups(state);
+export function reconcileSwarmHp(
+  state: GameState,
+  prevGroups: Map<string, string[]> = new Map(),
+): void {
   const eligible = state.enemies.filter(swarmEligible);
   const components = findConnectedComponents(eligible);
   const splitMemberIds = new Set<string>();
@@ -372,7 +374,8 @@ export function validateSwarmMove(
   if (!canGmMoveEnemies(state)) return "Not GM turn";
 
   const anchor = state.enemies.find((e) => e.id === anchorEnemyId);
-  if (!anchor || anchor.exhausted) return "Enemy has ended turn";
+  if (!anchor) return "Unknown enemy";
+  if (state.enforceTurns !== false && anchor.exhausted) return "Enemy has ended turn";
 
   const fringe = swarmFringeTiles(state, group.memberIds);
   if (!fringe.some((t) => t.x === destX && t.y === destY)) {
@@ -396,6 +399,7 @@ export function applySwarmMove(
   destX: number,
   destY: number,
 ): string | null {
+  const prevGroups = buildSwarmGroups(state);
   const group = swarmGroupForEnemy(state, anchorEnemyId);
   if (!group) return null;
 
@@ -406,7 +410,7 @@ export function applySwarmMove(
   if (state.enforceTurns !== false) spendSwarmMovement(state, group.memberIds, 1);
   mover.x = destX;
   mover.y = destY;
-  reconcileSwarmHp(state);
+  reconcileSwarmHp(state, prevGroups);
   return moverId;
 }
 

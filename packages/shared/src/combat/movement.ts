@@ -166,7 +166,7 @@ export function validateMovementPath(
   const computed = computePathCost(state, player, path);
   if (!computed) return "Invalid path";
 
-  if (areActionLimitsEnforced(state) && !opts?.skipMovementBudget) {
+  if (areActionLimitsEnforced(state) && state.enforceTurns !== false && !opts?.skipMovementBudget) {
     const budget = player.actionBudget?.movementRemaining;
     if (budget !== undefined && computed.total > budget) return "Not enough movement";
   }
@@ -189,6 +189,7 @@ export function applyMovementPath(
   const computed = computePathCost(state, player, path)!;
   if (
     areActionLimitsEnforced(state) &&
+    state.enforceTurns !== false &&
     opts?.spendBudget !== false &&
     player.actionBudget
   ) {

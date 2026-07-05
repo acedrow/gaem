@@ -64,6 +64,7 @@ import { isKnownEffectId } from "../effects-data.js";
 import { createPendingAction, addPendingAction, applyAssistedOutcome } from "./pending.js";
 import { setActiveEnemy } from "./enemy.js";
 import {
+  buildSwarmGroups,
   dedupeSwarmTargetIds,
   exhaustSwarmMembers,
   reconcileSwarmHp,
@@ -421,9 +422,10 @@ export function applyPlayerAction(
         const pushX = tx + Math.sign(dx);
         const pushY = ty + Math.sign(dy);
         if (isInBounds(pushX, pushY, state.width, state.height) && !occ.playerByKey.has(coordKey(pushX, pushY)) && !occ.enemyByKey.has(coordKey(pushX, pushY))) {
+          const prevGroups = buildSwarmGroups(state);
           enemy.x = pushX;
           enemy.y = pushY;
-          reconcileSwarmHp(state);
+          reconcileSwarmHp(state, prevGroups);
         }
       } else {
         const target = state.players.find((p) => p.id === action.targetPlayerId)!;
@@ -615,7 +617,7 @@ export function validateGmEnemyAction(state: GameState, action: GmEnemyAction): 
   switch (action.action) {
     case "move": {
       if (action.path.length === 0) return "Empty path";
-      if (enemy.exhausted) return "Enemy has ended turn";
+      if (state.enforceTurns !== false && enemy.exhausted) return "Enemy has ended turn";
       let cx = enemy.x;
       let cy = enemy.y;
       for (const step of action.path) {
@@ -749,6 +751,7 @@ export function validateSetEnemyHp(state: GameState, enemyId: string, hp: number
 }
 
 export function applySetEnemyHp(state: GameState, enemyId: string, hp: number): string {
+  const prevGroups = buildSwarmGroups(state);
   const enemy = state.enemies.find((e) => e.id === enemyId)!;
   const group = swarmGroupForEnemy(state, enemyId);
   const maxHp = group ? group.maxHp : getEnemyMaxHp(enemy);
@@ -761,7 +764,7 @@ export function applySetEnemyHp(state: GameState, enemyId: string, hp: number): 
   } else {
     enemy.hp = clamped;
   }
-  reconcileSwarmHp(state);
+  reconcileSwarmHp(state, prevGroups);
   return group
     ? `Swarm HP set to ${clamped}`
     : `${enemyLabel(enemy)} HP set to ${clamped}`;

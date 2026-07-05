@@ -21,6 +21,7 @@ import {
   applyMove,
   applyPhaseAction,
   applyBaseCampaignAction,
+  applySetEnforceTurns,
   characterTargetLabel,
   CONSOLE_MSG_CONNECTED,
   CONSOLE_MSG_DISCONNECTED,
@@ -589,11 +590,8 @@ wss.on("connection", (ws: WebSocket) => {
         sendError(ws, "Only the game master can do that");
         return;
       }
-      gameState.enforceTurns = parsed.enforceTurns;
-      broadcastConsole(
-        actorForSocket(ws),
-        parsed.enforceTurns ? "Enforce turns enabled" : "Enforce turns disabled",
-      );
+      const message = applySetEnforceTurns(gameState, parsed.enforceTurns);
+      broadcastConsole(actorForSocket(ws), message);
       broadcastState();
       return;
     }

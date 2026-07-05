@@ -34,6 +34,7 @@ const gmActionConfirm: Partial<Record<PhaseAction, string>> = {
   resetRound: "Reset the current round to its start?",
   gmEndRound: "End the current round and start the next one?",
   gmEndTurn: "End the current turn?",
+  removeAllEnemies: "Remove all enemies from the board?",
   rewindPhase:
     "Step back to the previous phase? In-progress player actions will be reset.",
   resetPhase: "Reset actions for the current turn?",
@@ -105,6 +106,9 @@ function sendGmAction(action: PhaseAction) {
         </button>
       </div>
       <div class="gm-controls-danger">
+        <button type="button" class="control-btn danger" @click="sendGmAction('removeAllEnemies')">
+          Remove all enemies
+        </button>
         <button type="button" class="control-btn danger" @click="sendGmAction('resetCombat')">
           Reset combat
         </button>

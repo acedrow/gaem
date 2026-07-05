@@ -118,6 +118,7 @@ export type PhaseAction =
   | "gmEndTurn"
   | "endDeployment"
   | "resetCombat"
+  | "removeAllEnemies"
   | "rewindPhase"
   | "resetPhase";
 

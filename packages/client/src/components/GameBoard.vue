@@ -874,7 +874,7 @@ const cellStateByKey = computed(() => {
   const showStepMoveHighlights =
     activePlayerSelected.value &&
     !inCombatActionMode &&
-    (!sandboxTurns || onPlayerTurn || inMoveMode || inSprintMode);
+    (sandboxTurns || onPlayerTurn || inMoveMode || inSprintMode);
   const me = yourPlayer.value;
   const movementRemaining = me?.actionBudget?.movementRemaining ?? 0;
   const sprintRemaining = me?.actionBudget?.sprintRemaining ?? 0;
@@ -899,7 +899,9 @@ const cellStateByKey = computed(() => {
       showStepMoveHighlights;
     const stepCost = me && stepBase ? movementStepCost(s, me, c.x, c.y) : Infinity;
     const showRegularStep =
-      stepBase && !inSprintMode && stepCost <= movementRemaining && movementRemaining > 0;
+      stepBase &&
+      !inSprintMode &&
+      (sandboxTurns || (stepCost <= movementRemaining && movementRemaining > 0));
     const showSprintStep = stepBase && inSprintMode && stepCost <= sprintRemaining && sprintRemaining > 0;
 
     map.set(c.key, {
@@ -911,7 +913,7 @@ const cellStateByKey = computed(() => {
         isWalkable(tile) &&
         !player &&
         !enemy &&
-        unlimitedMove &&
+        (unlimitedMove || sandboxTurns) &&
         inMoveMode,
       moveSecondary: showRegularStep || showSprintStep,
       deployable:
@@ -971,8 +973,10 @@ const cellStateByKey = computed(() => {
       })(),
       effectStacks: player?.effects ?? enemyAnchor?.effects,
       turnEnded: player
-        ? s.roundPhase !== "deployment" && s.actedPlayerIds.includes(player.id)
-        : !!(enemy && !isTowerEnemy(enemy) && enemy.exhausted),
+        ? s.enforceTurns !== false &&
+          s.roundPhase !== "deployment" &&
+          s.actedPlayerIds.includes(player.id)
+        : !!(enemy && !isTowerEnemy(enemy) && s.enforceTurns !== false && enemy.exhausted),
       playerDowned: player ? isPlayerDowned(player) : false,
       playerPortraitUrl: player?.characterSheetId
         ? portraitUrlFor(player.characterSheetId)
@@ -1744,7 +1748,7 @@ function handleCombatCellClick(x: number, y: number): boolean {
     if (!activePlayerSelected.value) return true;
     const s = gameState.value;
     const id = yourPlayerId.value;
-    if (s && id && s.enforceActionLimits === false) {
+    if (s && id && (s.enforceActionLimits === false || s.enforceTurns === false)) {
       const path = findPlayerMovementPath(s, id, { x, y });
       if (path) sendMovePath(path);
     } else {

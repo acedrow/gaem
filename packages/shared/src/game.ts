@@ -8,12 +8,14 @@ import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprint
 import { applyLoadoutToPlayer, getClassMaxHp, getArmorSpeed } from "./player-data.js";
 import { coordKey, isFootprintInBounds, isInBounds, isWalkable, tileAt } from "./map.js";
 import { isOrthogonallyAdjacent } from "./patterns.js";
-import { kataptyNeedsTargetPick, resolveYadathanEndOfTurn } from "./combat/yadathan.js";
+import { isTowerEnemy, kataptyNeedsTargetPick, resolveYadathanEndOfTurn } from "./combat/yadathan.js";
 import {
+  buildSwarmGroups,
   reconcileSwarmHp,
   swarmGroupForEnemy,
   validateSwarmMove,
   applySwarmMove,
+  enemyHasSwarmTrait,
   getEffectiveEnemyMaxHp,
 } from "./combat/swarm.js";
 
@@ -187,6 +189,21 @@ export function areActionLimitsEnforced(state: GameState): boolean {
   return state.enforceActionLimits !== false;
 }
 
+export function applySetEnforceTurns(state: GameState, enforceTurns: boolean): string {
+  state.enforceTurns = enforceTurns;
+  if (!enforceTurns) {
+    resetEnemyExhaustion(state);
+    state.actedPlayerIds = [];
+    for (const player of state.players) {
+      const speed = player.speed ?? getArmorSpeed(player.armor);
+      if (speed) player.actionBudget = createDefaultActionBudget(speed);
+      player.turnStartX = player.x;
+      player.turnStartY = player.y;
+    }
+  }
+  return enforceTurns ? "Enforce turns enabled" : "Enforce turns disabled";
+}
+
 function beginPlayerTurn(state: GameState, playerId: string): string {
   state.roundPhase = "playerTurn";
   state.turn = { role: "player", playerId };
@@ -326,6 +343,7 @@ export function validatePhaseAction(
     case "gmEndRound":
     case "gmEndTurn":
     case "resetCombat":
+    case "removeAllEnemies":
       if (ctx.role !== "gm") return "Only the game master can do that";
       return null;
     case "endDeployment":
@@ -428,6 +446,10 @@ export function applyPhaseAction(
     case "resetCombat": {
       resetToCombatStart(state);
       return "Combat reset — deployment";
+    }
+    case "removeAllEnemies": {
+      const count = removeAllEnemies(state);
+      return count ? `Removed ${count} enemies` : "No enemies on the board";
     }
     case "rewindPhase": {
       switch (state.roundPhase) {
@@ -569,7 +591,11 @@ function normalizeEnemies(enemies: Enemy[]): void {
     if (enemy.scale == null) {
       enemy.scale = getEnemyScaleByName(enemy.name);
     }
-    enemy.hp = normalizeHp(enemy.hp, getEnemyMaxHp(enemy));
+    if (enemyHasSwarmTrait(enemy) && getEnemyScale(enemy) <= 1) {
+      if (enemy.hp == null) enemy.hp = getEnemyMaxHp(enemy);
+    } else {
+      enemy.hp = normalizeHp(enemy.hp, getEnemyMaxHp(enemy));
+    }
   }
 }
 
@@ -682,7 +708,7 @@ export function validateEnemyMove(
   }
 
   if (!canGmMoveEnemies(state)) return "Not GM turn";
-  if (enemy.exhausted) return "Enemy has ended turn";
+  if (state.enforceTurns !== false && enemy.exhausted) return "Enemy has ended turn";
 
   if (!isOrthogonallyAdjacent({ x: enemy.x, y: enemy.y }, { x: toX, y: toY })) {
     return "Must move to an adjacent tile";
@@ -706,12 +732,13 @@ export function applyEnemyMove(
     applySwarmMove(state, enemyId, toX, toY);
     return;
   }
+  const prevGroups = buildSwarmGroups(state);
   const enemy = state.enemies.find((e) => e.id === enemyId);
   if (!enemy) return;
   if (state.enforceTurns !== false) spendEnemyMovement(enemy, 1);
   enemy.x = toX;
   enemy.y = toY;
-  reconcileSwarmHp(state);
+  reconcileSwarmHp(state, prevGroups);
 }
 
 export function validateAddEnemy(
@@ -727,6 +754,7 @@ export function addEnemy(state: GameState, enemy: Enemy): string | null {
   const scale = getEnemyScale(enemy);
   const err = validateEnemyFootprint(state, enemy.x, enemy.y, scale);
   if (err) return err;
+  const prevGroups = buildSwarmGroups(state);
   const maxHp = getEnemyMaxHp(enemy);
   state.enemies.push({
     ...enemy,
@@ -734,8 +762,21 @@ export function addEnemy(state: GameState, enemy: Enemy): string | null {
     hp: normalizeHp(enemy.hp, maxHp),
   });
   refreshEnemyMovement(state.enemies[state.enemies.length - 1]!);
-  reconcileSwarmHp(state);
+  reconcileSwarmHp(state, prevGroups);
   return null;
+}
+
+export function removeAllEnemies(state: GameState): number {
+  const count = state.enemies.filter((e) => !isTowerEnemy(e)).length;
+  state.enemies = state.enemies.filter((e) => isTowerEnemy(e));
+  if (state.combat) {
+    const active = state.combat.activeEnemyId;
+    if (active && !state.enemies.some((e) => e.id === active)) {
+      state.combat.activeEnemyId = null;
+    }
+    state.combat.pendingActions = state.combat.pendingActions.filter((p) => !p.actorEnemyId);
+  }
+  return count;
 }
 
 export function removeEnemy(
@@ -743,12 +784,13 @@ export function removeEnemy(
   enemyId: string,
   opts?: { entireSwarm?: boolean },
 ): boolean {
+  const prevGroups = buildSwarmGroups(state);
   const group = opts?.entireSwarm ? swarmGroupForEnemy(state, enemyId) : null;
   const removeIds = new Set(group?.memberIds ?? [enemyId]);
   const before = state.enemies.length;
   state.enemies = state.enemies.filter((e) => !removeIds.has(e.id));
   if (state.enemies.length < before) {
-    reconcileSwarmHp(state);
+    reconcileSwarmHp(state, prevGroups);
     return true;
   }
   return false;
@@ -991,5 +1033,6 @@ export function normalizeGameState(state: GameState, map?: GameMap): GameState {
   }
   normalizePlayers(state.players);
   normalizeEnemies(state.enemies);
+  reconcileSwarmHp(state);
   return state;
 }

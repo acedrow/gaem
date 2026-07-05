@@ -52,6 +52,7 @@ onMounted(() => {
 });
 
 const mapName = computed(() => gameState.value?.mapName ?? gameState.value?.mapId ?? null);
+const enforceTurns = computed(() => gameState.value?.enforceTurns !== false);
 
 const centerHeaderTitle = computed(() =>
   activeMainTab.value === "baseUpgrades" ? "Base Upgrades" : mapName.value,
@@ -76,7 +77,7 @@ const yourPlayer = computed(() => {
 
 const phaseAction = computed((): { label: string; action: PhaseAction } | null => {
   const s = gameState.value;
-  if (!s || !role.value) return null;
+  if (!s || !role.value || s.enforceTurns === false) return null;
 
   if (s.roundPhase === "deployment" && role.value === "gm") {
     return { label: "End deployment", action: "endDeployment" };
@@ -262,7 +263,7 @@ function onOverworldClick() {
           </button>
         </div>
         <h1 class="map-title">{{ centerHeaderTitle }}</h1>
-        <p v-if="activeMainTab === 'taccom' && roundStatus" class="round-status">
+        <p v-if="activeMainTab === 'taccom' && enforceTurns && roundStatus" class="round-status">
           Round {{ roundStatus.round }} · {{ roundStatus.phase }} · {{ roundStatus.turn }}
         </p>
         <button
