@@ -61,6 +61,16 @@ function pickTowerTeleportMode() {
   if (mode.value === "towerTeleport") clearMode();
   else setMode("towerTeleport");
 }
+
+function pickRezMode() {
+  if (mode.value === "rez") clearMode();
+  else setMode("rez");
+}
+
+function pickShoveMode() {
+  if (mode.value === "shove") clearMode();
+  else setMode("shove");
+}
 </script>
 
 <template>
@@ -68,6 +78,7 @@ function pickTowerTeleportMode() {
     <div v-if="showPlayerActionBar" class="sheet-combat">
       <div class="budget-row">
         <ActionBudgetChips
+          fill
           :interactive="showPlayerActionBar && !sandboxMode"
           v-bind="actionBudgetChips"
           :haste-stacks="hasteRemaining"
@@ -110,6 +121,35 @@ function pickTowerTeleportMode() {
           </template>
         </SheetActionButton>
       </div>
+
+      <div class="action-row">
+        <SheetActionButton
+          :active="mode === 'rez'"
+          :disabled="mode !== 'rez' && !canMain"
+          @click="pickRezMode"
+        >
+          Rez
+          <template #tooltip>
+            <AbilityBlock
+              tier-label="Main action"
+              content="Get a downed ally back on their feet. They instantly rejoin the fight and recover all HP."
+            />
+          </template>
+        </SheetActionButton>
+        <SheetActionButton
+          :active="mode === 'shove'"
+          :disabled="mode !== 'shove' && !canAux"
+          @click="pickShoveMode"
+        >
+          Shove
+          <template #tooltip>
+            <AbilityBlock
+              tier-label="Aux action"
+              content="Push an adjacent Scale:1 character or enemy 1 space away from you."
+            />
+          </template>
+        </SheetActionButton>
+      </div>
     </div>
 
     <div v-if="pills.length" class="effect-pills">
@@ -125,6 +165,9 @@ function pickTowerTeleportMode() {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .sheet-combat {
@@ -133,7 +176,12 @@ function pickTowerTeleportMode() {
   gap: 0.45rem;
 }
 
+.budget-row {
+  width: 100%;
+}
+
 .budget-row,
+.action-row,
 .speed-row {
   display: flex;
   flex-wrap: wrap;
@@ -141,8 +189,14 @@ function pickTowerTeleportMode() {
   align-items: center;
 }
 
+.action-row,
+.speed-row {
+  justify-content: center;
+}
+
 .stat {
-  font-size: 0.78rem;
+  font-size: 1rem;
+  font-weight: 600;
   color: var(--color-muted);
 }
 

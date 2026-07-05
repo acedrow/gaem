@@ -12,6 +12,12 @@ export function actionTierLabel(tier: ActionTier): string {
   return "Aux";
 }
 
+export function actionTierTooltip(tier: ActionTier): string {
+  if (tier === "main") return "Attack, Rez, and weapon active abilities.";
+  if (tier === "support") return "Use, class active ability, armor ability, and equipment.";
+  return "Shove, weapon swap, and Sprint.";
+}
+
 export function spendActionTier(budget: ActionBudget | undefined, tier: ActionTier): boolean {
   if (!budget) return false;
   if (tier === "main" && !budget.main) return false;

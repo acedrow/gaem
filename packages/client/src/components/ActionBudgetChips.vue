@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import type { ActionTier } from "@gaem/shared";
+import { actionTierLabel, actionTierTooltip, type ActionTier } from "@gaem/shared";
 import { ref } from "vue";
 
 import ModalDialog from "./ModalDialog.vue";
 
 const props = defineProps<{
   interactive?: boolean;
+  fill?: boolean;
   mainSpent: boolean;
   supportSpent: boolean;
   auxSpent: boolean;
@@ -24,11 +25,16 @@ const emit = defineEmits<{
 
 const pendingTier = ref<ActionTier | null>(null);
 
-const tierLabels: Record<ActionTier, string> = {
-  main: "Main",
-  support: "Support",
-  aux: "Aux",
-};
+const tiers: { tier: ActionTier; spent: () => boolean; granted: () => boolean; canCommit: () => boolean }[] = [
+  { tier: "main", spent: () => props.mainSpent, granted: () => props.mainGranted, canCommit: () => props.canCommitMain },
+  {
+    tier: "support",
+    spent: () => props.supportSpent,
+    granted: () => props.supportGranted,
+    canCommit: () => props.canCommitSupport,
+  },
+  { tier: "aux", spent: () => props.auxSpent, granted: () => props.auxGranted, canCommit: () => props.canCommitAux },
+];
 
 function chipClass(spent: boolean, granted: boolean, canCommit: boolean) {
   if (granted) return "chip haste-granted";
@@ -54,34 +60,21 @@ function cancelHaste() {
 </script>
 
 <template>
-  <button
-    type="button"
-    class="chip-btn"
-    :class="chipClass(mainSpent, mainGranted, canCommitMain)"
-    :disabled="!interactive || !mainSpent || !canCommitMain"
-    @click="onChipClick('main', mainSpent, canCommitMain)"
-  >
-    Main
-  </button>
-  <button
-    type="button"
-    class="chip-btn"
-    :class="chipClass(supportSpent, supportGranted, canCommitSupport)"
-    :disabled="!interactive || !supportSpent || !canCommitSupport"
-    @click="onChipClick('support', supportSpent, canCommitSupport)"
-  >
-    Support
-  </button>
-  <button
-    type="button"
-    class="chip-btn"
-    :class="chipClass(auxSpent, auxGranted, canCommitAux)"
-    :disabled="!interactive || !auxSpent || !canCommitAux"
-    @click="onChipClick('aux', auxSpent, canCommitAux)"
-  >
-    Aux
-  </button>
-  <span v-if="(hasteStacks ?? 0) > 0" class="chip haste">Haste {{ hasteStacks }}</span>
+  <div class="chip-row" :class="{ fill }">
+    <button
+      v-for="{ tier, spent, granted, canCommit } in tiers"
+      :key="tier"
+      type="button"
+      class="chip-btn"
+      :class="chipClass(spent(), granted(), canCommit())"
+      :disabled="!interactive || !spent() || !canCommit()"
+      @click="onChipClick(tier, spent(), canCommit())"
+    >
+      <span class="chip-label">{{ actionTierLabel(tier) }}</span>
+      <span class="chip-tooltip" role="tooltip">{{ actionTierTooltip(tier) }}</span>
+    </button>
+    <span v-if="(hasteStacks ?? 0) > 0" class="chip haste">Haste {{ hasteStacks }}</span>
+  </div>
 
   <ModalDialog
     :open="pendingTier != null"
@@ -92,12 +85,31 @@ function cancelHaste() {
   >
     <p v-if="pendingTier" class="prompt">
       Would you like to spend Haste to gain an additional
-      {{ tierLabels[pendingTier] }} action?
+      {{ actionTierLabel(pendingTier) }} action?
     </p>
   </ModalDialog>
 </template>
 
 <style scoped>
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.chip-row.fill {
+  width: 100%;
+}
+
+.chip-row.fill .chip-btn {
+  flex: 1;
+  min-width: 0;
+  justify-content: center;
+  font-size: 0.85rem;
+  padding: 0.25rem 0.5rem;
+}
+
 .chip-btn,
 .chip {
   font-size: 0.72rem;
@@ -110,8 +122,43 @@ function cancelHaste() {
 }
 
 .chip-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
   font-family: inherit;
   cursor: default;
+}
+
+.chip-label {
+  text-align: center;
+}
+
+.chip-tooltip {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  min-width: 140px;
+  max-width: 220px;
+  padding: 0.45rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 0.72rem;
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: center;
+  white-space: normal;
+  box-shadow: var(--shadow-popover);
+  pointer-events: none;
+}
+
+.chip-btn:hover .chip-tooltip,
+.chip-btn:focus-visible .chip-tooltip {
+  display: block;
 }
 
 .chip-btn.spent {
