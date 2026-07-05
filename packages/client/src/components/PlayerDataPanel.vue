@@ -304,12 +304,17 @@ function yadathanEquipLabel(name: string): string {
 }
 
 .list-card-header-main .item-name {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .list-card-header.expanded {
+  align-items: flex-start;
+}
+
+.list-card-header.expanded .list-card-header-main {
   align-items: flex-start;
 }
 

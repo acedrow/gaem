@@ -37,7 +37,10 @@ function toggleDetail() {
 
 <template>
   <div class="gear-field">
-    <div class="field-row">
+    <div
+      class="field-row"
+      :class="{ expanded: detailOpen, stacked: detailOpen && kind === 'weapons' }"
+    >
       <span class="field-label">{{ label }}:</span>
       <span class="field-value">{{ value || "—" }}</span>
       <button
@@ -115,6 +118,56 @@ function toggleDetail() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.field-row.expanded {
+  align-items: flex-start;
+}
+
+.field-row.stacked {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: start;
+  column-gap: 0.35rem;
+  row-gap: 0.15rem;
+}
+
+.field-row.stacked .field-label {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.field-row.stacked .field-value {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.field-row.stacked .detail-toggle {
+  grid-column: 2;
+  grid-row: 1;
+  margin-top: 0;
+}
+
+.field-row.stacked .edit-btn {
+  grid-column: 3;
+  grid-row: 1;
+  margin-top: 0;
+}
+
+.field-row.expanded:not(.stacked) .field-value {
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.field-row.expanded:not(.stacked) .detail-toggle,
+.field-row.expanded:not(.stacked) .edit-btn {
+  margin-top: 0.05rem;
 }
 
 .detail-toggle {

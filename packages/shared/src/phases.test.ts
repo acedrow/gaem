@@ -1,0 +1,83 @@
+import { describe, expect, it } from "vitest";
+import {
+  applyPhaseAction,
+  canResetPhase,
+  canRewindPhase,
+  validatePhaseAction,
+} from "./game.js";
+import { addTestPlayer, gmCtx, makeGameState, playerCtx } from "./test/fixtures.js";
+
+describe("phases", () => {
+  function twoPlayerState() {
+    const state = makeGameState();
+    addTestPlayer(state, "p1", { x: 2, y: 2 });
+    addTestPlayer(state, "p2", { x: 3, y: 2 });
+    return state;
+  }
+
+  it("rejects wrong role and phase", () => {
+    const state = twoPlayerState();
+    expect(validatePhaseAction(state, "endDeployment", playerCtx("p1"))).toBe(
+      "Only the game master can do that",
+    );
+    expect(validatePhaseAction(state, "takeTurn", playerCtx("p1"))).toBe("Wrong phase");
+    expect(validatePhaseAction(state, "doEffects", gmCtx())).toBe("Wrong phase");
+  });
+
+  it("canRewindPhase and canResetPhase at boundaries", () => {
+    const deployment = makeGameState();
+    expect(canRewindPhase(deployment)).toBe(false);
+    expect(canResetPhase(deployment)).toBe(false);
+
+    const playerTurn = makeGameState({
+      roundPhase: "playerTurn",
+      turn: { role: "player", playerId: "p1" },
+    });
+    expect(canResetPhase(playerTurn)).toBe(true);
+  });
+
+  it("runs deployment through end of round 1", () => {
+    const state = twoPlayerState();
+
+    expect(validatePhaseAction(state, "endDeployment", gmCtx())).toBeNull();
+    applyPhaseAction(state, "endDeployment", gmCtx());
+    expect(state.roundPhase).toBe("startRoundEffects");
+    expect(state.turn).toEqual({ role: "gm" });
+    expect(state.combat).toBeDefined();
+
+    expect(validatePhaseAction(state, "doEffects", gmCtx())).toBeNull();
+    applyPhaseAction(state, "doEffects", gmCtx());
+    expect(state.roundPhase).toBe("playersChoice");
+    expect(state.turn).toBeNull();
+
+    expect(validatePhaseAction(state, "takeTurn", playerCtx("p1"))).toBeNull();
+    applyPhaseAction(state, "takeTurn", playerCtx("p1"));
+    expect(state.roundPhase).toBe("playerTurn");
+    expect(state.turn).toEqual({ role: "player", playerId: "p1" });
+
+    expect(validatePhaseAction(state, "endPlayerTurn", playerCtx("p1"))).toBeNull();
+    applyPhaseAction(state, "endPlayerTurn", playerCtx("p1"));
+    expect(state.roundPhase).toBe("gmTurn");
+    expect(state.actedPlayerIds).toContain("p1");
+
+    expect(validatePhaseAction(state, "endGmTurn", gmCtx())).toBeNull();
+    applyPhaseAction(state, "endGmTurn", gmCtx());
+    expect(state.roundPhase).toBe("playerTurn");
+    expect(state.turn).toEqual({ role: "player", playerId: "p2" });
+
+    expect(validatePhaseAction(state, "endPlayerTurn", playerCtx("p2"))).toBeNull();
+    applyPhaseAction(state, "endPlayerTurn", playerCtx("p2"));
+    expect(state.roundPhase).toBe("gmTurn");
+    expect(state.actedPlayerIds).toEqual(["p1", "p2"]);
+
+    expect(validatePhaseAction(state, "countdownTags", gmCtx())).toBeNull();
+    applyPhaseAction(state, "countdownTags", gmCtx());
+    expect(state.roundPhase).toBe("countdownTags");
+
+    expect(validatePhaseAction(state, "endRound", gmCtx())).toBeNull();
+    applyPhaseAction(state, "endRound", gmCtx());
+    expect(state.round).toBe(2);
+    expect(state.roundPhase).toBe("startRoundEffects");
+    expect(state.actedPlayerIds).toEqual([]);
+  });
+});

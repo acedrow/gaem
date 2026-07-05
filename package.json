@@ -11,7 +11,8 @@
     "deploy:cf": "npm run build -w @gaem/shared && npm run build -w @gaem/client && npm run sync-maps -w @gaem/cf-worker && npm run deploy -w @gaem/cf-worker",
     "rulebook:setup": "bash scripts/rulebook/setup.sh",
     "rulebook": "scripts/rulebook/.venv/bin/python scripts/rulebook/extract.py",
-    "enemy-portraits:crop": "scripts/rulebook/.venv/bin/python scripts/crop-enemy-portraits.py"
+    "enemy-portraits:crop": "scripts/rulebook/.venv/bin/python scripts/crop-enemy-portraits.py",
+    "test": "npm run test -w @gaem/shared"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
