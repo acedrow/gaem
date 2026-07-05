@@ -20,6 +20,8 @@
   "enemies": [
     {
       "name": "OROBAS",
+      "portrait": "orobas",
+      "portraitBgExcludeHues": [[38, 90]],
       "title": "THE SPEAKER",
       "description": "The herald of the Paracletus and the first to pour from the Source Seed, OROBAS sees the world around it for what it could be. It does not want to kill you—it wants to free you.",
       "summary": "Paracletus boss (200 HP, scale 3). Stain-focused line attacks, kill-to-spawn, and enemy repositioning; can stain when hit and moves faster on stain.",
@@ -41,6 +43,7 @@
     },
     {
       "name": "Eyesting Rose",
+      "portrait": "eyesting-rose",
       "codename": "PRISTIR",
       "description": "When the Source Seed was experimenting with fractals, PRISTIR was born. Those that try to trace its patterns may lose track of its size and subsequent threat.",
       "summary": "Fractal miniboss that grows and shrinks. Swells for push damage, then bursts for AoE; stainwalk shares damage with linked allies on stain.",
@@ -58,6 +61,7 @@
     },
     {
       "name": "Gorgenaut",
+      "portrait": "gorgenaut",
       "codename": "RETIARIUS",
       "description": "Formed at the Scyllan Convergence of thirteen seas, RETIARIUS is bent on consumption. By swirling its energy in a Charybdic array pattern, it generates a near-inescapable vacuum.",
       "summary": "Fast 2×2 miniboss. Cone pull and stain-teleport strikes; agnosia stains a 5×5 and pulls; heals 10 HP on stain each turn.",
@@ -75,6 +79,7 @@
     },
     {
       "name": "Soaring Bombardier",
+      "portrait": "soaring-bombardier",
       "codename": "CHALAZAOR",
       "description": "When the stain washed over a stygian anemone, it rose to flight in the form of CHALAZAOR. Its volatile spawn are said to be irremovable when planted.",
       "summary": "Flying miniboss. Plants Flowerbuds that bloom into Stain Flowers; agnosia counts down to a death explosion after negating damage.",
@@ -92,6 +97,7 @@
     },
     {
       "name": "Lurking Freak",
+      "portrait": "lurking-freak",
       "codename": "POTAGON",
       "description": "Direct descendant of some of the first beings spawned from the Source Seed and the catalyst for the Contagion Mind, POTAGON once saw to the safety of the Seed on its journey through the rivers of Hell until it reached its nest in the depths.",
       "summary": "2×2 ambusher. Ranged line stains tiles; melee pins. Burrows as stain terrain; takes 10 damage if it ends off stain.",
@@ -109,6 +115,7 @@
     },
     {
       "name": "Scorned Eyes",
+      "portrait": "scorned-eyes",
       "codename": "KATAGOS",
       "description": "When the Source Seed purged parasites from its body, they arose a new Stained being. The Contagion Mind deemed KATAGOS more useful, integrating them into their own sub-link of the mind network.",
       "summary": "1 HP swarm skirmisher. Ranged chip damage; a primed swarm of 4+ self-destructs and stains its tiles.",
@@ -121,6 +128,7 @@
     },
     {
       "name": "Stain Creep",
+      "portrait": "stain-creep",
       "codename": "KALUPTID",
       "description": "Sentient stain that walked before it could think. Nearby creatures will hear a constant ringing—a comfort for the Paracletus but a source of unease for everyone else.",
       "summary": "1 HP minion. Adjacent 4 damage; dies off stain. Allies can share its square.",
@@ -133,6 +141,7 @@
     },
     {
       "name": "Shadowing Witness",
+      "portrait": "shadowing-witness",
       "codename": "AULAEA",
       "description": "When the Source Seed bleeds during a hurricane, AULAEA are formed in the foamy waters. It's rumored that their intense gaze can relieve headaches in humans—an uncanny ability some see as a boon instead of an omen.",
       "summary": "Flying 1 HP swarm. Range:2 poke; leaves squares stained until your next turn when it moves.",
@@ -146,6 +155,7 @@
     },
     {
       "name": "Latent Pudding",
+      "portrait": "latent-pudding",
       "codename": "AMBROID",
       "description": "In the pressures of the deep sea, compressed Paraclesal flesh will roil and condense into an AMBROID. AMBROID will sing an alien aria before they turn into a new weapon on the terrain.",
       "summary": "1 HP minion. Push:2; transforms into any Paracletus fortification when ending on stain.",
@@ -157,6 +167,7 @@
     },
     {
       "name": "Paracletus Loom",
+      "portrait": "paracletus-loom",
       "description": "The creation of Paracletal spinnerets connected to the Source Seed with a transpatial superequation can transport demons across great distances almost instantaneously. Each being in the Contagion Mind acts as a roller on a conveyor belt to move their presence along.",
       "summary": "Immobile spawner (50 HP). Gains charges each round to spawn minions or minibosses.",
       "tags": ["Spawner", "Immobile"],
@@ -166,6 +177,7 @@
     },
     {
       "name": "Stain Flower",
+      "portrait": "stain-flower",
       "description": "In corrupting the Fibonacci sequence with Paraclesal mathematics, seeds injected into the battlefield can bloom into viable stand-ins for lower level demons. Swarms including a Stain Flower will notice an empty presence in the Contagion Mind that merely echoes the units it is linked with.",
       "summary": "Immobile fort (10 HP). Counts toward nearby swarms but cannot move or act.",
       "tags": ["Fortification", "Immobile", "Obstacle"],
@@ -176,6 +188,7 @@
     },
     {
       "name": "Stain Geyser",
+      "portrait": "stain-gyser",
       "description": "By adjusting the flow of subterranean stain rivers, they may bore upwards into a geyser on the surface. The stain travels through the earth in a helix pattern, erupting in an efficient and beautiful fractal array.",
       "summary": "Immobile fort (30 HP). Stains a 4×4 area while it stands.",
       "tags": ["Fortification", "Immobile", "Obstacle"],
@@ -186,6 +199,7 @@
     },
     {
       "name": "Creep Station",
+      "portrait": "creep-station",
       "description": "By using a modified version of the transpatial superequation, the Contagion Mind links two Paraclesal cubes on the battlefield. When boarded, the occupants of one cube will safely be launched to a linked cube at a high speed.",
       "summary": "2×2 fort (50 HP). Linked stations teleport boarders next turn; line between them damages passers.",
       "tags": ["Fortification", "Carrier", "Manned"],
@@ -196,6 +210,7 @@
     },
     {
       "name": "Bubbling Presence",
+      "portrait": "bubbling-presence",
       "description": "A bubble made out of stain, containing a lightweight gas that can redisperse into stain when popped. It accepts a single command before being excised from the Contagion Mind.",
       "summary": "Moving fort (1 HP, speed 4). Drifts one way; bursts for 3 Burst:1 damage and stains on contact or hit.",
       "tags": ["Fortification", "Cover", "Moving"],

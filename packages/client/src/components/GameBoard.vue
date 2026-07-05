@@ -49,6 +49,7 @@ import {
   warhookValidTargetKeys,
   isWarhookTargetAt,
   isTowerEnemy,
+  isFortificationEnemy,
   yadathanPlacementKeys,
   towerTeleportLandingKeys,
   kataptyTargetKeys,
@@ -60,12 +61,16 @@ import {
   swarmGroupForEnemy,
   swarmFringeTiles,
   pickSwarmMoveMember,
+  getSwarmMovementRemaining,
   swarmCanonicalDisplayId,
   getEffectiveEnemyHp,
   getEffectiveEnemyMaxHp,
+  getEnemyListingByName,
   weaponHasBreakerTag,
   attackTargetsSwarm,
   collectAttackTiles,
+  enemyDirectAttackTargetPlayerIds,
+  parseEnemyAttackString,
 } from "@gaem/shared";
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 
@@ -83,6 +88,8 @@ import { useEnemySpawnSelection } from "../composables/useEnemySpawnSelection.js
 import { useGameSocket } from "../composables/useGameSocket.js";
 import { showToast } from "../composables/useToasts.js";
 import { usePortraitCache } from "../composables/usePortraitCache.js";
+import { useApi } from "../composables/useApi.js";
+import { useEnemyPortraitColors } from "../composables/useEnemyPortraitColors.js";
 import { useGameState } from "../composables/useGameState.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import { usePatternSelection } from "../composables/usePatternSelection.js";
@@ -131,6 +138,8 @@ const { indicators: damageIndicators } = useDamageIndicators(gameState);
 const { sheets, loadSheets } = useCharacterSheets();
 const boardPlayers = computed(() => gameState.value?.players);
 const { portraitUrlFor } = usePortraitCache(sheets, boardPlayers);
+const { enemyPortraitUrlForName } = useApi();
+const { portraitBackgroundFor } = useEnemyPortraitColors();
 const { dataCategory } = useInfoDataSelection();
 const { selectedSpawnEnemyName, clearSpawnEnemySelection } = useEnemySpawnSelection();
 const {
@@ -166,6 +175,7 @@ const {
   towerTeleportStep,
   towerTeleportLanding,
   kataptyTargetIds,
+  gmEnemyAttack,
   clearMode: clearBoardActionMode,
 } = useBoardActionMode();
 const { sendPlayerAction, sendMovePath, pendingReaction, reversalExtraAllyIds } = useCombatActions();
@@ -745,16 +755,7 @@ const gmEnemyMoveTargetKeys = computed(() => {
 
   const group = swarmGroupForEnemy(s, id);
   if (group) {
-    const hasMovement = group.memberIds.some((memberId) => {
-      const member = s.enemies.find((e) => e.id === memberId);
-      if (!member || member.exhausted) return false;
-      if (s.enforceTurns !== false) {
-        ensureEnemyMovement(member);
-        return (member.movementRemaining ?? 0) >= 1;
-      }
-      return true;
-    });
-    if (!hasMovement) return keys;
+    if (s.enforceTurns !== false && getSwarmMovementRemaining(s, group.memberIds) < 1) return keys;
     for (const tile of swarmFringeTiles(s, group.memberIds, occupancy.value ?? undefined)) {
       if (pickSwarmMoveMember(s, group.memberIds, tile.x, tile.y)) {
         keys.add(boardCellKey(tile.x, tile.y));
@@ -797,6 +798,23 @@ const gmSpawnableKeys = computed(() => {
     if (validateEnemyFootprint(s, c.x, c.y, scale, undefined, occupancy.value) === null) {
       keys.add(c.key);
     }
+  }
+  return keys;
+});
+
+const gmEnemyAttackTargetKeys = computed(() => {
+  const keys = new Set<string>();
+  if (boardActionMode.value !== "gmEnemyAttack" || !gmEnemyAttack.value) return keys;
+  const s = gameState.value;
+  const occ = occupancy.value;
+  if (!s || !occ) return keys;
+  const { enemyId, attackIndex } = gmEnemyAttack.value;
+  const enemy = s.enemies.find((e) => e.id === enemyId);
+  const attackText = getEnemyListingByName(enemy?.name)?.attacks?.[attackIndex] ?? "";
+  const parsed = parseEnemyAttackString(attackText);
+  for (const playerId of enemyDirectAttackTargetPlayerIds(s, enemyId, parsed, occ)) {
+    const player = s.players.find((p) => p.id === playerId);
+    if (player) keys.add(coordKey(player.x, player.y));
   }
   return keys;
 });
@@ -914,6 +932,7 @@ const cellStateByKey = computed(() => {
         towerTeleportPrimaryKeys.value.has(coordKey(c.x, c.y)) ||
         combatAttackSelectedKeys.value.has(coordKey(c.x, c.y)) ||
         reversalLineKeys.value.damage.has(coordKey(c.x, c.y)) ||
+        gmEnemyAttackTargetKeys.value.has(coordKey(c.x, c.y)) ||
         (boardActionMode.value === "kataptyPick" &&
           kataptyTargetIds.value.some((id) => {
             const e = s.enemies.find((en) => en.id === id);
@@ -958,6 +977,17 @@ const cellStateByKey = computed(() => {
       playerPortraitUrl: player?.characterSheetId
         ? portraitUrlFor(player.characterSheetId)
         : null,
+      enemyPortraitUrl:
+        enemyAnchor && enemyAnchor.kind !== "tower"
+          ? enemyPortraitUrlForName(enemyAnchor.name)
+          : null,
+      enemyPortraitBg: (() => {
+        if (!enemyAnchor || enemyAnchor.kind === "tower") return null;
+        const listing = getEnemyListingByName(enemyAnchor.name);
+        const url = enemyPortraitUrlForName(enemyAnchor.name);
+        if (!listing?.portrait || !url) return null;
+        return portraitBackgroundFor(listing.portrait, url);
+      })(),
       hasSeed,
       towerOwnerHue:
         enemyAnchor?.kind === "tower" && enemyAnchor.ownerPlayerId
@@ -980,15 +1010,20 @@ const tooltipData = computed(() => {
   const enemyEntry = (() => {
     if (!anchor || isTowerEnemy(anchor)) return null;
     const group = swarmGroupForEnemy(s, anchor.id);
+    const baseName = anchor.name ?? "Enemy";
+    const displayName =
+      group && group.size > 1 ? `${baseName} (Swarm · ${group.size})` : baseName;
     if (group && group.size > 1) {
       return {
         ...anchor,
+        displayName,
         displayHp: group.currentHp,
         displayMaxHp: group.maxHp,
       };
     }
     return {
       ...anchor,
+      displayName,
       displayHp: getEffectiveEnemyHp(anchor, s),
       displayMaxHp: getEffectiveEnemyMaxHp(anchor, s),
     };
@@ -1111,6 +1146,35 @@ const enemyMoveOverlayStyle = computed(() => {
   const x = enemyMoveOverlayAtDest.value ? anim.toX : anim.fromX;
   const y = enemyMoveOverlayAtDest.value ? anim.toY : anim.fromY;
   return cellCenterStyle(x, y);
+});
+
+const enemyMoveOverlayPortraitUrl = computed(() => {
+  const anim = enemyMoveAnimation.value;
+  const s = gameState.value;
+  if (!anim || !s) return null;
+  const enemy = s.enemies.find((e) => e.id === anim.enemyId);
+  if (!enemy || enemy.kind === "tower") return null;
+  return enemyPortraitUrlForName(enemy.name);
+});
+
+const enemyMoveOverlayIsFortification = computed(() => {
+  const anim = enemyMoveAnimation.value;
+  const s = gameState.value;
+  if (!anim || !s) return false;
+  const enemy = s.enemies.find((e) => e.id === anim.enemyId);
+  return !!enemy && isFortificationEnemy(enemy);
+});
+
+const enemyMoveOverlayBg = computed(() => {
+  const anim = enemyMoveAnimation.value;
+  const s = gameState.value;
+  if (!anim || !s) return null;
+  const enemy = s.enemies.find((e) => e.id === anim.enemyId);
+  if (!enemy || enemy.kind === "tower") return null;
+  const listing = getEnemyListingByName(enemy.name);
+  const url = enemyPortraitUrlForName(enemy.name);
+  if (!listing?.portrait || !url) return null;
+  return portraitBackgroundFor(listing.portrait, url);
 });
 
 let enemyMoveFinishTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1797,6 +1861,13 @@ function handleCombatCellClick(x: number, y: number): boolean {
   return false;
 }
 
+function onBoardPlayerClick(x: number, y: number, playerId: string, characterSheetId?: string) {
+  if (props.role === "gm" && boardActionMode.value === "gmEnemyAttack") {
+    if (handleGmEnemyAttackCellClick(x, y)) return;
+  }
+  selectBoardPlayer(playerId, characterSheetId);
+}
+
 function onPlayerCellClick(x: number, y: number) {
   if (handleCombatCellClick(x, y)) return;
   if (
@@ -1820,9 +1891,38 @@ function tryMoveSelectedEnemy(x: number, y: number): boolean {
   return tryMoveSelectedEnemyToDest(dest.x, dest.y);
 }
 
+function handleGmEnemyAttackCellClick(x: number, y: number): boolean {
+  const pending = gmEnemyAttack.value;
+  const s = gameState.value;
+  const occ = occupancy.value;
+  if (!pending || !s || !occ) return false;
+  const key = coordKey(x, y);
+  if (!gmEnemyAttackTargetKeys.value.has(key)) return false;
+  const player = occ.playerByKey.get(key);
+  if (!player) return false;
+  send({
+    type: "gmEnemyAction",
+    action: {
+      action: "attack",
+      enemyId: pending.enemyId,
+      attackIndex: pending.attackIndex,
+      targetPlayerId: player.id,
+      damage: pending.damage,
+    },
+  });
+  clearBoardActionMode();
+  return true;
+}
+
 function onGmCellClick(x: number, y: number) {
   const s = gameState.value;
   if (!s) return;
+
+  if (boardActionMode.value === "gmEnemyAttack") {
+    if (handleGmEnemyAttackCellClick(x, y)) return;
+    clearBoardActionMode();
+    return;
+  }
 
   if (selectOccupantAt(x, y)) return;
 
@@ -2152,7 +2252,7 @@ onUnmounted(() => {
                 @click="onCellClick(c.x, c.y)"
                 @hover="onCellHover(c.x, c.y, c.key)"
                 @unhover="onCellUnhover"
-                @player-click="selectBoardPlayer(cellStateByKey.get(c.key)!.player!.id, cellStateByKey.get(c.key)!.player!.characterSheetId)"
+                @player-click="onBoardPlayerClick(c.x, c.y, cellStateByKey.get(c.key)!.player!.id, cellStateByKey.get(c.key)!.player!.characterSheetId)"
                 @enemy-click="onEnemyCellClick(c.x, c.y, cellStateByKey.get(c.key)!.enemyAnchor!.id)"
                 @deploy-pointer-down="onDeployPointerDown($event, cellStateByKey.get(c.key)!.player!)"
               />
@@ -2192,7 +2292,7 @@ onUnmounted(() => {
             <span class="tooltip-heading">Enemies</span>
             <div v-for="enemy in tooltipData.enemies" :key="enemy.id" class="tooltip-unit">
               <span class="tooltip-row">
-                {{ enemyLabel(enemy) }}<template v-if="props.role === 'gm'"> · HP {{ formatHp(enemy.displayHp, enemy.displayMaxHp) }}</template>
+                {{ enemy.displayName }}<template v-if="props.role === 'gm'"> · HP {{ formatHp(enemy.displayHp, enemy.displayMaxHp) }}</template>
               </span>
               <span
                 v-for="effect in effectEntries(enemy.effects)"
@@ -2227,10 +2327,24 @@ onUnmounted(() => {
         <div
           v-if="enemyMoveOverlayStyle"
           class="enemy-move-overlay"
-          :class="{ 'enemy-move-overlay-animating': enemyMoveOverlayAtDest }"
-          :style="enemyMoveOverlayStyle"
+          :class="{
+            'enemy-move-overlay-animating': enemyMoveOverlayAtDest,
+            'has-portrait': !!enemyMoveOverlayPortraitUrl,
+            'fortification-overlay': enemyMoveOverlayIsFortification,
+          }"
+          :style="[
+            enemyMoveOverlayStyle,
+            enemyMoveOverlayBg ? { background: enemyMoveOverlayBg } : undefined,
+          ]"
           @transitionend="onEnemyMoveOverlayTransitionEnd"
-        />
+        >
+          <img
+            v-if="enemyMoveOverlayPortraitUrl"
+            :src="enemyMoveOverlayPortraitUrl"
+            alt=""
+            class="portrait-img"
+          />
+        </div>
 
         <div
           v-if="teleportOverlayStyle && teleportOverlayPlayer"
@@ -2372,6 +2486,27 @@ onUnmounted(() => {
   background: hsl(0 70% 45%);
   box-sizing: border-box;
   transition: left 350ms ease, top 350ms ease;
+  overflow: hidden;
+}
+
+.enemy-move-overlay.has-portrait {
+  background: linear-gradient(to top, #000 0%, transparent 50%), var(--color-surface-raised);
+}
+
+.enemy-move-overlay.fortification-overlay {
+  border-radius: 4px;
+}
+
+.enemy-move-overlay .portrait-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  border-radius: 50%;
+}
+
+.enemy-move-overlay.fortification-overlay .portrait-img {
+  border-radius: 4px;
 }
 
 .damage-indicator {

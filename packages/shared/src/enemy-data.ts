@@ -4,6 +4,8 @@ import type { Enemy } from "./types.js";
 
 export type EnemyListing = {
   name: string;
+  portrait?: string;
+  portraitBgExcludeHues?: [number, number][];
   codename?: string;
   title?: string;
   description?: string;
@@ -28,12 +30,16 @@ type EnemyFaction = {
 const ENEMY_FACTIONS = [paracletusJson] as EnemyFaction[];
 
 const ENEMY_LISTING_BY_KEY = new Map<string, EnemyListing>();
+const PORTRAIT_BG_EXCLUDE_HUES = new Map<string, [number, number][]>();
 
 for (const faction of ENEMY_FACTIONS) {
   for (const enemy of faction.enemies) {
     ENEMY_LISTING_BY_KEY.set(enemy.name.trim().toLowerCase(), enemy);
     if (enemy.codename) {
       ENEMY_LISTING_BY_KEY.set(enemy.codename.trim().toLowerCase(), enemy);
+    }
+    if (enemy.portrait && enemy.portraitBgExcludeHues?.length) {
+      PORTRAIT_BG_EXCLUDE_HUES.set(enemy.portrait, enemy.portraitBgExcludeHues);
     }
   }
 }
@@ -49,6 +55,20 @@ function findEnemyListing(name: string | undefined): EnemyListing | undefined {
 
 export function getEnemyListingByName(name: string | undefined): EnemyListing | undefined {
   return findEnemyListing(name);
+}
+
+export function getEnemyPortraitUrl(listing: EnemyListing | undefined): string | null {
+  if (!listing?.portrait) return null;
+  return `/enemies/paracletus/${listing.portrait}.png`;
+}
+
+export function getPortraitBgExcludeHues(portraitSlug: string | undefined): [number, number][] | undefined {
+  if (!portraitSlug) return undefined;
+  return PORTRAIT_BG_EXCLUDE_HUES.get(portraitSlug);
+}
+
+export function isFortificationEnemy(enemy: Pick<Enemy, "name">): boolean {
+  return findEnemyListing(enemy.name)?.tags?.includes("Fortification") ?? false;
 }
 
 export function getEnemyMaxHpByName(name: string | undefined): number {

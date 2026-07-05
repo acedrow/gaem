@@ -262,7 +262,7 @@ export class GameRoom {
           this.sendError(ws, "Only the game master can manage enemies");
           return;
         }
-        removeEnemy(this.gameState, parsed.enemyId);
+        removeEnemy(this.gameState, parsed.enemyId, { entireSwarm: true });
         if ((enemy.hp ?? 0) > 0) {
           const actor = await this.actorForSocket(ws);
           this.broadcastConsole(actor, `removed ${enemyLabel(enemy)}`);

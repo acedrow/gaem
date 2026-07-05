@@ -2,11 +2,13 @@
 import { listEnemyListings } from "@gaem/shared";
 import { ref } from "vue";
 
+import { useApi } from "../composables/useApi.js";
 import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useEnemySpawnSelection } from "../composables/useEnemySpawnSelection.js";
 
 const { closeRightPanel } = useBoardSelection();
 const { selectedSpawnEnemyName, selectSpawnEnemy } = useEnemySpawnSelection();
+const { enemyPortraitUrl } = useApi();
 
 const enemies = listEnemyListings();
 const expanded = ref<Set<string>>(new Set());
@@ -56,6 +58,13 @@ function toggle(name: string) {
           </button>
 
           <div v-if="isExpanded(enemy.name)" class="list-card-body">
+            <img
+              v-if="enemyPortraitUrl(enemy)"
+              :src="enemyPortraitUrl(enemy)!"
+              :alt="enemy.name"
+              class="enemy-portrait"
+            />
+
             <p v-if="enemy.summary" class="enemy-summary">{{ enemy.summary }}</p>
 
             <div class="stats">
@@ -205,6 +214,17 @@ function toggle(name: string) {
   margin: 0 0 0.5rem;
   font-weight: 600;
   color: var(--color-text);
+}
+
+.enemy-portrait {
+  display: block;
+  width: 100%;
+  max-height: 180px;
+  object-fit: contain;
+  margin-bottom: 0.65rem;
+  border-radius: 8px;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
 }
 
 .stats {

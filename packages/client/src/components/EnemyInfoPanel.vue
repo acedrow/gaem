@@ -2,21 +2,25 @@
 import {
   getEnemyBossActionBudget,
   getEnemyListingByName,
-  getEnemyMaxHp,
   getEnemyScale,
   getEnemySpeed,
   getEffectiveEnemyHp,
   getEffectiveEnemyMaxHp,
+  getSwarmMovementRemaining,
+  isDirectTargetEnemyAttack,
   isTowerEnemy,
+  parseEnemyAttackString,
   swarmGroupForEnemy,
-  unexhaustedEnemies,
 } from "@gaem/shared";
 import { computed, ref } from "vue";
 
+import { useBoardActionMode } from "../composables/useBoardActionMode.js";
 import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useCombatActions } from "../composables/useCombatActions.js";
 import { useGameState } from "../composables/useGameState.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
+import { useApi } from "../composables/useApi.js";
+import { useEnemyPortraitColors } from "../composables/useEnemyPortraitColors.js";
 import { useSession } from "../composables/useSession.js";
 import GmEnemyAttackModal from "./GmEnemyAttackModal.vue";
 import HpBar from "./HpBar.vue";
@@ -29,9 +33,12 @@ const props = defineProps<{
 }>();
 
 const { isGm } = useSession();
+const { enemyPortraitUrl } = useApi();
+const { portraitBackgroundFor, colors: enemyPortraitColors } = useEnemyPortraitColors();
 const { showGmCombatUi } = useCombatActions();
 const { gameState, send } = useGameState();
 const { closeRightPanel } = useBoardSelection();
+const { startGmEnemyAttack } = useBoardActionMode();
 const { goBackFromDataFocus } = useInfoDataSelection();
 
 const attackModalOpen = ref(false);
@@ -44,6 +51,16 @@ const activeEnemy = computed(() =>
 const listing = computed(() =>
   getEnemyListingByName(activeEnemy.value?.name ?? props.enemyName),
 );
+
+const portraitUrl = computed(() => enemyPortraitUrl(listing.value));
+
+const portraitFrameStyle = computed(() => {
+  void enemyPortraitColors.value;
+  const url = portraitUrl.value;
+  const slug = listing.value?.portrait;
+  if (!url || !slug) return undefined;
+  return { background: portraitBackgroundFor(slug, url) };
+});
 
 const swarmGroup = computed(() => {
   const s = gameState.value;
@@ -86,12 +103,6 @@ const bossBudget = computed(() => {
   return getEnemyBossActionBudget(s, enemy.id);
 });
 
-const queue = computed(() => {
-  const s = gameState.value;
-  if (!s) return [];
-  return unexhaustedEnemies(s).filter((e) => !isTowerEnemy(e));
-});
-
 const showUseAttack = computed(
   () => isGm.value && showGmCombatUi.value && !!activeEnemy.value && !isTowerEnemy(activeEnemy.value!),
 );
@@ -99,22 +110,24 @@ const showUseAttack = computed(
 const enemySpeedLabel = computed(() => {
   const s = gameState.value;
   const enemy = activeEnemy.value;
-  if (!enemy) return null;
-  const group = s ? swarmGroupForEnemy(s, enemy.id) : null;
-  if (group && group.size > 1) {
-    const members = group.memberIds
-      .map((id) => s!.enemies.find((e) => e.id === id))
-      .filter(Boolean);
-    const max = getEnemySpeed(enemy);
-    const remaining = Math.min(...members.map((m) => m!.movementRemaining ?? max));
-    return `${remaining}/${max}`;
-  }
+  if (!enemy || !s) return null;
+  const group = swarmGroupForEnemy(s, enemy.id);
   const max = getEnemySpeed(enemy);
+  if (group && group.size > 1) {
+    return `${getSwarmMovementRemaining(s, group.memberIds)}/${max}`;
+  }
   const remaining = enemy.movementRemaining ?? max;
   return `${remaining}/${max}`;
 });
 
-function openAttackModal(index: number) {
+function useAttack(index: number) {
+  const enemy = activeEnemy.value;
+  const attackText = listing.value?.attacks?.[index];
+  if (!enemy || !attackText) return;
+  if (isDirectTargetEnemyAttack(parseEnemyAttackString(attackText))) {
+    startGmEnemyAttack(enemy.id, index);
+    return;
+  }
   attackModalIndex.value = index;
   attackModalOpen.value = true;
 }
@@ -140,6 +153,15 @@ function endEnemyTurn() {
     @close="closeRightPanel"
     @back="goBackFromDataFocus"
   >
+    <div
+      v-if="!notFound && portraitUrl"
+      class="enemy-portrait-frame"
+      :class="{ 'enemy-portrait-frame--gm': isGm }"
+      :style="portraitFrameStyle"
+    >
+      <img :src="portraitUrl" :alt="displayName" class="enemy-portrait" />
+    </div>
+
     <div v-if="!notFound" class="panel-body">
       <template v-if="isGm">
         <HpBar
@@ -176,20 +198,11 @@ function endEnemyTurn() {
         <div v-if="listing?.tags?.length" class="tags">
           <span v-for="tag in listing.tags" :key="tag" class="tag">{{ tag }}</span>
         </div>
-
-        <div v-if="showGmCombatUi && queue.length" class="queue">
-          <span class="queue-label">Active queue:</span>
-          <span v-for="e in queue" :key="e.id" class="queue-item">{{ e.name ?? e.id }}</span>
-        </div>
       </template>
 
       <p v-if="listing?.codename" class="codename"><em>{{ listing.codename }}</em></p>
       <p v-if="listing?.description" class="item-description">{{ listing.description }}</p>
       <p v-else-if="!listing?.codename" class="muted">No description available.</p>
-
-      <div v-if="!isGm && listing?.speed != null" class="stats">
-        <span class="stat">Speed {{ listing.speed }}</span>
-      </div>
 
       <template v-if="isGm && listing">
         <div v-for="(attack, i) in listing.attacks" :key="i" class="ability">
@@ -199,7 +212,7 @@ function endEnemyTurn() {
             v-if="showUseAttack"
             type="button"
             class="use-attack-btn"
-            @click="openAttackModal(i)"
+            @click="useAttack(i)"
           >
             Use attack
           </button>
@@ -241,6 +254,30 @@ function endEnemyTurn() {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+}
+
+.enemy-portrait-frame {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 1;
+  margin: 0 auto 1rem;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+}
+
+.enemy-portrait-frame--gm {
+  width: 25%;
+}
+
+.enemy-portrait {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
 }
 
 .codename {
@@ -342,25 +379,5 @@ function endEnemyTurn() {
   background: var(--color-surface-raised);
   color: var(--color-text);
   cursor: pointer;
-}
-
-.queue {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  align-items: center;
-  font-size: 0.72rem;
-}
-
-.queue-label {
-  color: var(--color-muted);
-  font-weight: 600;
-}
-
-.queue-item {
-  padding: 0.1rem 0.35rem;
-  border-radius: 4px;
-  background: var(--color-surface-raised);
-  border: 1px solid var(--color-border);
 }
 </style>

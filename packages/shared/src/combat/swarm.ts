@@ -2,8 +2,8 @@ import type { Enemy, GameState, Player } from "../types.js";
 import {
   getEnemyListingByName,
   getEnemyScale,
+  getEnemySpeed,
   ensureEnemyMovement,
-  spendEnemyMovement,
 } from "../enemy-data.js";
 import {
   clampHp,
@@ -233,6 +233,53 @@ export function reconcileSwarmHp(state: GameState): void {
       member.hp = currentHp;
     }
   }
+
+  reconcileSwarmMovement(state);
+}
+
+function swarmMembers(state: GameState, memberIds: string[]): Enemy[] {
+  return memberIds.map((id) => state.enemies.find((e) => e.id === id)).filter(Boolean) as Enemy[];
+}
+
+export function getSwarmMovementRemaining(state: GameState, memberIds: string[]): number {
+  const members = swarmMembers(state, memberIds);
+  if (!members.length) return 0;
+  let min = Infinity;
+  for (const member of members) {
+    ensureEnemyMovement(member);
+    min = Math.min(min, member.movementRemaining ?? getEnemySpeed(member));
+  }
+  return min === Infinity ? 0 : min;
+}
+
+export function reconcileSwarmMovement(state: GameState): void {
+  for (const memberIds of buildSwarmGroups(state).values()) {
+    const members = swarmMembers(state, memberIds);
+    if (members.length < 2) continue;
+    const speed = getEnemySpeed(members[0]!);
+    let minRemaining = speed;
+    for (const member of members) {
+      ensureEnemyMovement(member);
+      minRemaining = Math.min(minRemaining, member.movementRemaining ?? speed);
+    }
+    for (const member of members) {
+      member.speed = speed;
+      member.movementRemaining = minRemaining;
+    }
+  }
+}
+
+export function spendSwarmMovement(state: GameState, memberIds: string[], cost: number): boolean {
+  const members = swarmMembers(state, memberIds);
+  if (!members.length) return false;
+  reconcileSwarmMovement(state);
+  const remaining = members[0]!.movementRemaining ?? 0;
+  if (remaining < cost) return false;
+  const next = remaining - cost;
+  for (const member of members) {
+    member.movementRemaining = next;
+  }
+  return true;
 }
 
 function swarmMemberPositions(state: GameState, memberIds: string[]): { x: number; y: number; id: string }[] {
@@ -335,12 +382,11 @@ export function validateSwarmMove(
   const moverId = pickSwarmMoveMember(state, group.memberIds, destX, destY);
   if (!moverId) return "No valid swarm limb can reach that tile";
 
-  const mover = state.enemies.find((e) => e.id === moverId)!;
   if (state.enforceTurns !== false) {
-    ensureEnemyMovement(mover);
-    if ((mover.movementRemaining ?? 0) < 1) return "Not enough movement";
+    if (getSwarmMovementRemaining(state, group.memberIds) < 1) return "Not enough movement";
   }
 
+  const mover = state.enemies.find((e) => e.id === moverId)!;
   return validateEnemyFootprint(state, destX, destY, getEnemyScale(mover), moverId);
 }
 
@@ -357,7 +403,7 @@ export function applySwarmMove(
   if (!moverId) return null;
 
   const mover = state.enemies.find((e) => e.id === moverId)!;
-  if (state.enforceTurns !== false) spendEnemyMovement(mover, 1);
+  if (state.enforceTurns !== false) spendSwarmMovement(state, group.memberIds, 1);
   mover.x = destX;
   mover.y = destY;
   reconcileSwarmHp(state);

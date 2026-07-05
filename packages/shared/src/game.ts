@@ -3,7 +3,7 @@ import { playerLabel } from "./console.js";
 import { createDefaultActionBudget, createDefaultCombatState } from "./combat/types.js";
 import { initSabaothCharges } from "./combat/attack.js";
 import { tickRoundCountdowns, tickUnitEndOfTurn } from "./combat/effects.js";
-import { resetEnemyExhaustion } from "./combat/enemy.js";
+import { resetEnemyExhaustion, resetGmTurnActions } from "./combat/enemy.js";
 import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles, ensureEnemyMovement, refreshEnemyMovement, spendEnemyMovement } from "./enemy-data.js";
 import { applyLoadoutToPlayer, getClassMaxHp, getArmorSpeed } from "./player-data.js";
 import { coordKey, isFootprintInBounds, isInBounds, isWalkable, tileAt } from "./map.js";
@@ -135,7 +135,8 @@ export function canRewindPhase(state: GameState): boolean {
 }
 
 export function canResetPhase(state: GameState): boolean {
-  return state.roundPhase === "playerTurn" && state.turn?.role === "player";
+  if (state.roundPhase === "playerTurn" && state.turn?.role === "player") return true;
+  return state.roundPhase === "gmTurn" && state.turn?.role === "gm";
 }
 
 function resetToRoundStart(state: GameState): void {
@@ -338,7 +339,7 @@ export function validatePhaseAction(
       return null;
     case "resetPhase":
       if (ctx.role !== "gm") return "Only the game master can do that";
-      if (!canResetPhase(state)) return "No player turn in progress";
+      if (!canResetPhase(state)) return "No turn in progress to reset";
       return null;
   }
 }
@@ -468,6 +469,7 @@ export function applyPhaseAction(
           if (prev?.role === "gm") {
             state.roundPhase = "gmTurn";
             state.turn = { role: "gm" };
+            resetGmTurnActions(state);
             return "Stepped back to GM turn — actions reset";
           }
           state.roundPhase = "playersChoice";
@@ -499,8 +501,12 @@ export function applyPhaseAction(
       }
     }
     case "resetPhase": {
+      if (state.roundPhase === "gmTurn" && state.turn?.role === "gm") {
+        resetGmTurnActions(state);
+        return "Reset GM turn — enemy movement and actions restored";
+      }
       const playerId = state.turn?.role === "player" ? state.turn.playerId : null;
-      if (!playerId) return "No player turn in progress";
+      if (!playerId) return "No turn in progress to reset";
       resetPlayerTurnActions(state, playerId);
       const player = state.players.find((p) => p.id === playerId);
       return `Reset ${playerLabel(player!)}'s actions`;
@@ -732,9 +738,15 @@ export function addEnemy(state: GameState, enemy: Enemy): string | null {
   return null;
 }
 
-export function removeEnemy(state: GameState, enemyId: string): boolean {
+export function removeEnemy(
+  state: GameState,
+  enemyId: string,
+  opts?: { entireSwarm?: boolean },
+): boolean {
+  const group = opts?.entireSwarm ? swarmGroupForEnemy(state, enemyId) : null;
+  const removeIds = new Set(group?.memberIds ?? [enemyId]);
   const before = state.enemies.length;
-  state.enemies = state.enemies.filter((e) => e.id !== enemyId);
+  state.enemies = state.enemies.filter((e) => !removeIds.has(e.id));
   if (state.enemies.length < before) {
     reconcileSwarmHp(state);
     return true;

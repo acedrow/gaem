@@ -1,5 +1,6 @@
 import type { GameState } from "../types.js";
 import { getEnemyListingByName, refreshEnemyMovement } from "../enemy-data.js";
+import { reconcileSwarmMovement } from "./swarm.js";
 
 export function bossActionsForEncounter(
   actionsStat: string | undefined,
@@ -32,6 +33,15 @@ export function resetEnemyExhaustion(state: GameState): void {
   for (const enemy of state.enemies) {
     enemy.exhausted = false;
     refreshEnemyMovement(enemy);
+  }
+  reconcileSwarmMovement(state);
+}
+
+export function resetGmTurnActions(state: GameState): void {
+  resetEnemyExhaustion(state);
+  if (state.combat) {
+    state.combat.pendingActions = state.combat.pendingActions.filter((p) => !p.actorEnemyId);
+    state.combat.activeEnemyId = null;
   }
 }
 

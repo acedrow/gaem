@@ -36,7 +36,7 @@ const gmActionConfirm: Partial<Record<PhaseAction, string>> = {
   gmEndTurn: "End the current turn?",
   rewindPhase:
     "Step back to the previous phase? In-progress player actions will be reset.",
-  resetPhase: "Reset the active player's actions for this turn?",
+  resetPhase: "Reset actions for the current turn?",
 };
 
 function sendGmAction(action: PhaseAction) {

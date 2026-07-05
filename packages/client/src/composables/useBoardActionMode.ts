@@ -15,6 +15,7 @@ export type BoardActionMode =
   | "towerTeleport"
   | "kataptyPick"
   | "rez"
+  | "gmEnemyAttack"
   | null;
 
 export type OmnistrikeStep = "selectBombs" | "placeFirst" | "placeSecond" | "confirm";
@@ -44,6 +45,7 @@ const warhookLandingOptions = ref<{ x: number; y: number }[]>([]);
 const towerTeleportStep = ref<TowerTeleportStep>("selectLanding");
 const towerTeleportLanding = ref<{ x: number; y: number } | null>(null);
 const kataptyTargetIds = ref<string[]>([]);
+const gmEnemyAttack = ref<{ enemyId: string; attackIndex: number; damage?: number } | null>(null);
 
 function resetWarhookState() {
   warhookStep.value = "selectTarget";
@@ -76,6 +78,7 @@ export function useBoardActionMode() {
     pendingTargetPlayerId.value = null;
     armorLanding.value = null;
     kataptyTargetIds.value = [];
+    gmEnemyAttack.value = null;
     resetOmnistrikeState();
     resetWarhookState();
     resetTowerTeleportState();
@@ -95,6 +98,11 @@ export function useBoardActionMode() {
 
   function resetMovePath() {
     movePath.value = [];
+  }
+
+  function startGmEnemyAttack(enemyId: string, attackIndex: number, damage?: number) {
+    setMode("gmEnemyAttack");
+    gmEnemyAttack.value = { enemyId, attackIndex, damage };
   }
 
   return {
@@ -118,9 +126,11 @@ export function useBoardActionMode() {
     towerTeleportStep,
     towerTeleportLanding,
     kataptyTargetIds,
+    gmEnemyAttack,
     isActive,
     setMode,
     clearMode,
+    startGmEnemyAttack,
     rotateAttackDirection,
     appendMoveStep,
     resetMovePath,

@@ -60,6 +60,7 @@ import {
   putPortraitHandler,
   characterSheets,
 } from "./character-sheets.js";
+import { getEnemyPortraitHandler, loadEnemyPortraits } from "./enemy-portraits.js";
 import { parseAuth } from "./auth.js";
 import { randomIntegersHandler, rollDiceHandler } from "./random-integers.js";
 
@@ -259,6 +260,10 @@ app.get("/api/character-sheets/:id/portrait", (req, res) => {
   getPortraitHandler(auth, req.params.id, res);
 });
 
+app.get("/api/enemy-portraits/paracletus/:slug", (req, res) => {
+  getEnemyPortraitHandler(req, res);
+});
+
 const httpServer = createServer(app);
 
 const wss = new WebSocketServer({ noServer: true });
@@ -453,7 +458,7 @@ wss.on("connection", (ws: WebSocket) => {
           sendError(ws, "Only the game master can manage enemies");
           return;
         }
-        removeEnemy(gameState, parsed.enemyId);
+        removeEnemy(gameState, parsed.enemyId, { entireSwarm: true });
         if ((enemy.hp ?? 0) > 0) {
           broadcastConsole(actorForSocket(ws), `removed ${enemyLabel(enemy)}`);
         }
@@ -713,6 +718,7 @@ async function loadMap(): Promise<void> {
 }
 
 loadMap()
+  .then(() => loadEnemyPortraits())
   .then(() => {
     httpServer.listen(PORT, () => {
       console.log(`Server listening on http://localhost:${PORT}`);

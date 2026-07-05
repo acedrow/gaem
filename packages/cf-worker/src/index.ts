@@ -1,3 +1,4 @@
+import { handleGetEnemyPortrait } from "./enemy-portraits.js";
 import type { Env } from "./env.js";
 import { GameRoom } from "./game-room.js";
 import {
@@ -71,6 +72,9 @@ export default {
       }
       return new Response(null, { status: 405 });
     }
+
+    const enemyPortraitRes = await handleGetEnemyPortrait(env, request);
+    if (enemyPortraitRes) return enemyPortraitRes;
 
     if (url.pathname === "/api/character-sheets") {
       const auth = parseAuth(request);

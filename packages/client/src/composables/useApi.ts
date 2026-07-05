@@ -1,4 +1,5 @@
-import type { PlayerProfile } from "@gaem/shared";
+import type { EnemyListing, PlayerProfile } from "@gaem/shared";
+import { getEnemyListingByName, getEnemyPortraitUrl } from "@gaem/shared";
 import { computed } from "vue";
 
 import { useSession } from "./useSession.js";
@@ -34,5 +35,13 @@ export function useApi() {
     return URL.createObjectURL(blob);
   }
 
-  return { apiBase, apiFetch, fetchPlayerProfiles, fetchPortraitUrl };
+  function enemyPortraitUrl(listing: EnemyListing | undefined): string | null {
+    return getEnemyPortraitUrl(listing);
+  }
+
+  function enemyPortraitUrlForName(name: string | undefined): string | null {
+    return enemyPortraitUrl(getEnemyListingByName(name));
+  }
+
+  return { apiBase, apiFetch, fetchPlayerProfiles, fetchPortraitUrl, enemyPortraitUrl, enemyPortraitUrlForName };
 }

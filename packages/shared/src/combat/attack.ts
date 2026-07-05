@@ -835,6 +835,45 @@ export function applyWarhook(
   return { message: "Canticle Boosted Warhook", detail, targets };
 }
 
+export function isDirectTargetEnemyAttack(parsed: ParsedEnemyAttack): boolean {
+  if (parsed.patternId || parsed.damage == null) return false;
+  const raw = parsed.raw.trim();
+  if (/^(move|create|increase|decrease|transform)/i.test(raw)) return false;
+  if (/^deal/i.test(raw)) return true;
+  return parsed.range != null || /damage:/i.test(raw);
+}
+
+function enemyAttackOriginTiles(state: GameState, enemyId: string): { x: number; y: number }[] {
+  const group = swarmGroupForEnemy(state, enemyId);
+  if (group) {
+    return group.memberIds.flatMap((id) => {
+      const e = state.enemies.find((en) => en.id === id);
+      return e ? [{ x: e.x, y: e.y }] : [];
+    });
+  }
+  const enemy = state.enemies.find((e) => e.id === enemyId);
+  if (!enemy) return [];
+  return enemyFootprintTiles(enemy.x, enemy.y, getEnemyScale(enemy));
+}
+
+export function enemyDirectAttackTargetPlayerIds(
+  state: GameState,
+  enemyId: string,
+  parsed: ParsedEnemyAttack,
+  occupancy?: ReturnType<typeof buildBoardOccupancy>,
+): string[] {
+  const range = parsed.range ?? 1;
+  const occ = occupancy ?? buildBoardOccupancy(state);
+  const ids = new Set<string>();
+  for (const origin of enemyAttackOriginTiles(state, enemyId)) {
+    for (const key of rangeAttackTileKeys(state, origin, range)) {
+      const p = occ.playerByKey.get(key);
+      if (p) ids.add(p.id);
+    }
+  }
+  return [...ids];
+}
+
 export function parseEnemyAttackString(text: string): ParsedEnemyAttack {
   const result: ParsedEnemyAttack = { raw: text };
   const line = text.match(/Line:(\d+)/i);
@@ -859,8 +898,12 @@ export function parseEnemyAttackString(text: string): ParsedEnemyAttack {
   }
   const range = text.match(/Range:(\d+)/i);
   if (range) result.range = Number(range[1]);
-  const dmg = text.match(/deal\s+(\d+)\s+damage/i);
-  if (dmg) result.damage = Number(dmg[1]);
+  const dmgExplicit = text.match(/Damage:(\d+)/i);
+  if (dmgExplicit) result.damage = Number(dmgExplicit[1]);
+  else {
+    const dmg = text.match(/deal\s+(\d+)\s+damage/i);
+    if (dmg) result.damage = Number(dmg[1]);
+  }
   const effects: string[] = [];
   for (const m of text.matchAll(/(Bleed|Slow|Blazing|Pin|Push|Shock):(\d+)/gi)) {
     effects.push(`${m[1]}:${m[2]}`);

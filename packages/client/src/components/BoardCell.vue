@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { EffectStacks, Enemy, MapTile, Player } from "@gaem/shared";
-import { getEnemyMaxHp, getEnemyScale, getEffectSummary, getPlayerMaxHp } from "@gaem/shared";
+import { getEnemyMaxHp, getEnemyScale, getEffectSummary, getPlayerMaxHp, isFortificationEnemy } from "@gaem/shared";
 import { computed } from "vue";
 
 import EffectIcon from "./EffectIcon.vue";
@@ -30,6 +30,8 @@ export type CellRenderState = {
   turnEnded?: boolean;
   playerDowned?: boolean;
   playerPortraitUrl?: string | null;
+  enemyPortraitUrl?: string | null;
+  enemyPortraitBg?: string | null;
   hasSeed?: boolean;
   towerOwnerHue?: number | null;
 };
@@ -175,15 +177,25 @@ const showEnemyHpBar = computed(
         'turn-ended': cell.turnEnded,
         dying: enemyDying,
         'tower-piece': cell.enemyAnchor.kind === 'tower',
+        'fortification-piece': isFortificationEnemy(cell.enemyAnchor),
+        'has-portrait': !!cell.enemyPortraitUrl && cell.enemyAnchor.kind !== 'tower',
       }"
       :style="[
         enemyPieceStyle(cell.enemyAnchor),
-        cell.towerOwnerHue != null
-          ? { background: `hsl(${cell.towerOwnerHue} 55% 38%)`, borderColor: `hsl(${cell.towerOwnerHue} 70% 55%)` }
-          : {},
+        cell.enemyPortraitUrl && cell.enemyAnchor.kind !== 'tower'
+          ? { background: cell.enemyPortraitBg ?? undefined }
+          : cell.towerOwnerHue != null
+            ? { background: `hsl(${cell.towerOwnerHue} 55% 38%)`, borderColor: `hsl(${cell.towerOwnerHue} 70% 55%)` }
+            : undefined,
       ]"
       @click.stop="emit('enemyClick')"
     >
+      <img
+        v-if="cell.enemyPortraitUrl && cell.enemyAnchor.kind !== 'tower'"
+        :src="cell.enemyPortraitUrl"
+        alt=""
+        class="portrait-img"
+      />
       <span
         v-if="cell.enemyAnchor.kind === 'tower'"
         class="tower-icon-wrap"
@@ -449,7 +461,7 @@ const showEnemyHpBar = computed(
   overflow: visible;
 }
 
-.piece.has-portrait {
+.piece.player-piece.has-portrait {
   background: var(--color-surface);
 }
 
@@ -545,6 +557,22 @@ const showEnemyHpBar = computed(
 .piece.enemy {
   background: hsl(0 70% 45%);
   z-index: 1;
+}
+
+.piece.enemy.has-portrait {
+  overflow: hidden;
+}
+
+.piece.enemy .portrait-img {
+  object-fit: contain;
+}
+
+.piece.enemy.fortification-piece {
+  border-radius: 4px;
+}
+
+.piece.enemy.fortification-piece .portrait-img {
+  border-radius: 4px;
 }
 
 .piece.selected {

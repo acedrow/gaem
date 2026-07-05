@@ -3,13 +3,17 @@ import type { PatternDirection } from "@gaem/shared";
 import {
   getEnemyListingByName,
   getEnemySpeed,
+  getSwarmMovementRemaining,
+  isDirectTargetEnemyAttack,
   isTowerEnemy,
   nextPatternDirection,
   parseEnemyAttackString,
+  swarmGroupForEnemy,
   unexhaustedEnemies,
 } from "@gaem/shared";
 import { computed, ref, watch } from "vue";
 
+import { useBoardActionMode } from "../composables/useBoardActionMode.js";
 import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useCombatActions } from "../composables/useCombatActions.js";
 import { useGameState } from "../composables/useGameState.js";
@@ -17,10 +21,10 @@ import { useGameState } from "../composables/useGameState.js";
 const { showGmCombatUi } = useCombatActions();
 const { selectedEnemyId } = useBoardSelection();
 const { gameState, send } = useGameState();
+const { mode, gmEnemyAttack, startGmEnemyAttack, clearMode } = useBoardActionMode();
 
 const attackIndex = ref(0);
 const attackDirection = ref<PatternDirection>("n");
-const targetPlayerId = ref("");
 const damageOverride = ref<number | "">("");
 
 const activeEnemy = computed(() => {
@@ -37,8 +41,13 @@ const listing = computed(() => getEnemyListingByName(activeEnemy.value?.name));
 
 const speedLabel = computed(() => {
   const enemy = activeEnemy.value;
-  if (!enemy) return "—";
+  const s = gameState.value;
+  if (!enemy || !s) return "—";
   const max = getEnemySpeed(enemy);
+  const group = swarmGroupForEnemy(s, enemy.id);
+  if (group && group.size > 1) {
+    return `${getSwarmMovementRemaining(s, group.memberIds)}/${max}`;
+  }
   const remaining = enemy.movementRemaining ?? max;
   return `${remaining}/${max}`;
 });
@@ -49,6 +58,17 @@ const parsedAttacks = computed(() =>
 
 const selectedAttack = computed(() => parsedAttacks.value[attackIndex.value]);
 
+const isDirectAttack = computed(() =>
+  selectedAttack.value ? isDirectTargetEnemyAttack(selectedAttack.value) : false,
+);
+
+const targetingAttack = computed(
+  () =>
+    mode.value === "gmEnemyAttack" &&
+    gmEnemyAttack.value?.enemyId === activeEnemy.value?.id &&
+    gmEnemyAttack.value?.attackIndex === attackIndex.value,
+);
+
 const queue = computed(() => {
   const s = gameState.value;
   if (!s) return [];
@@ -58,8 +78,12 @@ const queue = computed(() => {
 watch(selectedEnemyId, () => {
   attackIndex.value = 0;
   attackDirection.value = "n";
-  targetPlayerId.value = "";
   damageOverride.value = "";
+  clearMode();
+});
+
+watch(attackIndex, () => {
+  if (mode.value === "gmEnemyAttack") clearMode();
 });
 
 function rotateDirection() {
@@ -69,6 +93,11 @@ function rotateDirection() {
 function runAttack() {
   const enemy = activeEnemy.value;
   if (!enemy) return;
+  const damage = damageOverride.value === "" ? undefined : Number(damageOverride.value);
+  if (isDirectAttack.value) {
+    startGmEnemyAttack(enemy.id, attackIndex.value, damage);
+    return;
+  }
   send({
     type: "gmEnemyAction",
     action: {
@@ -76,8 +105,7 @@ function runAttack() {
       enemyId: enemy.id,
       attackIndex: attackIndex.value,
       direction: attackDirection.value,
-      targetPlayerId: targetPlayerId.value || undefined,
-      damage: damageOverride.value === "" ? undefined : Number(damageOverride.value),
+      damage,
     },
   });
 }
@@ -117,12 +145,6 @@ function exhaustEnemy() {
         >
           Aim {{ attackDirection.toUpperCase() }}
         </button>
-        <select v-model="targetPlayerId" class="select">
-          <option value="">Target —</option>
-          <option v-for="p in gameState?.players ?? []" :key="p.id" :value="p.id">
-            {{ p.nickname ?? p.id }}
-          </option>
-        </select>
         <input
           v-model="damageOverride"
           type="number"
@@ -130,9 +152,12 @@ function exhaustEnemy() {
           class="damage-input"
           placeholder="Dmg"
         />
-        <button type="button" class="action-btn" @click="runAttack">Attack</button>
+        <button type="button" class="action-btn" @click="runAttack">
+          {{ isDirectAttack ? (targetingAttack ? "Targeting…" : "Target") : "Attack" }}
+        </button>
         <button type="button" class="action-btn" @click="exhaustEnemy">Exhaust</button>
       </div>
+      <p v-if="targetingAttack" class="attack-hint">Click a highlighted player to attack</p>
     </template>
   </div>
 </template>
@@ -206,6 +231,12 @@ function exhaustEnemy() {
 }
 
 .hint {
+  font-size: 0.72rem;
+  color: var(--color-muted);
+}
+
+.attack-hint {
+  margin: 0;
   font-size: 0.72rem;
   color: var(--color-muted);
 }
