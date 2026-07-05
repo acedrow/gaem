@@ -651,7 +651,7 @@ const showEnemyHpBar = computed(
 }
 
 .tower-piece {
-  border: 2px solid var(--color-accent, #c9a227);
+  border: 2px solid var(--color-accent);
   border-radius: 5px;
   background: var(--color-surface-raised);
 }
@@ -662,7 +662,7 @@ const showEnemyHpBar = computed(
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-on-accent, #f5f0e6);
+  color: var(--color-on-accent);
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
   pointer-events: none;
 }
@@ -674,8 +674,8 @@ const showEnemyHpBar = computed(
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #6ecf6e;
-  border: 1px solid #2d6b2d;
+  background: var(--color-success);
+  border: 1px solid var(--color-success-dark);
   z-index: 4;
   pointer-events: none;
 }
@@ -688,7 +688,7 @@ const showEnemyHpBar = computed(
 
 .trap-line {
   inset: 3px;
-  border: 1px dashed var(--color-warning, #c9a227);
+  border: 1px dashed var(--color-warning);
   border-radius: 2px;
   opacity: 0.75;
 }
@@ -699,8 +699,8 @@ const showEnemyHpBar = computed(
   width: 10px;
   height: 10px;
   border-radius: 2px;
-  background: var(--color-warning, #c9a227);
-  border: 1px solid var(--color-warning-muted-border, #8a7420);
+  background: var(--color-warning);
+  border: 1px solid var(--color-warning-outline);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
 }
 
@@ -710,13 +710,13 @@ const showEnemyHpBar = computed(
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: var(--color-accent-bright, #e3b341);
-  border: 1px solid var(--color-accent, #58a6ff);
+  background: var(--color-accent-bright);
+  border: 1px solid var(--color-accent);
 }
 
 .attractor-zone {
   inset: 0;
-  background: color-mix(in srgb, var(--color-accent, #58a6ff) 12%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
 }
 
 .attractor-center {
@@ -726,14 +726,14 @@ const showEnemyHpBar = computed(
   height: 8px;
   margin: -4px 0 0 -4px;
   border-radius: 50%;
-  background: var(--color-accent, #58a6ff);
-  border: 1px solid var(--color-accent-bright, #79c0ff);
+  background: var(--color-accent);
+  border: 1px solid var(--color-accent-bright);
 }
 
 .attractor-center.attractor-void {
-  background: var(--color-danger, #f85149);
-  border-color: var(--color-danger-muted-border, #8b2e2a);
-  box-shadow: 0 0 6px color-mix(in srgb, var(--color-danger, #f85149) 50%, transparent);
+  background: var(--color-danger);
+  border-color: var(--color-danger-muted-border);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--color-danger) 50%, transparent);
 }
 
 .piece.enemy.kopis-marked::before {
@@ -743,7 +743,7 @@ const showEnemyHpBar = computed(
   right: -2px;
   font-size: 0.55rem;
   line-height: 1;
-  color: var(--color-accent-bright, #e3b341);
+  color: var(--color-accent-bright);
   text-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
   pointer-events: none;
   z-index: 6;

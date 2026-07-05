@@ -202,6 +202,18 @@ const { sendPlayerAction, sendMovePath, pendingReaction, reversalExtraAllyIds } 
 
 const hoveredKey = ref<string | null>(null);
 const hoveredCell = ref<{ x: number; y: number } | null>(null);
+const previewHoverCell = ref<{ x: number; y: number } | null>(null);
+let previewHoverTimer: ReturnType<typeof setTimeout> | null = null;
+watch(hoveredCell, (cell) => {
+  if (previewHoverTimer) clearTimeout(previewHoverTimer);
+  if (!cell) {
+    previewHoverCell.value = null;
+    return;
+  }
+  previewHoverTimer = setTimeout(() => {
+    previewHoverCell.value = cell;
+  }, 32);
+});
 const draggingDeploy = ref(false);
 const contextMenu = ref<{
   open: boolean;
@@ -504,8 +516,7 @@ const patternPrimaryKeys = computed(() => {
   );
 });
 
-const combatTargetHeal = computed(() => {
-  if (boardActionMode.value === "rez") return true;
+const isHealAttackSpecActive = computed(() => {
   const ctx = attackContext.value;
   return ctx ? isHealAttackSpec(ctx.spec) : false;
 });
@@ -532,7 +543,7 @@ const anchoredPlacementPreview = computed(() => {
   const ctx = attackContext.value;
   const s = gameState.value;
   if (!ctx || !s || !usesAnchoredPatternPlacement(ctx.spec)) return null;
-  const anchor = attackAimed.value ? attackAnchor.value : hoveredCell.value;
+  const anchor = attackAimed.value ? attackAnchor.value : previewHoverCell.value;
   if (!anchor) return null;
   return evaluateAnchoredPatternPlacement(
     ctx.me,
@@ -551,7 +562,7 @@ const omnistrikePlacementPreview = computed(() => {
   const ctx = omnistrikeContext.value;
   const s = gameState.value;
   if (!ctx || !s) return null;
-  const anchor = hoveredCell.value;
+  const anchor = previewHoverCell.value;
   if (!anchor) return null;
 
   if (step === "placeFirst") {
@@ -772,12 +783,9 @@ const attractorCenterKeys = computed(() => {
 const attractorZoneOnlyKeys = computed(() => {
   const keys = new Set<string>();
   for (const a of gameState.value?.combat?.attractors ?? []) {
-    for (let dx = -2; dx <= 2; dx++) {
-      for (let dy = -2; dy <= 2; dy++) {
-        if (Math.abs(dx) + Math.abs(dy) > 2) continue;
-        const key = coordKey(a.x + dx, a.y + dy);
-        if (!attractorCenterKeys.value.has(key)) keys.add(key);
-      }
+    for (const tile of tilesInAttractorZone(a)) {
+      const key = coordKey(tile.x, tile.y);
+      if (!attractorCenterKeys.value.has(key)) keys.add(key);
     }
   }
   return keys;
@@ -869,6 +877,18 @@ const kataptyPickKeys = computed(() => {
   return kataptyTargetKeys(s, id);
 });
 
+const kataptySelectedCoordKeys = computed(() => {
+  const keys = new Set<string>();
+  if (boardActionMode.value !== "kataptyPick") return keys;
+  const s = gameState.value;
+  if (!s) return keys;
+  for (const id of kataptyTargetIds.value) {
+    const enemy = s.enemies.find((e) => e.id === id);
+    if (enemy) keys.add(coordKey(enemy.x, enemy.y));
+  }
+  return keys;
+});
+
 const reversalLineKeys = computed(() => {
   const r = pendingReaction.value;
   const me = yourPlayer.value;
@@ -928,7 +948,7 @@ const borrowAnchoredPlacementPreview = computed(() => {
   const ctx = borrowContext.value;
   const s = gameState.value;
   if (!ctx || !s || !usesAnchoredPatternPlacement(ctx.spec)) return null;
-  const anchor = attackAimed.value ? attackAnchor.value : hoveredCell.value;
+  const anchor = attackAimed.value ? attackAnchor.value : previewHoverCell.value;
   if (!anchor) return null;
   return evaluateAnchoredPatternPlacement(
     ctx.me,
@@ -1308,12 +1328,15 @@ const cellStateByKey = computed(() => {
   const movementRemaining = me?.actionBudget?.movementRemaining ?? 0;
   const sprintRemaining = me?.actionBudget?.sprintRemaining ?? 0;
 
+  const portraitBgCache = new Map<string, string | null>();
+
   for (const c of cells.value) {
+    const ck = coordKey(c.x, c.y);
     const tile = tileAt(s.tiles, c.x, c.y);
-    const player = occ.playerByKey.get(coordKey(c.x, c.y));
-    const enemy = occ.enemyByKey.get(coordKey(c.x, c.y));
-    const enemyAnchor = occ.enemyAnchorByKey.get(coordKey(c.x, c.y));
-    const objects = occ.terrainObjectsByKey.get(coordKey(c.x, c.y)) ?? [];
+    const player = occ.playerByKey.get(ck);
+    const enemy = occ.enemyByKey.get(ck);
+    const enemyAnchor = occ.enemyAnchorByKey.get(ck);
+    const objects = occ.terrainObjectsByKey.get(ck) ?? [];
     const hasSeed = objects.some((o) => o.kind === "seed");
 
     const adjacent =
@@ -1332,6 +1355,32 @@ const cellStateByKey = computed(() => {
       !inSprintMode &&
       (sandbox || (stepCost <= movementRemaining && movementRemaining > 0));
     const showSprintStep = stepBase && inSprintMode && stepCost <= sprintRemaining && sprintRemaining > 0;
+
+    const combatPrimary =
+      combatAttackPrimaryKeys.value.has(ck) ||
+      borrowCombatPrimaryKeys.value.has(ck) ||
+      omnistrikePrimaryKeys.value.has(ck) ||
+      warhookPrimaryKeys.value.has(ck) ||
+      classAbilityPrimaryKeys.value.has(ck) ||
+      towerTeleportPrimaryKeys.value.has(ck) ||
+      assistedLaunchAnchorKeys.value.has(ck) ||
+      assistedLaunchLandingKeys.value.has(ck) ||
+      combatAttackSelectedKeys.value.has(ck) ||
+      reversalLineKeys.value.damage.has(ck) ||
+      gmEnemyAttackTargetKeys.value.has(ck) ||
+      (boardActionMode.value === "kataptyPick" && kataptySelectedCoordKeys.value.has(ck));
+    const combatSecondary =
+      combatAttackSecondaryKeys.value.has(ck) ||
+      borrowCombatSecondaryKeys.value.has(ck) ||
+      omnistrikeSecondaryKeys.value.has(ck) ||
+      warhookSecondaryKeys.value.has(ck) ||
+      armorPlaceTowerKeys.value.has(ck) ||
+      classAbilitySecondaryKeys.value.has(ck) ||
+      towerTeleportSecondaryKeys.value.has(ck) ||
+      assistedLaunchPathKeys.value.has(ck) ||
+      assistedLaunchLineKeys.value.has(ck) ||
+      kataptyPickKeys.value.has(ck) ||
+      rezTargetKeys.value.has(ck);
 
     map.set(c.key, {
       terrainClass: terrainClass(tile),
@@ -1354,40 +1403,14 @@ const cellStateByKey = computed(() => {
         !enemy,
       gmMovable: props.role === "gm" && gmEnemyMoveTargetKeys.value.has(c.key),
       gmSpawnable: props.role === "gm" && gmSpawnableKeys.value.has(c.key),
-      patternPrimary: patternPrimaryKeys.value.has(coordKey(c.x, c.y)),
-      patternSecondary: patternSecondaryKeys.value.has(coordKey(c.x, c.y)),
-      combatTargetPrimary:
-        combatAttackPrimaryKeys.value.has(coordKey(c.x, c.y)) ||
-        borrowCombatPrimaryKeys.value.has(coordKey(c.x, c.y)) ||
-        omnistrikePrimaryKeys.value.has(coordKey(c.x, c.y)) ||
-        warhookPrimaryKeys.value.has(coordKey(c.x, c.y)) ||
-        classAbilityPrimaryKeys.value.has(coordKey(c.x, c.y)) ||
-        towerTeleportPrimaryKeys.value.has(coordKey(c.x, c.y)) ||
-        assistedLaunchAnchorKeys.value.has(coordKey(c.x, c.y)) ||
-        assistedLaunchLandingKeys.value.has(coordKey(c.x, c.y)) ||
-        combatAttackSelectedKeys.value.has(coordKey(c.x, c.y)) ||
-        reversalLineKeys.value.damage.has(coordKey(c.x, c.y)) ||
-        gmEnemyAttackTargetKeys.value.has(coordKey(c.x, c.y)) ||
-        (boardActionMode.value === "kataptyPick" &&
-          kataptyTargetIds.value.some((id) => {
-            const e = s.enemies.find((en) => en.id === id);
-            return e && e.x === c.x && e.y === c.y;
-          })),
-      combatTargetSecondary:
-        combatAttackSecondaryKeys.value.has(coordKey(c.x, c.y)) ||
-        borrowCombatSecondaryKeys.value.has(coordKey(c.x, c.y)) ||
-        omnistrikeSecondaryKeys.value.has(coordKey(c.x, c.y)) ||
-        warhookSecondaryKeys.value.has(coordKey(c.x, c.y)) ||
-        armorPlaceTowerKeys.value.has(coordKey(c.x, c.y)) ||
-        classAbilitySecondaryKeys.value.has(coordKey(c.x, c.y)) ||
-        towerTeleportSecondaryKeys.value.has(coordKey(c.x, c.y)) ||
-        assistedLaunchPathKeys.value.has(coordKey(c.x, c.y)) ||
-        assistedLaunchLineKeys.value.has(coordKey(c.x, c.y)) ||
-        kataptyPickKeys.value.has(coordKey(c.x, c.y)) ||
-        rezTargetKeys.value.has(coordKey(c.x, c.y)),
+      patternPrimary: patternPrimaryKeys.value.has(ck),
+      patternSecondary: patternSecondaryKeys.value.has(ck),
+      combatTargetPrimary: combatPrimary,
+      combatTargetSecondary: combatSecondary,
       combatTargetHeal:
-        combatTargetHeal.value ||
-        reversalLineKeys.value.heal.has(coordKey(c.x, c.y)),
+        reversalLineKeys.value.heal.has(ck) ||
+        (boardActionMode.value === "rez" && rezTargetKeys.value.has(ck)) ||
+        (isHealAttackSpecActive.value && (combatPrimary || combatSecondary)),
       combatTargetInvalid:
         combatAttackInvalidKeys.value.has(coordKey(c.x, c.y)) ||
         omnistrikeInvalidKeys.value.has(coordKey(c.x, c.y)) ||
@@ -1443,7 +1466,11 @@ const cellStateByKey = computed(() => {
         const listing = getEnemyListingByName(enemyAnchor.name);
         const url = enemyPortraitUrlForName(enemyAnchor.name);
         if (!listing?.portrait || !url) return null;
-        return portraitBackgroundFor(listing.portrait, url);
+        const cacheKey = `${listing.portrait}:${url}`;
+        if (portraitBgCache.has(cacheKey)) return portraitBgCache.get(cacheKey)!;
+        const bg = portraitBackgroundFor(listing.portrait, url);
+        portraitBgCache.set(cacheKey, bg);
+        return bg;
       })(),
       hasSeed,
       kopisToken: boardTokenKeys.value.has(coordKey(c.x, c.y)),
@@ -1460,6 +1487,38 @@ const cellStateByKey = computed(() => {
     });
   }
   return map;
+});
+
+const boardCellRows = computed(() => {
+  const states = cellStateByKey.value;
+  const dyingSize = dyingEnemyIds.value.size;
+  const teleportingIds = teleportingPlayerIds.value;
+  const animatingId = animatingEnemyId.value;
+  return cells.value.map((c) => {
+    const cell = states.get(c.key);
+    if (!cell) return null;
+    const player = cell.player;
+    const enemyAnchor = cell.enemyAnchor;
+    return {
+      x: c.x,
+      y: c.y,
+      key: c.key,
+      cell,
+      isHovered: hoveredKey.value === c.key,
+      canDragDeploy: !!player && canDragDeploy(player),
+      isPlayerSelected: !!player && isPlayerSelected(player.id),
+      isEnemySelected: !!enemyAnchor && isEnemySelected(enemyAnchor.id),
+      playerHue: player ? hueFromId(player.id) : null,
+      enemyDying: !!enemyAnchor && isEnemyDying(enemyAnchor.id),
+      enemyDefeated: !!enemyAnchor && isEnemyDefeated(enemyAnchor.id),
+      enemyPendingRemoval: !!enemyAnchor && isEnemyPendingRemoval(enemyAnchor.id),
+      playerTeleporting: !!player && teleportingIds.has(player.id),
+      enemyAnimating: enemyAnchor?.id === animatingId,
+      playerHp: player?.hp,
+      enemyHp: enemyAnchor?.hp,
+      dyingEnemyCount: dyingSize,
+    };
+  }).filter((row): row is NonNullable<typeof row> => row != null);
 });
 
 const tooltipData = computed(() => {
@@ -3002,6 +3061,7 @@ watch(viewportEl, (el, prev) => {
 });
 
 onUnmounted(() => {
+  if (previewHoverTimer) clearTimeout(previewHoverTimer);
   if (teleportFinishTimer) clearTimeout(teleportFinishTimer);
   if (enemyMoveFinishTimer) clearTimeout(enemyMoveFinishTimer);
   window.removeEventListener("keydown", onKeydown);
@@ -3023,50 +3083,46 @@ onUnmounted(() => {
         <div class="board-stage" :style="stageStyle">
           <div class="board" :style="gridStyle">
             <BoardCell
-                v-for="c in cells"
-                :key="c.key"
+                v-for="row in boardCellRows"
+                :key="row.key"
                 v-memo="[
-                  c.key,
-                  cellStateByKey.get(c.key),
-                  hoveredKey === c.key,
+                  row.cell,
+                  row.isHovered,
                   draggingDeploy,
-                  selectedPlayerId === cellStateByKey.get(c.key)?.player?.id,
-                  selectedEnemyId === cellStateByKey.get(c.key)?.enemyAnchor?.id,
-                  cellStateByKey.get(c.key)?.player?.hp,
-                  cellStateByKey.get(c.key)?.enemyAnchor?.hp,
-                  dyingEnemyIds.size,
-                  !!cellStateByKey.get(c.key)?.enemyAnchor &&
-                    isEnemyPendingRemoval(cellStateByKey.get(c.key)!.enemyAnchor!.id),
-                  !!cellStateByKey.get(c.key)?.enemyAnchor &&
-                    isEnemyDefeated(cellStateByKey.get(c.key)!.enemyAnchor!.id),
+                  row.isPlayerSelected,
+                  row.isEnemySelected,
+                  row.playerHp,
+                  row.enemyHp,
+                  row.dyingEnemyCount,
                   showHealthBars,
                   showEnemyHealthBars,
-                  animatingEnemyId,
-                  !!cellStateByKey.get(c.key)?.player &&
-                    teleportingPlayerIds.has(cellStateByKey.get(c.key)!.player!.id),
+                  row.enemyAnimating,
+                  row.playerTeleporting,
+                  row.enemyPendingRemoval,
+                  row.enemyDefeated,
                 ]"
-                :x="c.x"
-                :y="c.y"
-                :cell="cellStateByKey.get(c.key)!"
-                :is-hovered="hoveredKey === c.key"
+                :x="row.x"
+                :y="row.y"
+                :cell="row.cell"
+                :is-hovered="row.isHovered"
                 :dragging-deploy="draggingDeploy"
-                :can-drag-deploy="!!cellStateByKey.get(c.key)?.player && canDragDeploy(cellStateByKey.get(c.key)!.player!)"
-                :is-player-selected="!!cellStateByKey.get(c.key)?.player && isPlayerSelected(cellStateByKey.get(c.key)!.player!.id)"
-                :is-enemy-selected="!!cellStateByKey.get(c.key)?.enemyAnchor && isEnemySelected(cellStateByKey.get(c.key)!.enemyAnchor!.id)"
-                :player-hue="cellStateByKey.get(c.key)?.player ? hueFromId(cellStateByKey.get(c.key)!.player!.id) : null"
+                :can-drag-deploy="row.canDragDeploy"
+                :is-player-selected="row.isPlayerSelected"
+                :is-enemy-selected="row.isEnemySelected"
+                :player-hue="row.playerHue"
                 :show-health-bars="showHealthBars"
                 :show-enemy-health-bars="showEnemyHealthBars"
-                :enemy-dying="!!cellStateByKey.get(c.key)?.enemyAnchor && isEnemyDying(cellStateByKey.get(c.key)!.enemyAnchor!.id)"
-                :enemy-defeated="!!cellStateByKey.get(c.key)?.enemyAnchor && isEnemyDefeated(cellStateByKey.get(c.key)!.enemyAnchor!.id)"
-                :player-teleporting="!!cellStateByKey.get(c.key)?.player && teleportingPlayerIds.has(cellStateByKey.get(c.key)!.player!.id)"
-                :enemy-animating="cellStateByKey.get(c.key)?.enemyAnchor?.id === animatingEnemyId"
-                @click="onCellClick(c.x, c.y)"
-                @hover="onCellHover(c.x, c.y, c.key)"
+                :enemy-dying="row.enemyDying"
+                :enemy-defeated="row.enemyDefeated"
+                :player-teleporting="row.playerTeleporting"
+                :enemy-animating="row.enemyAnimating"
+                @click="onCellClick(row.x, row.y)"
+                @hover="onCellHover(row.x, row.y, row.key)"
                 @unhover="onCellUnhover"
-                @player-click="onBoardPlayerClick(c.x, c.y, cellStateByKey.get(c.key)!.player!.id, cellStateByKey.get(c.key)!.player!.characterSheetId)"
-                @enemy-click="onEnemyCellClick(c.x, c.y, cellStateByKey.get(c.key)!.enemyAnchor!.id)"
-                @enemy-dblclick="onEnemyCellDblClick(c.x, c.y, cellStateByKey.get(c.key)!.enemyAnchor!.id)"
-                @deploy-pointer-down="onDeployPointerDown($event, cellStateByKey.get(c.key)!.player!)"
+                @player-click="onBoardPlayerClick(row.x, row.y, row.cell.player!.id, row.cell.player!.characterSheetId)"
+                @enemy-click="onEnemyCellClick(row.x, row.y, row.cell.enemyAnchor!.id)"
+                @enemy-dblclick="onEnemyCellDblClick(row.x, row.y, row.cell.enemyAnchor!.id)"
+                @deploy-pointer-down="onDeployPointerDown($event, row.cell.player!)"
               />
           </div>
         </div>
@@ -3341,7 +3397,7 @@ onUnmounted(() => {
 }
 
 .enemy-move-overlay.has-portrait {
-  background: linear-gradient(to top, #000 0%, transparent 50%), var(--color-surface-raised);
+  background: linear-gradient(to top, var(--color-on-dark) 0%, transparent 50%), var(--color-surface-raised);
 }
 
 .enemy-move-overlay.fortification-overlay {

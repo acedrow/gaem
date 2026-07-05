@@ -35,14 +35,6 @@ const currentHp = computed(() => player.value?.hp ?? 0);
 </template>
 
 <style scoped>
-.panel {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  padding: 1rem;
-  height: 100%;
-}
-
 .panel-body {
   display: flex;
   flex-direction: column;

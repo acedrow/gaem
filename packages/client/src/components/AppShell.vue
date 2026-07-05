@@ -338,10 +338,6 @@ function onOverworldClick() {
   overflow: hidden;
 }
 
-.brand {
-  padding: 1rem 0.75rem 0.5rem;
-}
-
 .sidebar-footer {
   margin-top: auto;
   border-top: 1px solid var(--color-border);

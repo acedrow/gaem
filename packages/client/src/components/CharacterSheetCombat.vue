@@ -5,6 +5,7 @@ import { getEffectSummary, getArmorByName, isYadathanArmorName, KUSHIEL_ARMOR_NA
 
 import { useBoardActionMode } from "../composables/useBoardActionMode.js";
 import { useCombatActions } from "../composables/useCombatActions.js";
+import { useCombatModeActions } from "../composables/useCombatModeActions.js";
 import AbilityBlock from "./AbilityBlock.vue";
 import ActionBudgetChips from "./ActionBudgetChips.vue";
 import SheetActionButton from "./SheetActionButton.vue";
@@ -26,13 +27,16 @@ const {
   canTowerTeleport,
   showAssistedLaunch,
   canAssistedLaunch,
-  assistedLaunchAnchorOptions,
   activePlayer,
   effectPills,
   resetMovement,
 } = useCombatActions(() => props.playerId);
 
-const { mode, setMode, clearMode, assistedLaunchStep, assistedLaunchAnchor } = useBoardActionMode();
+const { mode, setMode, clearMode } = useBoardActionMode();
+
+const { pickTowerTeleportMode, pickAssistedLaunchMode } = useCombatModeActions({
+  playerId: () => props.playerId,
+});
 
 const speedLabel = computed(() => {
   if (!budget.value) return "—";
@@ -62,24 +66,6 @@ function pickSprintMode() {
   else setMode("sprint");
 }
 
-function pickTowerTeleportMode() {
-  if (mode.value === "towerTeleport") clearMode();
-  else setMode("towerTeleport");
-}
-
-function pickAssistedLaunchMode() {
-  if (mode.value === "assistedLaunch") {
-    clearMode();
-    return;
-  }
-  setMode("assistedLaunch");
-  const anchors = assistedLaunchAnchorOptions.value;
-  if (anchors.length === 1) {
-    assistedLaunchAnchor.value = { x: anchors[0]!.x, y: anchors[0]!.y };
-    assistedLaunchStep.value = "confirm";
-  }
-}
-
 function pickRezMode() {
   if (mode.value === "rez") clearMode();
   else setMode("rez");
@@ -106,14 +92,12 @@ function pickShoveMode() {
 
       <div class="speed-row">
         <span class="stat">Speed {{ speedLabel }}</span>
-        <button
-          type="button"
-          class="sheet-action-btn"
+        <SheetActionButton
           :disabled="!canResetMovement"
           @click="onResetMovement"
         >
           Reset movement
-        </button>
+        </SheetActionButton>
         <SheetActionButton
           :active="mode === 'sprint'"
           :disabled="mode !== 'sprint' && !canStartSprint"
@@ -227,21 +211,6 @@ function pickShoveMode() {
   font-size: 1rem;
   font-weight: 600;
   color: var(--color-muted);
-}
-
-.sheet-action-btn {
-  font-size: 0.72rem;
-  padding: 0.2rem 0.45rem;
-  border-radius: 6px;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface-raised);
-  color: var(--color-text);
-  cursor: pointer;
-}
-
-.sheet-action-btn:disabled {
-  opacity: 0.4;
-  cursor: default;
 }
 
 .effect-pills {

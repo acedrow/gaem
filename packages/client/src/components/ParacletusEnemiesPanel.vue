@@ -113,14 +113,6 @@ function toggle(name: string) {
 </template>
 
 <style scoped>
-.panel {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  padding: 1rem;
-  height: 100%;
-}
-
 .panel-header {
   display: flex;
   align-items: flex-start;

@@ -5,12 +5,13 @@ import { coordKey, isInBounds, isWalkable, tileAt } from "../map.js";
 import { enemyLabel, playerLabel } from "../console.js";
 import { enemyFootprintTiles, getEnemyScale } from "../enemy-data.js";
 
-function isAttractorVoidAt(state: GameState, x: number, y: number): boolean {
+export function isAttractorVoidTile(state: GameState, x: number, y: number): boolean {
   return (state.combat?.attractors ?? []).some((a) => a.x === x && a.y === y && a.void);
 }
 
 function isTileFreeForUnit(
   state: GameState,
+  occ: ReturnType<typeof buildBoardOccupancy>,
   x: number,
   y: number,
   excludeEnemyId?: string,
@@ -19,7 +20,6 @@ function isTileFreeForUnit(
   if (!isInBounds(x, y, state.width, state.height)) return false;
   const tile = tileAt(state.tiles, x, y);
   if (!tile || !isWalkable(tile)) return false;
-  const occ = buildBoardOccupancy(state);
   const key = coordKey(x, y);
   const p = occ.playerByKey.get(key);
   if (p && p.id !== excludePlayerId) return false;
@@ -54,15 +54,16 @@ export function applyPullToward(
   let cy = unit.y;
   const excludeEnemyId = isPlayer ? undefined : unit.id;
   const excludePlayerId = isPlayer ? unit.id : undefined;
+  const occ = buildBoardOccupancy(state);
 
   for (let i = 0; i < distance; i++) {
     const next = stepToward(cx, cy, towardX, towardY);
     if (next.x === cx && next.y === cy) break;
-    if (!isTileFreeForUnit(state, next.x, next.y, excludeEnemyId, excludePlayerId)) break;
+    if (!isTileFreeForUnit(state, occ, next.x, next.y, excludeEnemyId, excludePlayerId)) break;
     cx = next.x;
     cy = next.y;
     parts.push(`(${cx},${cy})`);
-    if (isAttractorVoidAt(state, cx, cy)) {
+    if (isAttractorVoidTile(state, cx, cy)) {
       if (isPlayer) {
         (unit as Player).hp = 0;
         parts.push("void defeat");

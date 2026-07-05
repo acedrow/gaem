@@ -2,6 +2,7 @@
 import { computed, ref, watch } from "vue";
 
 import { useCombatActions } from "../composables/useCombatActions.js";
+import NumberStepper from "./NumberStepper.vue";
 
 const { pendingClassReaction, activePlayer, sendPlayerAction, canSupport } = useCombatActions();
 
@@ -49,44 +50,46 @@ watch(pendingClassReaction, (r) => {
 
 <template>
   <div v-if="pendingClassReaction" class="class-reaction-banner">
-    <div v-if="isHarpePull" class="class-reaction-inner">
+    <div v-if="isHarpePull" class="class-reaction-copy">
       <strong>Weapon Trap — choose pull</strong>
       <p class="class-reaction-detail">
         {{ pendingClassReaction.damageDealt }} damage dealt. Pull toward you or your weapon?
       </p>
       <div class="class-reaction-controls">
-        <label>
+        <label class="class-reaction-field">
           Distance
-          <input v-model.number="pullDistance" type="number" min="0" max="6" class="pull-input" />
+          <NumberStepper v-model="pullDistance" :min="0" :max="6" />
         </label>
-        <label>
+        <label class="class-reaction-radio">
           <input v-model="pullToward" type="radio" value="self" />
           Toward {{ activePlayer?.nickname ?? "you" }}
         </label>
-        <label>
+        <label class="class-reaction-radio">
           <input v-model="pullToward" type="radio" value="weapon" />
           Toward weapon
         </label>
-        <button type="button" class="btn-confirm" @click="confirmHarpePull">Confirm pull</button>
+      </div>
+      <div class="class-reaction-actions">
+        <button type="button" class="action-btn" @click="confirmHarpePull">Confirm pull</button>
       </div>
     </div>
 
-    <div v-else-if="isBorrowFollowUp" class="class-reaction-inner">
+    <div v-else-if="isBorrowFollowUp" class="class-reaction-copy">
       <strong>Borrowing This — Support follow-up</strong>
       <p class="class-reaction-detail">
         Deal max damage ({{ borrowMaxDamage }}) to {{ borrowTargetCount }}
         {{ borrowTargetCount === 1 ? "enemy" : "enemies" }} outside your weapon pattern?
       </p>
-      <div class="class-reaction-controls">
+      <div class="class-reaction-actions">
         <button
           type="button"
-          class="btn-confirm"
+          class="action-btn"
           :disabled="!canSupport"
           @click="confirmBorrowFollowUp"
         >
           Confirm (Support)
         </button>
-        <button type="button" class="btn-skip" @click="skipBorrowFollowUp">Skip</button>
+        <button type="button" class="action-btn reject" @click="skipBorrowFollowUp">Skip</button>
       </div>
     </div>
   </div>
@@ -94,63 +97,49 @@ watch(pendingClassReaction, (r) => {
 
 <style scoped>
 .class-reaction-banner {
-  position: fixed;
-  bottom: 5rem;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 50;
-  max-width: 28rem;
-  width: calc(100% - 2rem);
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--color-accent);
+  border-radius: 8px;
+  background: var(--color-surface-raised);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.class-reaction-inner {
-  background: var(--color-panel-bg, #1c2128);
-  border: 1px solid var(--color-accent, #58a6ff);
-  border-radius: 8px;
-  padding: 0.75rem 1rem;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+.class-reaction-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
 }
 
 .class-reaction-detail {
-  margin: 0.35rem 0 0.6rem;
-  font-size: 0.85rem;
-  color: var(--color-text-muted, #8b949e);
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--color-muted);
 }
 
 .class-reaction-controls {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: 0.35rem 0.75rem;
   align-items: center;
-  font-size: 0.85rem;
+  font-size: 0.78rem;
 }
 
-.pull-input {
-  width: 3rem;
-  margin-left: 0.35rem;
+.class-reaction-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
-.btn-confirm {
-  margin-left: auto;
-  padding: 0.35rem 0.75rem;
-  border-radius: 4px;
-  border: none;
-  background: var(--color-accent, #58a6ff);
-  color: #fff;
-  cursor: pointer;
+.class-reaction-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
-.btn-confirm:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-skip {
-  padding: 0.35rem 0.75rem;
-  border-radius: 4px;
-  border: 1px solid var(--color-border);
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
+.class-reaction-actions {
+  display: flex;
+  gap: 0.35rem;
 }
 </style>

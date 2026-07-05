@@ -35,6 +35,7 @@ function isAtTurnStart(player: Player): boolean {
 
 function isLaunchCollisionTile(
   state: GameState,
+  occ: ReturnType<typeof buildBoardOccupancy>,
   x: number,
   y: number,
   playerId: string,
@@ -43,7 +44,6 @@ function isLaunchCollisionTile(
   const tile = tileAt(state.tiles, x, y);
   if (!tile || !isWalkable(tile)) return true;
   if (isSpecialTerrainTile(tile)) return true;
-  const occ = buildBoardOccupancy(state);
   const key = coordKey(x, y);
   const ally = occ.playerByKey.get(key);
   if (ally && ally.id !== playerId) return true;
@@ -56,6 +56,7 @@ export function computeAssistedLaunch(
   playerId: string,
   anchorX: number,
   anchorY: number,
+  occ = buildBoardOccupancy(state),
 ): AssistedLaunchResult | null {
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return null;
@@ -74,7 +75,7 @@ export function computeAssistedLaunch(
   while (true) {
     const nx = cx + dx;
     const ny = cy + dy;
-    if (isLaunchCollisionTile(state, nx, ny, playerId)) break;
+    if (isLaunchCollisionTile(state, occ, nx, ny, playerId)) break;
     path.push({ x: nx, y: ny });
     cx = nx;
     cy = ny;
@@ -104,14 +105,14 @@ export function assistedLaunchAnchors(state: GameState, playerId: string): Assis
     if (!isInBounds(x, y, state.width, state.height)) continue;
     const ally = occ.playerByKey.get(coordKey(x, y));
     if (ally && ally.id !== playerId && !isPlayerDowned(ally)) {
-      if (computeAssistedLaunch(state, playerId, x, y)) {
+      if (computeAssistedLaunch(state, playerId, x, y, occ)) {
         anchors.push({ x, y, kind: "ally", allyId: ally.id });
       }
       continue;
     }
     const tile = tileAt(state.tiles, x, y);
     if (!isWalkable(tile)) {
-      if (computeAssistedLaunch(state, playerId, x, y)) {
+      if (computeAssistedLaunch(state, playerId, x, y, occ)) {
         anchors.push({ x, y, kind: "wall" });
       }
     }

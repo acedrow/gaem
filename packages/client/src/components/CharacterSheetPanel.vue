@@ -12,14 +12,8 @@ import {
   getClassMaxHp,
   getSabaothChargesRemaining,
   hasSabaothBombSelected,
-  isRangeTargetAttack,
-  isRangedPatternAttack,
   isSabaothWeaponName,
-  isWarhookWeaponName,
-  resolveCombatAttackSpec,
-  rangeTargetMax,
   SABAOTH_MAX_CHARGES,
-  usesAnchoredPatternPlacement,
   YADATHAN_ARMOR_NAME,
 } from "@gaem/shared";
 import { computed, nextTick, onUnmounted, ref, watch } from "vue";
@@ -40,6 +34,8 @@ import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useCampaignUnlocks } from "../composables/useCampaignUnlocks.js";
 import { useCharacterSheetSelection, type GearField } from "../composables/useCharacterSheetSelection.js";
 import { useCombatActions } from "../composables/useCombatActions.js";
+import { useCombatModeActions } from "../composables/useCombatModeActions.js";
+import { useCombatModeHints } from "../composables/useCombatModeHints.js";
 import { useGameState } from "../composables/useGameState.js";
 import { useSession } from "../composables/useSession.js";
 
@@ -95,6 +91,9 @@ const boardPlayer = computed(() =>
 
 const boardPlayerId = computed(() => boardPlayer.value?.id ?? null);
 
+const equippedWeaponName = computed(() => boardPlayer.value?.weapon ?? form.value.weapon);
+const carriedWeaponName = computed(() => boardPlayer.value?.weapon2 ?? form.value.weapon2);
+
 watch(
   () =>
     boardPlayer.value?.characterSheetId === props.sheetId
@@ -123,16 +122,37 @@ const {
 
 const {
   mode,
-  rangeAttackTargetIds,
   attackAimed,
   attackAnchor,
   omnistrikeStep,
   omnistrikeBombs,
-  omnistrikeAnchors,
-  warhookStep,
-  setMode,
-  clearMode,
 } = useBoardActionMode();
+
+const playerClass = computed(() => form.value.class);
+
+const {
+  epeusBagOpen,
+  epeusBagInitialSlot,
+  harpeRecallOpen,
+  pickArmorMode,
+  useClassActive,
+  openEpeusBag,
+  useHephaestusRestore,
+  recallHarpeTrap,
+  onEpeusBagConfirm,
+  onHarpeRecallConfirm,
+  useWeaponActive,
+  toggleWeaponAttack,
+  onDualBombIndices,
+  onDualBombComplete,
+  clearMode,
+} = useCombatModeActions({ playerClass, playerId: () => boardPlayerId.value });
+
+const { rangeAttackHint, rangedPatternAttackHint, omnistrikeHint, warhookHint } =
+  useCombatModeHints({
+    player: boardPlayer,
+    weaponName: equippedWeaponName,
+  });
 
 const showSheetCombatActions = computed(
   () => !!boardPlayer.value && showPlayerActionBar.value,
@@ -146,55 +166,6 @@ const showWeaponGearRow = computed(
 );
 const showArmorGearRow = computed(() => classGrantsDualGear(form.value.class));
 const showYadathanTowerPick = computed(() => form.value.armor === YADATHAN_ARMOR_NAME);
-
-function toggleClassActive() {
-  const cls = form.value.class;
-  if (cls === "EPEUS") {
-    epeusBagOpen.value = true;
-    epeusBagInitialSlot.value = null;
-    return;
-  }
-  if (cls === "HARPE") setMode(mode.value === "harpeTrap" ? null : "harpeTrap");
-  else if (cls === "KOPIS") setMode(mode.value === "kopisMark" ? null : "kopisMark");
-  else if (cls === "SHARUR") setMode(mode.value === "sharurAttractor" ? null : "sharurAttractor");
-  else if (cls === "HEPHAESTUS") setMode(mode.value === "hephaestusSynesis" ? null : "hephaestusSynesis");
-  else if (cls === "VARUNASTRA") setMode(mode.value === "varunastraBorrow" ? null : "varunastraBorrow");
-  else sendPlayerAction({ action: "classActive" });
-}
-
-function toggleClassPassive() {
-  if (form.value.class === "HEPHAESTUS") {
-    setMode(mode.value === "hephaestusRestore" ? null : "hephaestusRestore");
-  }
-}
-
-function recallHarpeWeapon() {
-  harpeRecallOpen.value = true;
-}
-
-const epeusBagOpen = ref(false);
-const epeusBagInitialSlot = ref<"weapon" | "armor" | null>(null);
-const harpeRecallOpen = ref(false);
-
-function openEpeusBag(slot: "weapon" | "armor") {
-  epeusBagInitialSlot.value = slot;
-  epeusBagOpen.value = true;
-}
-
-function onEpeusBagConfirm(slot: "weapon" | "armor", gearName: string) {
-  sendPlayerAction({ action: "classActive", kind: "bag_of_tricks", gearSlot: slot, gearName });
-  epeusBagOpen.value = false;
-}
-
-function onHarpeRecallConfirm(equipWeapon?: string) {
-  sendPlayerAction({
-    action: "classActive",
-    kind: "weapon_trap",
-    harpeRecall: true,
-    harpeEquipWeapon: equipWeapon,
-  });
-  harpeRecallOpen.value = false;
-}
 
 const combatUiUnlocked = computed(
   () => gameState.value != null && gameState.value.roundPhase !== "deployment",
@@ -217,45 +188,11 @@ function canUseWeaponAttack(weaponName: string) {
   return hasSabaothBombSelected(boardPlayer.value ?? undefined);
 }
 
-function toggleArmorAction() {
-  if (!armorStructured.value) return;
-  if (armorStructured.value.kind === "teleport_adjacent") {
-    setMode(mode.value === "armorTeleport" ? null : "armorTeleport");
-  } else if (armorStructured.value.kind === "place_tower") {
-    setMode(mode.value === "armorPlaceTower" ? null : "armorPlaceTower");
-  } else {
-    setMode(mode.value === "armorPush" ? null : "armorPush");
-  }
-}
-
-function toggleWeaponAttack() {
-  if (mode.value === "attack") clearMode();
-  else setMode("attack");
-}
-
 function swapWeapon() {
   clearMode();
   sendPlayerAction({ action: "weaponSwap" });
 }
 
-function useWeaponAbility() {
-  const weaponName = equippedWeaponName.value;
-  if (!weaponName) return;
-  if (isSabaothWeaponName(weaponName)) {
-    if (mode.value === "omnistrike") clearMode();
-    else setMode("omnistrike");
-    return;
-  }
-  if (isWarhookWeaponName(weaponName)) {
-    if (mode.value === "warhook") clearMode();
-    else setMode("warhook");
-    return;
-  }
-  sendPlayerAction({ action: "weaponActive" });
-}
-
-const equippedWeaponName = computed(() => boardPlayer.value?.weapon ?? form.value.weapon);
-const carriedWeaponName = computed(() => boardPlayer.value?.weapon2 ?? form.value.weapon2);
 const canSwapWeapon = computed(() => !!carriedWeaponName.value);
 const weaponBombIndex = computed(() => boardPlayer.value?.counters?.sabaothBomb);
 const weaponBombSelectable = computed(
@@ -309,65 +246,6 @@ function selectWeaponVariant(index: number) {
   attackAimed.value = false;
   attackAnchor.value = null;
   sendPlayerAction({ action: "selectWeaponVariant", index });
-}
-
-const rangeAttackHint = computed(() => {
-  if (mode.value !== "attack" || !boardPlayer.value) return null;
-  const spec = resolveCombatAttackSpec(boardPlayer.value, equippedWeaponName.value);
-  if (!spec || !isRangeTargetAttack(spec)) return null;
-  const max = rangeTargetMax(spec);
-  const count = rangeAttackTargetIds.value.length;
-  if (max <= 1) return "Click an enemy in range to attack";
-  return `Select up to ${max} enemies (${count}/${max}). Click to toggle, empty tile to confirm.`;
-});
-
-const rangedPatternAttackHint = computed(() => {
-  if (mode.value !== "attack" || !boardPlayer.value) return null;
-  const spec = resolveCombatAttackSpec(boardPlayer.value, equippedWeaponName.value);
-  if (!spec || isRangeTargetAttack(spec)) return null;
-  if (usesAnchoredPatternPlacement(spec)) {
-    return "Hover to preview, click to place the pattern, then click the pattern to attack";
-  }
-  if (isRangedPatternAttack(spec)) {
-    return "Click a tile in range to aim, then click a highlighted tile to attack";
-  }
-  return null;
-});
-
-const omnistrikeHint = computed(() => {
-  if (mode.value !== "omnistrike") return null;
-  switch (omnistrikeStep.value) {
-    case "selectBombs":
-      return "Select two bomb types to combine (tap to toggle).";
-    case "placeFirst":
-      return "Place the first pattern — hover to preview, click to confirm placement.";
-    case "placeSecond":
-      return "Place the second pattern adjacent to or overlapping the first.";
-    case "confirm":
-      return "Click the combined pattern to launch Omnistrike.";
-    default:
-      return null;
-  }
-});
-
-const warhookHint = computed(() => {
-  if (mode.value !== "warhook") return null;
-  if (warhookStep.value === "selectLanding") return "Choose destination tile";
-  return "Click an enemy, obstacle, or wall within range";
-});
-
-function onSheetDualBombIndices(indices: [number | null, number | null]) {
-  omnistrikeBombs.value = indices;
-  if (indices[0] == null || indices[1] == null) {
-    omnistrikeStep.value = "selectBombs";
-    omnistrikeAnchors.value = [null, null];
-  }
-}
-
-function onSheetDualBombComplete() {
-  if (omnistrikeBombs.value[0] != null && omnistrikeBombs.value[1] != null) {
-    omnistrikeStep.value = "placeFirst";
-  }
 }
 
 function useEquipmentItem() {
@@ -801,7 +679,7 @@ onUnmounted(() => {
                   mode === 'varunastraBorrow'
                 "
                 :disabled="!canUseClassActive"
-                @click="toggleClassActive"
+                @click="useClassActive"
               >
                 Active ability
                 <template #tooltip>
@@ -811,7 +689,7 @@ onUnmounted(() => {
               <SheetActionButton
                 v-if="form.class === 'HEPHAESTUS'"
                 :active="mode === 'hephaestusRestore'"
-                @click="toggleClassPassive"
+                @click="useHephaestusRestore"
               >
                 Passive
                 <template #tooltip>
@@ -821,7 +699,7 @@ onUnmounted(() => {
               <SheetActionButton
                 v-if="form.class === 'HARPE'"
                 :disabled="!canSupport || !hasThrownTrap"
-                @click="recallHarpeWeapon"
+                @click="recallHarpeTrap"
               >
                 Recall trap
               </SheetActionButton>
@@ -841,7 +719,7 @@ onUnmounted(() => {
               <SheetActionButton
                 :active="mode === 'armorTeleport' || mode === 'armorPush' || mode === 'armorPlaceTower'"
                 :disabled="!canSupport || !armorStructured"
-                @click="toggleArmorAction"
+                @click="pickArmorMode(armorStructured)"
               >
                 Active ability
                 <template #tooltip>
@@ -889,7 +767,7 @@ onUnmounted(() => {
               <SheetActionButton
                 :active="mode === 'omnistrike' || mode === 'warhook'"
                 :disabled="!canUseWeaponActive"
-                @click="useWeaponAbility"
+                @click="useWeaponActive(equippedWeaponName)"
               >
                 Active ability
                 <template #tooltip>
@@ -925,8 +803,8 @@ onUnmounted(() => {
                 dual-select
                 compact
                 :dual-bomb-indices="omnistrikeBombs"
-                @update:dual-bomb-indices="onSheetDualBombIndices"
-                @dual-complete="onSheetDualBombComplete"
+                @update:dual-bomb-indices="onDualBombIndices"
+                @dual-complete="onDualBombComplete"
               />
             </div>
           </SheetGearFieldRow>
@@ -1039,14 +917,6 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.panel {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  padding: 1rem;
-}
-
 .panel-body {
   flex: 1;
   min-height: 0;

@@ -69,7 +69,7 @@ watch(pendingReaction, (r) => {
 <style scoped>
 .reversal-banner {
   padding: 0.65rem 0.75rem;
-  border: 1px solid var(--color-accent, #c9a227);
+  border: 1px solid var(--color-accent);
   border-radius: 8px;
   background: var(--color-surface-raised);
   display: flex;
@@ -111,19 +111,5 @@ watch(pendingReaction, (r) => {
 .reversal-actions {
   display: flex;
   gap: 0.35rem;
-}
-
-.action-btn {
-  font-size: 0.78rem;
-  padding: 0.3rem 0.55rem;
-  border-radius: 6px;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text);
-  cursor: pointer;
-}
-
-.action-btn.reject {
-  color: var(--color-danger);
 }
 </style>

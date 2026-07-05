@@ -1,7 +1,7 @@
 import type { GameState, GaemRole, Player } from "../types.js";
 import { isOrthogonallyAdjacent } from "../patterns.js";
 import type { AttractorTile } from "./types.js";
-import { applyPullToward } from "./pull.js";
+import { applyPullToward, isAttractorVoidTile } from "./pull.js";
 import { getGearByName } from "../player-data.js";
 
 const ATTRACTOR_ZONE_RADIUS = 2;
@@ -15,9 +15,7 @@ export function getAttractors(state: GameState): AttractorTile[] {
   return state.combat?.attractors ?? [];
 }
 
-export function isAttractorVoidTile(state: GameState, x: number, y: number): boolean {
-  return getAttractors(state).some((a) => a.x === x && a.y === y && a.void);
-}
+export { isAttractorVoidTile };
 
 export function tilesInAttractorZone(attractor: AttractorTile): { x: number; y: number }[] {
   const tiles: { x: number; y: number }[] = [];
