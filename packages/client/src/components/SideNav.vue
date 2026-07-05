@@ -244,7 +244,15 @@ watch(sheetsVersion, () => {
       </button>
     </div>
 
-    <ModalDialog :open="showCreate" title="New character sheet" @close="showCreate = false">
+    <ModalDialog
+      :open="showCreate"
+      title="New character sheet"
+      wide
+      :ok-label="creating ? 'Creating…' : 'Create'"
+      :ok-disabled="creating || !createFormValid"
+      @close="showCreate = false"
+      @confirm="createSheet"
+    >
       <CharacterSheetFormFields
         v-model="createForm"
         :profiles="profiles"
@@ -252,18 +260,6 @@ watch(sheetsVersion, () => {
       />
 
       <p v-if="createError" class="sublist-error">{{ createError }}</p>
-
-      <template #actions>
-        <button class="cta secondary" type="button" @click="showCreate = false">Cancel</button>
-        <button
-          class="cta"
-          type="button"
-          :disabled="creating || !createFormValid"
-          @click="createSheet"
-        >
-          {{ creating ? "Creating…" : "Create" }}
-        </button>
-      </template>
     </ModalDialog>
   </nav>
 </template>
@@ -388,74 +384,5 @@ watch(sheetsVersion, () => {
 .new-sheet-btn:hover {
   color: var(--color-text);
   border-color: var(--color-accent);
-}
-
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: var(--color-overlay-scrim);
-  display: grid;
-  place-items: center;
-  padding: 1rem;
-  z-index: 100;
-}
-
-.modal {
-  width: min(480px, 100%);
-  background: var(--color-bg-body);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  padding: 1rem;
-}
-
-.modal-title {
-  margin: 0 0 0.75rem;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  margin-bottom: 0.75rem;
-  font-size: 0.85rem;
-  color: var(--color-muted);
-}
-
-.input {
-  border: 1px solid var(--color-border);
-  border-radius: 0;
-  background: var(--color-bg);
-  color: var(--color-text);
-  padding: 0.55rem 0.65rem;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-
-.cta {
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  background: var(--color-surface);
-  color: var(--color-text);
-  padding: 0.55rem 0.85rem;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.cta:hover {
-  background: var(--color-surface-alt);
-}
-
-.cta:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.secondary {
-  background: var(--color-bg);
 }
 </style>

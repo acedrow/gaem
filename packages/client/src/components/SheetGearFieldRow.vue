@@ -19,6 +19,7 @@ defineProps<{
   canEdit?: boolean;
   weaponBombIndex?: number;
   weaponBombSelectable?: boolean;
+  selectedTower?: string;
 }>();
 
 const emit = defineEmits<{
@@ -75,6 +76,7 @@ function toggleDetail() {
         :kind="kind"
         :weapon-bomb-index="weaponBombIndex"
         :weapon-bomb-selectable="weaponBombSelectable"
+        :selected-tower="selectedTower"
         @update:weapon-bomb-index="emit('update:weaponBombIndex', $event)"
         @request-weapon-bomb-select="emit('requestWeaponBombSelect', $event)"
       />

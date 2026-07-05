@@ -13,6 +13,7 @@ import {
   PLAYER_EQUIPMENT,
   PLAYER_GEAR,
   PLAYER_WEAPONS,
+  YADATHAN_ARMOR_NAME,
 } from "@gaem/shared";
 import { computed, ref } from "vue";
 
@@ -22,6 +23,7 @@ import { useCharacterSheetSelection } from "../composables/useCharacterSheetSele
 import PanelShell from "./PanelShell.vue";
 import PlayerItemDetail from "./PlayerItemDetail.vue";
 import RuleText from "./RuleText.vue";
+import YadathanTowerModal from "./YadathanTowerModal.vue";
 
 const props = defineProps<{
   category: "armor" | "classes" | "weapons" | "equipment" | "gear";
@@ -33,6 +35,9 @@ const { optionUnlocked } = useCampaignUnlocks();
 const expanded = ref<Set<string>>(new Set());
 const equipping = ref(false);
 const equipError = ref<string | null>(null);
+const towerModalOpen = ref(false);
+const towerDraft = ref("");
+const pendingYadathanEquip = ref(false);
 
 const selectionMode = computed(
   () => !!gearPick.value && gearPickCategory.value === props.category,
@@ -63,6 +68,7 @@ const selectionTitle = computed(() => {
 
 const title = computed(() => (selectionMode.value ? selectionTitle.value : browseTitle.value));
 const currentValue = computed(() => gearPick.value?.currentValue ?? "");
+const currentTower = computed(() => gearPick.value?.yadathanTower ?? "");
 
 const items = computed(() => {
   let list: readonly (PlayerClass | PlayerArmor | PlayerWeapon | PlayerEquipment | PlayerGear)[];
@@ -106,12 +112,47 @@ function onClose() {
 }
 
 async function onEquip(item: PlayerClass | PlayerArmor | PlayerWeapon | PlayerEquipment | PlayerGear) {
-  if (item.name === currentValue.value || equipping.value || isLocked(item.name)) return;
+  if (equipping.value || isLocked(item.name)) return;
+  if (item.name === YADATHAN_ARMOR_NAME && props.category === "armor") {
+    if (item.name === currentValue.value) {
+      openTowerModal(false);
+      return;
+    }
+    openTowerModal(true);
+    return;
+  }
+  if (item.name === currentValue.value) return;
   equipping.value = true;
   equipError.value = null;
   const err = await equipGear(item.name);
   if (err) equipError.value = err;
   equipping.value = false;
+}
+
+function openTowerModal(equipArmor: boolean) {
+  towerDraft.value = currentTower.value;
+  pendingYadathanEquip.value = equipArmor;
+  towerModalOpen.value = true;
+}
+
+function closeTowerModal() {
+  towerModalOpen.value = false;
+  towerDraft.value = "";
+  pendingYadathanEquip.value = false;
+}
+
+async function confirmTowerPick(tower: string) {
+  equipping.value = true;
+  equipError.value = null;
+  const err = await equipGear(YADATHAN_ARMOR_NAME, { yadathanTower: tower });
+  closeTowerModal();
+  if (err) equipError.value = err;
+  equipping.value = false;
+}
+
+function yadathanEquipLabel(name: string): string {
+  if (name !== currentValue.value) return "Equip";
+  return "Change tower";
 }
 </script>
 
@@ -147,10 +188,20 @@ async function onEquip(item: PlayerClass | PlayerArmor | PlayerWeapon | PlayerEq
               v-if="selectionMode && !isLocked(item.name)"
               type="button"
               class="equip-btn cta secondary"
-              :disabled="item.name === currentValue || equipping"
+              :disabled="
+                item.name === YADATHAN_ARMOR_NAME && category === 'armor'
+                  ? equipping
+                  : item.name === currentValue || equipping
+              "
               @click="onEquip(item)"
             >
-              {{ item.name === currentValue ? "Equipped" : "Equip" }}
+              {{
+                item.name === YADATHAN_ARMOR_NAME && category === 'armor'
+                  ? yadathanEquipLabel(item.name)
+                  : item.name === currentValue
+                    ? "Equipped"
+                    : "Equip"
+              }}
             </button>
             <button
               type="button"
@@ -170,10 +221,24 @@ async function onEquip(item: PlayerClass | PlayerArmor | PlayerWeapon | PlayerEq
           <p class="item-description">
             <RuleText :text="item.description" />
           </p>
-          <PlayerItemDetail :item="item" :kind="category" />
+          <PlayerItemDetail
+            :item="item"
+            :kind="category"
+            :selected-tower="
+              category === 'armor' && item.name === YADATHAN_ARMOR_NAME ? currentTower : undefined
+            "
+          />
         </div>
       </article>
     </div>
+
+    <YadathanTowerModal
+      :open="towerModalOpen"
+      :model-value="towerDraft"
+      :title="pendingYadathanEquip ? 'Select tower type' : 'Change tower type'"
+      @close="closeTowerModal"
+      @confirm="confirmTowerPick"
+    />
   </PanelShell>
 </template>
 

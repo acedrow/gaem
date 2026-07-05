@@ -18,6 +18,7 @@ defineProps<{
   kind: "classes" | "armor" | "weapons" | "equipment" | "gear";
   weaponBombIndex?: number;
   weaponBombSelectable?: boolean;
+  selectedTower?: string;
 }>();
 
 const emit = defineEmits<{
@@ -90,7 +91,12 @@ const showReversals = computed(() => hasReversals.value);
       <div class="extra-block">
         <div class="ability-section-title">Towers</div>
         <div v-for="tower in (item as PlayerArmor).towers" :key="tower.name" class="tower-block">
-          <div class="ability-section-title">{{ tower.name }}</div>
+          <div
+            class="ability-section-title"
+            :class="{ 'tower-selected': selectedTower === tower.name }"
+          >
+            {{ tower.name }}
+          </div>
           <p class="ability-section-body">
             <RuleText
               :text="`${tower.tags}, HP ${tower.hp}${tower.scale > 1 ? `, scale ${tower.scale}` : ''}. ${tower.special}`"
@@ -153,6 +159,10 @@ const showReversals = computed(() => hasReversals.value);
   margin: 0.45rem 0 0.15rem;
   text-transform: uppercase;
   color: var(--color-text);
+}
+
+.ability-section-title.tower-selected {
+  color: var(--color-accent-bright);
 }
 
 .ability-section-body {

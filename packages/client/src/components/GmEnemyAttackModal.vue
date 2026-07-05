@@ -57,7 +57,14 @@ function apply() {
 </script>
 
 <template>
-  <ModalDialog title="Use attack" :open="open" @close="emit('close')">
+  <ModalDialog
+    title="Use attack"
+    :open="open"
+    ok-label="Use attack"
+    :ok-disabled="!enemyId"
+    @close="emit('close')"
+    @confirm="apply"
+  >
     <p v-if="attackText" class="attack-text">{{ attackText }}</p>
     <p v-if="parsedAttack.patternId" class="parsed">
       Pattern {{ parsedAttack.patternId }}:{{ parsedAttack.size }}
@@ -87,11 +94,6 @@ function apply() {
       Damage override
       <input v-model="damageOverride" type="number" min="0" class="input" placeholder="Default" />
     </label>
-
-    <template #actions>
-      <button type="button" class="btn-secondary" @click="emit('close')">Cancel</button>
-      <button type="button" class="btn-primary" :disabled="!enemyId" @click="apply">Use attack</button>
-    </template>
   </ModalDialog>
 </template>
 
@@ -139,31 +141,5 @@ function apply() {
   text-transform: none;
   letter-spacing: normal;
   font-weight: 400;
-}
-
-.btn-primary,
-.btn-secondary {
-  padding: 0.4rem 0.85rem;
-  border-radius: 6px;
-  font-size: 0.85rem;
-  font-family: inherit;
-  cursor: pointer;
-}
-
-.btn-secondary {
-  border: 1px solid var(--color-border);
-  background: var(--color-surface-raised);
-  color: var(--color-text);
-}
-
-.btn-primary {
-  border: 1px solid var(--color-accent);
-  background: var(--color-accent);
-  color: var(--color-on-accent);
-}
-
-.btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 </style>

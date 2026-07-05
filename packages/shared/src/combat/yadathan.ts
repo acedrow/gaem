@@ -1,5 +1,6 @@
 import type { Enemy, GameState, Player, TerrainObject } from "../types.js";
-import { addEnemy, buildBoardOccupancy, clampHp, getPlayerMaxHp, removeEnemy } from "../game.js";
+import { addEnemy, buildBoardOccupancy, clampHp, getEnemyMaxHp, getPlayerMaxHp, removeEnemy } from "../game.js";
+import { getEnemyScale, enemyFootprintTiles } from "../enemy-data.js";
 import { coordKey, isInBounds, isWalkable, tileAt } from "../map.js";
 import { isOrthogonallyAdjacent } from "../patterns.js";
 import { getArmorByName } from "../player-data.js";
@@ -216,22 +217,57 @@ export function applyTowerTeleport(
   return msg;
 }
 
+export function enemyDistanceFrom(origin: { x: number; y: number }, enemy: Enemy): number {
+  let min = manhattanDistance(origin, enemy);
+  for (const tile of enemyFootprintTiles(enemy.x, enemy.y, getEnemyScale(enemy))) {
+    min = Math.min(min, manhattanDistance(origin, tile));
+  }
+  return min;
+}
+
+function isEnemyAlive(enemy: Enemy): boolean {
+  const maxHp = getEnemyMaxHp(enemy);
+  return (enemy.hp ?? maxHp) > 0;
+}
+
 export function enemiesInRangeOf(
   state: GameState,
   origin: { x: number; y: number },
   range: number,
 ): Enemy[] {
   return state.enemies.filter(
-    (e) => !isTowerEnemy(e) && (e.hp ?? 0) > 0 && manhattanDistance(origin, e) <= range,
+    (e) => !isTowerEnemy(e) && isEnemyAlive(e) && enemyDistanceFrom(origin, e) <= range,
   );
+}
+
+export function resolveKataptyTargetIds(
+  state: GameState,
+  playerId: string,
+  selectedIds?: string[],
+): { ids: string[] } | { error: string } {
+  const tower = getPlayerTower(state, playerId);
+  if (!tower || tower.name !== TOWER_KATAPTY) return { error: "No Katapty tower" };
+  const inRange = enemiesInRangeOf(state, tower, 4);
+  if (inRange.length === 0) return { ids: [] };
+  if (inRange.length <= 3) {
+    return { ids: inRange.map((e) => e.id) };
+  }
+  if (!selectedIds?.length) return { error: "Select exactly 3 enemies" };
+  if (selectedIds.length !== 3) {
+    return { error: `Select exactly 3 enemies (${inRange.length} in range)` };
+  }
+  for (const id of selectedIds) {
+    if (!inRange.some((e) => e.id === id)) return { error: "Target out of range" };
+  }
+  return { ids: selectedIds };
 }
 
 export function applyKataptyStrike(state: GameState, tower: Enemy, targetIds: string[]): string {
   const hits: string[] = [];
   for (const id of targetIds.slice(0, 3)) {
     const enemy = state.enemies.find((e) => e.id === id);
-    if (!enemy || isTowerEnemy(enemy)) continue;
-    if (manhattanDistance(tower, enemy) > 4) continue;
+    if (!enemy || isTowerEnemy(enemy) || !isEnemyAlive(enemy)) continue;
+    if (enemyDistanceFrom(tower, enemy) > 4) continue;
     applyDamageToEnemy(enemy, 1, state);
     hits.push(enemy.name ?? "enemy");
   }
@@ -393,10 +429,10 @@ export function resolveYadathanEndOfTurn(state: GameState, player: Player): stri
   const messages: string[] = [];
   const tower = getPlayerTower(state, player.id);
   if (tower) {
-    if (tower.name === TOWER_KATAPTY) {
-      const targets = enemiesInRangeOf(state, tower, 4);
-      if (targets.length > 0 && targets.length <= 3) {
-        messages.push(applyKataptyStrike(state, tower, targets.map((e) => e.id)));
+    if (tower.name === TOWER_KATAPTY && !player.counters?.kataptyResolved) {
+      const resolved = resolveKataptyTargetIds(state, player.id);
+      if ("ids" in resolved && resolved.ids.length > 0) {
+        messages.push(applyKataptyStrike(state, tower, resolved.ids));
       }
     }
     if (tower.name === TOWER_IATROS) {
@@ -432,12 +468,7 @@ export function validateKataptyEndTurn(
 ): string | null {
   const tower = getPlayerTower(state, player.id);
   if (!tower || tower.name !== TOWER_KATAPTY) return "No Katapty tower";
-  const inRange = enemiesInRangeOf(state, tower, 4);
-  if (inRange.length <= 3) return "Katapty auto-resolves on end turn";
-  if (!targetEnemyIds?.length) return "Select up to 3 enemies";
-  if (targetEnemyIds.length > 3) return "At most 3 targets";
-  for (const id of targetEnemyIds) {
-    if (!inRange.some((e) => e.id === id)) return "Target out of range";
-  }
-  return null;
+  if (enemiesInRangeOf(state, tower, 4).length <= 3) return "Katapty auto-resolves on end turn";
+  const resolved = resolveKataptyTargetIds(state, player.id, targetEnemyIds);
+  return "error" in resolved ? resolved.error : null;
 }

@@ -1115,10 +1115,31 @@ function tryMoveSelectedEnemyToAnchor(anchorX: number, anchorY: number): boolean
   return true;
 }
 
+function handleKataptyPick(enemyId: string): boolean {
+  const s = gameState.value;
+  if (!s || boardActionMode.value !== "kataptyPick") return false;
+  const enemy = s.enemies.find((e) => e.id === enemyId);
+  if (!enemy || isTowerEnemy(enemy)) return true;
+  if (!kataptyPickKeys.value.has(coordKey(enemy.x, enemy.y))) return true;
+  const ids = kataptyTargetIds.value;
+  const idx = ids.indexOf(enemy.id);
+  if (idx >= 0) {
+    kataptyTargetIds.value = ids.filter((id) => id !== enemy.id);
+  } else if (ids.length < 3) {
+    kataptyTargetIds.value = [...ids, enemy.id];
+  }
+  if (kataptyTargetIds.value.length === 3) {
+    sendPlayerAction({ action: "kataptyEndTurn", targetEnemyIds: [...kataptyTargetIds.value] });
+    clearBoardActionMode();
+  }
+  return true;
+}
+
 function onEnemyCellClick(x: number, y: number, enemyId: string) {
   if (boardActionMode.value === "attack" && handleAttackCellClick(x, y, enemyId)) return;
   if (boardActionMode.value === "omnistrike" && handleOmnistrikeCellClick(x, y)) return;
   if (boardActionMode.value === "warhook" && handleWarhookCellClick(x, y)) return;
+  if (boardActionMode.value === "kataptyPick" && handleKataptyPick(enemyId)) return;
   selectBoardEnemy(enemyId);
 }
 
@@ -1580,20 +1601,7 @@ function handleCombatCellClick(x: number, y: number): boolean {
   }
   if (m === "kataptyPick") {
     if (!enemy || isTowerEnemy(enemy)) return true;
-    const key = coordKey(x, y);
-    if (!kataptyPickKeys.value.has(key)) return true;
-    const ids = kataptyTargetIds.value;
-    const idx = ids.indexOf(enemy.id);
-    if (idx >= 0) {
-      kataptyTargetIds.value = ids.filter((id) => id !== enemy.id);
-    } else if (ids.length < 3) {
-      kataptyTargetIds.value = [...ids, enemy.id];
-    }
-    if (kataptyTargetIds.value.length === 3) {
-      sendPlayerAction({ action: "kataptyEndTurn", targetEnemyIds: [...kataptyTargetIds.value] });
-      clearBoardActionMode();
-    }
-    return true;
+    return handleKataptyPick(enemy.id);
   }
   if (m === "rez") {
     if (player && player.id !== me.id && (player.hp ?? 0) <= 0) {

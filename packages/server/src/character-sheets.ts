@@ -150,6 +150,7 @@ export function patchSheetHandler(
     equipment: sheet.equipment,
     gear: sheet.gear,
     weapon2: sheet.weapon2,
+    yadathanTower: sheet.yadathanTower,
     tags: sheet.tags,
   };
 
@@ -261,6 +262,7 @@ export function patchSheetHandler(
         equipment: sheet.equipment,
         gear: sheet.gear,
         weapon2: sheet.weapon2,
+        yadathanTower: sheet.yadathanTower,
         tags: sheet.tags,
       },
       opts.sheetOnBoard,

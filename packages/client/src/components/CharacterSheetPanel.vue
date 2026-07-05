@@ -28,7 +28,6 @@ import ModalDialog from "./ModalDialog.vue";
 import RuleText from "./RuleText.vue";
 import SheetActionButton from "./SheetActionButton.vue";
 import SheetGearFieldRow from "./SheetGearFieldRow.vue";
-import YadathanTowerPicker from "./YadathanTowerPicker.vue";
 import WeaponPatternDiagram from "./WeaponPatternDiagram.vue";
 import { useApi } from "../composables/useApi.js";
 import { useBoardActionMode } from "../composables/useBoardActionMode.js";
@@ -480,7 +479,12 @@ function startFieldEdit(field: EditableField) {
 
 function startGearFieldEdit(field: GearField) {
   if (!canEdit.value || !sheet.value) return;
-  startGearPick(props.sheetId, field, form.value[field]);
+  startGearPick(
+    props.sheetId,
+    field,
+    form.value[field],
+    field === "armor" ? form.value.yadathanTower : undefined,
+  );
 }
 
 async function commitFieldEdit() {
@@ -723,6 +727,7 @@ onUnmounted(() => {
             kind="armor"
             :item="selectedArmor"
             :can-edit="canEdit"
+            :selected-tower="showYadathanTowerPick ? form.yadathanTower : undefined"
             @start-edit="startGearFieldEdit('armor')"
           >
             <template v-if="showSheetCombatActions && selectedArmor" #actions>
@@ -741,14 +746,6 @@ onUnmounted(() => {
               </SheetActionButton>
             </template>
           </SheetGearFieldRow>
-
-          <YadathanTowerPicker
-            v-if="showYadathanTowerPick"
-            v-model="form.yadathanTower"
-            label="Tower type"
-            :disabled="!canEdit"
-            @update:model-value="saveSheet"
-          />
 
           <SheetGearFieldRow
             label="Equipped weapon"
@@ -894,20 +891,11 @@ onUnmounted(() => {
     <ModalDialog
       title="Change weapon pattern"
       :open="weaponVariantConfirmOpen"
+      :ok-disabled="!canConfirmWeaponVariant"
       @close="cancelWeaponVariantChange"
+      @confirm="confirmWeaponVariantChange"
     >
       <p class="variant-confirm-text">Confirm changing weapon pattern for 1 charge.</p>
-      <template #actions>
-        <button type="button" class="btn-secondary" @click="cancelWeaponVariantChange">Cancel</button>
-        <button
-          type="button"
-          class="btn-primary"
-          :disabled="!canConfirmWeaponVariant"
-          @click="confirmWeaponVariantChange"
-        >
-          OK
-        </button>
-      </template>
     </ModalDialog>
   </div>
 </template>
@@ -1104,28 +1092,6 @@ onUnmounted(() => {
   margin: 0;
   font-size: 0.9rem;
   color: var(--color-text);
-}
-
-.btn-primary,
-.btn-secondary {
-  border-radius: 6px;
-  font-family: inherit;
-  font-size: 0.85rem;
-  font-weight: 600;
-  padding: 0.4rem 0.85rem;
-  cursor: pointer;
-}
-
-.btn-secondary {
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text);
-}
-
-.btn-primary {
-  border: 1px solid var(--color-accent);
-  background: var(--color-accent);
-  color: var(--color-on-dark);
 }
 
 .field-row {

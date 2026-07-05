@@ -53,7 +53,14 @@ function clearEffects() {
 </script>
 
 <template>
-  <ModalDialog title="Add effect" :open="open" @close="emit('close')">
+  <ModalDialog
+    title="Add effect"
+    :open="open"
+    ok-label="Apply"
+    :ok-disabled="!canApply"
+    @close="emit('close')"
+    @confirm="apply"
+  >
     <div class="effect-picker">
       <label class="field-label" for="effect-select">Effect</label>
       <div class="effect-list">
@@ -87,11 +94,6 @@ function clearEffects() {
     >
       Clear effects
     </button>
-
-    <template #actions>
-      <button type="button" class="btn-secondary" @click="emit('close')">Cancel</button>
-      <button type="button" class="btn-primary" :disabled="!canApply" @click="apply">Apply</button>
-    </template>
   </ModalDialog>
 </template>
 
@@ -184,32 +186,6 @@ function clearEffects() {
 }
 
 .btn-danger:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-primary,
-.btn-secondary {
-  padding: 0.4rem 0.85rem;
-  border-radius: 6px;
-  font-size: 0.85rem;
-  font-family: inherit;
-  cursor: pointer;
-}
-
-.btn-secondary {
-  border: 1px solid var(--color-border);
-  background: var(--color-surface-raised);
-  color: var(--color-text);
-}
-
-.btn-primary {
-  border: 1px solid var(--color-accent);
-  background: var(--color-accent);
-  color: var(--color-on-accent);
-}
-
-.btn-primary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

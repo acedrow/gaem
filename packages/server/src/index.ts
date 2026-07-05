@@ -28,6 +28,7 @@ import {
   DEFAULT_MAP_ID,
   enemyLabel,
   handleCombatMessage,
+  logSyncPlayerLoadoutChanges,
   normalizeGameState,
   parseGameMap,
   removeEnemy,
@@ -526,6 +527,22 @@ wss.on("connection", (ws: WebSocket) => {
         return;
       }
       const sheet = characterSheets.get(parsed.characterSheetId);
+      const player = gameState.players.find(
+        (p) => p.characterSheetId === parsed.characterSheetId,
+      );
+      if (!player) {
+        sendError(ws, "Player not on board");
+        return;
+      }
+      const prevLoadout = {
+        class: player.class ?? "",
+        armor: player.armor ?? "",
+        weapon: player.weapon ?? "",
+        equipment: player.equipment,
+        gear: player.gear,
+        weapon2: player.weapon2,
+        yadathanTower: player.yadathanTower,
+      };
       const err = syncPlayerSheet(
         gameState,
         parsed.characterSheetId,
@@ -541,9 +558,22 @@ wss.on("connection", (ws: WebSocket) => {
         sendError(ws, err);
         return;
       }
-      broadcastConsole(
-        actorForSocket(ws),
-        `set ${sheet?.name ?? "Character"} class to ${parsed.class}`,
+      const actor = actorForSocket(ws);
+      const label = sheet?.name ?? "Character";
+      logSyncPlayerLoadoutChanges(
+        (a, message) => broadcastConsole(a, message),
+        actor,
+        label,
+        prevLoadout,
+        {
+          class: player.class ?? "",
+          armor: player.armor ?? "",
+          weapon: player.weapon ?? "",
+          equipment: player.equipment,
+          gear: player.gear,
+          weapon2: player.weapon2,
+          yadathanTower: player.yadathanTower,
+        },
       );
       broadcastState();
       return;

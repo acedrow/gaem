@@ -13,6 +13,7 @@ export type GearPick = {
   sheetId: string;
   field: GearField;
   currentValue: string;
+  yadathanTower?: string;
 };
 
 const persisted = readPersistedUi();
@@ -51,20 +52,37 @@ export function useCharacterSheetSelection() {
     gearPick.value = null;
   }
 
-  function startGearPick(sheetId: string, field: GearField, currentValue: string) {
+  function startGearPick(
+    sheetId: string,
+    field: GearField,
+    currentValue: string,
+    yadathanTower?: string,
+  ) {
     clearDataCategory();
-    gearPick.value = { sheetId, field, currentValue };
+    gearPick.value = { sheetId, field, currentValue, yadathanTower };
     activeTab.value = "info";
   }
 
-  async function equipGear(name: string): Promise<string | null> {
+  async function equipGear(
+    name: string,
+    extra?: { yadathanTower?: string },
+  ): Promise<string | null> {
     const pick = gearPick.value;
     if (!pick) return null;
     try {
+      const body: Record<string, string> = {};
+      if (pick.field === "armor" && extra?.yadathanTower && name === pick.currentValue) {
+        body.yadathanTower = extra.yadathanTower;
+      } else {
+        body[pick.field] = name;
+        if (pick.field === "armor" && extra?.yadathanTower) {
+          body.yadathanTower = extra.yadathanTower;
+        }
+      }
       const res = await apiFetch(`/api/character-sheets/${pick.sheetId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [pick.field]: name }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as { error?: string } | null;

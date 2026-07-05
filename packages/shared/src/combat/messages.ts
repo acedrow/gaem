@@ -81,6 +81,7 @@ import {
   getPlayerTower,
   getSeedAt,
   isYadathanArmorName,
+  resolveKataptyTargetIds,
   validateKataptyEndTurn,
   validatePlaceTower,
   validateSeedInteract,
@@ -501,7 +502,9 @@ export function applyPlayerAction(
     }
     case "kataptyEndTurn": {
       const tower = getPlayerTower(state, player.id)!;
-      const strikeMsg = applyKataptyStrike(state, tower, action.targetEnemyIds ?? []);
+      const resolved = resolveKataptyTargetIds(state, player.id, action.targetEnemyIds);
+      if ("error" in resolved) return resolved.error;
+      const strikeMsg = applyKataptyStrike(state, tower, resolved.ids);
       if (!player.counters) player.counters = {};
       player.counters.kataptyResolved = 1;
       return `${playerLabel(player)} ${strikeMsg}`;

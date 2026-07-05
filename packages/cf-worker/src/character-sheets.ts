@@ -197,6 +197,7 @@ export async function handlePatchCharacterSheet(
     equipment: sheet.equipment,
     gear: sheet.gear,
     weapon2: sheet.weapon2,
+    yadathanTower: sheet.yadathanTower,
     tags: sheet.tags,
   };
 
@@ -320,6 +321,7 @@ export async function handlePatchCharacterSheet(
       equipment: sheet.equipment,
       gear: sheet.gear,
       weapon2: sheet.weapon2,
+      yadathanTower: sheet.yadathanTower,
       tags: sheet.tags,
     },
     onBoardData.onBoard,

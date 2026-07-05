@@ -124,11 +124,11 @@ const towerTeleportHint = computed(() => {
 
 const kataptyHint = computed(() => {
   if (mode.value !== "kataptyPick") return null;
-  return `Select up to 3 Katapty targets (${kataptyTargetIds.value.length}/3), then confirm`;
+  return `Select exactly 3 Katapty targets (${kataptyTargetIds.value.length}/3), then confirm`;
 });
 
 function confirmKatapty() {
-  if (!kataptyTargetIds.value.length) return;
+  if (kataptyTargetIds.value.length !== 3) return;
   sendPlayerAction({ action: "kataptyEndTurn", targetEnemyIds: [...kataptyTargetIds.value] });
   clearMode();
 }
@@ -327,6 +327,7 @@ function onDualBombComplete() {
         v-if="kataptyTargetIds.length"
         type="button"
         class="action-btn"
+        :disabled="kataptyTargetIds.length !== 3"
         @click="confirmKatapty"
       >
         Confirm Katapty

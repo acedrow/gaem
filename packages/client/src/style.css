@@ -405,6 +405,10 @@ h3,
   padding: 1.25rem;
 }
 
+.modal--wide {
+  max-width: min(560px, 100%);
+}
+
 .modal-title {
   margin: 0 0 1rem;
 }
@@ -414,6 +418,33 @@ h3,
   justify-content: flex-end;
   gap: 0.5rem;
   margin-top: 1rem;
+}
+
+.btn-primary,
+.btn-secondary {
+  padding: 0.4rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-secondary {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+}
+
+.btn-primary {
+  border: 1px solid var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .modal-field {

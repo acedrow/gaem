@@ -95,66 +95,58 @@ function joinAsSelectedPlayer() {
     </div>
   </div>
 
-  <div v-if="showProfileModal" class="modal-backdrop" @click.self="showProfileModal = false">
-    <div class="modal">
-      <h2 class="modal-title">Select player profile</h2>
-      <p class="subtitle">Choose an existing profile or create a new one.</p>
+  <ModalDialog
+    :open="showProfileModal"
+    title="Select player profile"
+    wide
+    ok-label="Join game as player"
+    :ok-disabled="loadingProfiles || !selectedProfile || !!selectedProfile?.isActive"
+    @close="showProfileModal = false"
+    @confirm="joinAsSelectedPlayer"
+  >
+    <p class="subtitle">Choose an existing profile or create a new one.</p>
 
-      <p v-if="loadingProfiles" class="loading-row">
-        <span class="spinner" aria-hidden="true" />
-        <span class="muted">Loading profiles…</span>
-      </p>
-      <p v-else-if="profiles.length === 0" class="muted">No profiles yet.</p>
+    <p v-if="loadingProfiles" class="loading-row">
+      <span class="spinner" aria-hidden="true" />
+      <span class="muted">Loading profiles…</span>
+    </p>
+    <p v-else-if="profiles.length === 0" class="muted">No profiles yet.</p>
 
-      <div class="profile-list" v-if="profiles.length > 0">
-        <button
-          v-for="p in profiles"
-          :key="p.id"
-          type="button"
-          class="profile-item"
-          :disabled="loadingProfiles"
-          :class="{ active: selectedProfileId === p.id, inactive: p.isActive }"
-          @click="!p.isActive && (selectedProfileId = p.id)"
-        >
-          {{ p.name }}
-          <span v-if="p.isActive" class="tag">In game</span>
-        </button>
-      </div>
-
-      <p v-if="profileError" class="error">{{ profileError }}</p>
-
-      <div class="create-row">
-        <input
-          v-model="newProfileName"
-          class="name-input"
-          type="text"
-          placeholder="New player name"
-          :disabled="loadingProfiles || creatingProfile"
-          @keyup.enter="createProfile"
-        />
-        <button
-          class="cta"
-          :disabled="loadingProfiles || creatingProfile || !newProfileName.trim()"
-          @click="createProfile"
-        >
-          {{ creatingProfile ? "Adding..." : "Add new player profile" }}
-        </button>
-      </div>
-
-      <div class="modal-actions">
-        <button class="cta secondary" :disabled="loadingProfiles" @click="showProfileModal = false">
-          Cancel
-        </button>
-        <button
-          class="cta"
-          :disabled="loadingProfiles || !selectedProfile || !!selectedProfile.isActive"
-          @click="joinAsSelectedPlayer"
-        >
-          Join game as player
-        </button>
-      </div>
+    <div v-if="profiles.length > 0" class="profile-list">
+      <button
+        v-for="p in profiles"
+        :key="p.id"
+        type="button"
+        class="profile-item"
+        :disabled="loadingProfiles"
+        :class="{ active: selectedProfileId === p.id, inactive: p.isActive }"
+        @click="!p.isActive && (selectedProfileId = p.id)"
+      >
+        {{ p.name }}
+        <span v-if="p.isActive" class="tag">In game</span>
+      </button>
     </div>
-  </div>
+
+    <p v-if="profileError" class="error">{{ profileError }}</p>
+
+    <div class="create-row">
+      <input
+        v-model="newProfileName"
+        class="name-input"
+        type="text"
+        placeholder="New player name"
+        :disabled="loadingProfiles || creatingProfile"
+        @keyup.enter="createProfile"
+      />
+      <button
+        class="cta"
+        :disabled="loadingProfiles || creatingProfile || !newProfileName.trim()"
+        @click="createProfile"
+      >
+        {{ creatingProfile ? "Adding..." : "Add new player profile" }}
+      </button>
+    </div>
+  </ModalDialog>
 </template>
 
 <style scoped>
@@ -183,27 +175,6 @@ function joinAsSelectedPlayer() {
 }
 .cta:hover { background: var(--color-surface-alt); }
 .cta:disabled { opacity: 0.6; cursor: not-allowed; }
-
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: var(--color-overlay-scrim);
-  display: grid;
-  place-items: center;
-  padding: 1rem;
-}
-
-.modal {
-  width: min(560px, 100%);
-  background: var(--color-bg-body);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  padding: 1rem;
-}
-
-.modal-title {
-  margin: 0 0 0.25rem;
-}
 
 .profile-list {
   display: flex;
@@ -257,13 +228,6 @@ function joinAsSelectedPlayer() {
   background: var(--color-bg);
   color: var(--color-text);
   padding: 0.55rem 0.65rem;
-}
-
-.modal-actions {
-  margin-top: 0.9rem;
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
 }
 
 .secondary {

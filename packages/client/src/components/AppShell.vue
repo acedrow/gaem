@@ -134,7 +134,7 @@ function onPhaseAction() {
     kataptyNeedsTargetPick(gameState.value, yourPlayerId.value)
   ) {
     setMode("kataptyPick");
-    showToast("Select up to 3 Katapty targets, then end turn again");
+    showToast("Select exactly 3 Katapty targets, then end turn again");
     return;
   }
   send({ type: "phaseAction", action });

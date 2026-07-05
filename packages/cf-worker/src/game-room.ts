@@ -13,6 +13,7 @@ import {
   DEFAULT_MAP_ID,
   enemyLabel,
   handleCombatMessage,
+  logSyncPlayerLoadoutChanges,
   normalizeGameState,
   removeEnemy,
   removePlayer,
@@ -333,6 +334,22 @@ export class GameRoom {
         return;
       }
       const sheet = await getCharacterSheet(this.env, parsed.characterSheetId);
+      const player = this.gameState.players.find(
+        (p) => p.characterSheetId === parsed.characterSheetId,
+      );
+      if (!player) {
+        this.sendError(ws, "Player not on board");
+        return;
+      }
+      const prevLoadout = {
+        class: player.class ?? "",
+        armor: player.armor ?? "",
+        weapon: player.weapon ?? "",
+        equipment: player.equipment,
+        gear: player.gear,
+        weapon2: player.weapon2,
+        yadathanTower: player.yadathanTower,
+      };
       const err = syncPlayerSheet(
         this.gameState,
         parsed.characterSheetId,
@@ -349,7 +366,24 @@ export class GameRoom {
         return;
       }
       const actor = await this.actorForSocket(ws);
-      this.broadcastConsole(actor, `set ${sheet?.name ?? "Character"} class to ${parsed.class}`);
+      const label = sheet?.name ?? "Character";
+      logSyncPlayerLoadoutChanges(
+        (a, message) => {
+          this.broadcastConsole(a, message);
+        },
+        actor,
+        label,
+        prevLoadout,
+        {
+          class: player.class ?? "",
+          armor: player.armor ?? "",
+          weapon: player.weapon ?? "",
+          equipment: player.equipment,
+          gear: player.gear,
+          weapon2: player.weapon2,
+          yadathanTower: player.yadathanTower,
+        },
+      );
       await this.broadcastState();
       return;
     }

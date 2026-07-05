@@ -86,16 +86,14 @@ function cancelHaste() {
   <ModalDialog
     :open="pendingTier != null"
     title="Spend Haste"
+    ok-label="Spend Haste"
     @close="cancelHaste"
+    @confirm="confirmHaste"
   >
     <p v-if="pendingTier" class="prompt">
       Would you like to spend Haste to gain an additional
       {{ tierLabels[pendingTier] }} action?
     </p>
-    <template #actions>
-      <button type="button" class="btn-secondary" @click="cancelHaste">Cancel</button>
-      <button type="button" class="btn-primary" @click="confirmHaste">Spend Haste</button>
-    </template>
   </ModalDialog>
 </template>
 
@@ -152,26 +150,5 @@ function cancelHaste() {
   margin: 0;
   font-size: 0.9rem;
   line-height: 1.5;
-}
-
-.btn-primary,
-.btn-secondary {
-  padding: 0.4rem 0.85rem;
-  border-radius: 6px;
-  font-size: 0.85rem;
-  font-family: inherit;
-  cursor: pointer;
-}
-
-.btn-secondary {
-  border: 1px solid var(--color-border);
-  background: var(--color-surface-raised);
-  color: var(--color-text);
-}
-
-.btn-primary {
-  border: 1px solid var(--color-accent);
-  background: var(--color-accent);
-  color: var(--color-on-accent);
 }
 </style>
