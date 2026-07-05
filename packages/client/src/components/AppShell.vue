@@ -417,6 +417,8 @@ function onOverworldClick() {
 }
 
 .center-header {
+  position: relative;
+  z-index: 21;
   box-sizing: border-box;
   min-height: var(--chrome-header-height);
   flex-shrink: 0;
