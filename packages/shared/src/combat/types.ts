@@ -109,6 +109,7 @@ export type PlayerAction =
       targetEnemyId?: string;
       targetEnemyIds?: string[];
       weaponName?: string;
+      useBreaker?: boolean;
     }
   | { action: "shove"; targetEnemyId?: string; targetPlayerId?: string }
   | { action: "sprint" }

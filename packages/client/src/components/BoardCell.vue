@@ -24,6 +24,8 @@ export type CellRenderState = {
   tile: MapTile | undefined;
   player: Player | undefined;
   enemyAnchor: Enemy | undefined;
+  enemyHp?: { currentHp: number; maxHp: number };
+  showSwarmHp?: boolean;
   effectStacks?: EffectStacks;
   turnEnded?: boolean;
   playerDowned?: boolean;
@@ -48,6 +50,7 @@ const props = defineProps<{
   showEnemyHealthBars: boolean;
   enemyDying?: boolean;
   playerTeleporting?: boolean;
+  enemyAnimating?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -120,11 +123,19 @@ const playerHp = computed(() => {
 });
 
 const enemyHp = computed(() => {
+  if (props.cell.enemyHp) return props.cell.enemyHp;
   const enemy = props.cell.enemyAnchor;
   if (!enemy) return null;
   const maxHp = getEnemyMaxHp(enemy);
   return { currentHp: enemy.hp ?? maxHp, maxHp };
 });
+
+const showEnemyHpBar = computed(
+  () =>
+    props.showEnemyHealthBars &&
+    enemyHp.value &&
+    (props.cell.showSwarmHp !== false),
+);
 </script>
 
 <template>
@@ -157,7 +168,7 @@ const enemyHp = computed(() => {
     <span v-if="cell.hasSeed" class="seed-marker" title="Seed" />
     <span v-if="cell.combatTargetInvalid" class="combat-target-invalid-mark" aria-hidden="true" />
     <span
-      v-if="cell.enemyAnchor"
+      v-if="cell.enemyAnchor && !enemyAnimating"
       class="piece enemy"
       :class="{
         selected: isEnemySelected,
@@ -185,11 +196,11 @@ const enemyHp = computed(() => {
         <span class="z z1">z</span><span class="z z2">z</span><span class="z z3">z</span>
       </span>
       <HpBar
-        v-if="showEnemyHealthBars && enemyHp"
+        v-if="showEnemyHpBar"
         class="token-hp-bar"
         compact
-        :current-hp="enemyHp.currentHp"
-        :max-hp="enemyHp.maxHp"
+        :current-hp="enemyHp!.currentHp"
+        :max-hp="enemyHp!.maxHp"
       />
     </span>
     <span

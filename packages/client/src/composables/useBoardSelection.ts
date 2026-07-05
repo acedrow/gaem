@@ -1,4 +1,5 @@
 import { computed, ref } from "vue";
+import { swarmGroupForEnemy } from "@gaem/shared";
 
 import { readPersistedUi } from "./uiPersist.js";
 import { useCharacterSheetSelection } from "./useCharacterSheetSelection.js";
@@ -8,7 +9,7 @@ import { useInfoDataSelection } from "./useInfoDataSelection.js";
 
 export type BoardSelection =
   | { kind: "player"; id: string }
-  | { kind: "enemy"; id: string };
+  | { kind: "enemy"; id: string; swarmMemberIds?: string[] };
 
 const persisted = readPersistedUi();
 const boardSelection = ref<BoardSelection | null>(persisted.boardSelection);
@@ -20,6 +21,10 @@ export function useBoardSelection() {
 
   const selectedEnemyId = computed(() =>
     boardSelection.value?.kind === "enemy" ? boardSelection.value.id : null,
+  );
+
+  const selectedSwarmMemberIds = computed(() =>
+    boardSelection.value?.kind === "enemy" ? boardSelection.value.swarmMemberIds : undefined,
   );
 
   function clearBoardSelection() {
@@ -46,9 +51,27 @@ export function useBoardSelection() {
     }
   }
 
+  function toggleBoardEnemy(enemyId: string) {
+    const sel = boardSelection.value;
+    if (sel?.kind === "enemy") {
+      const members = sel.swarmMemberIds ?? [sel.id];
+      if (members.includes(enemyId)) {
+        clearBoardSelection();
+        return;
+      }
+    }
+    selectBoardEnemy(enemyId);
+  }
+
   function selectBoardEnemy(enemyId: string) {
     clearDataCategory();
-    boardSelection.value = { kind: "enemy", id: enemyId };
+    const s = gameState.value;
+    const group = s ? swarmGroupForEnemy(s, enemyId) : null;
+    boardSelection.value = {
+      kind: "enemy",
+      id: group?.canonicalId ?? enemyId,
+      swarmMemberIds: group && group.size > 1 ? group.memberIds : undefined,
+    };
     activeTab.value = "info";
   }
 
@@ -64,16 +87,21 @@ export function useBoardSelection() {
   }
 
   function isEnemySelected(enemyId: string): boolean {
-    return boardSelection.value?.kind === "enemy" && boardSelection.value.id === enemyId;
+    const sel = boardSelection.value;
+    if (sel?.kind !== "enemy") return false;
+    if (sel.id === enemyId) return true;
+    return sel.swarmMemberIds?.includes(enemyId) ?? false;
   }
 
   return {
     boardSelection,
     selectedEnemyId,
+    selectedSwarmMemberIds,
     clearBoardSelection,
     closeRightPanel,
     selectBoardPlayer,
     selectBoardEnemy,
+    toggleBoardEnemy,
     selectSheetFromNav,
     isPlayerSelected,
     isEnemySelected,

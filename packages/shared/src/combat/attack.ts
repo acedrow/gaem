@@ -16,7 +16,13 @@ import type { WeaponAttackSpec } from "./types.js";
 import type { AttackRangeSpan } from "./types.js";
 import { applyBleedBonus, applyEffectStacks, setTileEffect } from "./effects.js";
 import { parseAndRollDamage } from "./damage.js";
-import { clampHp, getEnemyMaxHp, getPlayerMaxHp } from "../game.js";
+import { clampHp, getEnemyMaxHp, getPlayerMaxHp, getEffectiveEnemyMaxHp, removeEnemy } from "../game.js";
+import {
+  getSwarmMemberHp,
+  reconcileSwarmHp,
+  swarmGroupForEnemy,
+  swarmMembersHitByTiles,
+} from "./swarm.js";
 
 export type AttackTarget = {
   enemyId: string;
@@ -215,16 +221,32 @@ export function collectAttackTiles(
   );
 }
 
-export function enemiesInTiles(state: GameState, tiles: { x: number; y: number }[]): AttackTarget[] {
+export function enemiesInTiles(
+  state: GameState,
+  tiles: { x: number; y: number }[],
+  opts?: { dedupeSwarms?: boolean },
+): AttackTarget[] {
+  const dedupeSwarms = opts?.dedupeSwarms !== false;
   const occ = buildBoardOccupancy(state);
   const seen = new Set<string>();
+  const seenSwarmGroups = new Set<string>();
   const targets: AttackTarget[] = [];
   for (const tile of tiles) {
     const enemy = occ.enemyByKey.get(coordKey(tile.x, tile.y));
-    if (enemy && !seen.has(enemy.id)) {
-      seen.add(enemy.id);
-      targets.push({ enemyId: enemy.id, x: tile.x, y: tile.y });
+    if (!enemy || seen.has(enemy.id)) continue;
+    if (dedupeSwarms) {
+      const group = swarmGroupForEnemy(state, enemy.id);
+      if (group) {
+        const key = [...group.memberIds].sort().join(",");
+        if (seenSwarmGroups.has(key)) continue;
+        seenSwarmGroups.add(key);
+        seen.add(enemy.id);
+        targets.push({ enemyId: group.canonicalId, x: tile.x, y: tile.y });
+        continue;
+      }
     }
+    seen.add(enemy.id);
+    targets.push({ enemyId: enemy.id, x: tile.x, y: tile.y });
   }
   return targets;
 }
@@ -240,15 +262,61 @@ export function resolveAttackDamage(
 }
 
 export function applyDamageToEnemy(enemy: Enemy, damage: number, state?: GameState): number {
-  const maxHp = getEnemyMaxHp(enemy);
+  const maxHp = state ? getEffectiveEnemyMaxHp(enemy, state) : getEnemyMaxHp(enemy);
   const before = enemy.hp ?? maxHp;
   const adjusted = applyBleedBonus(damage, enemy.effects);
-  enemy.hp = clampHp(before - adjusted, maxHp);
+  const newHp = clampHp(before - adjusted, maxHp);
   if (state) {
+    const group = swarmGroupForEnemy(state, enemy.id);
+    if (group) {
+      for (const id of group.memberIds) {
+        const member = state.enemies.find((e) => e.id === id);
+        if (member) member.hp = newHp;
+      }
+    } else {
+      enemy.hp = newHp;
+    }
     if (!state.damageEvents) state.damageEvents = [];
     state.damageEvents.push({ x: enemy.x, y: enemy.y, amount: adjusted });
+  } else {
+    enemy.hp = newHp;
   }
   return adjusted;
+}
+
+export function applyBreakerAttackToSwarm(
+  state: GameState,
+  tiles: { x: number; y: number }[],
+  damage: number,
+  effects: string[] = [],
+): { targets: AttackTarget[]; brokenIds: string[] } {
+  const hits = swarmMembersHitByTiles(state, tiles);
+  const brokenIds: string[] = [];
+  const targets: AttackTarget[] = [];
+
+  if (!hits.length) return { targets, brokenIds };
+
+  const group = swarmGroupForEnemy(state, hits[0]!.enemyId);
+  if (!group) return { targets, brokenIds };
+
+  const memberHp = getSwarmMemberHp(group.currentHp, group.size);
+  const allKilled = hits.every(() => damage >= memberHp);
+
+  if (allKilled) {
+    for (const hit of hits) {
+      brokenIds.push(hit.enemyId);
+      targets.push(hit);
+      removeEnemy(state, hit.enemyId);
+    }
+    reconcileSwarmHp(state);
+  } else {
+    const primary = state.enemies.find((e) => e.id === group.canonicalId)!;
+    applyDamageToEnemy(primary, damage, state);
+    targets.push({ enemyId: group.canonicalId, x: primary.x, y: primary.y });
+    applyEffectStacks(primary, effects);
+  }
+
+  return { targets, brokenIds };
 }
 
 export function applyDamageToPlayer(player: Player, damage: number, state?: GameState): number {
@@ -269,11 +337,18 @@ export function applyAttackToEnemies(
   origin: { x: number; y: number },
   direction: PatternDirection,
   damageRoll?: number,
+  opts?: { useBreaker?: boolean },
 ): { damage: number; detail: string; targets: AttackTarget[]; effects: string[] } {
   const tiles = collectAttackTiles(state, origin, spec, direction);
-  const targets = enemiesInTiles(state, tiles);
   const { total, detail } = resolveAttackDamage(spec, damageRoll);
   const effects = spec.effects ?? [];
+
+  if (opts?.useBreaker && swarmMembersHitByTiles(state, tiles).length) {
+    const { targets } = applyBreakerAttackToSwarm(state, tiles, total, effects);
+    return { damage: total, detail, targets, effects };
+  }
+
+  const targets = enemiesInTiles(state, tiles);
   for (const target of targets) {
     const enemy = state.enemies.find((e) => e.id === target.enemyId);
     if (!enemy) continue;

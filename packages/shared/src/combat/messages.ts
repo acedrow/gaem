@@ -62,7 +62,13 @@ import {
 import { applyEffectStacks, clearEffectStacks, parseEffectToken, tickUnitEndOfTurn } from "./effects.js";
 import { isKnownEffectId } from "../effects-data.js";
 import { createPendingAction, addPendingAction, applyAssistedOutcome } from "./pending.js";
-import { markEnemyExhausted, setActiveEnemy } from "./enemy.js";
+import { setActiveEnemy } from "./enemy.js";
+import {
+  dedupeSwarmTargetIds,
+  exhaustSwarmMembers,
+  reconcileSwarmHp,
+  swarmGroupForEnemy,
+} from "./swarm.js";
 import { enemyLabel, playerLabel } from "../console.js";
 import {
   isRangeTargetAttack,
@@ -352,7 +358,7 @@ export function applyPlayerAction(
       if (!spec) return "Weapon has no attack profile";
       let result;
       if (isRangeTargetAttack(spec)) {
-        const targetIds = resolveRangeAttackTargetIds(action);
+        const targetIds = dedupeSwarmTargetIds(state, resolveRangeAttackTargetIds(action));
         if (targetIds.length) {
           const { total, detail } = resolveAttackDamage(spec, action.damageRoll);
           const effects = spec.effects ?? [];
@@ -371,6 +377,7 @@ export function applyPlayerAction(
             { x: player.x, y: player.y },
             action.direction,
             action.damageRoll,
+            { useBreaker: action.useBreaker },
           );
         }
       } else {
@@ -385,6 +392,7 @@ export function applyPlayerAction(
           attackOrigin,
           direction,
           action.damageRoll,
+          { useBreaker: action.useBreaker },
         );
       }
       const hitEnemies = result.targets
@@ -415,6 +423,7 @@ export function applyPlayerAction(
         if (isInBounds(pushX, pushY, state.width, state.height) && !occ.playerByKey.has(coordKey(pushX, pushY)) && !occ.enemyByKey.has(coordKey(pushX, pushY))) {
           enemy.x = pushX;
           enemy.y = pushY;
+          reconcileSwarmHp(state);
         }
       } else {
         const target = state.players.find((p) => p.id === action.targetPlayerId)!;
@@ -711,10 +720,13 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
       return `${enemyLabel(enemy)}: ${action.label} (pending)`;
     }
     case "exhaust": {
-      markEnemyExhausted(state, enemy.id);
+      exhaustSwarmMembers(state, enemy.id);
       if (state.combat?.activeEnemyId === enemy.id) setActiveEnemy(state, null);
+      const group = swarmGroupForEnemy(state, enemy.id);
       const ticks = tickUnitEndOfTurn(enemy);
-      let msg = `${enemyLabel(enemy)} ended turn`;
+      let msg = group
+        ? `${enemyLabel(enemy)} swarm ended turn`
+        : `${enemyLabel(enemy)} ended turn`;
       if (ticks.length) msg += `. ${ticks.join("; ")}`;
       const phaseMsg = finishGmTurnIfPlayersRemain(state);
       if (phaseMsg) msg += `. GM phase ended — ${phaseMsg}`;
@@ -738,8 +750,21 @@ export function validateSetEnemyHp(state: GameState, enemyId: string, hp: number
 
 export function applySetEnemyHp(state: GameState, enemyId: string, hp: number): string {
   const enemy = state.enemies.find((e) => e.id === enemyId)!;
-  enemy.hp = clampHp(Math.trunc(hp), getEnemyMaxHp(enemy));
-  return `${enemyLabel(enemy)} HP set to ${enemy.hp}`;
+  const group = swarmGroupForEnemy(state, enemyId);
+  const maxHp = group ? group.maxHp : getEnemyMaxHp(enemy);
+  const clamped = clampHp(Math.trunc(hp), maxHp);
+  if (group) {
+    for (const id of group.memberIds) {
+      const member = state.enemies.find((e) => e.id === id);
+      if (member) member.hp = clamped;
+    }
+  } else {
+    enemy.hp = clamped;
+  }
+  reconcileSwarmHp(state);
+  return group
+    ? `Swarm HP set to ${clamped}`
+    : `${enemyLabel(enemy)} HP set to ${clamped}`;
 }
 
 export function validateApplyEffect(

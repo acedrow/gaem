@@ -8,3 +8,4 @@ export * from "./pending.js";
 export * from "./damage.js";
 export * from "./messages.js";
 export * from "./yadathan.js";
+export * from "./swarm.js";

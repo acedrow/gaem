@@ -5,7 +5,10 @@ import {
   getEnemyMaxHp,
   getEnemyScale,
   getEnemySpeed,
+  getEffectiveEnemyHp,
+  getEffectiveEnemyMaxHp,
   isTowerEnemy,
+  swarmGroupForEnemy,
   unexhaustedEnemies,
 } from "@gaem/shared";
 import { computed, ref } from "vue";
@@ -42,14 +45,30 @@ const listing = computed(() =>
   getEnemyListingByName(activeEnemy.value?.name ?? props.enemyName),
 );
 
-const displayName = computed(() => listing.value?.name ?? activeEnemy.value?.name ?? props.enemyName ?? "Enemy");
-const maxHp = computed(() =>
-  activeEnemy.value ? getEnemyMaxHp(activeEnemy.value) : listing.value?.hp ?? 0,
-);
-const currentHp = computed(() => {
+const swarmGroup = computed(() => {
+  const s = gameState.value;
+  const id = props.enemyId;
+  if (!s || !id) return null;
+  return swarmGroupForEnemy(s, id);
+});
+
+const displayName = computed(() => {
+  const group = swarmGroup.value;
+  const listingName = listing.value?.name ?? activeEnemy.value?.name ?? props.enemyName ?? "Enemy";
+  if (group && group.size > 1) return `${listingName} (Swarm · ${group.size})`;
+  return listingName;
+});
+const maxHp = computed(() => {
+  const s = gameState.value;
   const enemy = activeEnemy.value;
-  if (!enemy) return 0;
-  return enemy.hp ?? getEnemyMaxHp(enemy);
+  if (!s || !enemy) return listing.value?.hp ?? 0;
+  return getEffectiveEnemyMaxHp(enemy, s);
+});
+const currentHp = computed(() => {
+  const s = gameState.value;
+  const enemy = activeEnemy.value;
+  if (!s || !enemy) return 0;
+  return getEffectiveEnemyHp(enemy, s);
 });
 const showHpBar = computed(() => isGm.value && !!activeEnemy.value);
 
@@ -78,8 +97,18 @@ const showUseAttack = computed(
 );
 
 const enemySpeedLabel = computed(() => {
+  const s = gameState.value;
   const enemy = activeEnemy.value;
   if (!enemy) return null;
+  const group = s ? swarmGroupForEnemy(s, enemy.id) : null;
+  if (group && group.size > 1) {
+    const members = group.memberIds
+      .map((id) => s!.enemies.find((e) => e.id === id))
+      .filter(Boolean);
+    const max = getEnemySpeed(enemy);
+    const remaining = Math.min(...members.map((m) => m!.movementRemaining ?? max));
+    return `${remaining}/${max}`;
+  }
   const max = getEnemySpeed(enemy);
   const remaining = enemy.movementRemaining ?? max;
   return `${remaining}/${max}`;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { EffectStacks, Enemy, MapTile, PatternDirection, Player, TerrainObject } from "@gaem/shared";
+import type { EffectStacks, Enemy, MapTile, PatternDirection, Player, PlayerAction, TerrainObject } from "@gaem/shared";
 import {
   boardCellKey,
   buildBoardOccupancy,
@@ -41,6 +41,7 @@ import {
   resolveCombatAttackSpec,
   tileAt,
   usesAnchoredPatternPlacement,
+  patternOriginFromAnchor,
   validateEnemyFootprint,
   warhookAdjacentLandingTiles,
   warhookNearestLandings,
@@ -56,6 +57,15 @@ import {
   getArmorByName,
   tilesOnSegment,
   TOWER_IATROS,
+  swarmGroupForEnemy,
+  swarmFringeTiles,
+  pickSwarmMoveMember,
+  swarmCanonicalDisplayId,
+  getEffectiveEnemyHp,
+  getEffectiveEnemyMaxHp,
+  weaponHasBreakerTag,
+  attackTargetsSwarm,
+  collectAttackTiles,
 } from "@gaem/shared";
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 
@@ -65,6 +75,7 @@ import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useBoardViewport } from "../composables/useBoardViewport.js";
 import { useDamageIndicators } from "../composables/useDamageIndicators.js";
 import { useEnemyDeathAnimations } from "../composables/useEnemyDeathAnimations.js";
+import { useEnemyMoveAnimation } from "../composables/useEnemyMoveAnimation.js";
 import { usePlayerTeleportAnimation } from "../composables/usePlayerTeleportAnimation.js";
 import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
 import { useCharacterSheets } from "../composables/useCharacterSheets.js";
@@ -79,6 +90,7 @@ import { usePlayerSettings } from "../composables/usePlayerSettings.js";
 import BoardCell, { type CellRenderState } from "./BoardCell.vue";
 import BoardContextMenu, { type BoardContextMenuItem } from "./BoardContextMenu.vue";
 import AddEffectModal from "./AddEffectModal.vue";
+import BreakerPromptModal from "./BreakerPromptModal.vue";
 
 const props = defineProps<{
   role: "gm" | "player";
@@ -98,6 +110,7 @@ const {
   clearBoardSelection,
   selectBoardPlayer,
   selectBoardEnemy,
+  toggleBoardEnemy,
   isPlayerSelected,
   isEnemySelected,
 } = useBoardSelection();
@@ -218,11 +231,11 @@ const { send, connect, disconnect: disconnectSocket } = useGameSocket({
   },
   onSelectionInvalidated: (msg) => {
     const selection = boardSelection.value;
-    if (
-      selection?.kind === "enemy" &&
-      !msg.state.enemies.some((e) => e.id === selection.id)
-    ) {
-      clearBoardSelection();
+    if (selection?.kind === "enemy") {
+      const ids = selection.swarmMemberIds ?? [selection.id];
+      if (!ids.some((id) => msg.state.enemies.some((e) => e.id === id))) {
+        clearBoardSelection();
+      }
     } else if (
       selection?.kind === "player" &&
       !msg.state.players.some((p) => p.id === selection.id)
@@ -243,6 +256,15 @@ const {
   startTeleport,
   finishTeleport,
 } = usePlayerTeleportAnimation(gameState);
+const {
+  active: enemyMoveAnimation,
+  animatingEnemyId,
+  startMove: startEnemyMove,
+  finishMove: finishEnemyMove,
+} = useEnemyMoveAnimation(gameState);
+const enemyMoveOverlayAtDest = ref(false);
+const breakerPromptOpen = ref(false);
+const pendingAttackAction = ref<Extract<PlayerAction, { action: "attack" }> | null>(null);
 const teleportOverlayAtDest = ref(false);
 
 const gridStyle = computed(() => {
@@ -720,6 +742,27 @@ const gmEnemyMoveTargetKeys = computed(() => {
   if (!s || !id || !canGmMoveEnemies(s)) return keys;
   const enemy = s.enemies.find((e) => e.id === id);
   if (!enemy || enemy.exhausted || isTowerEnemy(enemy)) return keys;
+
+  const group = swarmGroupForEnemy(s, id);
+  if (group) {
+    const hasMovement = group.memberIds.some((memberId) => {
+      const member = s.enemies.find((e) => e.id === memberId);
+      if (!member || member.exhausted) return false;
+      if (s.enforceTurns !== false) {
+        ensureEnemyMovement(member);
+        return (member.movementRemaining ?? 0) >= 1;
+      }
+      return true;
+    });
+    if (!hasMovement) return keys;
+    for (const tile of swarmFringeTiles(s, group.memberIds, occupancy.value ?? undefined)) {
+      if (pickSwarmMoveMember(s, group.memberIds, tile.x, tile.y)) {
+        keys.add(boardCellKey(tile.x, tile.y));
+      }
+    }
+    return keys;
+  }
+
   if (s.enforceTurns !== false) {
     ensureEnemyMovement(enemy);
     if ((enemy.movementRemaining ?? 0) < 1) return keys;
@@ -894,6 +937,19 @@ const cellStateByKey = computed(() => {
       tile,
       player,
       enemyAnchor,
+      enemyHp:
+        enemyAnchor && s && props.role === "gm"
+          ? {
+              currentHp: getEffectiveEnemyHp(enemyAnchor, s),
+              maxHp: getEffectiveEnemyMaxHp(enemyAnchor, s),
+            }
+          : undefined,
+      showSwarmHp: (() => {
+        if (!enemyAnchor || !s) return true;
+        const group = swarmGroupForEnemy(s, enemyAnchor.id);
+        if (!group) return true;
+        return swarmCanonicalDisplayId(s, group.memberIds) === enemyAnchor.id;
+      })(),
       effectStacks: player?.effects ?? enemyAnchor?.effects,
       turnEnded: player
         ? s.roundPhase !== "deployment" && s.actedPlayerIds.includes(player.id)
@@ -921,12 +977,28 @@ const tooltipData = computed(() => {
   const tile = tileAt(s.tiles, cell.x, cell.y);
   if (!tile) return null;
   const anchor = occ.enemyByKey.get(key);
+  const enemyEntry = (() => {
+    if (!anchor || isTowerEnemy(anchor)) return null;
+    const group = swarmGroupForEnemy(s, anchor.id);
+    if (group && group.size > 1) {
+      return {
+        ...anchor,
+        displayHp: group.currentHp,
+        displayMaxHp: group.maxHp,
+      };
+    }
+    return {
+      ...anchor,
+      displayHp: getEffectiveEnemyHp(anchor, s),
+      displayMaxHp: getEffectiveEnemyMaxHp(anchor, s),
+    };
+  })();
   return {
     x: cell.x,
     y: cell.y,
     tile,
     players: occ.playerByKey.has(key) ? [occ.playerByKey.get(key)!] : [],
-    enemies: anchor && !isTowerEnemy(anchor) ? [anchor] : [],
+    enemies: enemyEntry ? [enemyEntry] : [],
     towers: anchor && isTowerEnemy(anchor) ? [anchor] : [],
     objects: occ.terrainObjectsByKey.get(key) ?? [],
   };
@@ -1033,6 +1105,46 @@ function onTeleportOverlayTransitionEnd(e: TransitionEvent) {
   finishTeleport();
 }
 
+const enemyMoveOverlayStyle = computed(() => {
+  const anim = enemyMoveAnimation.value;
+  if (!anim?.animating) return null;
+  const x = enemyMoveOverlayAtDest.value ? anim.toX : anim.fromX;
+  const y = enemyMoveOverlayAtDest.value ? anim.toY : anim.fromY;
+  return cellCenterStyle(x, y);
+});
+
+let enemyMoveFinishTimer: ReturnType<typeof setTimeout> | null = null;
+
+watch(
+  () => enemyMoveAnimation.value?.animating,
+  (animating) => {
+    if (enemyMoveFinishTimer) {
+      clearTimeout(enemyMoveFinishTimer);
+      enemyMoveFinishTimer = null;
+    }
+    if (!animating) {
+      enemyMoveOverlayAtDest.value = false;
+      return;
+    }
+    enemyMoveOverlayAtDest.value = false;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        enemyMoveOverlayAtDest.value = true;
+      });
+    });
+    enemyMoveFinishTimer = setTimeout(() => finishEnemyMove(), 450);
+  },
+);
+
+function onEnemyMoveOverlayTransitionEnd(e: TransitionEvent) {
+  if (e.propertyName !== "left" || !enemyMoveOverlayAtDest.value) return;
+  if (enemyMoveFinishTimer) {
+    clearTimeout(enemyMoveFinishTimer);
+    enemyMoveFinishTimer = null;
+  }
+  finishEnemyMove();
+}
+
 function playerLabel(player: Player): string {
   return player.nickname ?? player.id;
 }
@@ -1062,10 +1174,16 @@ function effectTooltipLabel(id: string, stacks: number): string {
   return `${id}: ${stacks}`;
 }
 
-function gmEnemyMoveAnchorAt(x: number, y: number): { x: number; y: number } | null {
+function gmEnemyMoveDestAt(x: number, y: number): { x: number; y: number } | null {
   const s = gameState.value;
   const id = selectedEnemyId.value;
   if (!s || !id) return null;
+  const key = boardCellKey(x, y);
+  if (!gmEnemyMoveTargetKeys.value.has(key)) return null;
+
+  const group = swarmGroupForEnemy(s, id);
+  if (group) return { x, y };
+
   const enemy = s.enemies.find((e) => e.id === id);
   if (!enemy) return null;
   const scale = getEnemyScale(enemy);
@@ -1097,7 +1215,7 @@ function gmEnemyMoveAnchorAt(x: number, y: number): { x: number; y: number } | n
   return best ? { x: best.x, y: best.y } : null;
 }
 
-function tryMoveSelectedEnemyToAnchor(anchorX: number, anchorY: number): boolean {
+function tryMoveSelectedEnemyToDest(destX: number, destY: number): boolean {
   const s = gameState.value;
   const selected = selectedEnemyId.value;
   if (!s || !selected) return false;
@@ -1107,11 +1225,22 @@ function tryMoveSelectedEnemyToAnchor(anchorX: number, anchorY: number): boolean
     return false;
   }
   if (!canGmMoveEnemies(s)) return false;
+
+  const group = swarmGroupForEnemy(s, selected);
+  if (group) {
+    const moverId = pickSwarmMoveMember(s, group.memberIds, destX, destY);
+    if (!moverId) return false;
+    const mover = s.enemies.find((e) => e.id === moverId)!;
+    startEnemyMove(moverId, { x: mover.x, y: mover.y }, { x: destX, y: destY });
+    send({ type: "moveEnemy", enemyId: selected, x: destX, y: destY });
+    return true;
+  }
+
   const scale = getEnemyScale(enemy);
-  if (validateEnemyFootprint(s, anchorX, anchorY, scale, selected, occupancy.value ?? undefined) !== null) {
+  if (validateEnemyFootprint(s, destX, destY, scale, selected, occupancy.value ?? undefined) !== null) {
     return false;
   }
-  send({ type: "moveEnemy", enemyId: selected, x: anchorX, y: anchorY });
+  send({ type: "moveEnemy", enemyId: selected, x: destX, y: destY });
   return true;
 }
 
@@ -1140,7 +1269,7 @@ function onEnemyCellClick(x: number, y: number, enemyId: string) {
   if (boardActionMode.value === "omnistrike" && handleOmnistrikeCellClick(x, y)) return;
   if (boardActionMode.value === "warhook" && handleWarhookCellClick(x, y)) return;
   if (boardActionMode.value === "kataptyPick" && handleKataptyPick(enemyId)) return;
-  selectBoardEnemy(enemyId);
+  toggleBoardEnemy(enemyId);
 }
 
 function selectOccupantAt(x: number, y: number): boolean {
@@ -1154,7 +1283,7 @@ function selectOccupantAt(x: number, y: number): boolean {
   }
   const enemy = occ.enemyByKey.get(key);
   if (enemy) {
-    selectBoardEnemy(enemy.id);
+    toggleBoardEnemy(enemy.id);
     return true;
   }
   return false;
@@ -1215,6 +1344,65 @@ function onDeployPointerUp(e: PointerEvent) {
   tryMove(x, y);
 }
 
+function attackTilesForAction(action: Extract<PlayerAction, { action: "attack" }>): { x: number; y: number }[] {
+  const me = yourPlayer.value;
+  const s = gameState.value;
+  const ctx = attackContext.value;
+  if (!me || !s || !ctx) return [];
+  if (isRangeTargetAttack(ctx.spec)) {
+    const ids = action.targetEnemyIds;
+    if (!ids?.length) return [];
+    return ids.flatMap((id) => {
+      const e = s.enemies.find((en) => en.id === id);
+      return e ? [{ x: e.x, y: e.y }] : [];
+    });
+  }
+  const direction = action.direction;
+  const origin =
+    action.anchorX != null && action.anchorY != null
+      ? patternOriginFromAnchor({ x: action.anchorX, y: action.anchorY }, ctx.spec.anchorTile, direction)
+      : { x: me.x, y: me.y };
+  return collectAttackTiles(s, origin, ctx.spec, direction);
+}
+
+function submitAttackAction(action: Extract<PlayerAction, { action: "attack" }>) {
+  const me = yourPlayer.value;
+  const s = gameState.value;
+  const ctx = attackContext.value;
+  if (!me || !s || !ctx) return;
+  const tiles = attackTilesForAction(action);
+  if (weaponHasBreakerTag(me, ctx.weapon) && attackTargetsSwarm(s, tiles)) {
+    pendingAttackAction.value = action;
+    breakerPromptOpen.value = true;
+    return;
+  }
+  sendPlayerAction(action);
+  clearBoardActionMode();
+}
+
+function onBreakerBreakSwarm() {
+  const action = pendingAttackAction.value;
+  if (!action) return;
+  sendPlayerAction({ ...action, useBreaker: true });
+  pendingAttackAction.value = null;
+  breakerPromptOpen.value = false;
+  clearBoardActionMode();
+}
+
+function onBreakerAttackWhole() {
+  const action = pendingAttackAction.value;
+  if (!action) return;
+  sendPlayerAction({ ...action, useBreaker: false });
+  pendingAttackAction.value = null;
+  breakerPromptOpen.value = false;
+  clearBoardActionMode();
+}
+
+function onBreakerCancel() {
+  pendingAttackAction.value = null;
+  breakerPromptOpen.value = false;
+}
+
 function handleAttackCellClick(x: number, y: number, targetEnemyId?: string): boolean {
   const me = yourPlayer.value;
   const s = gameState.value;
@@ -1243,22 +1431,20 @@ function handleAttackCellClick(x: number, y: number, targetEnemyId?: string): bo
         const next = [...selected, targetEnemyId];
         rangeAttackTargetIds.value = next;
         if (next.length >= maxTargets) {
-          sendPlayerAction({
+          submitAttackAction({
             ...attackAction,
             targetEnemyIds: next,
           });
-          clearBoardActionMode();
         }
       }
       return true;
     }
 
     if (rangeAttackTargetIds.value.length === 0) return true;
-    sendPlayerAction({
+    submitAttackAction({
       ...attackAction,
       targetEnemyIds: [...rangeAttackTargetIds.value],
     });
-    clearBoardActionMode();
     return true;
   }
 
@@ -1289,13 +1475,12 @@ function handleAttackCellClick(x: number, y: number, targetEnemyId?: string): bo
     if (combatAttackPrimaryKeys.value.has(key)) {
       const anchor = attackAnchor.value;
       if (!anchor) return false;
-      sendPlayerAction({
+      submitAttackAction({
         action: "attack",
         direction: ANCHORED_ATTACK_DIRECTION,
         anchorX: anchor.x,
         anchorY: anchor.y,
       });
-      clearBoardActionMode();
       return true;
     }
 
@@ -1311,8 +1496,7 @@ function handleAttackCellClick(x: number, y: number, targetEnemyId?: string): bo
     if (dirs.length === 0) return false;
 
     if (attackAimed.value && (combatAttackPrimaryKeys.value.has(key) || combatAttackSecondaryKeys.value.has(key))) {
-      sendPlayerAction(attackAction);
-      clearBoardActionMode();
+      submitAttackAction(attackAction);
       return true;
     }
 
@@ -1328,8 +1512,7 @@ function handleAttackCellClick(x: number, y: number, targetEnemyId?: string): bo
   if (dirs.length === 0) return false;
 
   if (attackAimed.value && combatAttackPrimaryKeys.value.has(key)) {
-    sendPlayerAction(attackAction);
-    clearBoardActionMode();
+    submitAttackAction(attackAction);
     return true;
   }
 
@@ -1632,9 +1815,9 @@ function onPlayerCellClick(x: number, y: number) {
 }
 
 function tryMoveSelectedEnemy(x: number, y: number): boolean {
-  const anchor = gmEnemyMoveAnchorAt(x, y);
-  if (!anchor) return false;
-  return tryMoveSelectedEnemyToAnchor(anchor.x, anchor.y);
+  const dest = gmEnemyMoveDestAt(x, y);
+  if (!dest) return false;
+  return tryMoveSelectedEnemyToDest(dest.x, dest.y);
 }
 
 function onGmCellClick(x: number, y: number) {
@@ -1885,7 +2068,7 @@ function onKeydown(e: KeyboardEvent) {
         const anchor = arrowTarget(e.key, enemy);
         if (anchor) {
           e.preventDefault();
-          tryMoveSelectedEnemyToAnchor(anchor.x, anchor.y);
+          tryMoveSelectedEnemyToDest(anchor.x, anchor.y);
         }
       }
     }
@@ -1912,6 +2095,7 @@ watch(viewportEl, (el, prev) => {
 
 onUnmounted(() => {
   if (teleportFinishTimer) clearTimeout(teleportFinishTimer);
+  if (enemyMoveFinishTimer) clearTimeout(enemyMoveFinishTimer);
   window.removeEventListener("keydown", onKeydown);
   disconnectViewport();
   disconnectSocket();
@@ -1947,6 +2131,7 @@ onUnmounted(() => {
                     isEnemyDying(cellStateByKey.get(c.key)!.enemyAnchor!.id),
                   showHealthBars,
                   showEnemyHealthBars,
+                  animatingEnemyId,
                   !!cellStateByKey.get(c.key)?.player &&
                     teleportingPlayerIds.has(cellStateByKey.get(c.key)!.player!.id),
                 ]"
@@ -1963,6 +2148,7 @@ onUnmounted(() => {
                 :show-enemy-health-bars="showEnemyHealthBars"
                 :enemy-dying="!!cellStateByKey.get(c.key)?.enemyAnchor && isEnemyDying(cellStateByKey.get(c.key)!.enemyAnchor!.id)"
                 :player-teleporting="!!cellStateByKey.get(c.key)?.player && teleportingPlayerIds.has(cellStateByKey.get(c.key)!.player!.id)"
+                :enemy-animating="cellStateByKey.get(c.key)?.enemyAnchor?.id === animatingEnemyId"
                 @click="onCellClick(c.x, c.y)"
                 @hover="onCellHover(c.x, c.y, c.key)"
                 @unhover="onCellUnhover"
@@ -2006,7 +2192,7 @@ onUnmounted(() => {
             <span class="tooltip-heading">Enemies</span>
             <div v-for="enemy in tooltipData.enemies" :key="enemy.id" class="tooltip-unit">
               <span class="tooltip-row">
-                {{ enemyLabel(enemy) }}<template v-if="props.role === 'gm'"> · HP {{ formatHp(enemy.hp, getEnemyMaxHp(enemy)) }}</template>
+                {{ enemyLabel(enemy) }}<template v-if="props.role === 'gm'"> · HP {{ formatHp(enemy.displayHp, enemy.displayMaxHp) }}</template>
               </span>
               <span
                 v-for="effect in effectEntries(enemy.effects)"
@@ -2037,6 +2223,14 @@ onUnmounted(() => {
         >
           <span class="damage-indicator-text">-{{ indicator.amount }}</span>
         </div>
+
+        <div
+          v-if="enemyMoveOverlayStyle"
+          class="enemy-move-overlay"
+          :class="{ 'enemy-move-overlay-animating': enemyMoveOverlayAtDest }"
+          :style="enemyMoveOverlayStyle"
+          @transitionend="onEnemyMoveOverlayTransitionEnd"
+        />
 
         <div
           v-if="teleportOverlayStyle && teleportOverlayPlayer"
@@ -2078,6 +2272,13 @@ onUnmounted(() => {
       :open="effectModalOpen"
       :target="effectModalTarget"
       @close="effectModalOpen = false"
+    />
+
+    <BreakerPromptModal
+      :open="breakerPromptOpen"
+      @close="onBreakerCancel"
+      @break-swarm="onBreakerBreakSwarm"
+      @attack-whole="onBreakerAttackWhole"
     />
   </div>
 </template>
@@ -2161,6 +2362,16 @@ onUnmounted(() => {
   object-fit: cover;
   display: block;
   border-radius: 50%;
+}
+
+.enemy-move-overlay {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  border-radius: 50%;
+  background: hsl(0 70% 45%);
+  box-sizing: border-box;
+  transition: left 350ms ease, top 350ms ease;
 }
 
 .damage-indicator {

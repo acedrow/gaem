@@ -9,6 +9,13 @@ import { applyLoadoutToPlayer, getClassMaxHp, getArmorSpeed } from "./player-dat
 import { coordKey, isFootprintInBounds, isInBounds, isWalkable, tileAt } from "./map.js";
 import { isOrthogonallyAdjacent } from "./patterns.js";
 import { kataptyNeedsTargetPick, resolveYadathanEndOfTurn } from "./combat/yadathan.js";
+import {
+  reconcileSwarmHp,
+  swarmGroupForEnemy,
+  validateSwarmMove,
+  applySwarmMove,
+  getEffectiveEnemyMaxHp,
+} from "./combat/swarm.js";
 
 export type BoardOccupancy = {
   playerByKey: Map<string, Player>;
@@ -549,6 +556,8 @@ export function getEnemyMaxHp(enemy: Enemy): number {
   return getEnemyMaxHpByName(enemy.name);
 }
 
+export { getEffectiveEnemyMaxHp };
+
 function normalizeEnemies(enemies: Enemy[]): void {
   for (const enemy of enemies) {
     if (enemy.scale == null) {
@@ -662,6 +671,10 @@ export function validateEnemyMove(
   const enemy = state.enemies.find((e) => e.id === enemyId);
   if (!enemy) return "Unknown enemy";
 
+  if (swarmGroupForEnemy(state, enemyId)) {
+    return validateSwarmMove(state, enemyId, toX, toY);
+  }
+
   if (!canGmMoveEnemies(state)) return "Not GM turn";
   if (enemy.exhausted) return "Enemy has ended turn";
 
@@ -683,11 +696,16 @@ export function applyEnemyMove(
   toX: number,
   toY: number,
 ): void {
+  if (swarmGroupForEnemy(state, enemyId)) {
+    applySwarmMove(state, enemyId, toX, toY);
+    return;
+  }
   const enemy = state.enemies.find((e) => e.id === enemyId);
   if (!enemy) return;
   if (state.enforceTurns !== false) spendEnemyMovement(enemy, 1);
   enemy.x = toX;
   enemy.y = toY;
+  reconcileSwarmHp(state);
 }
 
 export function validateAddEnemy(
@@ -710,13 +728,18 @@ export function addEnemy(state: GameState, enemy: Enemy): string | null {
     hp: normalizeHp(enemy.hp, maxHp),
   });
   refreshEnemyMovement(state.enemies[state.enemies.length - 1]!);
+  reconcileSwarmHp(state);
   return null;
 }
 
 export function removeEnemy(state: GameState, enemyId: string): boolean {
   const before = state.enemies.length;
   state.enemies = state.enemies.filter((e) => e.id !== enemyId);
-  return state.enemies.length < before;
+  if (state.enemies.length < before) {
+    reconcileSwarmHp(state);
+    return true;
+  }
+  return false;
 }
 
 export function addPlayer(
