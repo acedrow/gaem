@@ -21,6 +21,12 @@ import {
   getEffectiveEnemyMaxHp,
   requireSwarmChipResolved,
 } from "./combat/swarm.js";
+import {
+  applyProvokeAndFormat,
+  previewEnemyMoveProvokes,
+  clearMurielPassedEnemies,
+  tickProvokeRangeGear,
+} from "./combat/provoke.js";
 
 export type BoardOccupancy = {
   playerByKey: Map<string, Player>;
@@ -226,6 +232,7 @@ function beginPlayerTurn(state: GameState, playerId: string): string {
       delete player.counters.kataptyResolved;
       if (Object.keys(player.counters).length === 0) delete player.counters;
     }
+    clearMurielPassedEnemies(state, playerId);
   }
   return `${playerLabel(player!)} took their turn`;
 }
@@ -262,6 +269,7 @@ function finishPlayerTurn(state: GameState, playerId: string, suffix = "ended th
 function advanceRound(state: GameState): string {
   const endedRound = state.round;
   tickRoundCountdowns(state);
+  tickProvokeRangeGear(state);
   resetEnemyExhaustion(state);
   if (state.combat) {
     state.combat.pendingReaction = null;
@@ -739,22 +747,30 @@ export function applyEnemyMove(
   toX: number,
   toY: number,
   opts?: { soloSwarmMember?: boolean },
-): void {
+): string {
+  const enemy = state.enemies.find((e) => e.id === enemyId);
+  if (!enemy) return "";
+
+  const triggers = previewEnemyMoveProvokes(state, enemyId, toX, toY, opts);
+  let provokeMsg = "";
+  if (triggers.length) {
+    provokeMsg = applyProvokeAndFormat(state, { kind: "enemy", enemy }, triggers);
+  }
+
   if (swarmGroupForEnemy(state, enemyId)) {
     if (opts?.soloSwarmMember) {
       applySwarmMemberMove(state, enemyId, toX, toY);
-      return;
+      return provokeMsg;
     }
     applySwarmMove(state, enemyId, toX, toY);
-    return;
+    return provokeMsg;
   }
   const prevGroups = buildSwarmGroups(state);
-  const enemy = state.enemies.find((e) => e.id === enemyId);
-  if (!enemy) return;
   if (!isSandboxMode(state)) spendEnemyMovement(enemy, 1);
   enemy.x = toX;
   enemy.y = toY;
   reconcileSwarmHp(state, prevGroups);
+  return provokeMsg;
 }
 
 export function validateAddEnemy(

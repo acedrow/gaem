@@ -103,6 +103,14 @@ import {
   validateTowerTeleport,
   yadathanReversalEligible,
 } from "./yadathan.js";
+import {
+  applyProvokeAndFormat,
+  activateExpandedAggressionGear,
+  collectPathProvokeTriggers,
+  previewSprintProvokes,
+  recordPassedEnemiesOnPath,
+  EXPANDED_AGGRESSION_GEAR,
+} from "./provoke.js";
 
 export type CombatMessageContext = {
   role: GaemRole;
@@ -144,11 +152,20 @@ export function applyMovePath(
     player.y = dest.y;
     return `${playerLabel(player)} moved to (${dest.x}, ${dest.y})`;
   }
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player) return "Unknown player";
+  const triggers = collectPathProvokeTriggers(state, playerId, path);
+  let provokeMsg = "";
+  if (triggers.length) {
+    provokeMsg = applyProvokeAndFormat(state, { kind: "player", player }, triggers);
+  }
   const err = applyMovementPath(state, playerId, path);
   if (err) return err;
-  const player = state.players.find((p) => p.id === playerId)!;
+  recordPassedEnemiesOnPath(state, player, path);
   const dest = path[path.length - 1]!;
-  return `${playerLabel(player)} moved to (${dest.x}, ${dest.y})`;
+  let msg = `${playerLabel(player)} moved to (${dest.x}, ${dest.y})`;
+  if (provokeMsg) msg = `${provokeMsg}; ${msg}`;
+  return msg;
 }
 
 function validateSelectWeaponVariant(
@@ -449,7 +466,16 @@ export function applyPlayerAction(
       return applySprintBegin(state, playerId);
     }
     case "sprintMove": {
-      return applySprintMove(state, playerId, action.x, action.y);
+      const player = state.players.find((p) => p.id === playerId)!;
+      const triggers = previewSprintProvokes(state, playerId, action.x, action.y);
+      let provokeMsg = "";
+      if (triggers.length) {
+        provokeMsg = applyProvokeAndFormat(state, { kind: "player", player }, triggers);
+      }
+      const base = applySprintMove(state, playerId, action.x, action.y);
+      recordPassedEnemiesOnPath(state, player, [{ x: action.x, y: action.y }]);
+      if (provokeMsg) return `${provokeMsg}; ${base}`;
+      return base;
     }
     case "sprintCancel": {
       return applySprintCancel(state, playerId);
@@ -484,10 +510,17 @@ export function applyPlayerAction(
       const structured = armor.armorActionStructured as StructuredArmorAction;
       if (structured.kind === "teleport_adjacent" && action.targetEnemyId) {
         const landing = { x: action.landingX!, y: action.landingY! };
+        const triggers = previewSprintProvokes(state, playerId, landing.x, landing.y);
+        let provokeMsg = "";
+        if (triggers.length) {
+          provokeMsg = applyProvokeAndFormat(state, { kind: "player", player }, triggers);
+        }
         player.x = landing.x;
         player.y = landing.y;
         maybeSpendActionTier(state, player, "support");
-        return `${playerLabel(player)} used ${armor.name} armor action`;
+        let msg = `${playerLabel(player)} used ${armor.name} armor action`;
+        if (provokeMsg) msg = `${provokeMsg}; ${msg}`;
+        return msg;
       }
       maybeSpendActionTier(state, player, "support");
       if (structured.kind === "push_recoil") {
@@ -554,7 +587,14 @@ export function applyPlayerAction(
         return msg;
       }
       if (isWarhookWeaponName(player.weapon) && action.warhook) {
-        const result = applyWarhook(state, player, action.warhook);
+        const wh = action.warhook;
+        const triggers = previewSprintProvokes(state, playerId, wh.landingX, wh.landingY);
+        let provokeMsg = "";
+        if (triggers.length) {
+          provokeMsg = applyProvokeAndFormat(state, { kind: "player", player }, triggers);
+        }
+        const result = applyWarhook(state, player, wh);
+        recordPassedEnemiesOnPath(state, player, [{ x: wh.landingX, y: wh.landingY }]);
         const hitEnemies = result.targets
           .map((t) => state.enemies.find((e) => e.id === t.enemyId))
           .filter(Boolean);
@@ -565,6 +605,7 @@ export function applyPlayerAction(
           .join(", ");
         let msg = `${playerLabel(player)} used ${result.message} (${result.detail} dmg) → ${names || "no targets"}`;
         if (defeated) msg += `; defeated ${defeated}`;
+        if (provokeMsg) msg = `${provokeMsg}; ${msg}`;
         return msg;
       }
       const weapon = getWeaponByName(player.weapon ?? "");
@@ -583,6 +624,10 @@ export function applyPlayerAction(
     case "useEquipment": {
       maybeSpendActionTier(state, player, "support");
       if (areActionLimitsEnforced(state)) player.equipmentUses = 0;
+      if (player.gear === EXPANDED_AGGRESSION_GEAR) {
+        const gearMsg = activateExpandedAggressionGear(state, player);
+        return `${playerLabel(player)} used equipment${gearMsg ? ` — ${gearMsg}` : ""}`;
+      }
       addPendingAction(
         state,
         createPendingAction("useEquipment", "Equipment", {

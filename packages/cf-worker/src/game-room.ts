@@ -282,12 +282,14 @@ export class GameRoom {
             this.sendError(ws, err);
             return;
           }
-          applyEnemyMove(this.gameState, parsed.enemyId, parsed.x, parsed.y, {
+          const provokeMsg = applyEnemyMove(this.gameState, parsed.enemyId, parsed.x, parsed.y, {
             soloSwarmMember: parsed.soloSwarmMember,
           });
           if (enemy) {
             const actor = await this.actorForSocket(ws);
-            this.broadcastConsole(actor, `moved ${enemyLabel(enemy)} to (${parsed.x}, ${parsed.y})`);
+            let msg = `moved ${enemyLabel(enemy)} to (${parsed.x}, ${parsed.y})`;
+            if (provokeMsg) msg = `${provokeMsg}; ${msg}`;
+            this.broadcastConsole(actor, msg);
           }
         } else {
           const id = crypto.randomUUID();
@@ -462,7 +464,7 @@ export class GameRoom {
         this.sendError(ws, "Only players can move");
         return;
       }
-      if (this.gameState.roundPhase === "playerTurn") {
+      if (this.gameState.roundPhase !== "deployment") {
         const result = handleCombatMessage(
           this.gameState,
           { type: "movePath", path: [{ x: parsed.x, y: parsed.y }] },

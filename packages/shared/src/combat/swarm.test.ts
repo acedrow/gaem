@@ -9,6 +9,7 @@ import {
   swarmChipEligibleTargets,
   validateSwarmMemberMove,
   markSwarmChipResolved,
+  requireSwarmChipResolved,
 } from "./swarm.js";
 import {
   applyBreakerAttackToSwarm,
@@ -84,6 +85,19 @@ describe("swarm", () => {
 
     const targets = swarmChipEligibleTargets(state, "a");
     expect(targets.some((t) => t.kind === "player" && t.id === "p1")).toBe(true);
+  });
+
+  it("requireSwarmChipResolved skips swarms with no adjacent chip targets", () => {
+    const state = makeGameState();
+    addTestEnemy(state, "a", 2, 2, { name: SWARM_NAME });
+    addTestEnemy(state, "b", 3, 2, { name: SWARM_NAME });
+    reconcileSwarmHp(state);
+    state.roundPhase = "gmTurn";
+    state.turn = { role: "gm" };
+    state.combat = createDefaultCombatState(0);
+
+    expect(swarmChipEligibleTargets(state, "a")).toEqual([]);
+    expect(requireSwarmChipResolved(state, "a")).toBeNull();
   });
 
   it("applyBreakerAttackToSwarm breaks squares when damage is sufficient", () => {

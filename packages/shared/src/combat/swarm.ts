@@ -623,10 +623,15 @@ export function swarmChipResolved(state: GameState, enemyId: string): boolean {
   return state.combat?.swarmChipResolvedIds?.includes(group.canonicalId) ?? false;
 }
 
-export function requireSwarmChipResolved(state: GameState, enemyId: string): string | null {
+export function swarmChipPromptRequired(state: GameState, enemyId: string): boolean {
   const group = swarmGroupForEnemy(state, enemyId);
-  if (!group || group.size < 2) return null;
-  if (swarmChipResolved(state, enemyId)) return null;
+  if (!group || group.size < 2) return false;
+  if (swarmChipResolved(state, enemyId)) return false;
+  return swarmChipEligibleTargets(state, enemyId).length > 0;
+}
+
+export function requireSwarmChipResolved(state: GameState, enemyId: string): string | null {
+  if (!swarmChipPromptRequired(state, enemyId)) return null;
   return "Apply swarm chip damage first";
 }
 

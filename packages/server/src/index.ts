@@ -478,11 +478,13 @@ wss.on("connection", (ws: WebSocket) => {
             sendError(ws, err);
             return;
           }
-          applyEnemyMove(gameState, parsed.enemyId, parsed.x, parsed.y, {
+          const provokeMsg = applyEnemyMove(gameState, parsed.enemyId, parsed.x, parsed.y, {
             soloSwarmMember: parsed.soloSwarmMember,
           });
           if (enemy) {
-            broadcastConsole(actorForSocket(ws), `moved ${enemyLabel(enemy)} to (${parsed.x}, ${parsed.y})`);
+            let msg = `moved ${enemyLabel(enemy)} to (${parsed.x}, ${parsed.y})`;
+            if (provokeMsg) msg = `${provokeMsg}; ${msg}`;
+            broadcastConsole(actorForSocket(ws), msg);
           }
         } else {
           const id = randomUUID();
@@ -656,7 +658,7 @@ wss.on("connection", (ws: WebSocket) => {
         sendError(ws, "Only players can move");
         return;
       }
-      if (gameState.roundPhase === "playerTurn") {
+      if (gameState.roundPhase !== "deployment") {
         const result = handleCombatMessage(
           gameState,
           { type: "movePath", path: [{ x: parsed.x, y: parsed.y }] },

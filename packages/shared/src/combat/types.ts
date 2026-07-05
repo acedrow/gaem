@@ -98,6 +98,7 @@ export type CombatState = {
   pendingReaction: PendingReaction | null;
   activeEnemyId: string | null;
   swarmChipResolvedIds?: string[];
+  passedEnemyIdsByPlayer?: Record<string, string[]>;
 };
 
 export type PlayerAction =

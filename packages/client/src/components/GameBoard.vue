@@ -76,11 +76,15 @@ import {
   enemyDirectAttackTargetPlayerIds,
   parseEnemyAttackString,
   swarmChipEligibleTargets,
-  swarmChipResolved,
+  swarmChipPromptRequired,
   swarmMembersHitByTiles,
   isSethianWeaponName,
   SETHIAN_DAMAGE_CAP,
   maxSwarmStrikesAgainstTarget,
+  previewPathProvokes,
+  previewEnemyMoveProvokes,
+  previewSprintProvokes,
+  type ProvokeTrigger,
 } from "@gaem/shared";
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 
@@ -106,6 +110,7 @@ import BoardCell, { type CellRenderState } from "./BoardCell.vue";
 import BoardContextMenu, { type BoardContextMenuItem } from "./BoardContextMenu.vue";
 import AddEffectModal from "./AddEffectModal.vue";
 import BreakerPromptModal from "./BreakerPromptModal.vue";
+import ProvokePromptModal from "./ProvokePromptModal.vue";
 import SwarmChipModal from "./SwarmChipModal.vue";
 import GmSwarmAttackModal from "./GmSwarmAttackModal.vue";
 
@@ -296,6 +301,9 @@ const {
 const enemyMoveOverlayAtDest = ref(false);
 const breakerPromptOpen = ref(false);
 const pendingAttackAction = ref<Extract<PlayerAction, { action: "attack" }> | null>(null);
+const provokePromptOpen = ref(false);
+const provokeTriggers = ref<ProvokeTrigger[]>([]);
+const pendingProvokeMove = ref<(() => void) | null>(null);
 const swarmChipOpen = ref(false);
 const swarmChipEnemyId = ref<string | null>(null);
 const swarmChipTargets = ref<import("@gaem/shared").SwarmChipTarget[]>([]);
@@ -313,9 +321,8 @@ function maybePromptSwarmChip(enemyId: string) {
   if (!s || !canGmMoveEnemies(s)) return;
   const enemy = s.enemies.find((e) => e.id === enemyId);
   if (!enemy || enemy.exhausted || isTowerEnemy(enemy)) return;
-  const group = swarmGroupForEnemy(s, enemyId);
-  if (!group || group.size < 2) return;
-  if (swarmChipResolved(s, enemyId)) return;
+  if (!swarmChipPromptRequired(s, enemyId)) return;
+  const group = swarmGroupForEnemy(s, enemyId)!;
   swarmChipEnemyId.value = group.canonicalId;
   swarmChipTargets.value = swarmChipEligibleTargets(s, enemyId);
   swarmChipOpen.value = true;
@@ -323,9 +330,7 @@ function maybePromptSwarmChip(enemyId: string) {
 
 function ensureSwarmChipResolved(enemyId: string): boolean {
   const s = gameState.value;
-  if (!s || swarmChipResolved(s, enemyId)) return true;
-  const group = swarmGroupForEnemy(s, enemyId);
-  if (!group || group.size < 2) return true;
+  if (!s || !swarmChipPromptRequired(s, enemyId)) return true;
   maybePromptSwarmChip(enemyId);
   return false;
 }
@@ -344,6 +349,29 @@ const breakerSethianHint = computed(() => {
   if (!hits) return undefined;
   return `Attack as whole: damage × ${hits} pattern square${hits === 1 ? "" : "s"} (max ${SETHIAN_DAMAGE_CAP} total).`;
 });
+
+function gateProvoke(triggers: ProvokeTrigger[], action: () => void) {
+  if (!triggers.length) {
+    action();
+    return;
+  }
+  provokeTriggers.value = triggers;
+  pendingProvokeMove.value = action;
+  provokePromptOpen.value = true;
+}
+
+function onProvokeConfirm() {
+  pendingProvokeMove.value?.();
+  pendingProvokeMove.value = null;
+  provokePromptOpen.value = false;
+  provokeTriggers.value = [];
+}
+
+function onProvokeCancel() {
+  pendingProvokeMove.value = null;
+  provokePromptOpen.value = false;
+  provokeTriggers.value = [];
+}
 
 function onSwarmChipConfirm(targetPlayerIds: string[], targetEnemyIds: string[]) {
   const enemyId = swarmChipEnemyId.value;
@@ -1432,6 +1460,23 @@ function gmEnemyMoveDestAt(x: number, y: number): { x: number; y: number } | nul
   return best ? { x: best.x, y: best.y } : null;
 }
 
+function sendEnemyMove(
+  enemyId: string,
+  destX: number,
+  destY: number,
+  opts: { soloSwarmMember?: boolean; animateFrom?: { x: number; y: number }; animateMoverId?: string },
+) {
+  const s = gameState.value;
+  if (!s) return;
+  const moverId = opts.animateMoverId ?? enemyId;
+  const mover = s.enemies.find((e) => e.id === moverId);
+  const from = opts.animateFrom ?? (mover ? { x: mover.x, y: mover.y } : { x: destX, y: destY });
+  gateProvoke(previewEnemyMoveProvokes(s, enemyId, destX, destY, opts), () => {
+    startEnemyMove(moverId, from, { x: destX, y: destY });
+    send({ type: "moveEnemy", enemyId, x: destX, y: destY, soloSwarmMember: opts.soloSwarmMember });
+  });
+}
+
 function tryMoveSelectedEnemyToDest(destX: number, destY: number): boolean {
   const s = gameState.value;
   const selected = selectedEnemyId.value;
@@ -1450,17 +1495,21 @@ function tryMoveSelectedEnemyToDest(destX: number, destY: number): boolean {
     if (!canSwarmMemberReachDest(s, selected, destX, destY, occupancy.value ?? undefined)) {
       return false;
     }
-    const mover = s.enemies.find((e) => e.id === selected)!;
-    startEnemyMove(selected, { x: mover.x, y: mover.y }, { x: destX, y: destY });
-    send({ type: "moveEnemy", enemyId: selected, x: destX, y: destY, soloSwarmMember: true });
+    sendEnemyMove(selected, destX, destY, {
+      soloSwarmMember: true,
+      animateFrom: { x: s.enemies.find((e) => e.id === selected)!.x, y: s.enemies.find((e) => e.id === selected)!.y },
+      animateMoverId: selected,
+    });
     return true;
   }
   if (group) {
     const moverId = pickSwarmMoveMember(s, group.memberIds, destX, destY);
     if (!moverId) return false;
     const mover = s.enemies.find((e) => e.id === moverId)!;
-    startEnemyMove(moverId, { x: mover.x, y: mover.y }, { x: destX, y: destY });
-    send({ type: "moveEnemy", enemyId: selected, x: destX, y: destY });
+    sendEnemyMove(selected, destX, destY, {
+      animateFrom: { x: mover.x, y: mover.y },
+      animateMoverId: moverId,
+    });
     return true;
   }
 
@@ -1468,7 +1517,7 @@ function tryMoveSelectedEnemyToDest(destX: number, destY: number): boolean {
   if (validateEnemyFootprint(s, destX, destY, scale, selected, occupancy.value ?? undefined) !== null) {
     return false;
   }
-  send({ type: "moveEnemy", enemyId: selected, x: destX, y: destY });
+  sendEnemyMove(selected, destX, destY, { animateFrom: { x: enemy.x, y: enemy.y } });
   return true;
 }
 
@@ -1555,7 +1604,14 @@ function tryMove(x: number, y: number) {
   const cell = cellStateByKey.value.get(boardCellKey(x, y));
   if (!deploying && !cell?.movable && !cell?.deployable && !cell?.moveSecondary) return;
   if (deploying && !cell?.deployable) return;
-  send({ type: "move", x, y });
+  const s = gameState.value;
+  const id = yourPlayerId.value;
+  const path = [{ x, y }];
+  if (deploying) {
+    send({ type: "move", x, y });
+    return;
+  }
+  gateProvoke(previewPathProvokes(s, id, path), () => sendMovePath(path));
 }
 
 function canDragDeploy(player: Player): boolean {
@@ -1764,19 +1820,23 @@ function handleAttackCellClick(x: number, y: number, targetEnemyId?: string): bo
 function commitWarhook(landing: { x: number; y: number }) {
   const me = yourPlayer.value;
   const target = warhookTarget.value;
-  if (!me || !target) return;
-  startTeleport(me.id, { x: me.x, y: me.y }, landing);
-  sendPlayerAction({
-    action: "weaponActive",
-    warhook: {
-      targetEnemyId: target.enemyId,
-      targetX: target.x,
-      targetY: target.y,
-      landingX: landing.x,
-      landingY: landing.y,
-    },
+  const s = gameState.value;
+  if (!me || !target || !s) return;
+  const triggers = previewSprintProvokes(s, me.id, landing.x, landing.y);
+  gateProvoke(triggers, () => {
+    startTeleport(me.id, { x: me.x, y: me.y }, landing);
+    sendPlayerAction({
+      action: "weaponActive",
+      warhook: {
+        targetEnemyId: target.enemyId,
+        targetX: target.x,
+        targetY: target.y,
+        landingX: landing.x,
+        landingY: landing.y,
+      },
+    });
+    clearBoardActionMode();
   });
-  clearBoardActionMode();
 }
 
 function handleWarhookCellClick(x: number, y: number): boolean {
@@ -1917,12 +1977,16 @@ function handleCombatCellClick(x: number, y: number): boolean {
     if (!activePlayerSelected.value) return true;
     const s = gameState.value;
     const id = yourPlayerId.value;
-    if (s && id && isSandboxMode(s)) {
+    if (!s || !id) return true;
+    if (isSandboxMode(s)) {
       const path = findPlayerMovementPath(s, id, { x, y });
-      if (path) sendMovePath(path);
+      if (path) {
+        gateProvoke(previewPathProvokes(s, id, path), () => sendMovePath(path));
+      }
     } else {
       if (!cellStateByKey.value.get(boardCellKey(x, y))?.moveSecondary) return true;
-      sendMovePath([{ x, y }]);
+      const path = [{ x, y }];
+      gateProvoke(previewPathProvokes(s, id, path), () => sendMovePath(path));
     }
     return true;
   }
@@ -1951,7 +2015,12 @@ function handleCombatCellClick(x: number, y: number): boolean {
   if (m === "sprint") {
     if (!activePlayerSelected.value) return true;
     if (!cellStateByKey.value.get(boardCellKey(x, y))?.moveSecondary) return true;
-    sendPlayerAction({ action: "sprintMove", x, y });
+    const s = gameState.value;
+    const id = yourPlayerId.value;
+    if (!s || !id) return true;
+    gateProvoke(previewSprintProvokes(s, id, x, y), () => {
+      sendPlayerAction({ action: "sprintMove", x, y });
+    });
     return true;
   }
   if (m === "armorTeleport") {
@@ -1960,13 +2029,18 @@ function handleCombatCellClick(x: number, y: number): boolean {
       return true;
     }
     if (pendingTargetEnemyId.value && !enemy && !player) {
-      sendPlayerAction({
-        action: "armorAction",
-        targetEnemyId: pendingTargetEnemyId.value,
-        landingX: x,
-        landingY: y,
+      const s = gameState.value;
+      const id = yourPlayerId.value;
+      if (!s || !id) return true;
+      gateProvoke(previewSprintProvokes(s, id, x, y), () => {
+        sendPlayerAction({
+          action: "armorAction",
+          targetEnemyId: pendingTargetEnemyId.value!,
+          landingX: x,
+          landingY: y,
+        });
+        clearBoardActionMode();
       });
-      clearBoardActionMode();
       return true;
     }
     return true;
@@ -2605,6 +2679,13 @@ onUnmounted(() => {
       :sethian-hint="breakerSethianHint"
       @close="onBreakerCancel"
       @confirm="onBreakerConfirm"
+    />
+
+    <ProvokePromptModal
+      :open="provokePromptOpen"
+      :triggers="provokeTriggers"
+      @close="onProvokeCancel"
+      @confirm="onProvokeConfirm"
     />
 
     <SwarmChipModal

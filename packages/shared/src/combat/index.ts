@@ -9,3 +9,4 @@ export * from "./damage.js";
 export * from "./messages.js";
 export * from "./yadathan.js";
 export * from "./swarm.js";
+export * from "./provoke.js";
