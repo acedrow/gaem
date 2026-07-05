@@ -166,10 +166,8 @@ function exhaustEnemy() {
 .action-bar {
   display: flex;
   flex-direction: column;
-  flex-shrink: 0;
   gap: 0.5rem;
   padding: 0.65rem 0.75rem;
-  margin: 0 0.75rem 0.5rem;
   border: 1px solid var(--color-border);
   border-radius: 8px;
   background: var(--color-surface);

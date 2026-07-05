@@ -275,15 +275,14 @@ function onOverworldClick() {
           {{ phaseAction.label }}
         </button>
       </header>
-      <ReversalPrompt v-show="activeMainTab === 'taccom'" />
-      <ActionBar v-show="activeMainTab === 'taccom'" />
-      <GmActionBar v-show="activeMainTab === 'taccom'" />
-      <GameBoard
-        v-if="role"
-        v-show="activeMainTab === 'taccom'"
-        :role="role"
-        :player-profile="playerProfile"
-      />
+      <div v-if="role && activeMainTab === 'taccom'" class="board-area">
+        <GameBoard :role="role" :player-profile="playerProfile" />
+        <div class="board-overlays">
+          <ReversalPrompt />
+          <ActionBar />
+          <GmActionBar />
+        </div>
+      </div>
       <BaseUpgradesPanel v-show="activeMainTab === 'baseUpgrades'" />
     </main>
 
@@ -450,5 +449,30 @@ function onOverworldClick() {
 .phase-action-btn:hover {
   background: var(--color-accent-hover-bg);
   border-color: var(--color-accent-bright);
+}
+
+.board-area {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.board-overlays {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0 0.75rem;
+  pointer-events: none;
+}
+
+.board-overlays > * {
+  pointer-events: auto;
 }
 </style>

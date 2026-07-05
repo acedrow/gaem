@@ -68,7 +68,6 @@ watch(pendingReaction, (r) => {
 
 <style scoped>
 .reversal-banner {
-  margin: 0 0.75rem 0.5rem;
   padding: 0.65rem 0.75rem;
   border: 1px solid var(--color-accent, #c9a227);
   border-radius: 8px;
