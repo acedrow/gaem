@@ -34,8 +34,7 @@ export function useCombatActions(playerId?: () => string | null) {
     return s.players.find((p) => p.id === id) ?? null;
   });
 
-  const enforceTurns = computed(() => gameState.value?.enforceTurns !== false);
-  const enforceActionLimits = computed(() => gameState.value?.enforceActionLimits !== false);
+  const sandboxMode = computed(() => gameState.value?.sandboxMode === true);
 
   const isPlayerTurn = computed(() => {
     const s = gameState.value;
@@ -51,14 +50,14 @@ export function useCombatActions(playerId?: () => string | null) {
 
   const showPlayerActionBar = computed(() => {
     if (!activePlayerId.value || isGm.value || !combatUiUnlocked.value) return false;
-    return isPlayerTurn.value || !enforceTurns.value;
+    return isPlayerTurn.value || sandboxMode.value;
   });
 
   const showGmCombatUi = computed(() => {
     if (!isGm.value || !combatUiUnlocked.value) return false;
     const s = gameState.value;
     if (!s) return false;
-    return s.roundPhase === "gmTurn" || !enforceTurns.value;
+    return s.roundPhase === "gmTurn" || sandboxMode.value;
   });
 
   const budget = computed(() => {
@@ -66,7 +65,7 @@ export function useCombatActions(playerId?: () => string | null) {
     const s = gameState.value;
     if (!p) return null;
     if (p.actionBudget) return p.actionBudget;
-    if (s?.enforceTurns === false || s?.enforceActionLimits === false) {
+    if (s?.sandboxMode) {
       const speed = p.speed ?? getArmorSpeed(p.armor);
       if (speed) return createDefaultActionBudget(speed);
     }
@@ -74,17 +73,17 @@ export function useCombatActions(playerId?: () => string | null) {
   });
 
   const canMain = computed(() => {
-    if (!enforceActionLimits.value) return true;
+    if (sandboxMode.value) return true;
     const p = activePlayer.value;
     return !!p && canUseActionTier(p, "main");
   });
   const canSupport = computed(() => {
-    if (!enforceActionLimits.value) return true;
+    if (sandboxMode.value) return true;
     const p = activePlayer.value;
     return !!p && canUseActionTier(p, "support");
   });
   const canAux = computed(() => {
-    if (!enforceActionLimits.value) return true;
+    if (sandboxMode.value) return true;
     const p = activePlayer.value;
     return !!p && canUseActionTier(p, "aux");
   });
@@ -100,7 +99,7 @@ export function useCombatActions(playerId?: () => string | null) {
     const tierSpent = (tier: ActionTier) => !!b && !canSpendActionTier(b, tier);
     const tierGranted = (tier: ActionTier) => granted === tier;
     const canCommit = (tier: ActionTier) =>
-      !!p && enforceActionLimits.value && canCommitHasteForTier(p, tier);
+      !!p && !sandboxMode.value && canCommitHasteForTier(p, tier);
     return {
       mainSpent: tierSpent("main"),
       supportSpent: tierSpent("support"),
@@ -173,7 +172,7 @@ export function useCombatActions(playerId?: () => string | null) {
   const reversalExtraAllyIds = ref<string[]>([]);
 
   const hasSpentActionTier = computed(() => {
-    if (!enforceActionLimits.value || !budget.value) return false;
+    if (sandboxMode.value || !budget.value) return false;
     return !budget.value.main || !budget.value.support || !budget.value.aux;
   });
 
@@ -243,8 +242,7 @@ export function useCombatActions(playerId?: () => string | null) {
     gameState,
     activePlayer,
     activePlayerId,
-    enforceTurns,
-    enforceActionLimits,
+    sandboxMode,
     isPlayerTurn,
     showPlayerActionBar,
     showGmCombatUi,

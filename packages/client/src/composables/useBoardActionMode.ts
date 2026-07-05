@@ -45,7 +45,7 @@ const warhookLandingOptions = ref<{ x: number; y: number }[]>([]);
 const towerTeleportStep = ref<TowerTeleportStep>("selectLanding");
 const towerTeleportLanding = ref<{ x: number; y: number } | null>(null);
 const kataptyTargetIds = ref<string[]>([]);
-const gmEnemyAttack = ref<{ enemyId: string; attackIndex: number; damage?: number } | null>(null);
+const gmEnemyAttack = ref<{ enemyId: string; attackIndex: number; damage?: number; swarm?: boolean } | null>(null);
 
 function resetWarhookState() {
   warhookStep.value = "selectTarget";
@@ -105,6 +105,11 @@ export function useBoardActionMode() {
     gmEnemyAttack.value = { enemyId, attackIndex, damage };
   }
 
+  function startGmSwarmAttack(enemyId: string, attackIndex: number, damage?: number) {
+    setMode("gmEnemyAttack");
+    gmEnemyAttack.value = { enemyId, attackIndex, damage, swarm: true };
+  }
+
   return {
     mode,
     attackDirection,
@@ -131,6 +136,7 @@ export function useBoardActionMode() {
     setMode,
     clearMode,
     startGmEnemyAttack,
+    startGmSwarmAttack,
     rotateAttackDirection,
     appendMoveStep,
     resetMovePath,

@@ -17,6 +17,7 @@ import {
   getEnemyScaleByName,
   getPlayerMaxHp,
   isPlayerDowned,
+  isSandboxMode,
   isHealAttackSpec,
   isRangeTargetAttack,
   isRangedPatternAttack,
@@ -71,6 +72,12 @@ import {
   collectAttackTiles,
   enemyDirectAttackTargetPlayerIds,
   parseEnemyAttackString,
+  swarmChipEligibleTargets,
+  swarmChipResolved,
+  swarmMembersHitByTiles,
+  isSethianWeaponName,
+  SETHIAN_DAMAGE_CAP,
+  maxSwarmStrikesAgainstTarget,
 } from "@gaem/shared";
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 
@@ -98,6 +105,8 @@ import BoardCell, { type CellRenderState } from "./BoardCell.vue";
 import BoardContextMenu, { type BoardContextMenuItem } from "./BoardContextMenu.vue";
 import AddEffectModal from "./AddEffectModal.vue";
 import BreakerPromptModal from "./BreakerPromptModal.vue";
+import SwarmChipModal from "./SwarmChipModal.vue";
+import GmSwarmAttackModal from "./GmSwarmAttackModal.vue";
 
 const props = defineProps<{
   role: "gm" | "player";
@@ -300,6 +309,94 @@ const {
 const enemyMoveOverlayAtDest = ref(false);
 const breakerPromptOpen = ref(false);
 const pendingAttackAction = ref<Extract<PlayerAction, { action: "attack" }> | null>(null);
+const swarmChipOpen = ref(false);
+const swarmChipEnemyId = ref<string | null>(null);
+const swarmChipTargets = ref<import("@gaem/shared").SwarmChipTarget[]>([]);
+const swarmAttackModalOpen = ref(false);
+const swarmAttackPending = ref<{
+  enemyId: string;
+  attackIndex: number;
+  targetPlayerId: string;
+  damage?: number;
+} | null>(null);
+
+function maybePromptSwarmChip(enemyId: string) {
+  if (props.role !== "gm") return;
+  const s = gameState.value;
+  if (!s || !canGmMoveEnemies(s)) return;
+  const enemy = s.enemies.find((e) => e.id === enemyId);
+  if (!enemy || enemy.exhausted || isTowerEnemy(enemy)) return;
+  const group = swarmGroupForEnemy(s, enemyId);
+  if (!group || group.size < 2) return;
+  if (swarmChipResolved(s, enemyId)) return;
+  swarmChipEnemyId.value = group.canonicalId;
+  swarmChipTargets.value = swarmChipEligibleTargets(s, enemyId);
+  swarmChipOpen.value = true;
+}
+
+function ensureSwarmChipResolved(enemyId: string): boolean {
+  const s = gameState.value;
+  if (!s || swarmChipResolved(s, enemyId)) return true;
+  const group = swarmGroupForEnemy(s, enemyId);
+  if (!group || group.size < 2) return true;
+  maybePromptSwarmChip(enemyId);
+  return false;
+}
+
+watch(selectedEnemyId, (id) => {
+  if (id) maybePromptSwarmChip(id);
+});
+
+const breakerSethianHint = computed(() => {
+  const action = pendingAttackAction.value;
+  const s = gameState.value;
+  const ctx = attackContext.value;
+  if (!action || !s || !ctx || !isSethianWeaponName(ctx.weapon)) return undefined;
+  const tiles = attackTilesForAction(action);
+  const hits = swarmMembersHitByTiles(s, tiles).length;
+  if (!hits) return undefined;
+  return `Attack as whole: damage × ${hits} pattern square${hits === 1 ? "" : "s"} (max ${SETHIAN_DAMAGE_CAP} total).`;
+});
+
+function onSwarmChipConfirm(targetPlayerIds: string[], targetEnemyIds: string[]) {
+  const enemyId = swarmChipEnemyId.value;
+  if (!enemyId) return;
+  send({
+    type: "gmEnemyAction",
+    action: { action: "swarmChip", enemyId, targetPlayerIds, targetEnemyIds },
+  });
+  swarmChipOpen.value = false;
+}
+
+function onSwarmChipClose() {
+  swarmChipOpen.value = false;
+}
+
+const swarmChipEnemyName = computed(() => {
+  const s = gameState.value;
+  const id = swarmChipEnemyId.value;
+  if (!s || !id) return "Swarm";
+  return s.enemies.find((e) => e.id === id)?.name ?? "Swarm";
+});
+
+const swarmAttackModalProps = computed(() => {
+  const pending = swarmAttackPending.value;
+  const s = gameState.value;
+  if (!pending || !s) return null;
+  const player = s.players.find((p) => p.id === pending.targetPlayerId);
+  const enemy = s.enemies.find((e) => e.id === pending.enemyId);
+  const attackText = getEnemyListingByName(enemy?.name)?.attacks?.[pending.attackIndex] ?? "";
+  const maxStrikes = player ? maxSwarmStrikesAgainstTarget(s, pending.enemyId, player) : 0;
+  return {
+    enemyId: pending.enemyId,
+    attackIndex: pending.attackIndex,
+    attackText,
+    targetPlayerId: pending.targetPlayerId,
+    targetPlayerName: player?.nickname ?? player?.id ?? "Player",
+    maxStrikes,
+    damageOverride: pending.damage,
+  };
+});
 const teleportOverlayAtDest = ref(false);
 
 const gridStyle = computed(() => {
@@ -780,7 +877,7 @@ const gmEnemyMoveTargetKeys = computed(() => {
 
   const group = swarmGroupForEnemy(s, id);
   if (group) {
-    if (s.enforceTurns !== false && getSwarmMovementRemaining(s, group.memberIds) < 1) return keys;
+    if (!isSandboxMode(s) && getSwarmMovementRemaining(s, group.memberIds) < 1) return keys;
     for (const tile of swarmFringeTiles(s, group.memberIds, occupancy.value ?? undefined)) {
       if (pickSwarmMoveMember(s, group.memberIds, tile.x, tile.y)) {
         keys.add(boardCellKey(tile.x, tile.y));
@@ -789,7 +886,7 @@ const gmEnemyMoveTargetKeys = computed(() => {
     return keys;
   }
 
-  if (s.enforceTurns !== false) {
+  if (!isSandboxMode(s)) {
     ensureEnemyMovement(enemy);
     if ((enemy.movementRemaining ?? 0) < 1) return keys;
   }
@@ -886,8 +983,7 @@ const cellStateByKey = computed(() => {
     !!yourPlayerId.value &&
     canPlayerMove(s, yourPlayerId.value);
   const isDeployment = s.roundPhase === "deployment";
-  const unlimitedMove = s.enforceActionLimits === false;
-  const sandboxTurns = s.enforceTurns === false;
+  const sandbox = isSandboxMode(s);
   const inMoveMode = boardActionMode.value === "move";
   const inSprintMode = boardActionMode.value === "sprint";
   const inCombatActionMode =
@@ -899,7 +995,7 @@ const cellStateByKey = computed(() => {
   const showStepMoveHighlights =
     activePlayerSelected.value &&
     !inCombatActionMode &&
-    (sandboxTurns || onPlayerTurn || inMoveMode || inSprintMode);
+    (sandbox || onPlayerTurn || inMoveMode || inSprintMode);
   const me = yourPlayer.value;
   const movementRemaining = me?.actionBudget?.movementRemaining ?? 0;
   const sprintRemaining = me?.actionBudget?.sprintRemaining ?? 0;
@@ -926,7 +1022,7 @@ const cellStateByKey = computed(() => {
     const showRegularStep =
       stepBase &&
       !inSprintMode &&
-      (sandboxTurns || (stepCost <= movementRemaining && movementRemaining > 0));
+      (sandbox || (stepCost <= movementRemaining && movementRemaining > 0));
     const showSprintStep = stepBase && inSprintMode && stepCost <= sprintRemaining && sprintRemaining > 0;
 
     map.set(c.key, {
@@ -938,7 +1034,7 @@ const cellStateByKey = computed(() => {
         isWalkable(tile) &&
         !player &&
         !enemy &&
-        (unlimitedMove || sandboxTurns) &&
+        (sandbox) &&
         inMoveMode,
       moveSecondary: showRegularStep || showSprintStep,
       deployable:
@@ -998,10 +1094,10 @@ const cellStateByKey = computed(() => {
       })(),
       effectStacks: player?.effects ?? enemyAnchor?.effects,
       turnEnded: player
-        ? s.enforceTurns !== false &&
+        ? !isSandboxMode(s) &&
           s.roundPhase !== "deployment" &&
           s.actedPlayerIds.includes(player.id)
-        : !!(enemy && !isTowerEnemy(enemy) && s.enforceTurns !== false && enemy.exhausted),
+        : !!(enemy && !isTowerEnemy(enemy) && !isSandboxMode(s) && enemy.exhausted),
       playerDowned: player ? isPlayerDowned(player) : false,
       playerPortraitUrl: player?.characterSheetId
         ? portraitUrlFor(player.characterSheetId)
@@ -1312,6 +1408,8 @@ function tryMoveSelectedEnemyToDest(destX: number, destY: number): boolean {
   const s = gameState.value;
   const selected = selectedEnemyId.value;
   if (!s || !selected) return false;
+  if (swarmChipOpen.value) return false;
+  if (!ensureSwarmChipResolved(selected)) return false;
   const enemy = s.enemies.find((e) => e.id === selected);
   if (!enemy) {
     clearBoardSelection();
@@ -1773,7 +1871,7 @@ function handleCombatCellClick(x: number, y: number): boolean {
     if (!activePlayerSelected.value) return true;
     const s = gameState.value;
     const id = yourPlayerId.value;
-    if (s && id && (s.enforceActionLimits === false || s.enforceTurns === false)) {
+    if (s && id && isSandboxMode(s)) {
       const path = findPlayerMovementPath(s, id, { x, y });
       if (path) sendMovePath(path);
     } else {
@@ -1929,6 +2027,19 @@ function handleGmEnemyAttackCellClick(x: number, y: number): boolean {
   if (!gmEnemyAttackTargetKeys.value.has(key)) return false;
   const player = occ.playerByKey.get(key);
   if (!player) return false;
+
+  if (pending.swarm) {
+    swarmAttackPending.value = {
+      enemyId: pending.enemyId,
+      attackIndex: pending.attackIndex,
+      targetPlayerId: player.id,
+      damage: pending.damage,
+    };
+    swarmAttackModalOpen.value = true;
+    clearBoardActionMode();
+    return true;
+  }
+
   send({
     type: "gmEnemyAction",
     action: {
@@ -1941,6 +2052,29 @@ function handleGmEnemyAttackCellClick(x: number, y: number): boolean {
   });
   clearBoardActionMode();
   return true;
+}
+
+function onSwarmAttackConfirm(strikeCount: number) {
+  const pending = swarmAttackPending.value;
+  if (!pending) return;
+  send({
+    type: "gmEnemyAction",
+    action: {
+      action: "attack",
+      enemyId: pending.enemyId,
+      attackIndex: pending.attackIndex,
+      targetPlayerId: pending.targetPlayerId,
+      damage: pending.damage,
+      swarmStrikes: strikeCount,
+    },
+  });
+  swarmAttackModalOpen.value = false;
+  swarmAttackPending.value = null;
+}
+
+function onSwarmAttackClose() {
+  swarmAttackModalOpen.value = false;
+  swarmAttackPending.value = null;
 }
 
 function onGmCellClick(x: number, y: number) {
@@ -2420,9 +2554,32 @@ onUnmounted(() => {
 
     <BreakerPromptModal
       :open="breakerPromptOpen"
+      :sethian-hint="breakerSethianHint"
       @close="onBreakerCancel"
       @break-swarm="onBreakerBreakSwarm"
       @attack-whole="onBreakerAttackWhole"
+    />
+
+    <SwarmChipModal
+      :open="swarmChipOpen"
+      :enemy-name="swarmChipEnemyName"
+      :targets="swarmChipTargets"
+      @close="onSwarmChipClose"
+      @confirm="onSwarmChipConfirm"
+    />
+
+    <GmSwarmAttackModal
+      v-if="swarmAttackModalProps"
+      :open="swarmAttackModalOpen"
+      :enemy-id="swarmAttackModalProps.enemyId"
+      :attack-index="swarmAttackModalProps.attackIndex"
+      :attack-text="swarmAttackModalProps.attackText"
+      :target-player-id="swarmAttackModalProps.targetPlayerId"
+      :target-player-name="swarmAttackModalProps.targetPlayerName"
+      :max-strikes="swarmAttackModalProps.maxStrikes"
+      :damage-override="swarmAttackModalProps.damageOverride"
+      @close="onSwarmAttackClose"
+      @confirm="onSwarmAttackConfirm"
     />
   </div>
 </template>

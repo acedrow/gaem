@@ -25,7 +25,7 @@ const {
   canAux,
   hasteRemaining,
   actionBudgetChips,
-  enforceActionLimits,
+  sandboxMode,
   commitHaste,
   canStartSprint,
   hasWeaponAttack,
@@ -201,7 +201,7 @@ function onDualBombComplete() {
   <div v-if="showPlayerActionBar" class="action-bar">
     <div class="budget-row">
       <ActionBudgetChips
-        :interactive="showPlayerActionBar && enforceActionLimits"
+        :interactive="showPlayerActionBar && !sandboxMode"
         v-bind="actionBudgetChips"
         :haste-stacks="hasteRemaining"
         @commit-haste="commitHaste"

@@ -17,6 +17,7 @@ import {
   applySwarmMove,
   enemyHasSwarmTrait,
   getEffectiveEnemyMaxHp,
+  requireSwarmChipResolved,
 } from "./combat/swarm.js";
 
 export type BoardOccupancy = {
@@ -164,10 +165,14 @@ export function isPlayerDowned(player: Player): boolean {
   return (player.hp ?? 0) <= 0;
 }
 
+export function isSandboxMode(state: GameState): boolean {
+  return state.sandboxMode === true;
+}
+
 export function canPlayerMove(state: GameState, playerId: string): boolean {
   const player = state.players.find((p) => p.id === playerId);
   if (player && isPlayerDowned(player)) return false;
-  if (state.enforceTurns === false) {
+  if (isSandboxMode(state)) {
     return state.players.some((p) => p.id === playerId);
   }
   if (state.roundPhase === "deployment") {
@@ -181,17 +186,17 @@ export function canPlayerMove(state: GameState, playerId: string): boolean {
 }
 
 export function canGmMoveEnemies(state: GameState): boolean {
-  if (state.enforceTurns === false) return true;
+  if (isSandboxMode(state)) return true;
   return state.roundPhase === "gmTurn" && state.turn?.role === "gm";
 }
 
 export function areActionLimitsEnforced(state: GameState): boolean {
-  return state.enforceActionLimits !== false;
+  return !isSandboxMode(state);
 }
 
-export function applySetEnforceTurns(state: GameState, enforceTurns: boolean): string {
-  state.enforceTurns = enforceTurns;
-  if (!enforceTurns) {
+export function applySetSandboxMode(state: GameState, sandboxMode: boolean): string {
+  state.sandboxMode = sandboxMode;
+  if (sandboxMode) {
     resetEnemyExhaustion(state);
     state.actedPlayerIds = [];
     for (const player of state.players) {
@@ -201,7 +206,7 @@ export function applySetEnforceTurns(state: GameState, enforceTurns: boolean): s
       player.turnStartY = player.y;
     }
   }
-  return enforceTurns ? "Enforce turns enabled" : "Enforce turns disabled";
+  return sandboxMode ? "Sandbox mode enabled" : "Sandbox mode disabled";
 }
 
 function beginPlayerTurn(state: GameState, playerId: string): string {
@@ -238,10 +243,10 @@ function finishPlayerTurn(state: GameState, playerId: string, suffix = "ended th
     state.actedPlayerIds.push(playerId);
   }
   const player = state.players.find((p) => p.id === playerId);
-  const ticks = player ? tickUnitEndOfTurn(player) : [];
+  const ticks = player ? tickUnitEndOfTurn(state, player) : [];
   if (player) {
     delete player.hasteActionTier;
-    tickWarhookBlazingImmunity(player);
+    if (!isSandboxMode(state)) tickWarhookBlazingImmunity(player);
   }
   const yadathanMsgs = player ? resolveYadathanEndOfTurn(state, player) : [];
   state.roundPhase = "gmTurn";
@@ -281,7 +286,7 @@ export function enterPlayersChoice(state: GameState): string {
 }
 
 export function finishGmTurnIfPlayersRemain(state: GameState): string | null {
-  if (state.enforceTurns === false) return null;
+  if (isSandboxMode(state)) return null;
   if (state.roundPhase !== "gmTurn" || state.turn?.role !== "gm") return null;
   if (remainingPlayerIds(state).length === 0) return null;
   recordTurn(state, { role: "gm" });
@@ -704,17 +709,19 @@ export function validateEnemyMove(
   if (!enemy) return "Unknown enemy";
 
   if (swarmGroupForEnemy(state, enemyId)) {
+    const chipErr = requireSwarmChipResolved(state, enemyId);
+    if (chipErr) return chipErr;
     return validateSwarmMove(state, enemyId, toX, toY);
   }
 
   if (!canGmMoveEnemies(state)) return "Not GM turn";
-  if (state.enforceTurns !== false && enemy.exhausted) return "Enemy has ended turn";
+  if (!isSandboxMode(state) && enemy.exhausted) return "Enemy has ended turn";
 
   if (!isOrthogonallyAdjacent({ x: enemy.x, y: enemy.y }, { x: toX, y: toY })) {
     return "Must move to an adjacent tile";
   }
 
-  if (state.enforceTurns !== false) {
+  if (!isSandboxMode(state)) {
     ensureEnemyMovement(enemy);
     if ((enemy.movementRemaining ?? 0) < 1) return "Not enough movement";
   }
@@ -735,7 +742,7 @@ export function applyEnemyMove(
   const prevGroups = buildSwarmGroups(state);
   const enemy = state.enemies.find((e) => e.id === enemyId);
   if (!enemy) return;
-  if (state.enforceTurns !== false) spendEnemyMovement(enemy, 1);
+  if (!isSandboxMode(state)) spendEnemyMovement(enemy, 1);
   enemy.x = toX;
   enemy.y = toY;
   reconcileSwarmHp(state, prevGroups);
@@ -1001,11 +1008,10 @@ export function normalizeGameState(state: GameState, map?: GameMap): GameState {
   if (!state.turnLog) {
     state.turnLog = [];
   }
-  if (state.enforceTurns === undefined) {
-    state.enforceTurns = true;
-  }
-  if (state.enforceActionLimits === undefined) {
-    state.enforceActionLimits = true;
+  if (state.sandboxMode === undefined) {
+    const legacy = state as GameState & { enforceTurns?: boolean; enforceActionLimits?: boolean };
+    state.sandboxMode =
+      legacy.enforceTurns === false || legacy.enforceActionLimits === false;
   }
   if (!state.partyResources) {
     state.partyResources = { hellsteel: 0, soulfire: 0, brimstone: 0 };
@@ -1015,6 +1021,9 @@ export function normalizeGameState(state: GameState, map?: GameMap): GameState {
   }
   if (!state.combat && state.roundPhase !== "deployment") {
     state.combat = createDefaultCombatState(state.players.length);
+  }
+  if (state.combat && !state.combat.swarmChipResolvedIds) {
+    state.combat.swarmChipResolvedIds = [];
   }
   const playerTurn = state.turn?.role === "player" ? state.turn : null;
   if (state.roundPhase === "playerTurn" && playerTurn) {

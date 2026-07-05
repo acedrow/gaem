@@ -35,6 +35,7 @@ export function resetEnemyExhaustion(state: GameState): void {
     refreshEnemyMovement(enemy);
   }
   reconcileSwarmMovement(state);
+  if (state.combat) state.combat.swarmChipResolvedIds = [];
 }
 
 export function resetGmTurnActions(state: GameState): void {
@@ -42,6 +43,7 @@ export function resetGmTurnActions(state: GameState): void {
   if (state.combat) {
     state.combat.pendingActions = state.combat.pendingActions.filter((p) => !p.actorEnemyId);
     state.combat.activeEnemyId = null;
+    state.combat.swarmChipResolvedIds = [];
   }
 }
 

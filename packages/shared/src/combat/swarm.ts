@@ -9,6 +9,7 @@ import {
   clampHp,
   getEnemyMaxHp,
   canGmMoveEnemies,
+  isSandboxMode,
   validateEnemyFootprint,
   type BoardOccupancy,
   buildBoardOccupancy,
@@ -115,7 +116,7 @@ export function getSwarmMaxHp(size: number): number {
 }
 
 export function getSwarmMemberHp(totalHp: number, size: number): number {
-  return Math.max(1, Math.round(totalHp / size));
+  return Math.max(1, Math.floor(totalHp / size));
 }
 
 export function getEffectiveEnemyMaxHp(enemy: Enemy, state: GameState): number {
@@ -375,7 +376,7 @@ export function validateSwarmMove(
 
   const anchor = state.enemies.find((e) => e.id === anchorEnemyId);
   if (!anchor) return "Unknown enemy";
-  if (state.enforceTurns !== false && anchor.exhausted) return "Enemy has ended turn";
+  if (!isSandboxMode(state) && anchor.exhausted) return "Enemy has ended turn";
 
   const fringe = swarmFringeTiles(state, group.memberIds);
   if (!fringe.some((t) => t.x === destX && t.y === destY)) {
@@ -385,7 +386,7 @@ export function validateSwarmMove(
   const moverId = pickSwarmMoveMember(state, group.memberIds, destX, destY);
   if (!moverId) return "No valid swarm limb can reach that tile";
 
-  if (state.enforceTurns !== false) {
+  if (!isSandboxMode(state)) {
     if (getSwarmMovementRemaining(state, group.memberIds) < 1) return "Not enough movement";
   }
 
@@ -407,7 +408,7 @@ export function applySwarmMove(
   if (!moverId) return null;
 
   const mover = state.enemies.find((e) => e.id === moverId)!;
-  if (state.enforceTurns !== false) spendSwarmMovement(state, group.memberIds, 1);
+  if (!isSandboxMode(state)) spendSwarmMovement(state, group.memberIds, 1);
   mover.x = destX;
   mover.y = destY;
   reconcileSwarmHp(state, prevGroups);
@@ -441,7 +442,12 @@ function abilityTextToString(text: unknown): string {
   return String(text);
 }
 
-export function weaponHasBreakerTag(player: Pick<Player, "weapon">, weaponName?: string): boolean {
+export function weaponHasBreakerTag(
+  player: Pick<Player, "weapon" | "counters">,
+  weaponName?: string,
+  attackHasBreaker?: boolean,
+): boolean {
+  if (attackHasBreaker) return true;
   const name = weaponName ?? player.weapon;
   if (!name) return false;
   const weapon = getWeaponByName(name);
@@ -450,6 +456,120 @@ export function weaponHasBreakerTag(player: Pick<Player, "weapon">, weaponName?:
   if (text.includes("Breaker tag")) return true;
   const activeText = abilityTextToString(weapon.activeAbility);
   return activeText.includes("Breaker tag");
+}
+
+export type SwarmChipTarget = { kind: "player"; id: string; label: string } | { kind: "enemy"; id: string; label: string };
+
+export function swarmChipEligibleTargets(state: GameState, enemyId: string): SwarmChipTarget[] {
+  const group = swarmGroupForEnemy(state, enemyId);
+  const memberIds = new Set(group?.memberIds ?? [enemyId]);
+  const positions = swarmMemberPositions(state, group?.memberIds ?? [enemyId]);
+  const occ = buildBoardOccupancy(state);
+  const seen = new Set<string>();
+  const targets: SwarmChipTarget[] = [];
+  const deltas = [
+    { dx: 0, dy: -1 },
+    { dx: 0, dy: 1 },
+    { dx: -1, dy: 0 },
+    { dx: 1, dy: 0 },
+  ];
+
+  for (const pos of positions) {
+    for (const { dx, dy } of deltas) {
+      const x = pos.x + dx;
+      const y = pos.y + dy;
+      const key = coordKey(x, y);
+      if (seen.has(key)) continue;
+      const player = occ.playerByKey.get(key);
+      if (player) {
+        seen.add(key);
+        targets.push({ kind: "player", id: player.id, label: player.nickname ?? player.id });
+        continue;
+      }
+      const enemy = occ.enemyByKey.get(key);
+      if (enemy && !memberIds.has(enemy.id)) {
+        seen.add(key);
+        targets.push({ kind: "enemy", id: enemy.id, label: enemy.name ?? enemy.id });
+      }
+    }
+  }
+  return targets;
+}
+
+export function swarmChipResolved(state: GameState, enemyId: string): boolean {
+  const group = swarmGroupForEnemy(state, enemyId);
+  if (!group) return true;
+  return state.combat?.swarmChipResolvedIds?.includes(group.canonicalId) ?? false;
+}
+
+export function requireSwarmChipResolved(state: GameState, enemyId: string): string | null {
+  const group = swarmGroupForEnemy(state, enemyId);
+  if (!group || group.size < 2) return null;
+  if (swarmChipResolved(state, enemyId)) return null;
+  return "Apply swarm chip damage first";
+}
+
+export function validateSwarmChip(
+  state: GameState,
+  enemyId: string,
+  targetPlayerIds: string[],
+  targetEnemyIds: string[],
+): string | null {
+  if (!canGmMoveEnemies(state)) return "Not GM turn";
+  const enemy = state.enemies.find((e) => e.id === enemyId);
+  if (!enemy) return "Unknown enemy";
+  const group = swarmGroupForEnemy(state, enemyId);
+  if (!group) return "Not a swarm";
+  if (!isSandboxMode(state) && enemy.exhausted) return "Enemy has ended turn";
+
+  const eligible = swarmChipEligibleTargets(state, enemyId);
+  const eligiblePlayers = new Set(eligible.filter((t) => t.kind === "player").map((t) => t.id));
+  const eligibleEnemies = new Set(eligible.filter((t) => t.kind === "enemy").map((t) => t.id));
+
+  for (const id of targetPlayerIds) {
+    if (!eligiblePlayers.has(id)) return "Invalid chip target";
+  }
+  for (const id of targetEnemyIds) {
+    if (!eligibleEnemies.has(id)) return "Invalid chip target";
+  }
+  return null;
+}
+
+export function markSwarmChipResolved(state: GameState, enemyId: string): void {
+  const group = swarmGroupForEnemy(state, enemyId);
+  if (!group || !state.combat) return;
+  if (!state.combat.swarmChipResolvedIds) state.combat.swarmChipResolvedIds = [];
+  if (!state.combat.swarmChipResolvedIds.includes(group.canonicalId)) {
+    state.combat.swarmChipResolvedIds.push(group.canonicalId);
+  }
+}
+
+export function countSwarmTilesAdjacentTo(
+  state: GameState,
+  memberIds: string[],
+  target: { x: number; y: number },
+): number {
+  let count = 0;
+  for (const pos of swarmMemberPositions(state, memberIds)) {
+    if (isOrthogonallyAdjacent(pos, target)) count += 1;
+  }
+  return count;
+}
+
+export function swarmEnemyStrikeCap(targetScale: number): number {
+  return targetScale >= 2 ? 12 : 4;
+}
+
+export function maxSwarmStrikesAgainstTarget(
+  state: GameState,
+  enemyId: string,
+  target: { x: number; y: number },
+  targetScale = 1,
+): number {
+  const group = swarmGroupForEnemy(state, enemyId);
+  const memberIds = group?.memberIds ?? [enemyId];
+  const adjacent = countSwarmTilesAdjacentTo(state, memberIds, target);
+  return Math.min(adjacent, swarmEnemyStrikeCap(targetScale));
 }
 
 export function attackTargetsSwarm(

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { PhaseAction } from "@gaem/shared";
-import { isPlayerDowned, kataptyNeedsTargetPick, remainingPlayerIds, roundPhaseLabel, turnHolderLabel } from "@gaem/shared";
+import { isPlayerDowned, isSandboxMode, kataptyNeedsTargetPick, remainingPlayerIds, roundPhaseLabel, turnHolderLabel } from "@gaem/shared";
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 
@@ -54,7 +54,7 @@ onMounted(() => {
 });
 
 const mapName = computed(() => gameState.value?.mapName ?? gameState.value?.mapId ?? null);
-const enforceTurns = computed(() => gameState.value?.enforceTurns !== false);
+const sandboxMode = computed(() => gameState.value != null && isSandboxMode(gameState.value));
 
 const centerHeaderTitle = computed(() =>
   activeMainTab.value === "baseUpgrades" ? "Base Upgrades" : mapName.value,
@@ -79,7 +79,7 @@ const yourPlayer = computed(() => {
 
 const phaseAction = computed((): { label: string; action: PhaseAction } | null => {
   const s = gameState.value;
-  if (!s || !role.value || s.enforceTurns === false) return null;
+  if (!s || !role.value || isSandboxMode(s)) return null;
 
   if (s.roundPhase === "deployment" && role.value === "gm") {
     return { label: "End deployment", action: "endDeployment" };
@@ -265,7 +265,8 @@ function onOverworldClick() {
           </button>
         </div>
         <h1 class="map-title">{{ centerHeaderTitle }}</h1>
-        <p v-if="activeMainTab === 'taccom' && enforceTurns && roundStatus" class="round-status">
+        <p v-if="activeMainTab === 'taccom' && sandboxMode" class="sandbox-badge">Sandbox mode</p>
+        <p v-else-if="activeMainTab === 'taccom' && roundStatus" class="round-status">
           Round {{ roundStatus.round }} · {{ roundStatus.phase }} · {{ roundStatus.turn }}
         </p>
         <button
@@ -427,12 +428,21 @@ function onOverworldClick() {
   flex-shrink: 0;
 }
 
-.round-status {
+.round-status,
+.sandbox-badge {
   margin: 0;
   flex: 1;
   font-size: 0.9rem;
-  color: var(--color-muted);
   text-align: center;
+}
+
+.round-status {
+  color: var(--color-muted);
+}
+
+.sandbox-badge {
+  color: var(--color-warning);
+  font-weight: 600;
 }
 
 .phase-action-btn {

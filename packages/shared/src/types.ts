@@ -156,8 +156,7 @@ export type GameState = {
   turn: TurnHolder | null;
   actedPlayerIds: string[];
   turnLog: RoundTurnLog[];
-  enforceTurns?: boolean;
-  enforceActionLimits?: boolean;
+  sandboxMode?: boolean;
   combat?: CombatState;
   damageEvents?: DamageEvent[];
   partyResources?: PartyResources;
@@ -247,6 +246,5 @@ export type ClientMessage =
       target: { kind: "player" | "enemy"; id: string };
     }
   | { type: "phaseAction"; action: PhaseAction }
-  | { type: "setEnforceTurns"; enforceTurns: boolean }
-  | { type: "setEnforceActionLimits"; enforceActionLimits: boolean }
+  | { type: "setSandboxMode"; sandboxMode: boolean }
   | { type: "baseCampaignAction"; action: BaseCampaignAction };

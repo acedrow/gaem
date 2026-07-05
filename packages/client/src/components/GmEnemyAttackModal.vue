@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import type { PatternDirection } from "@gaem/shared";
-import { nextPatternDirection, parseEnemyAttackString } from "@gaem/shared";
 import { computed, ref, watch } from "vue";
+import {
+  nextPatternDirection,
+  parseEnemyAttackString,
+  previewSwarmEnemyAttack,
+  swarmGroupForEnemy,
+} from "@gaem/shared";
 
 import { useGameState } from "../composables/useGameState.js";
 import ModalDialog from "./ModalDialog.vue";
@@ -24,6 +29,21 @@ const targetPlayerId = ref("");
 const damageOverride = ref<number | "">("");
 
 const parsedAttack = computed(() => parseEnemyAttackString(props.attackText));
+
+const swarmPreview = computed(() => {
+  const s = gameState.value;
+  if (!s || !props.enemyId || !targetPlayerId.value) return null;
+  if (!swarmGroupForEnemy(s, props.enemyId)) return null;
+  const damage =
+    damageOverride.value === "" ? undefined : Number(damageOverride.value);
+  return previewSwarmEnemyAttack(
+    s,
+    props.enemyId,
+    parsedAttack.value,
+    targetPlayerId.value,
+    damage,
+  );
+});
 
 watch(
   () => [props.open, props.attackIndex] as const,
@@ -66,6 +86,9 @@ function apply() {
     @confirm="apply"
   >
     <p v-if="attackText" class="attack-text">{{ attackText }}</p>
+    <p v-if="swarmPreview && swarmPreview.strikeCount > 0" class="swarm-preview">
+      Swarm attack: {{ swarmPreview.totalDamage }} total damage ({{ swarmPreview.detail }})
+    </p>
     <p v-if="parsedAttack.patternId" class="parsed">
       Pattern {{ parsedAttack.patternId }}:{{ parsedAttack.size }}
       <span v-if="parsedAttack.damage"> · {{ parsedAttack.damage }} dmg</span>
@@ -99,11 +122,16 @@ function apply() {
 
 <style scoped>
 .attack-text,
-.parsed {
+.parsed,
+.swarm-preview {
   margin: 0 0 0.75rem;
   font-size: 0.82rem;
   line-height: 1.45;
   color: var(--color-muted);
+}
+
+.swarm-preview {
+  color: var(--color-accent);
 }
 
 .action-btn {

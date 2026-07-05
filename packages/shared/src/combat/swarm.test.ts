@@ -3,10 +3,17 @@ import {
   buildSwarmGroups,
   getEffectiveEnemyHp,
   getSwarmMaxHp,
+  getSwarmMemberHp,
   reconcileSwarmHp,
+  swarmChipEligibleTargets,
 } from "./swarm.js";
+import {
+  applyBreakerAttackToSwarm,
+  previewSwarmEnemyAttack,
+  SETHIAN_DAMAGE_CAP,
+} from "./attack.js";
 import { addEnemy } from "../game.js";
-import { addTestEnemy, makeGameState } from "../test/fixtures.js";
+import { addTestEnemy, addTestPlayer, makeGameState } from "../test/fixtures.js";
 
 const SWARM_NAME = "Scorned Eyes";
 
@@ -25,6 +32,7 @@ describe("swarm", () => {
   it("getSwarmMaxHp and getEffectiveEnemyHp", () => {
     expect(getSwarmMaxHp(1)).toBe(10);
     expect(getSwarmMaxHp(3)).toBe(30);
+    expect(getSwarmMemberHp(78, 8)).toBe(9);
 
     const state = makeGameState();
     addTestEnemy(state, "a", 2, 2, { name: SWARM_NAME, hp: 20 });
@@ -61,5 +69,50 @@ describe("swarm", () => {
     expect(soloA.hp).toBeLessThanOrEqual(10);
     expect(soloB.hp).toBeLessThanOrEqual(10);
     expect((soloA.hp ?? 0) + (soloB.hp ?? 0)).toBeGreaterThanOrEqual(pooledHp - 1);
+  });
+
+  it("swarmChipEligibleTargets finds adjacent units", () => {
+    const state = makeGameState();
+    addTestEnemy(state, "a", 2, 2, { name: SWARM_NAME });
+    addTestEnemy(state, "b", 3, 2, { name: SWARM_NAME });
+    addTestPlayer(state, "p1", 2, 3);
+    reconcileSwarmHp(state);
+
+    const targets = swarmChipEligibleTargets(state, "a");
+    expect(targets.some((t) => t.kind === "player" && t.id === "p1")).toBe(true);
+  });
+
+  it("applyBreakerAttackToSwarm breaks squares when damage is sufficient", () => {
+    const state = makeGameState();
+    addEnemy(state, { id: "a", x: 2, y: 2, name: SWARM_NAME, hp: 1 });
+    addEnemy(state, { id: "b", x: 3, y: 2, name: SWARM_NAME, hp: 1 });
+    reconcileSwarmHp(state);
+
+    const { brokenIds } = applyBreakerAttackToSwarm(state, [{ x: 2, y: 2 }], 10);
+    expect(brokenIds).toContain("a");
+    expect(state.enemies.find((e) => e.id === "a")).toBeUndefined();
+  });
+
+  it("previewSwarmEnemyAttack counts adjacent strikes", () => {
+    const state = makeGameState();
+    addTestEnemy(state, "a", 2, 2, { name: SWARM_NAME });
+    addTestEnemy(state, "b", 3, 2, { name: SWARM_NAME });
+    addTestEnemy(state, "c", 2, 3, { name: SWARM_NAME });
+    addTestPlayer(state, "p1", 3, 3);
+    reconcileSwarmHp(state);
+
+    const preview = previewSwarmEnemyAttack(
+      state,
+      "a",
+      { raw: "", damage: 2, range: 1 },
+      "p1",
+      {},
+    );
+    expect(preview.strikeCount).toBe(2);
+    expect(preview.totalDamage).toBe(7);
+  });
+
+  it("SETHIAN_DAMAGE_CAP is 132", () => {
+    expect(SETHIAN_DAMAGE_CAP).toBe(132);
   });
 });

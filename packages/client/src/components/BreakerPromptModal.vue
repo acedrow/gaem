@@ -3,6 +3,7 @@ import ModalDialog from "./ModalDialog.vue";
 
 defineProps<{
   open: boolean;
+  sethianHint?: string;
 }>();
 
 const emit = defineEmits<{
@@ -17,6 +18,7 @@ const emit = defineEmits<{
     <p class="prompt">
       This attack targets a Swarm and your weapon has Breaker. How do you want to attack?
     </p>
+    <p v-if="sethianHint" class="hint">{{ sethianHint }}</p>
     <div class="actions">
       <button type="button" class="action-btn primary" @click="emit('breakSwarm')">
         Break swarm
@@ -37,6 +39,13 @@ const emit = defineEmits<{
   font-size: 0.85rem;
   line-height: 1.45;
   color: var(--color-text-secondary);
+}
+
+.hint {
+  margin: -0.5rem 0 1rem;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--color-accent);
 }
 
 .actions {

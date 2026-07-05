@@ -1,5 +1,6 @@
 import { getEffectStacking } from "../effects-data.js";
 import type { EffectStacks, GameState, MapTile, Player, Enemy } from "../types.js";
+import { isSandboxMode } from "../game.js";
 
 export function parseEffectToken(token: string): { id: string; stacks: number } | null {
   const match = token.trim().match(/^([A-Za-z][A-Za-z ]*):(-?\d+)$/);
@@ -59,9 +60,9 @@ const END_OF_TURN_EFFECTS = new Set([
   "Healing",
 ]);
 
-export function tickUnitEndOfTurn(unit: Player | Enemy): string[] {
+export function tickUnitEndOfTurn(state: GameState, unit: Player | Enemy): string[] {
   const messages: string[] = [];
-  if (!unit.effects) return messages;
+  if (isSandboxMode(state) || !unit.effects) return messages;
   for (const id of Object.keys(unit.effects)) {
     if (!END_OF_TURN_EFFECTS.has(id)) continue;
     const before = unit.effects[id] ?? 0;
@@ -86,6 +87,7 @@ export function tickUnitEndOfTurn(unit: Player | Enemy): string[] {
 
 export function tickRoundCountdowns(state: GameState): string[] {
   const messages: string[] = [];
+  if (isSandboxMode(state)) return messages;
   const units: Array<Player | Enemy> = [...state.players, ...state.enemies];
   for (const unit of units) {
     if (!unit.effects?.Countdown) continue;

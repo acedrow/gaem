@@ -21,7 +21,7 @@ import {
   applyMove,
   applyPhaseAction,
   applyBaseCampaignAction,
-  applySetEnforceTurns,
+  applySetSandboxMode,
   characterTargetLabel,
   CONSOLE_MSG_CONNECTED,
   CONSOLE_MSG_DISCONNECTED,
@@ -585,29 +585,13 @@ wss.on("connection", (ws: WebSocket) => {
       return;
     }
 
-    if (parsed.type === "setEnforceTurns") {
+    if (parsed.type === "setSandboxMode") {
       if (socketRole.get(ws) !== "gm") {
         sendError(ws, "Only the game master can do that");
         return;
       }
-      const message = applySetEnforceTurns(gameState, parsed.enforceTurns);
+      const message = applySetSandboxMode(gameState, parsed.sandboxMode);
       broadcastConsole(actorForSocket(ws), message);
-      broadcastState();
-      return;
-    }
-
-    if (parsed.type === "setEnforceActionLimits") {
-      if (socketRole.get(ws) !== "gm") {
-        sendError(ws, "Only the game master can do that");
-        return;
-      }
-      gameState.enforceActionLimits = parsed.enforceActionLimits;
-      broadcastConsole(
-        actorForSocket(ws),
-        parsed.enforceActionLimits
-          ? "Enforce action limits enabled"
-          : "Enforce action limits disabled",
-      );
       broadcastState();
       return;
     }

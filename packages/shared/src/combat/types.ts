@@ -97,6 +97,7 @@ export type CombatState = {
   pendingActions: PendingAction[];
   pendingReaction: PendingReaction | null;
   activeEnemyId: string | null;
+  swarmChipResolvedIds?: string[];
 };
 
 export type PlayerAction =
@@ -148,6 +149,7 @@ export type PlayerAction =
         landingX: number;
         landingY: number;
         damageRoll?: number;
+        useBreaker?: boolean;
       };
     }
   | { action: "useEquipment"; detail?: string }
@@ -156,7 +158,8 @@ export type PlayerAction =
 
 export type GmEnemyAction =
   | { action: "move"; enemyId: string; path: { x: number; y: number }[] }
-  | { action: "attack"; enemyId: string; attackIndex: number; direction?: PatternDirection; damage?: number; targetPlayerId?: string }
+  | { action: "attack"; enemyId: string; attackIndex: number; direction?: PatternDirection; damage?: number; targetPlayerId?: string; swarmStrikes?: number }
+  | { action: "swarmChip"; enemyId: string; targetPlayerIds: string[]; targetEnemyIds: string[] }
   | { action: "assisted"; enemyId: string; label: string; detail?: string; damage?: number; targetPlayerId?: string; effects?: string[] }
   | { action: "exhaust"; enemyId: string };
 
@@ -186,5 +189,6 @@ export function createDefaultCombatState(playerCount: number): CombatState {
     pendingActions: [],
     pendingReaction: null,
     activeEnemyId: null,
+    swarmChipResolvedIds: [],
   };
 }

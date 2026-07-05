@@ -19,7 +19,7 @@ const {
   canAux,
   hasteRemaining,
   actionBudgetChips,
-  enforceActionLimits,
+  sandboxMode,
   commitHaste,
   canStartSprint,
   canResetMovement,
@@ -68,7 +68,7 @@ function pickTowerTeleportMode() {
     <div v-if="showPlayerActionBar" class="sheet-combat">
       <div class="budget-row">
         <ActionBudgetChips
-          :interactive="showPlayerActionBar && enforceActionLimits"
+          :interactive="showPlayerActionBar && !sandboxMode"
           v-bind="actionBudgetChips"
           :haste-stacks="hasteRemaining"
           @commit-haste="commitHaste"

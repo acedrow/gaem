@@ -14,12 +14,14 @@ import {
   getEnemyMaxHp,
   getPlayerMaxHp,
   areActionLimitsEnforced,
-  validateEnemyFootprint,
+  isSandboxMode,
+  applyEnemyMove,
+  validateEnemyMove,
 } from "../game.js";
 import { getArmorByName, getArmorSpeed, getWeaponByName } from "../player-data.js";
 import type { StructuredArmorAction } from "./types.js";
 import { createDefaultActionBudget, type ActionTier } from "./types.js";
-import { getEnemyScale, enemyFootprintTiles, ensureEnemyMovement, spendEnemyMovement } from "../enemy-data.js";
+import { getEnemyScale, enemyFootprintTiles } from "../enemy-data.js";
 import { buildBoardOccupancy } from "../game.js";
 import { coordKey, isInBounds, isWalkable, tileAt } from "../map.js";
 import { isOrthogonallyAdjacent } from "../patterns.js";
@@ -42,14 +44,16 @@ import {
   applyDamageToEnemy,
   applyDamageToPlayer,
   applyOmnistrike,
+  applyRangeAttackToEnemies,
+  applySwarmEnemyAttackToPlayer,
   applyWarhook,
   collectAttackTiles,
   enemiesInTiles,
   getWeaponAttackSpec,
+  isDirectTargetEnemyAttack,
   isWarhookWeaponName,
   manhattanDistance,
   parseEnemyAttackString,
-  resolveAttackDamage,
   resolveAttackWeapon,
   resolveCombatAttackSpec,
   resolveRangeAttackTargetIds,
@@ -67,8 +71,12 @@ import {
   buildSwarmGroups,
   dedupeSwarmTargetIds,
   exhaustSwarmMembers,
+  markSwarmChipResolved,
+  maxSwarmStrikesAgainstTarget,
   reconcileSwarmHp,
+  requireSwarmChipResolved,
   swarmGroupForEnemy,
+  validateSwarmChip,
 } from "./swarm.js";
 import { enemyLabel, playerLabel } from "../console.js";
 import {
@@ -177,7 +185,7 @@ export function validatePlayerAction(
 
   if (!canPlayerMove(state, playerId)) return "Not your turn";
   if (state.roundPhase === "deployment") return "Wrong phase";
-  if (state.enforceTurns !== false && state.roundPhase !== "playerTurn") return "Wrong phase";
+  if (!isSandboxMode(state) && state.roundPhase !== "playerTurn") return "Wrong phase";
   if (!player.actionBudget) {
     const speed = player.speed ?? getArmorSpeed(player.armor);
     if (speed) player.actionBudget = createDefaultActionBudget(speed);
@@ -358,19 +366,14 @@ export function applyPlayerAction(
       const spec = resolveCombatAttackSpec(player, weapon);
       if (!spec) return "Weapon has no attack profile";
       let result;
+      const weaponName = weapon;
       if (isRangeTargetAttack(spec)) {
         const targetIds = dedupeSwarmTargetIds(state, resolveRangeAttackTargetIds(action));
         if (targetIds.length) {
-          const { total, detail } = resolveAttackDamage(spec, action.damageRoll);
-          const effects = spec.effects ?? [];
-          const targets: { enemyId: string; x: number; y: number }[] = [];
-          for (const targetId of targetIds) {
-            const enemy = state.enemies.find((e) => e.id === targetId)!;
-            applyDamageToEnemy(enemy, total, state);
-            applyEffectStacks(enemy, effects);
-            targets.push({ enemyId: enemy.id, x: enemy.x, y: enemy.y });
-          }
-          result = { damage: total, detail, targets, effects };
+          result = applyRangeAttackToEnemies(state, spec, targetIds, action.damageRoll, {
+            useBreaker: action.useBreaker,
+            weaponName,
+          });
         } else {
           result = applyAttackToEnemies(
             state,
@@ -378,7 +381,7 @@ export function applyPlayerAction(
             { x: player.x, y: player.y },
             action.direction,
             action.damageRoll,
-            { useBreaker: action.useBreaker },
+            { useBreaker: action.useBreaker, weaponName },
           );
         }
       } else {
@@ -393,7 +396,7 @@ export function applyPlayerAction(
           attackOrigin,
           direction,
           action.damageRoll,
-          { useBreaker: action.useBreaker },
+          { useBreaker: action.useBreaker, weaponName },
         );
       }
       const hitEnemies = result.targets
@@ -617,23 +620,34 @@ export function validateGmEnemyAction(state: GameState, action: GmEnemyAction): 
   switch (action.action) {
     case "move": {
       if (action.path.length === 0) return "Empty path";
-      if (state.enforceTurns !== false && enemy.exhausted) return "Enemy has ended turn";
-      let cx = enemy.x;
-      let cy = enemy.y;
+      if (!isSandboxMode(state) && enemy.exhausted) return "Enemy has ended turn";
+      const chipErr = requireSwarmChipResolved(state, action.enemyId);
+      if (chipErr) return chipErr;
       for (const step of action.path) {
-        if (!isOrthogonallyAdjacent({ x: cx, y: cy }, step)) return "Invalid enemy path";
-        const err = validateEnemyFootprint(state, step.x, step.y, getEnemyScale(enemy), enemy.id);
+        const err = validateEnemyMove(state, action.enemyId, step.x, step.y);
         if (err) return err;
-        cx = step.x;
-        cy = step.y;
-      }
-      if (state.enforceTurns !== false) {
-        ensureEnemyMovement(enemy);
-        if ((enemy.movementRemaining ?? 0) < action.path.length) return "Not enough movement";
       }
       return null;
     }
-    case "attack":
+    case "swarmChip":
+      return validateSwarmChip(state, action.enemyId, action.targetPlayerIds, action.targetEnemyIds);
+    case "attack": {
+      const chipErr = requireSwarmChipResolved(state, action.enemyId);
+      if (chipErr) return chipErr;
+      if (action.swarmStrikes != null) {
+        const group = swarmGroupForEnemy(state, action.enemyId);
+        if (!group) return "Not a swarm";
+        const target = action.targetPlayerId
+          ? state.players.find((p) => p.id === action.targetPlayerId)
+          : null;
+        if (!target) return "Invalid target";
+        const max = maxSwarmStrikesAgainstTarget(state, action.enemyId, target);
+        if (!Number.isInteger(action.swarmStrikes) || action.swarmStrikes < 1 || action.swarmStrikes > max) {
+          return "Invalid strike count";
+        }
+      }
+      return null;
+    }
     case "assisted":
       return null;
     case "exhaust":
@@ -648,11 +662,32 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
   switch (action.action) {
     case "move": {
       const dest = action.path[action.path.length - 1]!;
-      if (state.enforceTurns !== false) spendEnemyMovement(enemy, action.path.length);
-      enemy.x = dest.x;
-      enemy.y = dest.y;
-      setActiveEnemy(state, enemy.id);
+      for (const step of action.path) {
+        applyEnemyMove(state, action.enemyId, step.x, step.y);
+      }
+      setActiveEnemy(state, action.enemyId);
       return `${enemyLabel(enemy)} moved to (${dest.x}, ${dest.y})`;
+    }
+    case "swarmChip": {
+      const group = swarmGroupForEnemy(state, action.enemyId);
+      const hits: string[] = [];
+      for (const id of action.targetPlayerIds) {
+        const player = state.players.find((p) => p.id === id);
+        if (!player) continue;
+        applyDamageToPlayer(player, 1, state);
+        hits.push(playerLabel(player));
+      }
+      for (const id of action.targetEnemyIds) {
+        const target = state.enemies.find((e) => e.id === id);
+        if (!target) continue;
+        applyDamageToEnemy(target, 1, state);
+        hits.push(enemyLabel(target));
+      }
+      markSwarmChipResolved(state, action.enemyId);
+      setActiveEnemy(state, group?.canonicalId ?? action.enemyId);
+      const label = enemyLabel(enemy);
+      if (!hits.length) return `${label} swarm chip (no targets)`;
+      return `${label} swarm chip → ${hits.join(", ")}`;
     }
     case "attack": {
       setActiveEnemy(state, enemy.id);
@@ -660,7 +695,20 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
       const attackText = attacks[action.attackIndex];
       const parsed = attackText ? parseEnemyAttackString(attackText) : { raw: "" };
       let msg = `${enemyLabel(enemy)} used attack ${action.attackIndex + 1}`;
-      if (parsed.damage && action.targetPlayerId) {
+      const group = swarmGroupForEnemy(state, enemy.id);
+      if (parsed.damage && action.targetPlayerId && group && isDirectTargetEnemyAttack(parsed)) {
+        const target = state.players.find((p) => p.id === action.targetPlayerId);
+        if (target) {
+          const preview = applySwarmEnemyAttackToPlayer(
+            state,
+            enemy.id,
+            parsed,
+            action.targetPlayerId,
+            { damage: action.damage ?? parsed.damage, strikeCount: action.swarmStrikes },
+          );
+          msg += ` → ${playerLabel(target)} for ${preview.totalDamage} (${preview.detail})`;
+        }
+      } else if (parsed.damage && action.targetPlayerId) {
         const target = state.players.find((p) => p.id === action.targetPlayerId);
         if (target) {
           const dmg = action.damage ?? parsed.damage;
@@ -725,7 +773,7 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
       exhaustSwarmMembers(state, enemy.id);
       if (state.combat?.activeEnemyId === enemy.id) setActiveEnemy(state, null);
       const group = swarmGroupForEnemy(state, enemy.id);
-      const ticks = tickUnitEndOfTurn(enemy);
+      const ticks = tickUnitEndOfTurn(state, enemy);
       let msg = group
         ? `${enemyLabel(enemy)} swarm ended turn`
         : `${enemyLabel(enemy)} ended turn`;

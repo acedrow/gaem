@@ -10,17 +10,12 @@ const { role } = useSession();
 const { gameState, send } = useGameState();
 
 const round = computed(() => gameState.value?.round ?? null);
-const enforceTurns = computed(() => gameState.value?.enforceTurns !== false);
-const enforceActionLimits = computed(() => gameState.value?.enforceActionLimits !== false);
+const sandboxMode = computed(() => gameState.value?.sandboxMode === true);
 const canStepBack = computed(() => (gameState.value ? canRewindPhase(gameState.value) : false));
 const canReset = computed(() => (gameState.value ? canResetPhase(gameState.value) : false));
 
-function setEnforceTurns(value: boolean) {
-  send({ type: "setEnforceTurns", enforceTurns: value });
-}
-
-function setEnforceActionLimits(value: boolean) {
-  send({ type: "setEnforceActionLimits", enforceActionLimits: value });
+function setSandboxMode(value: boolean) {
+  send({ type: "setSandboxMode", sandboxMode: value });
 }
 
 const roundGroups = computed(() => {
@@ -56,28 +51,15 @@ function sendGmAction(action: PhaseAction) {
 
     <div v-if="role === 'gm'" class="gm-controls">
       <div class="gm-controls-main">
-        <label class="enforce-turns">
-          <span class="enforce-label">Enforce turns</span>
+        <label class="sandbox-toggle">
+          <span class="sandbox-label">Sandbox mode</span>
           <button
             type="button"
             role="switch"
             class="toggle"
-            :class="{ on: enforceTurns }"
-            :aria-checked="enforceTurns"
-            @click="setEnforceTurns(!enforceTurns)"
-          >
-            <span class="toggle-thumb" />
-          </button>
-        </label>
-        <label class="enforce-turns">
-          <span class="enforce-label">Enforce action limits</span>
-          <button
-            type="button"
-            role="switch"
-            class="toggle"
-            :class="{ on: enforceActionLimits }"
-            :aria-checked="enforceActionLimits"
-            @click="setEnforceActionLimits(!enforceActionLimits)"
+            :class="{ on: sandboxMode }"
+            :aria-checked="sandboxMode"
+            @click="setSandboxMode(!sandboxMode)"
           >
             <span class="toggle-thumb" />
           </button>
@@ -177,14 +159,14 @@ function sendGmAction(action: PhaseAction) {
   border-top: 1px solid var(--color-border);
 }
 
-.enforce-turns {
+.sandbox-toggle {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   margin-right: 0.25rem;
 }
 
-.enforce-label {
+.sandbox-label {
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--color-text);

@@ -1,7 +1,7 @@
 import type { GameState, Player } from "../types.js";
 import type { BoardCoord } from "../patterns.js";
 import { isOrthogonallyAdjacent } from "../patterns.js";
-import { areActionLimitsEnforced, buildBoardOccupancy, canPlayerMove, type BoardOccupancy } from "../game.js";
+import { areActionLimitsEnforced, buildBoardOccupancy, canPlayerMove, isSandboxMode, type BoardOccupancy } from "../game.js";
 import { playerLabel } from "../console.js";
 import { coordKey, isInBounds, isWalkable, tileAt } from "../map.js";
 import { getArmorSpeed } from "../player-data.js";
@@ -166,7 +166,7 @@ export function validateMovementPath(
   const computed = computePathCost(state, player, path);
   if (!computed) return "Invalid path";
 
-  if (areActionLimitsEnforced(state) && state.enforceTurns !== false && !opts?.skipMovementBudget) {
+  if (!isSandboxMode(state) && !opts?.skipMovementBudget) {
     const budget = player.actionBudget?.movementRemaining;
     if (budget !== undefined && computed.total > budget) return "Not enough movement";
   }
@@ -188,8 +188,7 @@ export function applyMovementPath(
   if (err) return err;
   const computed = computePathCost(state, player, path)!;
   if (
-    areActionLimitsEnforced(state) &&
-    state.enforceTurns !== false &&
+    !isSandboxMode(state) &&
     opts?.spendBudget !== false &&
     player.actionBudget
   ) {

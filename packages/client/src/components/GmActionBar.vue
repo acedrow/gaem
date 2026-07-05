@@ -21,7 +21,7 @@ import { useGameState } from "../composables/useGameState.js";
 const { showGmCombatUi } = useCombatActions();
 const { selectedEnemyId } = useBoardSelection();
 const { gameState, send } = useGameState();
-const { mode, gmEnemyAttack, startGmEnemyAttack, clearMode } = useBoardActionMode();
+const { mode, gmEnemyAttack, startGmEnemyAttack, startGmSwarmAttack, clearMode } = useBoardActionMode();
 
 const attackIndex = ref(0);
 const attackDirection = ref<PatternDirection>("n");
@@ -38,6 +38,23 @@ const activeIsTower = computed(() =>
 );
 
 const listing = computed(() => getEnemyListingByName(activeEnemy.value?.name));
+
+const isInSwarm = computed(() => {
+  const s = gameState.value;
+  const enemy = activeEnemy.value;
+  if (!s || !enemy) return false;
+  const group = swarmGroupForEnemy(s, enemy.id);
+  return (group?.size ?? 0) > 1;
+});
+
+const swarmDirectAttackIndex = computed(() => {
+  const attacks = listing.value?.attacks ?? [];
+  return attacks.findIndex((text) => isDirectTargetEnemyAttack(parseEnemyAttackString(text)));
+});
+
+const showSwarmAttack = computed(
+  () => !!activeEnemy.value && !activeIsTower.value && isInSwarm.value && swarmDirectAttackIndex.value >= 0,
+);
 
 const speedLabel = computed(() => {
   const enemy = activeEnemy.value;
@@ -66,7 +83,13 @@ const targetingAttack = computed(
   () =>
     mode.value === "gmEnemyAttack" &&
     gmEnemyAttack.value?.enemyId === activeEnemy.value?.id &&
-    gmEnemyAttack.value?.attackIndex === attackIndex.value,
+    (gmEnemyAttack.value?.swarm
+      ? gmEnemyAttack.value.attackIndex === swarmDirectAttackIndex.value
+      : gmEnemyAttack.value?.attackIndex === attackIndex.value),
+);
+
+const targetingSwarmAttack = computed(
+  () => targetingAttack.value && !!gmEnemyAttack.value?.swarm,
 );
 
 const queue = computed(() => {
@@ -88,6 +111,14 @@ watch(attackIndex, () => {
 
 function rotateDirection() {
   attackDirection.value = nextPatternDirection(attackDirection.value);
+}
+
+function runSwarmAttack() {
+  const enemy = activeEnemy.value;
+  const index = swarmDirectAttackIndex.value;
+  if (!enemy || index < 0) return;
+  const damage = damageOverride.value === "" ? undefined : Number(damageOverride.value);
+  startGmSwarmAttack(enemy.id, index, damage);
 }
 
 function runAttack() {
@@ -131,7 +162,20 @@ function exhaustEnemy() {
         <span v-if="activeEnemy.exhausted && !activeIsTower" class="chip spent">Exhausted</span>
         <span v-else-if="!activeIsTower" class="chip speed">Speed {{ speedLabel }}</span>
       </div>
-      <div v-if="listing?.attacks?.length && !activeIsTower" class="actions-row">
+      <div v-if="showSwarmAttack" class="actions-row">
+        <input
+          v-model="damageOverride"
+          type="number"
+          min="0"
+          class="damage-input"
+          placeholder="Dmg"
+        />
+        <button type="button" class="action-btn primary" @click="runSwarmAttack">
+          {{ targetingSwarmAttack ? "Targeting…" : "Swarm attack" }}
+        </button>
+        <button type="button" class="action-btn" @click="exhaustEnemy">Exhaust</button>
+      </div>
+      <div v-else-if="listing?.attacks?.length && !activeIsTower" class="actions-row">
         <select v-model="attackIndex" class="select">
           <option v-for="(_, i) in listing.attacks" :key="i" :value="i">
             Attack {{ i + 1 }}
@@ -157,7 +201,8 @@ function exhaustEnemy() {
         </button>
         <button type="button" class="action-btn" @click="exhaustEnemy">Exhaust</button>
       </div>
-      <p v-if="targetingAttack" class="attack-hint">Click a highlighted player to attack</p>
+      <p v-if="targetingSwarmAttack" class="attack-hint">Click a highlighted player, then choose strike count</p>
+      <p v-else-if="targetingAttack" class="attack-hint">Click a highlighted player to attack</p>
     </template>
   </div>
 </template>
@@ -212,6 +257,13 @@ function exhaustEnemy() {
   background: var(--color-surface-raised);
   color: var(--color-text);
   cursor: pointer;
+}
+
+.action-btn.primary {
+  border-color: var(--color-accent-muted);
+  background: var(--color-accent-subtle-bg);
+  color: var(--color-accent);
+  font-weight: 600;
 }
 
 .select,

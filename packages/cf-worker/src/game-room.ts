@@ -6,7 +6,7 @@ import {
   applyMove,
   applyPhaseAction,
   applyBaseCampaignAction,
-  applySetEnforceTurns,
+  applySetSandboxMode,
   characterTargetLabel,
   CONSOLE_MSG_CONNECTED,
   CONSOLE_MSG_DISCONNECTED,
@@ -389,31 +389,14 @@ export class GameRoom {
       return;
     }
 
-    if (parsed.type === "setEnforceTurns") {
+    if (parsed.type === "setSandboxMode") {
       if (att?.role !== "gm") {
         this.sendError(ws, "Only the game master can do that");
         return;
       }
-      const message = applySetEnforceTurns(this.gameState, parsed.enforceTurns);
+      const message = applySetSandboxMode(this.gameState, parsed.sandboxMode);
       const actor = await this.actorForSocket(ws);
       await this.broadcastConsole(actor, message);
-      await this.broadcastState();
-      return;
-    }
-
-    if (parsed.type === "setEnforceActionLimits") {
-      if (att?.role !== "gm") {
-        this.sendError(ws, "Only the game master can do that");
-        return;
-      }
-      this.gameState.enforceActionLimits = parsed.enforceActionLimits;
-      const actor = await this.actorForSocket(ws);
-      await this.broadcastConsole(
-        actor,
-        parsed.enforceActionLimits
-          ? "Enforce action limits enabled"
-          : "Enforce action limits disabled",
-      );
       await this.broadcastState();
       return;
     }

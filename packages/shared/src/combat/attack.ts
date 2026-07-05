@@ -18,11 +18,14 @@ import { applyBleedBonus, applyEffectStacks, setTileEffect } from "./effects.js"
 import { parseAndRollDamage } from "./damage.js";
 import { clampHp, getEnemyMaxHp, getPlayerMaxHp, getEffectiveEnemyMaxHp, removeEnemy } from "../game.js";
 import {
+  countSwarmTilesAdjacentTo,
   getSwarmMemberHp,
   reconcileSwarmHp,
+  swarmEnemyStrikeCap,
   swarmGroupForEnemy,
   swarmMembersHitByTiles,
 } from "./swarm.js";
+import { isOrthogonallyAdjacent } from "../patterns.js";
 
 export type AttackTarget = {
   enemyId: string;
@@ -319,12 +322,17 @@ export function applyBreakerAttackToSwarm(
   return { targets, brokenIds };
 }
 
-export function applyDamageToPlayer(player: Player, damage: number, state?: GameState): number {
+export function applyDamageToPlayer(
+  player: Player,
+  damage: number,
+  state?: GameState,
+  opts?: { recordDamage?: boolean },
+): number {
   const maxHp = getPlayerMaxHp(player);
   const before = player.hp ?? maxHp;
   const adjusted = applyBleedBonus(damage, player.effects);
   player.hp = clampHp(before - adjusted, maxHp);
-  if (state) {
+  if (state && opts?.recordDamage !== false) {
     if (!state.damageEvents) state.damageEvents = [];
     state.damageEvents.push({ x: player.x, y: player.y, amount: adjusted });
   }
@@ -337,7 +345,7 @@ export function applyAttackToEnemies(
   origin: { x: number; y: number },
   direction: PatternDirection,
   damageRoll?: number,
-  opts?: { useBreaker?: boolean },
+  opts?: { useBreaker?: boolean; weaponName?: string },
 ): { damage: number; detail: string; targets: AttackTarget[]; effects: string[] } {
   const tiles = collectAttackTiles(state, origin, spec, direction);
   const { total, detail } = resolveAttackDamage(spec, damageRoll);
@@ -348,6 +356,14 @@ export function applyAttackToEnemies(
     return { damage: total, detail, targets, effects };
   }
 
+  if (
+    !opts?.useBreaker &&
+    isSethianWeaponName(opts?.weaponName) &&
+    swarmMembersHitByTiles(state, tiles).length
+  ) {
+    return applySethianWholeSwarmAttack(state, spec, tiles, damageRoll);
+  }
+
   const targets = enemiesInTiles(state, tiles);
   for (const target of targets) {
     const enemy = state.enemies.find((e) => e.id === target.enemyId);
@@ -356,6 +372,205 @@ export function applyAttackToEnemies(
     applyEffectStacks(enemy, effects);
   }
   return { damage: total, detail, targets, effects };
+}
+
+export const SETHIAN_DAMAGE_CAP = 12 + 20 * 6;
+
+export function isSethianWeaponName(name: string | undefined | null): boolean {
+  return name === SETHIAN_WEAPON_NAME;
+}
+
+function swarmHitsByGroup(
+  state: GameState,
+  tiles: { x: number; y: number }[],
+): Map<string, number> {
+  const occ = buildBoardOccupancy(state);
+  const hits = new Map<string, number>();
+  for (const tile of tiles) {
+    const enemy = occ.enemyByKey.get(coordKey(tile.x, tile.y));
+    if (!enemy) continue;
+    const group = swarmGroupForEnemy(state, enemy.id);
+    if (!group) continue;
+    hits.set(group.canonicalId, (hits.get(group.canonicalId) ?? 0) + 1);
+  }
+  return hits;
+}
+
+function applySethianWholeSwarmAttack(
+  state: GameState,
+  spec: WeaponAttackSpec,
+  tiles: { x: number; y: number }[],
+  damageRoll?: number,
+): { damage: number; detail: string; targets: AttackTarget[]; effects: string[] } {
+  const groupHits = swarmHitsByGroup(state, tiles);
+  const { total, detail } = resolveAttackDamage(spec, damageRoll);
+  const effects = spec.effects ?? [];
+  const targets: AttackTarget[] = [];
+  const parts: string[] = [];
+
+  for (const [canonicalId, hitCount] of groupHits) {
+    const damage = Math.min(total * hitCount, SETHIAN_DAMAGE_CAP);
+    const enemy = state.enemies.find((e) => e.id === canonicalId)!;
+    applyDamageToEnemy(enemy, damage, state);
+    applyEffectStacks(enemy, effects);
+    targets.push({ enemyId: canonicalId, x: enemy.x, y: enemy.y });
+    parts.push(`${detail}×${hitCount}=${damage}`);
+  }
+
+  const swarmCanonical = new Set(groupHits.keys());
+  for (const target of enemiesInTiles(state, tiles)) {
+    if (swarmCanonical.has(target.enemyId)) continue;
+    const enemy = state.enemies.find((e) => e.id === target.enemyId)!;
+    applyDamageToEnemy(enemy, total, state);
+    applyEffectStacks(enemy, effects);
+    targets.push(target);
+  }
+
+  return { damage: total, detail: parts.join("; ") || detail, targets, effects };
+}
+
+export function applyRangeAttackToEnemies(
+  state: GameState,
+  spec: WeaponAttackSpec,
+  targetIds: string[],
+  damageRoll?: number,
+  opts?: { useBreaker?: boolean; weaponName?: string },
+): { damage: number; detail: string; targets: AttackTarget[]; effects: string[] } {
+  const tiles = targetIds
+    .map((id) => state.enemies.find((e) => e.id === id))
+    .filter(Boolean)
+    .map((e) => ({ x: e!.x, y: e!.y }));
+
+  if (opts?.useBreaker && swarmMembersHitByTiles(state, tiles).length) {
+    const { total, detail } = resolveAttackDamage(spec, damageRoll);
+    const effects = spec.effects ?? [];
+    const targets: AttackTarget[] = [];
+    for (const targetId of targetIds) {
+      const enemy = state.enemies.find((e) => e.id === targetId)!;
+      const group = swarmGroupForEnemy(state, targetId);
+      if (group) {
+        const { targets: broken } = applyBreakerAttackToSwarm(
+          state,
+          [{ x: enemy.x, y: enemy.y }],
+          total,
+          effects,
+        );
+        targets.push(...broken);
+      } else {
+        applyDamageToEnemy(enemy, total, state);
+        applyEffectStacks(enemy, effects);
+        targets.push({ enemyId: enemy.id, x: enemy.x, y: enemy.y });
+      }
+    }
+    return { damage: total, detail, targets, effects };
+  }
+
+  if (
+    !opts?.useBreaker &&
+    isSethianWeaponName(opts?.weaponName) &&
+    swarmMembersHitByTiles(state, tiles).length
+  ) {
+    return applySethianWholeSwarmAttack(state, spec, tiles, damageRoll);
+  }
+
+  const { total, detail } = resolveAttackDamage(spec, damageRoll);
+  const effects = spec.effects ?? [];
+  const targets: AttackTarget[] = [];
+  for (const targetId of targetIds) {
+    const enemy = state.enemies.find((e) => e.id === targetId)!;
+    applyDamageToEnemy(enemy, total, state);
+    applyEffectStacks(enemy, effects);
+    targets.push({ enemyId: enemy.id, x: enemy.x, y: enemy.y });
+  }
+  return { damage: total, detail, targets, effects };
+}
+
+export type SwarmEnemyAttackPreview = {
+  totalDamage: number;
+  strikeCount: number;
+  detail: string;
+};
+
+export function previewSwarmEnemyAttack(
+  state: GameState,
+  enemyId: string,
+  parsed: ParsedEnemyAttack,
+  targetPlayerId: string,
+  opts?: { damage?: number; strikeCount?: number },
+): SwarmEnemyAttackPreview {
+  const group = swarmGroupForEnemy(state, enemyId);
+  const memberIds = group?.memberIds ?? [enemyId];
+  const target = state.players.find((p) => p.id === targetPlayerId);
+  if (!target) return { totalDamage: 0, strikeCount: 0, detail: "No target" };
+
+  const baseDamage = opts?.damage ?? parsed.damage ?? 0;
+  const adjacentCount = countSwarmTilesAdjacentTo(state, memberIds, target);
+  if (adjacentCount === 0) return { totalDamage: 0, strikeCount: 0, detail: "Not adjacent" };
+
+  const maxStrikes = Math.min(adjacentCount, swarmEnemyStrikeCap(1));
+  const strikes = Math.min(Math.max(1, opts?.strikeCount ?? maxStrikes), maxStrikes);
+  let remainingAdjacent = adjacentCount;
+  let totalDamage = 0;
+  for (let i = 0; i < strikes; i++) {
+    if (i > 0) remainingAdjacent -= 1;
+    totalDamage += baseDamage + remainingAdjacent;
+  }
+  return {
+    totalDamage,
+    strikeCount: strikes,
+    detail: `${strikes} strike${strikes === 1 ? "" : "s"} (${baseDamage}+adj)`,
+  };
+}
+
+function pickAdjacentSwarmMember(
+  state: GameState,
+  memberIds: string[],
+  target: { x: number; y: number },
+): string | null {
+  for (const id of memberIds) {
+    const enemy = state.enemies.find((e) => e.id === id);
+    if (enemy && isOrthogonallyAdjacent(enemy, target)) return id;
+  }
+  return null;
+}
+
+export function applySwarmEnemyAttackToPlayer(
+  state: GameState,
+  enemyId: string,
+  parsed: ParsedEnemyAttack,
+  targetPlayerId: string,
+  opts?: { damage?: number; strikeCount?: number },
+): SwarmEnemyAttackPreview {
+  const preview = previewSwarmEnemyAttack(state, enemyId, parsed, targetPlayerId, opts);
+  if (preview.strikeCount === 0) return preview;
+
+  const group = swarmGroupForEnemy(state, enemyId);
+  let memberIds = [...(group?.memberIds ?? [enemyId])];
+  const target = state.players.find((p) => p.id === targetPlayerId)!;
+  const baseDamage = opts?.damage ?? parsed.damage ?? 0;
+  let remainingAdjacent = countSwarmTilesAdjacentTo(state, memberIds, target);
+
+  let totalDamage = 0;
+  for (let i = 0; i < preview.strikeCount; i++) {
+    if (i > 0) {
+      const expendId = pickAdjacentSwarmMember(state, memberIds, target);
+      if (expendId) {
+        removeEnemy(state, expendId);
+        memberIds = memberIds.filter((id) => id !== expendId);
+        remainingAdjacent -= 1;
+        if (group) reconcileSwarmHp(state);
+      }
+    }
+    const strikeDamage = baseDamage + remainingAdjacent;
+    totalDamage += applyDamageToPlayer(target, strikeDamage, state, { recordDamage: false });
+    if (parsed.effects) applyEffectStacks(target, parsed.effects);
+  }
+  if (state && totalDamage > 0) {
+    if (!state.damageEvents) state.damageEvents = [];
+    state.damageEvents.push({ x: target.x, y: target.y, amount: totalDamage });
+  }
+
+  return preview;
 }
 
 export type ParsedEnemyAttack = {
@@ -651,6 +866,7 @@ export type WarhookPayload = {
   landingX: number;
   landingY: number;
   damageRoll?: number;
+  useBreaker?: boolean;
 };
 
 export type WarhookTarget = {
@@ -825,7 +1041,14 @@ export function applyWarhook(
       if (spec) {
         const resolved = resolveAttackDamage(spec, payload.damageRoll);
         detail = resolved.detail;
-        applyDamageToEnemy(enemy, resolved.total, state);
+        const group = swarmGroupForEnemy(state, enemy.id);
+        if (payload.useBreaker && group) {
+          applyBreakerAttackToSwarm(state, [{ x: enemy.x, y: enemy.y }], resolved.total, []);
+        } else if (!payload.useBreaker && isSethianWeaponName(player.weapon) && group) {
+          applySethianWholeSwarmAttack(state, spec, [{ x: enemy.x, y: enemy.y }], payload.damageRoll);
+        } else {
+          applyDamageToEnemy(enemy, resolved.total, state);
+        }
       }
       applyEffectStacks(enemy, ["Blazing:2"]);
       targets.push({ enemyId: enemy.id, x: enemy.x, y: enemy.y });

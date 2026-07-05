@@ -260,8 +260,7 @@ export function createInitialStateFromMap(map: GameMap): GameState {
     turn: { role: "gm" },
     actedPlayerIds: [],
     turnLog: [],
-    enforceTurns: true,
-    enforceActionLimits: true,
+    sandboxMode: false,
     partyResources: { hellsteel: 0, soulfire: 0, brimstone: 0 },
     constructedBaseUpgrades: [],
   };

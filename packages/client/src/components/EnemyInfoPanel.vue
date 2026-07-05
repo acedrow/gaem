@@ -20,6 +20,7 @@ import { useCombatActions } from "../composables/useCombatActions.js";
 import { useGameState } from "../composables/useGameState.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import { useApi } from "../composables/useApi.js";
+import { useEnemySpawnSelection } from "../composables/useEnemySpawnSelection.js";
 import { useEnemyPortraitColors } from "../composables/useEnemyPortraitColors.js";
 import { useSession } from "../composables/useSession.js";
 import GmEnemyAttackModal from "./GmEnemyAttackModal.vue";
@@ -38,8 +39,9 @@ const { portraitBackgroundFor, colors: enemyPortraitColors } = useEnemyPortraitC
 const { showGmCombatUi } = useCombatActions();
 const { gameState, send } = useGameState();
 const { closeRightPanel } = useBoardSelection();
-const { startGmEnemyAttack } = useBoardActionMode();
+const { startGmEnemyAttack, startGmSwarmAttack } = useBoardActionMode();
 const { goBackFromDataFocus } = useInfoDataSelection();
+const { selectedSpawnEnemyName, selectSpawnEnemy } = useEnemySpawnSelection();
 
 const attackModalOpen = ref(false);
 const attackModalIndex = ref(0);
@@ -107,6 +109,30 @@ const showUseAttack = computed(
   () => isGm.value && showGmCombatUi.value && !!activeEnemy.value && !isTowerEnemy(activeEnemy.value!),
 );
 
+const isInSwarm = computed(() => (swarmGroup.value?.size ?? 0) > 1);
+
+const swarmDirectAttackIndex = computed(() => {
+  const attacks = listing.value?.attacks ?? [];
+  return attacks.findIndex((text) => isDirectTargetEnemyAttack(parseEnemyAttackString(text)));
+});
+
+const showSwarmAttack = computed(
+  () =>
+    showUseAttack.value &&
+    isInSwarm.value &&
+    swarmDirectAttackIndex.value >= 0,
+);
+
+const spawnEnemyName = computed(
+  () => listing.value?.name ?? activeEnemy.value?.name ?? props.enemyName ?? null,
+);
+
+const showSpawnUnit = computed(() => isGm.value && !!spawnEnemyName.value);
+
+const spawnSelected = computed(
+  () => spawnEnemyName.value != null && selectedSpawnEnemyName.value === spawnEnemyName.value,
+);
+
 const enemySpeedLabel = computed(() => {
   const s = gameState.value;
   const enemy = activeEnemy.value;
@@ -119,6 +145,13 @@ const enemySpeedLabel = computed(() => {
   const remaining = enemy.movementRemaining ?? max;
   return `${remaining}/${max}`;
 });
+
+function useSwarmAttack() {
+  const enemy = activeEnemy.value;
+  const index = swarmDirectAttackIndex.value;
+  if (!enemy || index < 0) return;
+  startGmSwarmAttack(enemy.id, index);
+}
 
 function useAttack(index: number) {
   const enemy = activeEnemy.value;
@@ -142,6 +175,12 @@ function endEnemyTurn() {
   const enemy = activeEnemy.value;
   if (!enemy || enemy.exhausted || isTowerEnemy(enemy)) return;
   send({ type: "gmEnemyAction", action: { action: "exhaust", enemyId: enemy.id } });
+}
+
+function spawnUnit() {
+  const name = spawnEnemyName.value;
+  if (!name) return;
+  selectSpawnEnemy(name);
 }
 </script>
 
@@ -173,12 +212,37 @@ function endEnemyTurn() {
         />
 
         <div
+          v-if="showSpawnUnit"
+          class="spawn-row"
+        >
+          <button
+            type="button"
+            class="spawn-btn"
+            :class="{ active: spawnSelected }"
+            @click="spawnUnit"
+          >
+            {{ spawnSelected ? "Selected for spawn" : "Spawn unit" }}
+          </button>
+          <p v-if="spawnSelected" class="spawn-hint">Click an empty walkable tile on the board.</p>
+        </div>
+
+        <div
           v-if="showGmCombatUi && activeEnemy && !activeEnemy.exhausted && !isTowerEnemy(activeEnemy)"
           class="enemy-actions"
         >
           <button type="button" class="action-btn end-turn-btn" @click="endEnemyTurn">
             End turn
           </button>
+        </div>
+
+        <div
+          v-if="showSwarmAttack"
+          class="swarm-attack-row"
+        >
+          <button type="button" class="use-attack-btn swarm-attack-btn" @click="useSwarmAttack">
+            Swarm attack
+          </button>
+          <p class="swarm-attack-hint">Select a target on the board, then choose how many strikes.</p>
         </div>
 
         <div v-if="listing" class="stats">
@@ -209,7 +273,7 @@ function endEnemyTurn() {
           <span class="ability-label">Attack {{ i + 1 }}</span>
           <p class="ability-text">{{ attack }}</p>
           <button
-            v-if="showUseAttack"
+            v-if="showUseAttack && !isInSwarm"
             type="button"
             class="use-attack-btn"
             @click="useAttack(i)"
@@ -349,6 +413,23 @@ function endEnemyTurn() {
   background: var(--color-accent-hover-bg);
 }
 
+.swarm-attack-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.swarm-attack-btn {
+  align-self: flex-start;
+}
+
+.swarm-attack-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  line-height: 1.4;
+}
+
 .position {
   margin: 0;
   font-size: 0.78rem;
@@ -364,6 +445,41 @@ function endEnemyTurn() {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
+}
+
+.spawn-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.spawn-btn {
+  align-self: flex-start;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.35rem 0.65rem;
+  cursor: pointer;
+}
+
+.spawn-btn:hover {
+  background: var(--color-surface-hover);
+}
+
+.spawn-btn.active {
+  border-color: var(--color-accent-muted);
+  color: var(--color-accent-bright);
+}
+
+.spawn-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-accent-bright);
+  line-height: 1.4;
 }
 
 .end-turn-btn {

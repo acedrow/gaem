@@ -1,5 +1,5 @@
 import type { Enemy, GameState, Player, TerrainObject } from "../types.js";
-import { addEnemy, buildBoardOccupancy, clampHp, getEnemyMaxHp, getPlayerMaxHp, removeEnemy } from "../game.js";
+import { addEnemy, buildBoardOccupancy, clampHp, getEnemyMaxHp, getPlayerMaxHp, isSandboxMode, removeEnemy } from "../game.js";
 import { getEnemyScale, enemyFootprintTiles } from "../enemy-data.js";
 import { coordKey, isInBounds, isWalkable, tileAt } from "../map.js";
 import { isOrthogonallyAdjacent } from "../patterns.js";
@@ -426,6 +426,7 @@ export function applyYadathanReversal(
 }
 
 export function resolveYadathanEndOfTurn(state: GameState, player: Player): string[] {
+  if (isSandboxMode(state)) return [];
   const messages: string[] = [];
   const tower = getPlayerTower(state, player.id);
   if (tower) {
