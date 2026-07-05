@@ -18,6 +18,7 @@ import { applyBleedBonus, applyEffectStacks, setTileEffect } from "./effects.js"
 import { parseAndRollDamage } from "./damage.js";
 import { clampHp, getEnemyMaxHp, getPlayerMaxHp, getEffectiveEnemyMaxHp, removeEnemy } from "../game.js";
 import {
+  buildSwarmGroups,
   countSwarmTilesAdjacentTo,
   getSwarmMemberHp,
   reconcileSwarmHp,
@@ -325,22 +326,34 @@ export function applyBreakerAttackToSwarm(
 
   if (!hits.length) return { targets, brokenIds };
 
+  const prevGroups = buildSwarmGroups(state);
   const group = swarmGroupForEnemy(state, hits[0]!.enemyId);
   if (!group) return { targets, brokenIds };
 
   const memberHp = getSwarmMemberHp(group.currentHp, group.size);
   const allKilled = hits.every(() => damage >= memberHp);
+  const primary = state.enemies.find((e) => e.id === group.canonicalId)!;
+  const adjusted = applyBleedBonus(damage, primary.effects);
+
+  const recordHitDamage = () => {
+    if (!state.damageEvents) state.damageEvents = [];
+    for (const hit of hits) {
+      state.damageEvents.push({ x: hit.x, y: hit.y, amount: adjusted });
+    }
+  };
 
   if (allKilled) {
+    recordHitDamage();
     for (const hit of hits) {
       brokenIds.push(hit.enemyId);
       targets.push(hit);
-      removeEnemy(state, hit.enemyId);
+      const enemy = state.enemies.find((e) => e.id === hit.enemyId);
+      if (enemy) enemy.hp = 0;
     }
-    reconcileSwarmHp(state);
+    reconcileSwarmHp(state, prevGroups);
   } else {
-    const primary = state.enemies.find((e) => e.id === group.canonicalId)!;
-    applyDamageToEnemy(primary, damage, state);
+    applyDamageToEnemy(primary, damage, state, { recordDamage: false });
+    recordHitDamage();
     targets.push({ enemyId: group.canonicalId, x: primary.x, y: primary.y });
     applyEffectStacks(primary, effects);
   }

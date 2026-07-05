@@ -10,11 +10,16 @@ export function useEnemyDeathAnimations(
   onRemove: (enemyId: string) => void,
 ) {
   const dyingEnemyIds = ref<ReadonlySet<string>>(new Set());
+  const defeatedEnemyIds = ref<ReadonlySet<string>>(new Set());
   let prevHp: Map<string, number> | null = null;
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
 
   function setDying(ids: Set<string>) {
     dyingEnemyIds.value = ids;
+  }
+
+  function setDefeated(ids: Set<string>) {
+    defeatedEnemyIds.value = ids;
   }
 
   function clearDeath(enemyId: string) {
@@ -23,10 +28,16 @@ export function useEnemyDeathAnimations(
       clearTimeout(timer);
       timers.delete(enemyId);
     }
-    if (!dyingEnemyIds.value.has(enemyId)) return;
-    const next = new Set(dyingEnemyIds.value);
-    next.delete(enemyId);
-    setDying(next);
+    if (dyingEnemyIds.value.has(enemyId)) {
+      const next = new Set(dyingEnemyIds.value);
+      next.delete(enemyId);
+      setDying(next);
+    }
+    if (defeatedEnemyIds.value.has(enemyId)) {
+      const next = new Set(defeatedEnemyIds.value);
+      next.delete(enemyId);
+      setDefeated(next);
+    }
   }
 
   function startDeath(enemyId: string) {
@@ -36,14 +47,24 @@ export function useEnemyDeathAnimations(
     setDying(next);
     const timer = setTimeout(() => {
       timers.delete(enemyId);
-      clearDeath(enemyId);
+      const defeated = new Set(defeatedEnemyIds.value);
+      defeated.add(enemyId);
+      setDefeated(defeated);
       onRemove(enemyId);
     }, DAMAGE_ANIMATION_DURATION_MS);
     timers.set(enemyId, timer);
   }
 
-  function isEnemyDying(enemyId: string): boolean {
+  function isEnemyPendingRemoval(enemyId: string): boolean {
     return dyingEnemyIds.value.has(enemyId);
+  }
+
+  function isEnemyDying(enemyId: string): boolean {
+    return dyingEnemyIds.value.has(enemyId) && !defeatedEnemyIds.value.has(enemyId);
+  }
+
+  function isEnemyDefeated(enemyId: string): boolean {
+    return defeatedEnemyIds.value.has(enemyId);
   }
 
   watch(
@@ -89,8 +110,14 @@ export function useEnemyDeathAnimations(
     for (const timer of timers.values()) clearTimeout(timer);
     timers.clear();
     setDying(new Set());
+    setDefeated(new Set());
     prevHp = null;
   });
 
-  return { isEnemyDying, dyingEnemyIds: readonly(dyingEnemyIds) };
+  return {
+    isEnemyDying,
+    isEnemyDefeated,
+    isEnemyPendingRemoval,
+    dyingEnemyIds: readonly(dyingEnemyIds),
+  };
 }

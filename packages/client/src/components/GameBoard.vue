@@ -298,7 +298,8 @@ function finalizeDefeatedEnemy(enemyId: string) {
   send({ type: "removeEnemy", enemyId });
 }
 
-const { isEnemyDying, dyingEnemyIds } = useEnemyDeathAnimations(gameState, finalizeDefeatedEnemy);
+const { isEnemyDying, isEnemyDefeated, isEnemyPendingRemoval, dyingEnemyIds } =
+  useEnemyDeathAnimations(gameState, finalizeDefeatedEnemy);
 const {
   active: teleportAnimation,
   teleportingPlayerIds,
@@ -1644,19 +1645,10 @@ function submitAttackAction(action: Extract<PlayerAction, { action: "attack" }>)
   clearBoardActionMode();
 }
 
-function onBreakerBreakSwarm() {
+function onBreakerConfirm(useBreaker: boolean) {
   const action = pendingAttackAction.value;
   if (!action) return;
-  sendPlayerAction({ ...action, useBreaker: true });
-  pendingAttackAction.value = null;
-  breakerPromptOpen.value = false;
-  clearBoardActionMode();
-}
-
-function onBreakerAttackWhole() {
-  const action = pendingAttackAction.value;
-  if (!action) return;
-  sendPlayerAction({ ...action, useBreaker: false });
+  sendPlayerAction({ ...action, useBreaker });
   pendingAttackAction.value = null;
   breakerPromptOpen.value = false;
   clearBoardActionMode();
@@ -2221,7 +2213,7 @@ function onBoardDisplayClick(e: MouseEvent) {
 }
 
 function removeEnemyById(enemyId: string) {
-  send({ type: "removeEnemy", enemyId });
+  send({ type: "removeEnemy", enemyId, entireSwarm: true });
   clearBoardSelection();
 }
 
@@ -2465,7 +2457,9 @@ onUnmounted(() => {
                   cellStateByKey.get(c.key)?.enemyAnchor?.hp,
                   dyingEnemyIds.size,
                   !!cellStateByKey.get(c.key)?.enemyAnchor &&
-                    isEnemyDying(cellStateByKey.get(c.key)!.enemyAnchor!.id),
+                    isEnemyPendingRemoval(cellStateByKey.get(c.key)!.enemyAnchor!.id),
+                  !!cellStateByKey.get(c.key)?.enemyAnchor &&
+                    isEnemyDefeated(cellStateByKey.get(c.key)!.enemyAnchor!.id),
                   showHealthBars,
                   showEnemyHealthBars,
                   animatingEnemyId,
@@ -2484,6 +2478,7 @@ onUnmounted(() => {
                 :show-health-bars="showHealthBars"
                 :show-enemy-health-bars="showEnemyHealthBars"
                 :enemy-dying="!!cellStateByKey.get(c.key)?.enemyAnchor && isEnemyDying(cellStateByKey.get(c.key)!.enemyAnchor!.id)"
+                :enemy-defeated="!!cellStateByKey.get(c.key)?.enemyAnchor && isEnemyDefeated(cellStateByKey.get(c.key)!.enemyAnchor!.id)"
                 :player-teleporting="!!cellStateByKey.get(c.key)?.player && teleportingPlayerIds.has(cellStateByKey.get(c.key)!.player!.id)"
                 :enemy-animating="cellStateByKey.get(c.key)?.enemyAnchor?.id === animatingEnemyId"
                 @click="onCellClick(c.x, c.y)"
@@ -2630,8 +2625,7 @@ onUnmounted(() => {
       :open="breakerPromptOpen"
       :sethian-hint="breakerSethianHint"
       @close="onBreakerCancel"
-      @break-swarm="onBreakerBreakSwarm"
-      @attack-whole="onBreakerAttackWhole"
+      @confirm="onBreakerConfirm"
     />
 
     <SwarmChipModal

@@ -51,6 +51,7 @@ const props = defineProps<{
   showHealthBars: boolean;
   showEnemyHealthBars: boolean;
   enemyDying?: boolean;
+  enemyDefeated?: boolean;
   playerTeleporting?: boolean;
   enemyAnimating?: boolean;
 }>();
@@ -163,6 +164,7 @@ const showEnemyHpBar = computed(
       'pattern-recoil': cell.patternRecoil,
       'scaled-enemy-effects': scaledEnemyEffects,
       'enemy-dying': enemyDying,
+      'enemy-defeated': enemyDefeated,
     }"
     @click="emit('click')"
     @mouseenter="emit('hover')"
@@ -443,6 +445,12 @@ const showEnemyHpBar = computed(
 .cell.enemy-dying .effect-badges {
   pointer-events: none;
   animation: enemy-death-fade 0.75s ease-in-out 2.25s forwards;
+}
+
+.cell.enemy-defeated .piece.enemy,
+.cell.enemy-defeated .effect-badges {
+  opacity: 0;
+  pointer-events: none;
 }
 
 @keyframes enemy-death-fade {

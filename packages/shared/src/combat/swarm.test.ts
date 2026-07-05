@@ -94,7 +94,8 @@ describe("swarm", () => {
 
     const { brokenIds } = applyBreakerAttackToSwarm(state, [{ x: 2, y: 2 }], 10);
     expect(brokenIds).toContain("a");
-    expect(state.enemies.find((e) => e.id === "a")).toBeUndefined();
+    expect(state.enemies.find((e) => e.id === "a")?.hp).toBe(0);
+    expect(state.enemies.find((e) => e.id === "b")).toBeDefined();
   });
 
   it("previewSwarmEnemyAttack counts adjacent strikes", () => {

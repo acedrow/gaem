@@ -460,7 +460,7 @@ wss.on("connection", (ws: WebSocket) => {
           sendError(ws, "Only the game master can manage enemies");
           return;
         }
-        removeEnemy(gameState, parsed.enemyId, { entireSwarm: true });
+        removeEnemy(gameState, parsed.enemyId, { entireSwarm: parsed.entireSwarm ?? false });
         if ((enemy.hp ?? 0) > 0) {
           broadcastConsole(actorForSocket(ws), `removed ${enemyLabel(enemy)}`);
         }

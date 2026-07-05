@@ -1,33 +1,62 @@
 <script setup lang="ts">
+import { ref, watch } from "vue";
+
 import ModalDialog from "./ModalDialog.vue";
 
-defineProps<{
+const props = defineProps<{
   open: boolean;
   sethianHint?: string;
 }>();
 
 const emit = defineEmits<{
   close: [];
-  breakSwarm: [];
-  attackWhole: [];
+  confirm: [useBreaker: boolean];
 }>();
+
+const useBreaker = ref<boolean | null>(null);
+
+watch(
+  () => props.open,
+  (isOpen) => {
+    if (isOpen) useBreaker.value = null;
+  },
+);
+
+function onConfirm() {
+  if (useBreaker.value == null) return;
+  emit("confirm", useBreaker.value);
+}
 </script>
 
 <template>
-  <ModalDialog title="Breaker" :open="open" @close="emit('close')">
+  <ModalDialog
+    title="Breaker"
+    :open="open"
+    ok-label="Attack"
+    :ok-disabled="useBreaker == null"
+    @close="emit('close')"
+    @confirm="onConfirm"
+  >
     <p class="prompt">
       This attack targets a Swarm and your weapon has Breaker. How do you want to attack?
     </p>
     <p v-if="sethianHint" class="hint">{{ sethianHint }}</p>
     <div class="actions">
-      <button type="button" class="action-btn primary" @click="emit('breakSwarm')">
+      <button
+        type="button"
+        class="action-btn"
+        :class="{ selected: useBreaker === true }"
+        @click="useBreaker = true"
+      >
         Break swarm
       </button>
-      <button type="button" class="action-btn" @click="emit('attackWhole')">
+      <button
+        type="button"
+        class="action-btn"
+        :class="{ selected: useBreaker === false }"
+        @click="useBreaker = false"
+      >
         Attack as whole
-      </button>
-      <button type="button" class="action-btn muted" @click="emit('close')">
-        Cancel
       </button>
     </div>
   </ModalDialog>
@@ -64,13 +93,10 @@ const emit = defineEmits<{
   cursor: pointer;
 }
 
-.action-btn.primary {
+.action-btn.selected {
   border-color: var(--color-accent-muted);
   background: var(--color-accent-subtle-bg);
   color: var(--color-accent);
-}
-
-.action-btn.muted {
-  color: var(--color-muted);
+  font-weight: 600;
 }
 </style>

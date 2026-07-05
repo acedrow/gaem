@@ -36,6 +36,8 @@ export function enemyHasSwarmTrait(enemy: Pick<Enemy, "name">): boolean {
 }
 
 function swarmEligible(enemy: Enemy): boolean {
+  const max = getEnemyMaxHp(enemy);
+  if ((enemy.hp ?? max) <= 0) return false;
   return enemyHasSwarmTrait(enemy) && getEnemyScale(enemy) <= 1;
 }
 
@@ -179,7 +181,12 @@ export function reconcileSwarmHp(
   const splitMemberIds = new Set<string>();
 
   for (const prevIds of prevGroups.values()) {
-    const remaining = prevIds.filter((id) => state.enemies.some((e) => e.id === id));
+    const remaining = prevIds.filter((id) => {
+      const e = state.enemies.find((en) => en.id === id);
+      if (!e) return false;
+      const max = getEnemyMaxHp(e);
+      return (e.hp ?? max) > 0;
+    });
     if (remaining.length < 2) continue;
     const subs = findConnectedComponents(
       remaining.map((id) => state.enemies.find((e) => e.id === id)!).filter(Boolean),

@@ -218,7 +218,7 @@ export type ClientMessage =
   | { type: "resetMovement" }
   | { type: "moveEnemy"; enemyId: string; x: number; y: number; soloSwarmMember?: boolean }
   | { type: "addEnemy"; x: number; y: number; name?: string }
-  | { type: "removeEnemy"; enemyId: string }
+  | { type: "removeEnemy"; enemyId: string; entireSwarm?: boolean }
   | { type: "setPlayerHp"; playerId: string; hp: number }
   | { type: "setEnemyHp"; enemyId: string; hp: number }
   | {
