@@ -9,7 +9,7 @@ import { useInfoDataSelection } from "./useInfoDataSelection.js";
 
 export type BoardSelection =
   | { kind: "player"; id: string }
-  | { kind: "enemy"; id: string; swarmMemberIds?: string[] };
+  | { kind: "enemy"; id: string; swarmMemberIds?: string[]; soloSwarmMember?: boolean };
 
 const persisted = readPersistedUi();
 const boardSelection = ref<BoardSelection | null>(persisted.boardSelection);
@@ -25,6 +25,11 @@ export function useBoardSelection() {
 
   const selectedSwarmMemberIds = computed(() =>
     boardSelection.value?.kind === "enemy" ? boardSelection.value.swarmMemberIds : undefined,
+  );
+
+  const isSoloSwarmMemberSelected = computed(
+    () =>
+      boardSelection.value?.kind === "enemy" && boardSelection.value.soloSwarmMember === true,
   );
 
   function clearBoardSelection() {
@@ -75,6 +80,23 @@ export function useBoardSelection() {
     activeTab.value = "info";
   }
 
+  function selectBoardEnemyMember(enemyId: string) {
+    clearDataCategory();
+    const s = gameState.value;
+    const group = s ? swarmGroupForEnemy(s, enemyId) : null;
+    if (!group || group.size < 2) {
+      selectBoardEnemy(enemyId);
+      return;
+    }
+    boardSelection.value = {
+      kind: "enemy",
+      id: enemyId,
+      swarmMemberIds: [enemyId],
+      soloSwarmMember: true,
+    };
+    activeTab.value = "info";
+  }
+
   function selectSheetFromNav(sheetId: string) {
     clearDataCategory();
     selectSheet(sheetId);
@@ -89,6 +111,7 @@ export function useBoardSelection() {
   function isEnemySelected(enemyId: string): boolean {
     const sel = boardSelection.value;
     if (sel?.kind !== "enemy") return false;
+    if (sel.soloSwarmMember) return sel.id === enemyId;
     if (sel.id === enemyId) return true;
     return sel.swarmMemberIds?.includes(enemyId) ?? false;
   }
@@ -97,10 +120,12 @@ export function useBoardSelection() {
     boardSelection,
     selectedEnemyId,
     selectedSwarmMemberIds,
+    isSoloSwarmMemberSelected,
     clearBoardSelection,
     closeRightPanel,
     selectBoardPlayer,
     selectBoardEnemy,
+    selectBoardEnemyMember,
     toggleBoardEnemy,
     selectSheetFromNav,
     isPlayerSelected,

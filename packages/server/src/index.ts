@@ -295,6 +295,7 @@ function broadcastState(): void {
     ws.send(JSON.stringify(msg));
   }
   delete gameState.damageEvents;
+  delete gameState.silentHpEnemyIds;
 }
 
 function actorForAuth(auth: { role: GaemRole; playerKey: string | null }): ConsoleActor {
@@ -470,12 +471,16 @@ wss.on("connection", (ws: WebSocket) => {
         }
         if (parsed.type === "moveEnemy") {
           const enemy = gameState.enemies.find((e) => e.id === parsed.enemyId);
-          const err = validateEnemyMove(gameState, parsed.enemyId, parsed.x, parsed.y);
+          const err = validateEnemyMove(gameState, parsed.enemyId, parsed.x, parsed.y, {
+            soloSwarmMember: parsed.soloSwarmMember,
+          });
           if (err) {
             sendError(ws, err);
             return;
           }
-          applyEnemyMove(gameState, parsed.enemyId, parsed.x, parsed.y);
+          applyEnemyMove(gameState, parsed.enemyId, parsed.x, parsed.y, {
+            soloSwarmMember: parsed.soloSwarmMember,
+          });
           if (enemy) {
             broadcastConsole(actorForSocket(ws), `moved ${enemyLabel(enemy)} to (${parsed.x}, ${parsed.y})`);
           }

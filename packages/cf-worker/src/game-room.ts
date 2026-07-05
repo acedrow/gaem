@@ -275,12 +275,16 @@ export class GameRoom {
         }
         if (parsed.type === "moveEnemy") {
           const enemy = this.gameState.enemies.find((e) => e.id === parsed.enemyId);
-          const err = validateEnemyMove(this.gameState, parsed.enemyId, parsed.x, parsed.y);
+          const err = validateEnemyMove(this.gameState, parsed.enemyId, parsed.x, parsed.y, {
+            soloSwarmMember: parsed.soloSwarmMember,
+          });
           if (err) {
             this.sendError(ws, err);
             return;
           }
-          applyEnemyMove(this.gameState, parsed.enemyId, parsed.x, parsed.y);
+          applyEnemyMove(this.gameState, parsed.enemyId, parsed.x, parsed.y, {
+            soloSwarmMember: parsed.soloSwarmMember,
+          });
           if (enemy) {
             const actor = await this.actorForSocket(ws);
             this.broadcastConsole(actor, `moved ${enemyLabel(enemy)} to (${parsed.x}, ${parsed.y})`);
@@ -593,6 +597,7 @@ export class GameRoom {
   private async broadcastState(): Promise<void> {
     const stored = structuredClone(this.gameState);
     delete stored.damageEvents;
+    delete stored.silentHpEnemyIds;
     await this.ctx.storage.put(GAME_STATE_KEY, stored);
     const snapshot = structuredClone(this.gameState);
     for (const socket of this.ctx.getWebSockets()) {
@@ -606,6 +611,7 @@ export class GameRoom {
       socket.send(JSON.stringify(msg));
     }
     delete this.gameState.damageEvents;
+    delete this.gameState.silentHpEnemyIds;
   }
 
   private activeProfileIds(): string[] {

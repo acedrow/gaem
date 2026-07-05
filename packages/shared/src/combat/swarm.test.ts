@@ -1,18 +1,22 @@
 import { describe, expect, it } from "vitest";
 import {
+  applySwarmMemberMove,
   buildSwarmGroups,
   getEffectiveEnemyHp,
   getSwarmMaxHp,
   getSwarmMemberHp,
   reconcileSwarmHp,
   swarmChipEligibleTargets,
+  validateSwarmMemberMove,
+  markSwarmChipResolved,
 } from "./swarm.js";
 import {
   applyBreakerAttackToSwarm,
   previewSwarmEnemyAttack,
   SETHIAN_DAMAGE_CAP,
 } from "./attack.js";
-import { addEnemy } from "../game.js";
+import { addEnemy, getEnemyMaxHp } from "../game.js";
+import { createDefaultCombatState } from "../combat/types.js";
 import { addTestEnemy, addTestPlayer, makeGameState } from "../test/fixtures.js";
 
 const SWARM_NAME = "Scorned Eyes";
@@ -114,5 +118,26 @@ describe("swarm", () => {
 
   it("SETHIAN_DAMAGE_CAP is 132", () => {
     expect(SETHIAN_DAMAGE_CAP).toBe(132);
+  });
+
+  it("validateSwarmMemberMove allows rearrange and break-away moves", () => {
+    const state = makeGameState();
+    addTestEnemy(state, "a", 2, 2, { name: SWARM_NAME });
+    addTestEnemy(state, "b", 3, 2, { name: SWARM_NAME });
+    addTestEnemy(state, "c", 4, 2, { name: SWARM_NAME });
+    reconcileSwarmHp(state);
+    state.roundPhase = "gmTurn";
+    state.turn = { role: "gm" };
+    state.combat = createDefaultCombatState(0);
+    markSwarmChipResolved(state, "a");
+
+    expect(validateSwarmMemberMove(state, "a", 2, 1)).toBeNull();
+    applySwarmMemberMove(state, "a", 2, 1);
+    const soloA = state.enemies.find((e) => e.id === "a")!;
+    expect(soloA.hp).toBe(getEnemyMaxHp(soloA));
+    expect(state.enemies.find((e) => e.id === "b")!.hp).toBe(20);
+    const groups = buildSwarmGroups(state);
+    expect(groups.size).toBe(1);
+    expect([...groups.values()][0]!.sort()).toEqual(["b", "c"]);
   });
 });

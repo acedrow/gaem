@@ -59,6 +59,9 @@ import {
   getArmorByName,
   tilesOnSegment,
   TOWER_IATROS,
+  canSwarmMemberReachDest,
+  getSwarmMemberHp,
+  getSwarmMaxHp,
   swarmGroupForEnemy,
   swarmFringeTiles,
   pickSwarmMoveMember,
@@ -127,9 +130,11 @@ const {
   clearBoardSelection,
   selectBoardPlayer,
   selectBoardEnemy,
+  selectBoardEnemyMember,
   toggleBoardEnemy,
   isPlayerSelected,
   isEnemySelected,
+  isSoloSwarmMemberSelected,
 } = useBoardSelection();
 
 const selectedPlayerId = computed(() =>
@@ -876,6 +881,31 @@ const gmEnemyMoveTargetKeys = computed(() => {
   if (!enemy || enemy.exhausted || isTowerEnemy(enemy)) return keys;
 
   const group = swarmGroupForEnemy(s, id);
+  const occ = occupancy.value ?? undefined;
+
+  if (group && isSoloSwarmMemberSelected.value) {
+    if (!isSandboxMode(s) && getSwarmMovementRemaining(s, group.memberIds) < 1) return keys;
+    for (const tile of swarmFringeTiles(s, group.memberIds, occ)) {
+      if (canSwarmMemberReachDest(s, id, tile.x, tile.y, occ)) {
+        keys.add(boardCellKey(tile.x, tile.y));
+      }
+    }
+    const deltas = [
+      { dx: 0, dy: -1 },
+      { dx: 0, dy: 1 },
+      { dx: -1, dy: 0 },
+      { dx: 1, dy: 0 },
+    ];
+    for (const { dx, dy } of deltas) {
+      const destX = enemy.x + dx;
+      const destY = enemy.y + dy;
+      if (canSwarmMemberReachDest(s, id, destX, destY, occ)) {
+        keys.add(boardCellKey(destX, destY));
+      }
+    }
+    return keys;
+  }
+
   if (group) {
     if (!isSandboxMode(s) && getSwarmMovementRemaining(s, group.memberIds) < 1) return keys;
     for (const tile of swarmFringeTiles(s, group.memberIds, occupancy.value ?? undefined)) {
@@ -1081,13 +1111,28 @@ const cellStateByKey = computed(() => {
       enemyAnchor,
       enemyHp:
         enemyAnchor && s && props.role === "gm"
-          ? {
-              currentHp: getEffectiveEnemyHp(enemyAnchor, s),
-              maxHp: getEffectiveEnemyMaxHp(enemyAnchor, s),
-            }
+          ? (() => {
+              const group = swarmGroupForEnemy(s, enemyAnchor.id);
+              if (
+                isSoloSwarmMemberSelected.value &&
+                selectedEnemyId.value === enemyAnchor.id &&
+                group &&
+                group.size > 1
+              ) {
+                const memberHp = getSwarmMemberHp(getEffectiveEnemyHp(enemyAnchor, s), group.size);
+                return { currentHp: memberHp, maxHp: getSwarmMaxHp(1) };
+              }
+              return {
+                currentHp: getEffectiveEnemyHp(enemyAnchor, s),
+                maxHp: getEffectiveEnemyMaxHp(enemyAnchor, s),
+              };
+            })()
           : undefined,
       showSwarmHp: (() => {
         if (!enemyAnchor || !s) return true;
+        if (isSoloSwarmMemberSelected.value && selectedEnemyId.value === enemyAnchor.id) {
+          return true;
+        }
         const group = swarmGroupForEnemy(s, enemyAnchor.id);
         if (!group) return true;
         return swarmCanonicalDisplayId(s, group.memberIds) === enemyAnchor.id;
@@ -1136,19 +1181,20 @@ const tooltipData = computed(() => {
     if (!anchor || isTowerEnemy(anchor)) return null;
     const group = swarmGroupForEnemy(s, anchor.id);
     const baseName = anchor.name ?? "Enemy";
-    const displayName =
-      group && group.size > 1 ? `${baseName} (Swarm · ${group.size})` : baseName;
     if (group && group.size > 1) {
+      const solo =
+        isSoloSwarmMemberSelected.value && selectedEnemyId.value === anchor.id;
+      const memberHp = getSwarmMemberHp(group.currentHp, group.size);
       return {
         ...anchor,
-        displayName,
-        displayHp: group.currentHp,
-        displayMaxHp: group.maxHp,
+        displayName: solo ? `${baseName} (Swarm member)` : `${baseName} (Swarm · ${group.size})`,
+        displayHp: solo ? memberHp : group.currentHp,
+        displayMaxHp: solo ? getSwarmMaxHp(1) : group.maxHp,
       };
     }
     return {
       ...anchor,
-      displayName,
+      displayName: baseName,
       displayHp: getEffectiveEnemyHp(anchor, s),
       displayMaxHp: getEffectiveEnemyMaxHp(anchor, s),
     };
@@ -1418,6 +1464,15 @@ function tryMoveSelectedEnemyToDest(destX: number, destY: number): boolean {
   if (!canGmMoveEnemies(s)) return false;
 
   const group = swarmGroupForEnemy(s, selected);
+  if (group && isSoloSwarmMemberSelected.value) {
+    if (!canSwarmMemberReachDest(s, selected, destX, destY, occupancy.value ?? undefined)) {
+      return false;
+    }
+    const mover = s.enemies.find((e) => e.id === selected)!;
+    startEnemyMove(selected, { x: mover.x, y: mover.y }, { x: destX, y: destY });
+    send({ type: "moveEnemy", enemyId: selected, x: destX, y: destY, soloSwarmMember: true });
+    return true;
+  }
   if (group) {
     const moverId = pickSwarmMoveMember(s, group.memberIds, destX, destY);
     if (!moverId) return false;
@@ -1455,12 +1510,30 @@ function handleKataptyPick(enemyId: string): boolean {
   return true;
 }
 
+let enemyClickTimer: ReturnType<typeof setTimeout> | null = null;
+
 function onEnemyCellClick(x: number, y: number, enemyId: string) {
   if (boardActionMode.value === "attack" && handleAttackCellClick(x, y, enemyId)) return;
   if (boardActionMode.value === "omnistrike" && handleOmnistrikeCellClick(x, y)) return;
   if (boardActionMode.value === "warhook" && handleWarhookCellClick(x, y)) return;
   if (boardActionMode.value === "kataptyPick" && handleKataptyPick(enemyId)) return;
-  toggleBoardEnemy(enemyId);
+  if (enemyClickTimer) clearTimeout(enemyClickTimer);
+  enemyClickTimer = setTimeout(() => {
+    enemyClickTimer = null;
+    toggleBoardEnemy(enemyId);
+  }, 250);
+}
+
+function onEnemyCellDblClick(_x: number, _y: number, enemyId: string) {
+  if (enemyClickTimer) {
+    clearTimeout(enemyClickTimer);
+    enemyClickTimer = null;
+  }
+  const s = gameState.value;
+  if (props.role !== "gm" || !s) return;
+  const group = swarmGroupForEnemy(s, enemyId);
+  if (!group || group.size < 2) return;
+  selectBoardEnemyMember(enemyId);
 }
 
 function selectOccupantAt(x: number, y: number): boolean {
@@ -2418,6 +2491,7 @@ onUnmounted(() => {
                 @unhover="onCellUnhover"
                 @player-click="onBoardPlayerClick(c.x, c.y, cellStateByKey.get(c.key)!.player!.id, cellStateByKey.get(c.key)!.player!.characterSheetId)"
                 @enemy-click="onEnemyCellClick(c.x, c.y, cellStateByKey.get(c.key)!.enemyAnchor!.id)"
+                @enemy-dblclick="onEnemyCellDblClick(c.x, c.y, cellStateByKey.get(c.key)!.enemyAnchor!.id)"
                 @deploy-pointer-down="onDeployPointerDown($event, cellStateByKey.get(c.key)!.player!)"
               />
           </div>

@@ -23,6 +23,7 @@ import {
   reconcileSwarmHp,
   swarmEnemyStrikeCap,
   swarmGroupForEnemy,
+  swarmCanonicalDisplayId,
   swarmMembersHitByTiles,
 } from "./swarm.js";
 import { isOrthogonallyAdjacent } from "../patterns.js";
@@ -264,7 +265,12 @@ export function resolveAttackDamage(
   return parseAndRollDamage(spec.damage);
 }
 
-export function applyDamageToEnemy(enemy: Enemy, damage: number, state?: GameState): number {
+export function applyDamageToEnemy(
+  enemy: Enemy,
+  damage: number,
+  state?: GameState,
+  opts?: { recordDamage?: boolean },
+): number {
   const maxHp = state ? getEffectiveEnemyMaxHp(enemy, state) : getEnemyMaxHp(enemy);
   const before = enemy.hp ?? maxHp;
   const adjusted = applyBleedBonus(damage, enemy.effects);
@@ -279,8 +285,28 @@ export function applyDamageToEnemy(enemy: Enemy, damage: number, state?: GameSta
     } else {
       enemy.hp = newHp;
     }
-    if (!state.damageEvents) state.damageEvents = [];
-    state.damageEvents.push({ x: enemy.x, y: enemy.y, amount: adjusted });
+    if (opts?.recordDamage !== false) {
+      if (!state.damageEvents) state.damageEvents = [];
+      if (group) {
+        const displayId = swarmCanonicalDisplayId(state, group.memberIds);
+        const anchor = state.enemies.find((e) => e.id === displayId) ?? enemy;
+        let merged = false;
+        for (const evt of state.damageEvents) {
+          const atEnemy = state.enemies.find((e) => e.x === evt.x && e.y === evt.y);
+          const evtGroup = atEnemy ? swarmGroupForEnemy(state, atEnemy.id) : null;
+          if (evtGroup?.canonicalId === group.canonicalId) {
+            evt.amount += adjusted;
+            merged = true;
+            break;
+          }
+        }
+        if (!merged) {
+          state.damageEvents.push({ x: anchor.x, y: anchor.y, amount: adjusted });
+        }
+      } else {
+        state.damageEvents.push({ x: enemy.x, y: enemy.y, amount: adjusted });
+      }
+    }
   } else {
     enemy.hp = newHp;
   }

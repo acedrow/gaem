@@ -159,6 +159,7 @@ export type GameState = {
   sandboxMode?: boolean;
   combat?: CombatState;
   damageEvents?: DamageEvent[];
+  silentHpEnemyIds?: string[];
   partyResources?: PartyResources;
   constructedBaseUpgrades?: string[];
 };
@@ -215,7 +216,7 @@ export type ClientMessage =
   | { type: "move"; x: number; y: number }
   | { type: "movePath"; path: { x: number; y: number }[] }
   | { type: "resetMovement" }
-  | { type: "moveEnemy"; enemyId: string; x: number; y: number }
+  | { type: "moveEnemy"; enemyId: string; x: number; y: number; soloSwarmMember?: boolean }
   | { type: "addEnemy"; x: number; y: number; name?: string }
   | { type: "removeEnemy"; enemyId: string }
   | { type: "setPlayerHp"; playerId: string; hp: number }

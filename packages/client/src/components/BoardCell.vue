@@ -61,6 +61,7 @@ const emit = defineEmits<{
   unhover: [];
   playerClick: [];
   enemyClick: [];
+  enemyDblclick: [];
   deployPointerDown: [event: PointerEvent];
 }>();
 
@@ -189,6 +190,7 @@ const showEnemyHpBar = computed(
             : undefined,
       ]"
       @click.stop="emit('enemyClick')"
+      @dblclick.stop="emit('enemyDblclick')"
     >
       <img
         v-if="cell.enemyPortraitUrl && cell.enemyAnchor.kind !== 'tower'"

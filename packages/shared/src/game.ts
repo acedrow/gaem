@@ -15,6 +15,8 @@ import {
   swarmGroupForEnemy,
   validateSwarmMove,
   applySwarmMove,
+  validateSwarmMemberMove,
+  applySwarmMemberMove,
   enemyHasSwarmTrait,
   getEffectiveEnemyMaxHp,
   requireSwarmChipResolved,
@@ -704,6 +706,7 @@ export function validateEnemyMove(
   enemyId: string,
   toX: number,
   toY: number,
+  opts?: { soloSwarmMember?: boolean },
 ): string | null {
   const enemy = state.enemies.find((e) => e.id === enemyId);
   if (!enemy) return "Unknown enemy";
@@ -711,6 +714,7 @@ export function validateEnemyMove(
   if (swarmGroupForEnemy(state, enemyId)) {
     const chipErr = requireSwarmChipResolved(state, enemyId);
     if (chipErr) return chipErr;
+    if (opts?.soloSwarmMember) return validateSwarmMemberMove(state, enemyId, toX, toY);
     return validateSwarmMove(state, enemyId, toX, toY);
   }
 
@@ -734,8 +738,13 @@ export function applyEnemyMove(
   enemyId: string,
   toX: number,
   toY: number,
+  opts?: { soloSwarmMember?: boolean },
 ): void {
   if (swarmGroupForEnemy(state, enemyId)) {
+    if (opts?.soloSwarmMember) {
+      applySwarmMemberMove(state, enemyId, toX, toY);
+      return;
+    }
     applySwarmMove(state, enemyId, toX, toY);
     return;
   }

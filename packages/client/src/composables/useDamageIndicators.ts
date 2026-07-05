@@ -1,5 +1,10 @@
 import type { GameState } from "@gaem/shared";
-import { getEnemyMaxHp, getPlayerMaxHp } from "@gaem/shared";
+import {
+  getEnemyMaxHp,
+  getPlayerMaxHp,
+  swarmCanonicalDisplayId,
+  swarmGroupForEnemy,
+} from "@gaem/shared";
 import type { Ref } from "vue";
 import { onUnmounted, ref, watch } from "vue";
 
@@ -47,17 +52,34 @@ export function useDamageIndicators(gameState: Ref<GameState | null>) {
       prev = null;
       return;
     }
+    const silent = new Set(state.silentHpEnemyIds ?? []);
     if (state.damageEvents?.length) {
       for (const evt of state.damageEvents) {
         addIndicator(evt.x, evt.y, evt.amount);
       }
     } else if (prev) {
       const next = snapshotUnitHp(state);
+      const seenSwarmKeys = new Set<string>();
       for (const [key, cur] of next) {
         const old = prev.get(key);
         if (!old) continue;
         const delta = old.hp - cur.hp;
-        if (delta > 0) addIndicator(cur.x, cur.y, delta);
+        if (delta <= 0) continue;
+        if (key.startsWith("e:")) {
+          const enemyId = key.slice(2);
+          if (silent.has(enemyId)) continue;
+          const group = swarmGroupForEnemy(state, enemyId);
+          if (group) {
+            const swarmKey = group.canonicalId;
+            if (seenSwarmKeys.has(swarmKey)) continue;
+            seenSwarmKeys.add(swarmKey);
+            const displayId = swarmCanonicalDisplayId(state, group.memberIds);
+            const anchor = state.enemies.find((e) => e.id === displayId);
+            if (anchor) addIndicator(anchor.x, anchor.y, delta);
+            continue;
+          }
+        }
+        addIndicator(cur.x, cur.y, delta);
       }
       prev = next;
       return;

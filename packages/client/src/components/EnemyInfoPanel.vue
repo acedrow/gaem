@@ -6,6 +6,8 @@ import {
   getEnemySpeed,
   getEffectiveEnemyHp,
   getEffectiveEnemyMaxHp,
+  getSwarmMemberHp,
+  getSwarmMaxHp,
   getSwarmMovementRemaining,
   isDirectTargetEnemyAttack,
   isTowerEnemy,
@@ -38,7 +40,7 @@ const { enemyPortraitUrl } = useApi();
 const { portraitBackgroundFor, colors: enemyPortraitColors } = useEnemyPortraitColors();
 const { showGmCombatUi } = useCombatActions();
 const { gameState, send } = useGameState();
-const { closeRightPanel } = useBoardSelection();
+const { closeRightPanel, boardSelection } = useBoardSelection();
 const { startGmEnemyAttack, startGmSwarmAttack } = useBoardActionMode();
 const { goBackFromDataFocus } = useInfoDataSelection();
 const { selectedSpawnEnemyName, selectSpawnEnemy } = useEnemySpawnSelection();
@@ -71,9 +73,17 @@ const swarmGroup = computed(() => {
   return swarmGroupForEnemy(s, id);
 });
 
+const soloSwarmMember = computed(
+  () =>
+    boardSelection.value?.kind === "enemy" &&
+    boardSelection.value.soloSwarmMember === true &&
+    boardSelection.value.id === props.enemyId,
+);
+
 const displayName = computed(() => {
   const group = swarmGroup.value;
   const listingName = listing.value?.name ?? activeEnemy.value?.name ?? props.enemyName ?? "Enemy";
+  if (soloSwarmMember.value && group) return `${listingName} (Swarm member)`;
   if (group && group.size > 1) return `${listingName} (Swarm · ${group.size})`;
   return listingName;
 });
@@ -81,12 +91,20 @@ const maxHp = computed(() => {
   const s = gameState.value;
   const enemy = activeEnemy.value;
   if (!s || !enemy) return listing.value?.hp ?? 0;
+  const group = swarmGroup.value;
+  if (soloSwarmMember.value && group) {
+    return getSwarmMaxHp(1);
+  }
   return getEffectiveEnemyMaxHp(enemy, s);
 });
 const currentHp = computed(() => {
   const s = gameState.value;
   const enemy = activeEnemy.value;
   if (!s || !enemy) return 0;
+  const group = swarmGroup.value;
+  if (soloSwarmMember.value && group) {
+    return getSwarmMemberHp(getEffectiveEnemyHp(enemy, s), group.size);
+  }
   return getEffectiveEnemyHp(enemy, s);
 });
 const showHpBar = computed(() => isGm.value && !!activeEnemy.value);
@@ -244,6 +262,13 @@ function spawnUnit() {
           </button>
           <p class="swarm-attack-hint">Select a target on the board, then choose how many strikes.</p>
         </div>
+
+        <p v-if="isInSwarm && activeEnemy && !soloSwarmMember" class="swarm-member-hint">
+          Double-click a swarm tile to select a single member.
+        </p>
+        <p v-if="soloSwarmMember" class="swarm-member-hint">
+          Move this member to rearrange the swarm or break it away from the group.
+        </p>
 
         <div v-if="listing" class="stats">
           <span v-if="!showHpBar" class="stat">HP: {{ listing.hp }}</span>
@@ -424,6 +449,13 @@ function spawnUnit() {
 }
 
 .swarm-attack-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  line-height: 1.4;
+}
+
+.swarm-member-hint {
   margin: 0;
   font-size: 0.75rem;
   color: var(--color-muted);

@@ -363,6 +363,120 @@ export function pickSwarmMoveMember(
   return best?.id ?? null;
 }
 
+export function canSwarmMemberReachDest(
+  state: GameState,
+  memberId: string,
+  destX: number,
+  destY: number,
+  occupancy?: BoardOccupancy,
+): boolean {
+  const group = swarmGroupForEnemy(state, memberId);
+  if (!group) return false;
+  const member = state.enemies.find((e) => e.id === memberId);
+  if (!member) return false;
+  if (validateEnemyFootprint(state, destX, destY, getEnemyScale(member), memberId, occupancy) !== null) {
+    return false;
+  }
+  const remaining = group.memberIds.filter((id) => id !== memberId);
+  const afterMove = [
+    ...swarmMemberPositions(state, remaining).map((p) => ({ x: p.x, y: p.y })),
+    { x: destX, y: destY },
+  ];
+  if (remaining.length === 0) return true;
+  if (isSwarmConnected(afterMove)) return true;
+  return isOrthogonallyAdjacent({ x: member.x, y: member.y }, { x: destX, y: destY });
+}
+
+export function validateSwarmMemberMove(
+  state: GameState,
+  memberId: string,
+  destX: number,
+  destY: number,
+  occupancy?: BoardOccupancy,
+): string | null {
+  const group = swarmGroupForEnemy(state, memberId);
+  if (!group) return "Not in a swarm";
+
+  if (!canGmMoveEnemies(state)) return "Not GM turn";
+
+  const member = state.enemies.find((e) => e.id === memberId);
+  if (!member) return "Unknown enemy";
+  if (!isSandboxMode(state) && member.exhausted) return "Enemy has ended turn";
+
+  const chipErr = requireSwarmChipResolved(state, memberId);
+  if (chipErr) return chipErr;
+
+  if (!canSwarmMemberReachDest(state, memberId, destX, destY, occupancy)) {
+    return "Invalid destination";
+  }
+
+  if (!isSandboxMode(state)) {
+    if (getSwarmMovementRemaining(state, group.memberIds) < 1) return "Not enough movement";
+  }
+
+  return null;
+}
+
+function memberStaysInSwarmAfterMove(
+  state: GameState,
+  memberId: string,
+  memberIds: string[],
+  destX: number,
+  destY: number,
+): boolean {
+  const remaining = memberIds.filter((id) => id !== memberId);
+  if (remaining.length === 0) return false;
+  const afterMove = [
+    ...swarmMemberPositions(state, remaining).map((p) => ({ x: p.x, y: p.y })),
+    { x: destX, y: destY },
+  ];
+  return isSwarmConnected(afterMove);
+}
+
+function markSilentHpEnemyIds(state: GameState, enemyIds: string[]): void {
+  if (!enemyIds.length) return;
+  if (!state.silentHpEnemyIds) state.silentHpEnemyIds = [];
+  for (const id of enemyIds) {
+    if (!state.silentHpEnemyIds.includes(id)) state.silentHpEnemyIds.push(id);
+  }
+}
+
+export function applySwarmMemberMove(
+  state: GameState,
+  memberId: string,
+  destX: number,
+  destY: number,
+): void {
+  const prevGroups = buildSwarmGroups(state);
+  const group = swarmGroupForEnemy(state, memberId);
+  if (!group) return;
+  const member = state.enemies.find((e) => e.id === memberId);
+  if (!member) return;
+  const prevMemberIds = [...group.memberIds];
+  const prevHp = group.currentHp;
+  const staysInSwarm = memberStaysInSwarmAfterMove(state, memberId, prevMemberIds, destX, destY);
+  if (!isSandboxMode(state)) spendSwarmMovement(state, group.memberIds, 1);
+  member.x = destX;
+  member.y = destY;
+  reconcileSwarmHp(state, prevGroups);
+  if (!staysInSwarm) {
+    member.hp = getEnemyMaxHp(member);
+    for (const id of prevMemberIds) {
+      if (id === memberId) continue;
+      const g = swarmGroupForEnemy(state, id);
+      if (g && g.size >= 2) {
+        const hp = clampHp(prevHp, getSwarmMaxHp(g.size));
+        for (const mid of g.memberIds) {
+          const e = state.enemies.find((en) => en.id === mid);
+          if (e) e.hp = hp;
+        }
+        break;
+      }
+    }
+  }
+  markSilentHpEnemyIds(state, prevMemberIds);
+}
+
 export function validateSwarmMove(
   state: GameState,
   anchorEnemyId: string,
