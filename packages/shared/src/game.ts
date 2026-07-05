@@ -27,6 +27,8 @@ import {
   clearMurielPassedEnemies,
   tickProvokeRangeGear,
 } from "./combat/provoke.js";
+import { grantVarunastraGearCheck, applyAttractorEndOfTurnPulls } from "./combat/attractor.js";
+import { applyMovementStepHooks } from "./combat/class-abilities.js";
 
 export type BoardOccupancy = {
   playerByKey: Map<string, Player>;
@@ -233,6 +235,14 @@ function beginPlayerTurn(state: GameState, playerId: string): string {
       if (Object.keys(player.counters).length === 0) delete player.counters;
     }
     clearMurielPassedEnemies(state, playerId);
+    if (player.counters?.movedThisTurn != null) {
+      delete player.counters.movedThisTurn;
+      if (Object.keys(player.counters).length === 0) delete player.counters;
+    }
+    if (player.counters?.assistedLaunchUsed != null) {
+      delete player.counters.assistedLaunchUsed;
+      if (Object.keys(player.counters).length === 0) delete player.counters;
+    }
   }
   return `${playerLabel(player!)} took their turn`;
 }
@@ -258,11 +268,15 @@ function finishPlayerTurn(state: GameState, playerId: string, suffix = "ended th
     if (!isSandboxMode(state)) tickWarhookBlazingImmunity(player);
   }
   const yadathanMsgs = player ? resolveYadathanEndOfTurn(state, player) : [];
+  const gearCheckMsgs = player ? grantVarunastraGearCheck(state, player) : [];
+  const attractorEndMsgs = player ? applyAttractorEndOfTurnPulls(state, player, "player") : [];
   state.roundPhase = "gmTurn";
   state.turn = { role: "gm" };
   let msg = `${playerLabel(player!)} ${suffix}`;
   if (ticks.length) msg += `. ${ticks.join("; ")}`;
   if (yadathanMsgs.length) msg += `. ${yadathanMsgs.join("; ")}`;
+  if (gearCheckMsgs.length) msg += `. ${gearCheckMsgs.join("; ")}`;
+  if (attractorEndMsgs.length) msg += `. ${attractorEndMsgs.join("; ")}`;
   return msg;
 }
 
@@ -752,25 +766,33 @@ export function applyEnemyMove(
   if (!enemy) return "";
 
   const triggers = previewEnemyMoveProvokes(state, enemyId, toX, toY, opts);
+  const hookResult = applyMovementStepHooks(state, enemy, toX, toY, "enemy");
   let provokeMsg = "";
   if (triggers.length) {
     provokeMsg = applyProvokeAndFormat(state, { kind: "enemy", enemy }, triggers);
+  }
+  if (hookResult.interrupt) {
+    const hookMsg = hookResult.messages.join("; ");
+    return hookMsg + (provokeMsg ? `; ${provokeMsg}` : "") + " (movement interrupted)";
   }
 
   if (swarmGroupForEnemy(state, enemyId)) {
     if (opts?.soloSwarmMember) {
       applySwarmMemberMove(state, enemyId, toX, toY);
-      return provokeMsg;
+      const hookMsg = hookResult.messages.length ? hookResult.messages.join("; ") + "; " : "";
+      return hookMsg + provokeMsg;
     }
     applySwarmMove(state, enemyId, toX, toY);
-    return provokeMsg;
+    const hookMsg = hookResult.messages.length ? hookResult.messages.join("; ") + "; " : "";
+    return hookMsg + provokeMsg;
   }
   const prevGroups = buildSwarmGroups(state);
   if (!isSandboxMode(state)) spendEnemyMovement(enemy, 1);
   enemy.x = toX;
   enemy.y = toY;
   reconcileSwarmHp(state, prevGroups);
-  return provokeMsg;
+  const hookMsg = hookResult.messages.length ? hookResult.messages.join("; ") + "; " : "";
+  return hookMsg + provokeMsg;
 }
 
 export function validateAddEnemy(
@@ -891,6 +913,7 @@ export function syncPlayerSheet(
   gear?: string,
   weapon2?: string,
   yadathanTower?: string,
+  gearArmor?: string,
 ): string | null {
   const player = state.players.find((p) => p.characterSheetId === characterSheetId);
   if (!player) return "Player not on board";
@@ -900,6 +923,7 @@ export function syncPlayerSheet(
     weapon: weapon ?? player.weapon ?? "",
     equipment: equipment ?? player.equipment,
     gear: gear ?? player.gear,
+    gearArmor: gearArmor ?? player.gearArmor,
     weapon2: weapon2 ?? player.weapon2,
     yadathanTower,
   });

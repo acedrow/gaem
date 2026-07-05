@@ -39,39 +39,45 @@ function toggleDetail() {
   <div class="gear-field">
     <div class="gear-field-card" :class="{ expanded: detailOpen }">
       <div
-        class="field-row stacked"
-        :class="{ expanded: detailOpen }"
+        class="field-row"
+        :class="{
+          stacked: kind !== 'classes' && kind !== 'armor',
+          inline: kind === 'classes' || kind === 'armor',
+          expanded: detailOpen,
+        }"
       >
-        <div class="field-heading">
-          <span class="field-label">{{ label }}:</span>
-          <div class="field-heading-actions">
-            <button
-              v-if="item"
-              type="button"
-              class="detail-toggle"
-              :aria-expanded="detailOpen"
-              :aria-label="`${detailOpen ? 'Hide' : 'Show'} ${label.toLowerCase()} details`"
-              @click="toggleDetail"
-            >
-              <span class="chevron" aria-hidden="true">{{ detailOpen ? "▾" : "▸" }}</span>
-            </button>
-            <button
-              v-if="canEdit"
-              type="button"
-              class="edit-btn"
-              :aria-label="`Change ${label.toLowerCase()}`"
-              @click="emit('startEdit')"
-            >
-              <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
-                <path
-                  d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.387 8.387L2.5 14.5l1.126-3.666 8.387-8.387z"
-                  fill="currentColor"
-                />
-              </svg>
-            </button>
-          </div>
-        </div>
+        <span class="field-label">{{ label }}:</span>
         <span class="field-value">{{ value || "—" }}</span>
+        <div class="field-heading-actions">
+          <button
+            v-if="canEdit"
+            type="button"
+            class="edit-btn"
+            :aria-label="`Change ${label.toLowerCase()}`"
+            @click="emit('startEdit')"
+          >
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+              <path
+                d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.387 8.387L2.5 14.5l1.126-3.666 8.387-8.387z"
+                fill="currentColor"
+              />
+            </svg>
+          </button>
+          <button
+            v-if="item"
+            type="button"
+            class="detail-toggle"
+            :aria-expanded="detailOpen"
+            :aria-label="`${detailOpen ? 'Hide' : 'Show'} ${label.toLowerCase()} details`"
+            @click="toggleDetail"
+          >
+            <span class="chevron" aria-hidden="true">{{ detailOpen ? "▾" : "▸" }}</span>
+          </button>
+        </div>
+      </div>
+
+      <div v-if="$slots.subline" class="field-subline">
+        <slot name="subline" />
       </div>
 
       <div v-if="$slots.actions" class="field-actions">
@@ -112,16 +118,15 @@ function toggleDetail() {
 
 .field-row.stacked {
   display: grid;
-  grid-template-columns: 1fr;
-  align-items: start;
+  grid-template-columns: 1fr auto;
+  align-items: center;
   row-gap: 0.15rem;
 }
 
-.field-heading {
+.field-row.inline {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  width: 100%;
+  gap: 0.35rem;
   min-height: 1.35rem;
 }
 
@@ -137,11 +142,26 @@ function toggleDetail() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 600;
 }
 
-.field-row.stacked .field-heading {
+.field-row.stacked .field-label {
   grid-column: 1;
   grid-row: 1;
+}
+
+.field-row.stacked .field-heading-actions {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.field-row.stacked .field-value {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+.field-row.inline .field-value {
+  flex: 1;
 }
 
 .field-heading-actions {
@@ -150,9 +170,11 @@ function toggleDetail() {
   flex-shrink: 0;
 }
 
-.field-row.stacked .field-value {
-  grid-column: 1;
-  grid-row: 2;
+.field-subline {
+  margin-top: 0.1rem;
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  font-weight: 600;
 }
 
 .field-row.expanded .field-value {
@@ -165,7 +187,6 @@ function toggleDetail() {
 .detail-toggle {
   flex-shrink: 0;
   display: grid;
-  place-items: center;
   width: 1.35rem;
   height: 1.35rem;
   border: none;
@@ -183,7 +204,7 @@ function toggleDetail() {
 
 .chevron {
   font-size: 1.5rem;
-  line-height: 1;
+  line-height: 0.65;
 }
 
 .edit-btn {

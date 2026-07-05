@@ -28,3 +28,17 @@ export function parseAndRollDamage(spec: string, rng = Math.random): { total: nu
   const detail = `${base}+${rolls.map((r) => `[${r}]`).join("")}=${total}`;
   return { total, detail };
 }
+
+export function maxWeaponDamage(spec: string): number {
+  const trimmed = spec.trim();
+  const match = trimmed.match(/^(\d+)(?:\+(\d+)D(\d+))?$/i);
+  if (!match) {
+    const fixed = Number(trimmed);
+    return Number.isFinite(fixed) ? fixed : 0;
+  }
+  const base = Number(match[1]);
+  if (!match[2]) return base;
+  const count = Number(match[2]);
+  const sides = Number(match[3]);
+  return base + count * sides;
+}

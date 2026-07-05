@@ -54,6 +54,11 @@ export function addTestPlayer(
     hp?: number;
     armor?: string;
     class?: string;
+    weapon?: string;
+    weapon2?: string;
+    gear?: string;
+    gearArmor?: string;
+    equipmentUses?: number;
     actionBudget?: boolean;
     effects?: Player["effects"];
   } = {},
@@ -66,6 +71,11 @@ export function addTestPlayer(
     hp: opts.hp ?? 10,
     ...(opts.armor !== undefined ? { armor: opts.armor } : {}),
     ...(opts.class !== undefined ? { class: opts.class } : {}),
+    ...(opts.weapon !== undefined ? { weapon: opts.weapon } : {}),
+    ...(opts.weapon2 !== undefined ? { weapon2: opts.weapon2 } : {}),
+    ...(opts.gear !== undefined ? { gear: opts.gear } : {}),
+    ...(opts.gearArmor !== undefined ? { gearArmor: opts.gearArmor } : {}),
+    ...(opts.equipmentUses !== undefined ? { equipmentUses: opts.equipmentUses } : {}),
     ...(opts.effects !== undefined ? { effects: opts.effects } : {}),
   };
   if (opts.actionBudget !== false) {

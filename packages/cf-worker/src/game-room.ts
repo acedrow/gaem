@@ -367,6 +367,7 @@ export class GameRoom {
         parsed.gear,
         parsed.weapon2,
         parsed.yadathanTower,
+        parsed.gearArmor,
       );
       if (err) {
         this.sendError(ws, err);

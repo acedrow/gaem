@@ -1,6 +1,9 @@
 [
   {
     "name": "HARPE",
+    "activeTier": "support",
+    "activeKind": "weapon_trap",
+    "passiveKind": "extra_weapon_stratcom",
     "summary": "Set traps with your weapons and punish enemies who move into them with maximized damage and forced movement.",
     "description": "When the first humans ascended, some of those who suffered the least dissonance were those who lived as dancers.",
     "hp": 30,
@@ -9,6 +12,9 @@
   },
   {
     "name": "KOPIS",
+    "activeTier": "support",
+    "activeKind": "mag_dump",
+    "passiveKind": "offhand_pistol",
     "summary": "Mark enemies and slay them, then get extra attacks when you move onto their fallen bodies.",
     "description": "Carpocratian King Kopis so trusted his senses that before every battle he would gouge out his own eyes, growing them anew again as the bodies of his fallen foes tanned in the sun.",
     "hp": 30,
@@ -17,6 +23,9 @@
   },
   {
     "name": "SHARUR",
+    "activeTier": "support",
+    "activeKind": "back_up",
+    "passiveKind": "emergency_auto_defenses",
     "summary": "Create Attractors that pull enemies into them and Break Swarms apart. At low HP, your Attractors become Void, instantly killing enemies who fall into them.",
     "description": "These children dance through my mists, they play at my luminous aster. Their gesticulations taught me my own name, and in return, I teach them of attraction.",
     "hp": 30,
@@ -25,6 +34,9 @@
   },
   {
     "name": "VARUNASTRA",
+    "activeTier": "main",
+    "activeKind": "borrowing_this",
+    "passiveKind": "gear_check",
     "summary": "Attack with the patterns of your allies. Grant your squad Transference, letting them heal when they deal damage.",
     "description": "Once they bound our hands, now the silver threads are rewoven. Power that was once siphoned into the greedy throats of supplicant parasites now flows between us, joining us—unifying us with all that is, all that was, all that will be.",
     "hp": 25,
@@ -33,6 +45,9 @@
   },
   {
     "name": "HEPHAESTUS",
+    "activeTier": "support",
+    "activeKind": "synesis_conversion",
+    "passiveKind": "baseline_communism",
     "summary": "Spend your Equipment use to restore your allies' Equipment uses and finish enemies off with your class ability to refresh your own Equipment.",
     "description": "Rapid ascension becomes a valuable weapon in Infernum; the energy produced by a single exalted hellion is more than the atom-breakers burned in all their lifetimes. The release of such limiters is a violent event, focused and carefully shaped into a constructive one.",
     "hp": 30,
@@ -41,6 +56,9 @@
   },
   {
     "name": "EPEUS",
+    "activeTier": "main",
+    "activeKind": "bag_of_tricks",
+    "passiveKind": "deep_pockets",
     "summary": "Bring extra Gear, and if you still don't like what you have, swap it mid-combat.",
     "description": "\"I know what I need. That's the same as having what I need. One half-shot of Hyper-LSD and my memories become allies in my hands. The bag I remembered packing unfolds in the metasphere, and I have what I need. Always have.\"",
     "hp": 20,

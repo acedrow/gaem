@@ -22,6 +22,16 @@ function combatPlayerTurn(state: ReturnType<typeof makeGameState>, playerId: str
 }
 
 describe("provoke", () => {
+  it("does not trigger when player steps away from adjacent player", () => {
+    const state = makeGameState();
+    addTestPlayer(state, "p1", { x: 2, y: 2, actionBudget: true });
+    addTestPlayer(state, "p2", { x: 3, y: 2 });
+    combatPlayerTurn(state, "p1");
+
+    const triggers = previewSprintProvokes(state, "p1", 2, 1);
+    expect(triggers).toHaveLength(0);
+  });
+
   it("triggers when player steps away from adjacent enemy", () => {
     const state = makeGameState();
     addTestPlayer(state, "p1", { x: 2, y: 2, actionBudget: true });
@@ -127,6 +137,8 @@ describe("provoke", () => {
     combatPlayerTurn(state, "p1");
 
     const triggers = previewSprintProvokes(state, "p1", 2, 1);
+    if (!player.counters) player.counters = {};
+    player.counters.movedThisTurn = 1;
     const rng = () => 0.99;
     const result = resolveProvokeTriggers(state, { kind: "player", player }, triggers, rng);
     expect(result.totalDamage).toBe(6);

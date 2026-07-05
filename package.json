@@ -12,7 +12,7 @@
     "rulebook:setup": "bash scripts/rulebook/setup.sh",
     "rulebook": "scripts/rulebook/.venv/bin/python scripts/rulebook/extract.py",
     "enemy-portraits:crop": "scripts/rulebook/.venv/bin/python scripts/crop-enemy-portraits.py",
-    "test": "npm run test -w @gaem/shared"
+    "test": "npm run test -w @gaem/shared && npm run test -w @gaem/client"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

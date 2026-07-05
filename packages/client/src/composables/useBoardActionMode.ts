@@ -15,12 +15,20 @@ export type BoardActionMode =
   | "towerTeleport"
   | "kataptyPick"
   | "rez"
+  | "kopisMark"
+  | "sharurAttractor"
+  | "hephaestusSynesis"
+  | "hephaestusRestore"
+  | "harpeTrap"
+  | "varunastraBorrow"
+  | "assistedLaunch"
   | "gmEnemyAttack"
   | null;
 
 export type OmnistrikeStep = "selectBombs" | "placeFirst" | "placeSecond" | "confirm";
 export type WarhookStep = "selectTarget" | "selectLanding";
 export type TowerTeleportStep = "selectLanding" | "selectKeraunoTarget";
+export type AssistedLaunchStep = "selectAnchor" | "confirm";
 
 const mode = ref<BoardActionMode>(null);
 const attackDirection = ref<PatternDirection>("n");
@@ -45,7 +53,15 @@ const warhookLandingOptions = ref<{ x: number; y: number }[]>([]);
 const towerTeleportStep = ref<TowerTeleportStep>("selectLanding");
 const towerTeleportLanding = ref<{ x: number; y: number } | null>(null);
 const kataptyTargetIds = ref<string[]>([]);
+const borrowAllyId = ref<string | null>(null);
+const assistedLaunchStep = ref<AssistedLaunchStep>("selectAnchor");
+const assistedLaunchAnchor = ref<{ x: number; y: number } | null>(null);
 const gmEnemyAttack = ref<{ enemyId: string; attackIndex: number; damage?: number; swarm?: boolean } | null>(null);
+
+function resetAssistedLaunchState() {
+  assistedLaunchStep.value = "selectAnchor";
+  assistedLaunchAnchor.value = null;
+}
 
 function resetWarhookState() {
   warhookStep.value = "selectTarget";
@@ -78,7 +94,9 @@ export function useBoardActionMode() {
     pendingTargetPlayerId.value = null;
     armorLanding.value = null;
     kataptyTargetIds.value = [];
+    borrowAllyId.value = null;
     gmEnemyAttack.value = null;
+    resetAssistedLaunchState();
     resetOmnistrikeState();
     resetWarhookState();
     resetTowerTeleportState();
@@ -131,6 +149,9 @@ export function useBoardActionMode() {
     towerTeleportStep,
     towerTeleportLanding,
     kataptyTargetIds,
+    borrowAllyId,
+    assistedLaunchStep,
+    assistedLaunchAnchor,
     gmEnemyAttack,
     isActive,
     setMode,

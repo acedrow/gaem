@@ -149,6 +149,7 @@ export function patchSheetHandler(
     weapon: sheet.weapon,
     equipment: sheet.equipment,
     gear: sheet.gear,
+    gearArmor: sheet.gearArmor,
     weapon2: sheet.weapon2,
     yadathanTower: sheet.yadathanTower,
     tags: sheet.tags,
@@ -182,6 +183,7 @@ export function patchSheetHandler(
     weapon?: string;
     equipment?: string;
     gear?: string;
+    gearArmor?: string;
     weapon2?: string;
     yadathanTower?: string;
   } = {};
@@ -200,6 +202,9 @@ export function patchSheetHandler(
   if (req.body?.gear !== undefined) {
     refFields.gear = typeof req.body.gear === "string" ? req.body.gear.trim() : "";
   }
+  if (req.body?.gearArmor !== undefined) {
+    refFields.gearArmor = typeof req.body.gearArmor === "string" ? req.body.gearArmor.trim() : "";
+  }
   if (req.body?.weapon2 !== undefined) {
     refFields.weapon2 = typeof req.body.weapon2 === "string" ? req.body.weapon2.trim() : "";
   }
@@ -215,6 +220,7 @@ export function patchSheetHandler(
     weapon: sheet.weapon,
     equipment: sheet.equipment,
     gear: sheet.gear,
+    gearArmor: sheet.gearArmor,
     weapon2: sheet.weapon2,
     yadathanTower: sheet.yadathanTower,
   });
@@ -228,6 +234,7 @@ export function patchSheetHandler(
   if (refFields.weapon !== undefined) sheet.weapon = refFields.weapon;
   if (refFields.equipment !== undefined) sheet.equipment = refFields.equipment || undefined;
   if (refFields.gear !== undefined) sheet.gear = refFields.gear || undefined;
+  if (refFields.gearArmor !== undefined) sheet.gearArmor = refFields.gearArmor || undefined;
   if (refFields.weapon2 !== undefined) sheet.weapon2 = refFields.weapon2 || undefined;
   if (refFields.yadathanTower !== undefined) {
     sheet.yadathanTower = refFields.yadathanTower || undefined;

@@ -566,6 +566,7 @@ wss.on("connection", (ws: WebSocket) => {
         parsed.gear,
         parsed.weapon2,
         parsed.yadathanTower,
+        parsed.gearArmor,
       );
       if (err) {
         sendError(ws, err);

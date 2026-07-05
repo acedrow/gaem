@@ -260,6 +260,10 @@ export function applyResetMovement(state: GameState, playerId: string): string {
     player.actionBudget.movementRemaining = player.actionBudget.movementMax;
     clearSprintBudget(player.actionBudget);
   }
+  if (player.counters?.assistedLaunchUsed != null) {
+    delete player.counters.assistedLaunchUsed;
+    if (Object.keys(player.counters).length === 0) delete player.counters;
+  }
   return `${playerLabel(player)} reset movement`;
 }
 

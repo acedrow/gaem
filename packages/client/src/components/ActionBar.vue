@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 
 import {
   getWeaponAttackSpec,
@@ -14,7 +14,10 @@ import {
 
 import { useBoardActionMode } from "../composables/useBoardActionMode.js";
 import { useCombatActions } from "../composables/useCombatActions.js";
+import { useGameState } from "../composables/useGameState.js";
 import ActionBudgetChips from "./ActionBudgetChips.vue";
+import EpeusBagModal from "./EpeusBagModal.vue";
+import HarpeRecallModal from "./HarpeRecallModal.vue";
 import WeaponPatternDiagram from "./WeaponPatternDiagram.vue";
 
 const {
@@ -33,9 +36,18 @@ const {
   armorStructured,
   canTowerTeleport,
   canInteractSeed,
+  showAssistedLaunch,
+  canAssistedLaunch,
+  assistedLaunchAnchorOptions,
   activePlayer,
   sendPlayerAction,
+  classActiveTier,
+  canUseClassActive,
+  hasFreeWeaponSwap,
+  hasThrownTrap,
 } = useCombatActions();
+
+const { gameState } = useGameState();
 
 const {
   mode,
@@ -46,6 +58,9 @@ const {
   warhookStep,
   towerTeleportStep,
   kataptyTargetIds,
+  borrowAllyId,
+  assistedLaunchStep,
+  assistedLaunchAnchor,
   setMode,
   clearMode,
 } = useBoardActionMode();
@@ -127,6 +142,20 @@ const kataptyHint = computed(() => {
   return `Select exactly 3 Katapty targets (${kataptyTargetIds.value.length}/3), then confirm`;
 });
 
+const varunastraBorrowHint = computed(() => {
+  if (mode.value !== "varunastraBorrow") return null;
+  if (!borrowAllyId.value) return "Click a squad ally to borrow their weapon pattern";
+  return "Aim the borrowed pattern, then click highlighted tiles to attack";
+});
+
+const assistedLaunchHint = computed(() => {
+  if (mode.value !== "assistedLaunch") return null;
+  if (assistedLaunchStep.value === "selectAnchor") {
+    return "Select a wall or ally to launch from";
+  }
+  return "Click the highlighted landing tile to launch";
+});
+
 function confirmKatapty() {
   if (kataptyTargetIds.value.length !== 3) return;
   sendPlayerAction({ action: "kataptyEndTurn", targetEnemyIds: [...kataptyTargetIds.value] });
@@ -145,9 +174,102 @@ function pickTowerTeleportMode() {
   else setMode("towerTeleport");
 }
 
-function useClassActive() {
-  sendPlayerAction({ action: "classActive" });
+function pickAssistedLaunchMode() {
+  if (mode.value === "assistedLaunch") {
+    clearMode();
+    return;
+  }
+  setMode("assistedLaunch");
+  const anchors = assistedLaunchAnchorOptions.value;
+  if (anchors.length === 1) {
+    assistedLaunchAnchor.value = { x: anchors[0]!.x, y: anchors[0]!.y };
+    assistedLaunchStep.value = "confirm";
+  }
 }
+
+const classMode = computed(() => {
+  const cls = activePlayer.value?.class;
+  if (cls === "HARPE") return "harpeTrap";
+  if (cls === "KOPIS") return "kopisMark";
+  if (cls === "SHARUR") return "sharurAttractor";
+  if (cls === "HEPHAESTUS") return "hephaestusSynesis";
+  if (cls === "VARUNASTRA") return "varunastraBorrow";
+  return null;
+});
+
+const classModeActive = computed(() => {
+  const m = classMode.value;
+  if (!m) return false;
+  return mode.value === m;
+});
+
+const canClassTier = computed(() => {
+  const tier = classActiveTier.value;
+  if (tier === "main") return canMain.value;
+  if (tier === "support") return canSupport.value;
+  return canAux.value;
+});
+
+function useClassActive() {
+  if (activePlayer.value?.class === "EPEUS") {
+    epeusBagOpen.value = true;
+    return;
+  }
+  const m = classMode.value;
+  if (!m) {
+    sendPlayerAction({ action: "classActive" });
+    return;
+  }
+  if (mode.value === m) clearMode();
+  else setMode(m);
+}
+
+function useHephaestusRestore() {
+  if (mode.value === "hephaestusRestore") clearMode();
+  else setMode("hephaestusRestore");
+}
+
+function recallHarpeTrap() {
+  harpeRecallOpen.value = true;
+}
+
+function onEpeusBagConfirm(slot: "weapon" | "armor", gearName: string) {
+  sendPlayerAction({ action: "classActive", kind: "bag_of_tricks", gearSlot: slot, gearName });
+  epeusBagOpen.value = false;
+}
+
+function onHarpeRecallConfirm(equipWeapon?: string) {
+  sendPlayerAction({
+    action: "classActive",
+    kind: "weapon_trap",
+    harpeRecall: true,
+    harpeEquipWeapon: equipWeapon,
+  });
+  harpeRecallOpen.value = false;
+}
+
+const showHephaestusRestore = computed(() => activePlayer.value?.class === "HEPHAESTUS");
+const showHarpeRecall = computed(
+  () =>
+    activePlayer.value?.class === "HARPE" &&
+    hasThrownTrap.value &&
+    !!budget.value &&
+    (canSupport.value || sandboxMode.value),
+);
+
+const epeusBagOpen = ref(false);
+const harpeRecallOpen = ref(false);
+
+const boardObjectLegend = computed(() => {
+  const combat = gameState.value?.combat;
+  if (!combat) return [];
+  const items: string[] = [];
+  if ((combat.thrownTraps ?? []).length) items.push("Trap");
+  if ((combat.boardTokens ?? []).length) items.push("Token");
+  if ((combat.attractors ?? []).length) items.push("Attractor");
+  if (combat.kopisMarks && Object.keys(combat.kopisMarks).length) items.push("Marked");
+  return items;
+});
 
 function useWeaponActive() {
   if (isSabaothEquipped.value) {
@@ -239,13 +361,46 @@ function onDualBombComplete() {
       >
         Sprint
       </button>
-      <button type="button" class="action-btn" :disabled="!canAux" @click="weaponSwap">
-        Swap
+      <button
+        v-if="showAssistedLaunch"
+        type="button"
+        class="action-btn"
+        :class="{ active: mode === 'assistedLaunch' }"
+        :disabled="mode !== 'assistedLaunch' && !canAssistedLaunch"
+        @click="pickAssistedLaunchMode"
+      >
+        Launch
+      </button>
+      <button type="button" class="action-btn" :disabled="!canAux && !hasFreeWeaponSwap" @click="weaponSwap">
+        Swap{{ hasFreeWeaponSwap ? " (free)" : "" }}
       </button>
     </div>
     <div class="actions-row">
-      <button type="button" class="action-btn" :disabled="!canSupport" @click="useClassActive">
+      <button
+        type="button"
+        class="action-btn"
+        :class="{ active: classModeActive }"
+        :disabled="!canUseClassActive"
+        @click="useClassActive"
+      >
         Class
+      </button>
+      <button
+        v-if="showHephaestusRestore"
+        type="button"
+        class="action-btn"
+        :class="{ active: mode === 'hephaestusRestore' }"
+        @click="useHephaestusRestore"
+      >
+        Restore EQ
+      </button>
+      <button
+        v-if="showHarpeRecall"
+        type="button"
+        class="action-btn"
+        @click="recallHarpeTrap"
+      >
+        Recall
       </button>
       <button
         type="button"
@@ -333,9 +488,24 @@ function onDualBombComplete() {
         Confirm Katapty
       </button>
     </div>
+    <div v-if="varunastraBorrowHint" class="hint-row">
+      <span class="hint">{{ varunastraBorrowHint }}</span>
+    </div>
+    <div v-if="assistedLaunchHint" class="hint-row">
+      <span class="hint">{{ assistedLaunchHint }}</span>
+    </div>
+    <div v-if="boardObjectLegend.length" class="hint-row legend-row">
+      <span v-for="item in boardObjectLegend" :key="item" class="legend-chip">{{ item }}</span>
+    </div>
     <button v-if="mode" type="button" class="action-btn cancel" @click="clearMode">
       Cancel
     </button>
+    <EpeusBagModal :open="epeusBagOpen" @close="epeusBagOpen = false" @confirm="onEpeusBagConfirm" />
+    <HarpeRecallModal
+      :open="harpeRecallOpen"
+      @close="harpeRecallOpen = false"
+      @confirm="onHarpeRecallConfirm"
+    />
   </div>
 </template>
 
@@ -402,6 +572,14 @@ function onDualBombComplete() {
 
 .hint {
   font-size: 0.72rem;
+  color: var(--color-muted);
+}
+
+.legend-chip {
+  font-size: 0.68rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
   color: var(--color-muted);
 }
 </style>

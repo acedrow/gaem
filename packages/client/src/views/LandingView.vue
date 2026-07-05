@@ -136,7 +136,6 @@ function joinAsSelectedPlayer() {
         type="text"
         placeholder="New player name"
         :disabled="loadingProfiles || creatingProfile"
-        @keyup.enter="createProfile"
       />
       <button
         class="cta"

@@ -6,6 +6,7 @@ import {
   createDefaultActionBudget,
   getArmorByName,
   getArmorSpeed,
+  getClassActiveTier,
   getSabaothChargesRemaining,
   getWeaponAttackSpec,
   getPlayerTower,
@@ -14,7 +15,12 @@ import {
   hasteStacks,
   isSabaothWeaponName,
   isYadathanArmorName,
+  isKushielArmorName,
+  canUseAssistedLaunch,
+  assistedLaunchAnchors,
   previewPlayerAttack,
+  classGrantsSecondWeapon,
+  classGrantsDualGear,
 } from "@gaem/shared";
 import { computed, ref } from "vue";
 
@@ -154,6 +160,22 @@ export function useCombatActions(playerId?: () => string | null) {
     return !!getPlayerTower(s, p.id);
   });
 
+  const showAssistedLaunch = computed(() => isKushielArmorName(activePlayer.value?.armor));
+
+  const canAssistedLaunch = computed(() => {
+    const p = activePlayer.value;
+    const s = gameState.value;
+    if (!p || !s || !showAssistedLaunch.value) return false;
+    return canUseAssistedLaunch(s, p.id);
+  });
+
+  const assistedLaunchAnchorOptions = computed(() => {
+    const p = activePlayer.value;
+    const s = gameState.value;
+    if (!p || !s) return [];
+    return assistedLaunchAnchors(s, p.id);
+  });
+
   const canInteractSeed = computed(() => {
     const p = activePlayer.value;
     const s = gameState.value;
@@ -167,6 +189,53 @@ export function useCombatActions(playerId?: () => string | null) {
     const r = gameState.value?.combat?.pendingReaction;
     if (!id || !r || r.playerId !== id) return null;
     return r;
+  });
+
+  const pendingClassReaction = computed(() => {
+    const id = activePlayerId.value;
+    const r = gameState.value?.combat?.pendingClassReaction;
+    if (!id || !r || r.playerId !== id) return null;
+    return r;
+  });
+
+  const classActiveTier = computed((): ActionTier => {
+    return getClassActiveTier(activePlayer.value?.class);
+  });
+
+  const canUseClassActive = computed(() => {
+    const p = activePlayer.value;
+    if (!p?.class) return false;
+    const tier = classActiveTier.value;
+    if (tier === "main") return canMain.value;
+    if (tier === "support") return canSupport.value;
+    return canAux.value;
+  });
+
+  const hasFreeWeaponSwap = computed(() => {
+    const id = activePlayerId.value;
+    if (!id) return false;
+    return !!gameState.value?.combat?.gearCheckGrants?.[id];
+  });
+
+  const hasFreeWeaponAttack = computed(() => (activePlayer.value?.counters?.freeWeaponAttack ?? 0) > 0);
+
+  const showHarpeSecondWeapon = computed(() => {
+    const p = activePlayer.value;
+    return classGrantsSecondWeapon(p?.class) || false;
+  });
+
+  const showEpeusDualGear = computed(() => classGrantsDualGear(activePlayer.value?.class));
+
+  const hasThrownTrap = computed(() => {
+    const id = activePlayerId.value;
+    if (!id) return false;
+    return !!(gameState.value?.combat?.thrownTraps ?? []).find((t) => t.ownerId === id);
+  });
+
+  const thrownTrapWeapon = computed(() => {
+    const id = activePlayerId.value;
+    if (!id) return null;
+    return (gameState.value?.combat?.thrownTraps ?? []).find((t) => t.ownerId === id)?.weaponName ?? null;
   });
 
   const reversalExtraAllyIds = ref<string[]>([]);
@@ -260,9 +329,21 @@ export function useCombatActions(playerId?: () => string | null) {
     sabaothChargesRemaining,
     armorStructured,
     canTowerTeleport,
+    showAssistedLaunch,
+    canAssistedLaunch,
+    assistedLaunchAnchorOptions,
     canInteractSeed,
     pendingActions,
     pendingReaction,
+    pendingClassReaction,
+    classActiveTier,
+    canUseClassActive,
+    hasFreeWeaponSwap,
+    hasFreeWeaponAttack,
+    showHarpeSecondWeapon,
+    showEpeusDualGear,
+    hasThrownTrap,
+    thrownTrapWeapon,
     reversalExtraAllyIds,
     hasSpentActionTier,
     canResetMovement,

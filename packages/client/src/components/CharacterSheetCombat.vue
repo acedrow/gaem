@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
-import { getEffectSummary, isYadathanArmorName } from "@gaem/shared";
+import { getEffectSummary, getArmorByName, isYadathanArmorName, KUSHIEL_ARMOR_NAME } from "@gaem/shared";
 
 import { useBoardActionMode } from "../composables/useBoardActionMode.js";
 import { useCombatActions } from "../composables/useCombatActions.js";
@@ -24,12 +24,15 @@ const {
   canStartSprint,
   canResetMovement,
   canTowerTeleport,
+  showAssistedLaunch,
+  canAssistedLaunch,
+  assistedLaunchAnchorOptions,
   activePlayer,
   effectPills,
   resetMovement,
 } = useCombatActions(() => props.playerId);
 
-const { mode, setMode, clearMode } = useBoardActionMode();
+const { mode, setMode, clearMode, assistedLaunchStep, assistedLaunchAnchor } = useBoardActionMode();
 
 const speedLabel = computed(() => {
   if (!budget.value) return "—";
@@ -41,6 +44,8 @@ const pills = computed(() => (activePlayer.value ? effectPills(activePlayer.valu
 const showTowerStep = computed(
   () => activePlayer.value && isYadathanArmorName(activePlayer.value.armor),
 );
+
+const assistedLaunchAbility = computed(() => getArmorByName(KUSHIEL_ARMOR_NAME)?.specialMovement);
 
 function pillTitle(token: string) {
   const id = token.split(":")[0] ?? token;
@@ -60,6 +65,19 @@ function pickSprintMode() {
 function pickTowerTeleportMode() {
   if (mode.value === "towerTeleport") clearMode();
   else setMode("towerTeleport");
+}
+
+function pickAssistedLaunchMode() {
+  if (mode.value === "assistedLaunch") {
+    clearMode();
+    return;
+  }
+  setMode("assistedLaunch");
+  const anchors = assistedLaunchAnchorOptions.value;
+  if (anchors.length === 1) {
+    assistedLaunchAnchor.value = { x: anchors[0]!.x, y: anchors[0]!.y };
+    assistedLaunchStep.value = "confirm";
+  }
 }
 
 function pickRezMode() {
@@ -118,6 +136,17 @@ function pickShoveMode() {
               tier-label="Special movement"
               content="Spend all remaining Speed to teleport adjacent to your tower."
             />
+          </template>
+        </SheetActionButton>
+        <SheetActionButton
+          v-if="showAssistedLaunch"
+          :active="mode === 'assistedLaunch'"
+          :disabled="mode !== 'assistedLaunch' && !canAssistedLaunch"
+          @click="pickAssistedLaunchMode"
+        >
+          Launch
+          <template #tooltip>
+            <AbilityBlock tier-label="Special movement" :content="assistedLaunchAbility" />
           </template>
         </SheetActionButton>
       </div>

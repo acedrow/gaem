@@ -20,6 +20,7 @@ import ActionBar from "./ActionBar.vue";
 import BaseUpgradesPanel from "./BaseUpgradesPanel.vue";
 import GmActionBar from "./GmActionBar.vue";
 import ReversalPrompt from "./ReversalPrompt.vue";
+import ClassReactionPrompt from "./ClassReactionPrompt.vue";
 import GameBoard from "./GameBoard.vue";
 import RightPanel from "./RightPanel.vue";
 import SideNav from "./SideNav.vue";
@@ -299,6 +300,7 @@ function onOverworldClick() {
         <GameBoard :role="role" :player-profile="playerProfile" :overlay-el="boardOverlaysEl" />
         <div ref="boardOverlaysEl" class="board-overlays">
           <ReversalPrompt />
+          <ClassReactionPrompt />
           <ActionBar />
           <GmActionBar />
         </div>

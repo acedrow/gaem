@@ -3,6 +3,9 @@ import type { CharacterSheet, PlayerProfile } from "@gaem/shared";
 import {
   getArmorByName,
   getClassByName,
+  getClassActiveTier,
+  classGrantsSecondWeapon,
+  classGrantsDualGear,
   getEquipmentByName,
   getGearByName,
   getWeaponByName,
@@ -23,6 +26,8 @@ import { computed, nextTick, onUnmounted, ref, watch } from "vue";
 
 import AbilityBlock from "./AbilityBlock.vue";
 import CharacterSheetCombat from "./CharacterSheetCombat.vue";
+import EpeusBagModal from "./EpeusBagModal.vue";
+import HarpeRecallModal from "./HarpeRecallModal.vue";
 import HpBar from "./HpBar.vue";
 import ModalDialog from "./ModalDialog.vue";
 import RuleText from "./RuleText.vue";
@@ -67,6 +72,7 @@ const form = ref({
   weapon: "",
   equipment: "",
   gear: "",
+  gearArmor: "",
   weapon2: "",
   yadathanTower: "",
   tags: [] as string[],
@@ -107,6 +113,10 @@ const {
   canSupport,
   canAux,
   canUseWeaponActive,
+  canUseClassActive,
+  classActiveTier,
+  hasFreeWeaponSwap,
+  hasThrownTrap,
   armorStructured,
   sendPlayerAction,
 } = useCombatActions(() => boardPlayerId.value);
@@ -128,7 +138,63 @@ const showSheetCombatActions = computed(
   () => !!boardPlayer.value && showPlayerActionBar.value,
 );
 
+const showSecondWeaponRow = computed(
+  () => hasSecondWeaponSlot.value || classGrantsSecondWeapon(form.value.class),
+);
+const showWeaponGearRow = computed(
+  () => hasGearSlot.value || classGrantsDualGear(form.value.class),
+);
+const showArmorGearRow = computed(() => classGrantsDualGear(form.value.class));
 const showYadathanTowerPick = computed(() => form.value.armor === YADATHAN_ARMOR_NAME);
+
+function toggleClassActive() {
+  const cls = form.value.class;
+  if (cls === "EPEUS") {
+    epeusBagOpen.value = true;
+    epeusBagInitialSlot.value = null;
+    return;
+  }
+  if (cls === "HARPE") setMode(mode.value === "harpeTrap" ? null : "harpeTrap");
+  else if (cls === "KOPIS") setMode(mode.value === "kopisMark" ? null : "kopisMark");
+  else if (cls === "SHARUR") setMode(mode.value === "sharurAttractor" ? null : "sharurAttractor");
+  else if (cls === "HEPHAESTUS") setMode(mode.value === "hephaestusSynesis" ? null : "hephaestusSynesis");
+  else if (cls === "VARUNASTRA") setMode(mode.value === "varunastraBorrow" ? null : "varunastraBorrow");
+  else sendPlayerAction({ action: "classActive" });
+}
+
+function toggleClassPassive() {
+  if (form.value.class === "HEPHAESTUS") {
+    setMode(mode.value === "hephaestusRestore" ? null : "hephaestusRestore");
+  }
+}
+
+function recallHarpeWeapon() {
+  harpeRecallOpen.value = true;
+}
+
+const epeusBagOpen = ref(false);
+const epeusBagInitialSlot = ref<"weapon" | "armor" | null>(null);
+const harpeRecallOpen = ref(false);
+
+function openEpeusBag(slot: "weapon" | "armor") {
+  epeusBagInitialSlot.value = slot;
+  epeusBagOpen.value = true;
+}
+
+function onEpeusBagConfirm(slot: "weapon" | "armor", gearName: string) {
+  sendPlayerAction({ action: "classActive", kind: "bag_of_tricks", gearSlot: slot, gearName });
+  epeusBagOpen.value = false;
+}
+
+function onHarpeRecallConfirm(equipWeapon?: string) {
+  sendPlayerAction({
+    action: "classActive",
+    kind: "weapon_trap",
+    harpeRecall: true,
+    harpeEquipWeapon: equipWeapon,
+  });
+  harpeRecallOpen.value = false;
+}
 
 const combatUiUnlocked = computed(
   () => gameState.value != null && gameState.value.roundPhase !== "deployment",
@@ -320,6 +386,7 @@ const selectedArmor = computed(() => getArmorByName(form.value.armor));
 const selectedWeapon = computed(() => getWeaponByName(equippedWeaponName.value));
 const selectedEquipment = computed(() => getEquipmentByName(form.value.equipment));
 const selectedGear = computed(() => getGearByName(form.value.gear));
+const selectedArmorGear = computed(() => getGearByName(form.value.gearArmor));
 const selectedWeapon2 = computed(() => getWeaponByName(carriedWeaponName.value));
 const selectedProfileName = computed(
   () => profiles.value.find((p) => p.id === form.value.player)?.name ?? form.value.player
@@ -347,6 +414,7 @@ function syncBoardLoadoutIfNeeded() {
     bp.armor !== form.value.armor ||
     (bp.equipment ?? "") !== form.value.equipment ||
     (bp.gear ?? "") !== form.value.gear ||
+    (bp.gearArmor ?? "") !== form.value.gearArmor ||
     (boardPlayer.value?.yadathanTower ?? "") !== form.value.yadathanTower;
   if (!outOfSync) return;
   send({
@@ -357,6 +425,7 @@ function syncBoardLoadoutIfNeeded() {
     weapon: form.value.weapon,
     equipment: form.value.equipment,
     gear: form.value.gear,
+    gearArmor: form.value.gearArmor || undefined,
     weapon2: form.value.weapon2,
     yadathanTower: form.value.yadathanTower || undefined,
   });
@@ -378,6 +447,7 @@ async function loadSheet() {
       weapon: data.sheet.weapon,
       equipment: data.sheet.equipment ?? "",
       gear: data.sheet.gear ?? "",
+      gearArmor: data.sheet.gearArmor ?? "",
       weapon2: data.sheet.weapon2 ?? "",
       yadathanTower: data.sheet.yadathanTower ?? "",
       tags: [...(data.sheet.tags ?? [])],
@@ -404,6 +474,7 @@ async function saveSheet() {
       weapon: form.value.weapon,
       equipment: form.value.equipment,
       gear: form.value.gear,
+      gearArmor: form.value.gearArmor,
       weapon2: form.value.weapon2,
       tags: form.value.tags,
     };
@@ -719,7 +790,43 @@ onUnmounted(() => {
             :item="selectedClass"
             :can-edit="canEdit"
             @start-edit="startGearFieldEdit('class')"
-          />
+          >
+            <template v-if="showSheetCombatActions && selectedClass" #actions>
+              <SheetActionButton
+                :active="
+                  mode === 'harpeTrap' ||
+                  mode === 'kopisMark' ||
+                  mode === 'sharurAttractor' ||
+                  mode === 'hephaestusSynesis' ||
+                  mode === 'varunastraBorrow'
+                "
+                :disabled="!canUseClassActive"
+                @click="toggleClassActive"
+              >
+                Active ability
+                <template #tooltip>
+                  <AbilityBlock tier-label="Active" :content="selectedClass.activeAbility" />
+                </template>
+              </SheetActionButton>
+              <SheetActionButton
+                v-if="form.class === 'HEPHAESTUS'"
+                :active="mode === 'hephaestusRestore'"
+                @click="toggleClassPassive"
+              >
+                Passive
+                <template #tooltip>
+                  <AbilityBlock tier-label="Free action" :content="selectedClass.passiveAbility" />
+                </template>
+              </SheetActionButton>
+              <SheetActionButton
+                v-if="form.class === 'HARPE'"
+                :disabled="!canSupport || !hasThrownTrap"
+                @click="recallHarpeWeapon"
+              >
+                Recall trap
+              </SheetActionButton>
+            </template>
+          </SheetGearFieldRow>
 
           <SheetGearFieldRow
             label="Armor"
@@ -802,6 +909,9 @@ onUnmounted(() => {
                 </template>
               </SheetActionButton>
             </template>
+            <template v-if="showWeaponCharges && weaponChargesDisplay" #subline>
+              Weapon charges {{ weaponChargesDisplay }}
+            </template>
             <p v-if="rangeAttackHint" class="range-attack-hint">{{ rangeAttackHint }}</p>
             <p v-if="rangedPatternAttackHint" class="range-attack-hint">{{ rangedPatternAttackHint }}</p>
             <p v-if="omnistrikeHint" class="range-attack-hint">{{ omnistrikeHint }}</p>
@@ -821,12 +931,8 @@ onUnmounted(() => {
             </div>
           </SheetGearFieldRow>
 
-          <p v-if="showWeaponCharges && weaponChargesDisplay" class="field-subline">
-            Weapon charges {{ weaponChargesDisplay }}
-          </p>
-
           <SheetGearFieldRow
-            v-if="hasSecondWeaponSlot"
+            v-if="showSecondWeaponRow"
             label="Carried weapon"
             :value="carriedWeaponName"
             kind="weapons"
@@ -852,18 +958,14 @@ onUnmounted(() => {
                 </template>
               </SheetActionButton>
             </template>
+            <template v-if="boardPlayer?.equipmentUses != null" #subline>
+              Equipment charges {{ boardPlayer.equipmentUses ? "●" : "○" }}
+            </template>
           </SheetGearFieldRow>
 
-          <p
-            v-if="hasEquipmentSlot && boardPlayer?.equipmentUses != null"
-            class="field-subline"
-          >
-            Equipment charges {{ boardPlayer.equipmentUses ? "●" : "○" }}
-          </p>
-
           <SheetGearFieldRow
-            v-if="hasGearSlot"
-            label="Gear"
+            v-if="showWeaponGearRow"
+            :label="showArmorGearRow ? 'Weapon gear' : 'Gear'"
             :value="form.gear"
             kind="gear"
             :item="selectedGear"
@@ -876,6 +978,31 @@ onUnmounted(() => {
                 <template #tooltip>
                   <RuleText :text="selectedGear.effect" />
                 </template>
+              </SheetActionButton>
+              <SheetActionButton
+                v-if="form.class === 'EPEUS' && canMain"
+                @click="openEpeusBag('weapon')"
+              >
+                Bag of Tricks
+              </SheetActionButton>
+            </template>
+          </SheetGearFieldRow>
+
+          <SheetGearFieldRow
+            v-if="showArmorGearRow"
+            label="Armor gear"
+            :value="form.gearArmor"
+            kind="gear"
+            :item="selectedArmorGear"
+            :can-edit="canEdit"
+            @start-edit="startGearFieldEdit('gearArmor')"
+          >
+            <template v-if="showSheetCombatActions && form.class === 'EPEUS' && form.gearArmor" #actions>
+              <SheetActionButton
+                :disabled="!canMain"
+                @click="openEpeusBag('armor')"
+              >
+                Bag of Tricks
               </SheetActionButton>
             </template>
           </SheetGearFieldRow>
@@ -897,6 +1024,17 @@ onUnmounted(() => {
     >
       <p class="variant-confirm-text">Confirm changing weapon pattern for 1 charge.</p>
     </ModalDialog>
+    <EpeusBagModal
+      :open="epeusBagOpen"
+      :initial-slot="epeusBagInitialSlot"
+      @close="epeusBagOpen = false"
+      @confirm="onEpeusBagConfirm"
+    />
+    <HarpeRecallModal
+      :open="harpeRecallOpen"
+      @close="harpeRecallOpen = false"
+      @confirm="onHarpeRecallConfirm"
+    />
   </div>
 </template>
 
@@ -1079,13 +1217,6 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-}
-
-.field-subline {
-  margin: -0.15rem 0 0 0.35rem;
-  font-size: 0.75rem;
-  color: var(--color-muted);
-  font-weight: 600;
 }
 
 .variant-confirm-text {

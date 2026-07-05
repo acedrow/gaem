@@ -33,6 +33,13 @@ export type CellRenderState = {
   enemyPortraitUrl?: string | null;
   enemyPortraitBg?: string | null;
   hasSeed?: boolean;
+  kopisToken?: boolean;
+  kopisMarked?: boolean;
+  trapLine?: boolean;
+  trapWeapon?: boolean;
+  attractorZone?: boolean;
+  attractorCenter?: boolean;
+  attractorVoid?: boolean;
   towerOwnerHue?: number | null;
 };
 
@@ -170,6 +177,16 @@ const showEnemyHpBar = computed(
     @mouseenter="emit('hover')"
     @mouseleave="emit('unhover')"
   >
+    <span v-if="cell.trapLine && !cell.trapWeapon" class="board-overlay trap-line" aria-hidden="true" />
+    <span v-if="cell.trapWeapon" class="board-overlay trap-weapon" title="Thrown weapon" />
+    <span v-if="cell.kopisToken" class="board-overlay kopis-token" title="Kopis token" />
+    <span v-if="cell.attractorZone" class="board-overlay attractor-zone" aria-hidden="true" />
+    <span
+      v-if="cell.attractorCenter"
+      class="board-overlay attractor-center"
+      :class="{ 'attractor-void': cell.attractorVoid }"
+      title="Attractor"
+    />
     <span v-if="cell.hasSeed" class="seed-marker" title="Seed" />
     <span v-if="cell.combatTargetInvalid" class="combat-target-invalid-mark" aria-hidden="true" />
     <span
@@ -178,6 +195,7 @@ const showEnemyHpBar = computed(
       :class="{
         selected: isEnemySelected,
         'turn-ended': cell.turnEnded,
+        'kopis-marked': cell.kopisMarked,
         dying: enemyDying,
         'tower-piece': cell.enemyAnchor.kind === 'tower',
         'fortification-piece': isFortificationEnemy(cell.enemyAnchor),
@@ -660,5 +678,74 @@ const showEnemyHpBar = computed(
   border: 1px solid #2d6b2d;
   z-index: 4;
   pointer-events: none;
+}
+
+.board-overlay {
+  position: absolute;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.trap-line {
+  inset: 3px;
+  border: 1px dashed var(--color-warning, #c9a227);
+  border-radius: 2px;
+  opacity: 0.75;
+}
+
+.trap-weapon {
+  top: 3px;
+  right: 3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--color-warning, #c9a227);
+  border: 1px solid var(--color-warning-muted-border, #8a7420);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+
+.kopis-token {
+  bottom: 3px;
+  right: 3px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--color-accent-bright, #e3b341);
+  border: 1px solid var(--color-accent, #58a6ff);
+}
+
+.attractor-zone {
+  inset: 0;
+  background: color-mix(in srgb, var(--color-accent, #58a6ff) 12%, transparent);
+}
+
+.attractor-center {
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: var(--color-accent, #58a6ff);
+  border: 1px solid var(--color-accent-bright, #79c0ff);
+}
+
+.attractor-center.attractor-void {
+  background: var(--color-danger, #f85149);
+  border-color: var(--color-danger-muted-border, #8b2e2a);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--color-danger, #f85149) 50%, transparent);
+}
+
+.piece.enemy.kopis-marked::before {
+  content: "✛";
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  font-size: 0.55rem;
+  line-height: 1;
+  color: var(--color-accent-bright, #e3b341);
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+  z-index: 6;
 }
 </style>

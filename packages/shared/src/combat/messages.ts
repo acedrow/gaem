@@ -104,13 +104,33 @@ import {
   yadathanReversalEligible,
 } from "./yadathan.js";
 import {
+  applyAssistedLaunch,
+  computeAssistedLaunch,
+  formatAssistedLaunchMessage,
+  validateAssistedLaunch,
+} from "./assisted-launch.js";
+import {
   applyProvokeAndFormat,
   activateExpandedAggressionGear,
   collectPathProvokeTriggers,
   previewSprintProvokes,
+  previewPathProvokes,
   recordPassedEnemiesOnPath,
   EXPANDED_AGGRESSION_GEAR,
 } from "./provoke.js";
+import {
+  applyClassActive,
+  applyClassPassive,
+  applyMovementStepHooks,
+  applyResolveClassReaction,
+  classActiveTierFor,
+  handleEnemyDefeated,
+  validateClassActive,
+  validateClassPassive,
+  validateResolveClassReaction,
+} from "./class-abilities.js";
+import { playerArmorGearName, validateRemoveAttractor, applyRemoveAttractor } from "./attractor.js";
+import { applyTransferenceHeal } from "./transference.js";
 
 export type CombatMessageContext = {
   role: GaemRole;
@@ -154,6 +174,11 @@ export function applyMovePath(
   }
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return "Unknown player";
+  const stepMessages: string[] = [];
+  for (const step of path) {
+    const hooks = applyMovementStepHooks(state, player, step.x, step.y, "player");
+    stepMessages.push(...hooks.messages);
+  }
   const triggers = collectPathProvokeTriggers(state, playerId, path);
   let provokeMsg = "";
   if (triggers.length) {
@@ -164,6 +189,7 @@ export function applyMovePath(
   recordPassedEnemiesOnPath(state, player, path);
   const dest = path[path.length - 1]!;
   let msg = `${playerLabel(player)} moved to (${dest.x}, ${dest.y})`;
+  if (stepMessages.length) msg = `${stepMessages.join("; ")}; ${msg}`;
   if (provokeMsg) msg = `${provokeMsg}; ${msg}`;
   return msg;
 }
@@ -210,8 +236,11 @@ export function validatePlayerAction(
 
   switch (action.action) {
     case "attack": {
-      const blocked = actionTierBlocked(player, "main", state);
-      if (blocked) return blocked;
+      const freeAttack = (player.counters?.freeWeaponAttack ?? 0) > 0;
+      if (!freeAttack) {
+        const blocked = actionTierBlocked(player, "main", state);
+        if (blocked) return blocked;
+      }
       const weapon = resolveAttackWeapon(player, action.weaponName);
       if (!weapon) return "Invalid weapon";
       if (isSabaothWeaponName(weapon) && !hasSabaothBombSelected(player)) {
@@ -268,8 +297,11 @@ export function validatePlayerAction(
       return validateSprintCancel(state, playerId);
     }
     case "weaponSwap": {
-      const blocked = actionTierBlocked(player, "aux", state);
-      if (blocked) return blocked;
+      const freeSwap = state.combat?.gearCheckGrants?.[playerId];
+      if (!freeSwap) {
+        const blocked = actionTierBlocked(player, "aux", state);
+        if (blocked) return blocked;
+      }
       if (!player.weapon2) return "No carried weapon";
       return null;
     }
@@ -321,13 +353,23 @@ export function validatePlayerAction(
     case "towerTeleport": {
       return validateTowerTeleport(state, player, action.x, action.y, action.keraunoTargetEnemyId);
     }
+    case "assistedLaunch": {
+      return validateAssistedLaunch(state, playerId, action.anchorX, action.anchorY);
+    }
     case "kataptyEndTurn": {
       return validateKataptyEndTurn(state, player, action.targetEnemyIds);
     }
     case "classActive": {
-      const blocked = actionTierBlocked(player, "support", state);
+      const tier = classActiveTierFor(player);
+      const blocked = actionTierBlocked(player, tier, state);
       if (blocked) return blocked;
-      return null;
+      return validateClassActive(state, player, action);
+    }
+    case "classPassive": {
+      return validateClassPassive(state, player, action);
+    }
+    case "resolveClassReaction": {
+      return validateResolveClassReaction(state, playerId, action);
     }
     case "weaponActive": {
       const blocked = actionTierBlocked(player, "main", state);
@@ -377,7 +419,13 @@ export function applyPlayerAction(
 
   switch (action.action) {
     case "attack": {
-      maybeSpendActionTier(state, player, "main");
+      const freeAttack = (player.counters?.freeWeaponAttack ?? 0) > 0;
+      if (freeAttack) {
+        if (!player.counters) player.counters = {};
+        player.counters.freeWeaponAttack = 0;
+      } else {
+        maybeSpendActionTier(state, player, "main");
+      }
       const weapon = resolveAttackWeapon(player, action.weaponName);
       if (!weapon) return "Invalid weapon";
       const spec = resolveCombatAttackSpec(player, weapon);
@@ -425,7 +473,17 @@ export function applyPlayerAction(
         .map((e) => enemyLabel(e!))
         .join(", ");
       let msg = `${playerLabel(player)} attacked (${result.detail} dmg) → ${names || "no targets"}`;
+      const xfer = applyTransferenceHeal(player, result.damage);
+      if (xfer) msg += `; ${xfer}`;
+      const defeatMsgs: string[] = [];
+      for (const e of hitEnemies) {
+        if ((e!.hp ?? 0) <= 0) {
+          const tokenMsg = handleEnemyDefeated(state, e!, playerId);
+          if (tokenMsg) defeatMsgs.push(tokenMsg);
+        }
+      }
       if (defeated) msg += `; defeated ${defeated}`;
+      if (defeatMsgs.length) msg += `; ${defeatMsgs.join("; ")}`;
       return msg;
     }
     case "shove": {
@@ -481,11 +539,19 @@ export function applyPlayerAction(
       return applySprintCancel(state, playerId);
     }
     case "weaponSwap": {
-      maybeSpendActionTier(state, player, "aux");
+      const freeSwap = state.combat?.gearCheckGrants?.[playerId];
+      if (freeSwap) {
+        delete state.combat!.gearCheckGrants![playerId];
+        applyEffectStacks(player, ["Transference:1"]);
+      } else {
+        maybeSpendActionTier(state, player, "aux");
+      }
       const primary = player.weapon;
       player.weapon = player.weapon2!;
       player.weapon2 = primary;
-      return `${playerLabel(player)} swapped to ${player.weapon}`;
+      let msg = `${playerLabel(player)} swapped to ${player.weapon}`;
+      if (freeSwap) msg += " (Gear Check!)";
+      return msg;
     }
     case "selectWeaponVariant": {
       const weapon = getWeaponByName(player.weapon ?? "");
@@ -547,6 +613,19 @@ export function applyPlayerAction(
       const msg = applyTowerTeleport(state, player, action.x, action.y, action.keraunoTargetEnemyId);
       return `${playerLabel(player)} ${msg}`;
     }
+    case "assistedLaunch": {
+      const preview = computeAssistedLaunch(state, playerId, action.anchorX, action.anchorY)!;
+      const triggers = previewPathProvokes(state, playerId, preview.path);
+      let provokeMsg = "";
+      if (triggers.length) {
+        provokeMsg = applyProvokeAndFormat(state, { kind: "player", player }, triggers);
+      }
+      const result = applyAssistedLaunch(state, playerId, action.anchorX, action.anchorY);
+      recordPassedEnemiesOnPath(state, player, result.path);
+      let msg = formatAssistedLaunchMessage(player, result);
+      if (provokeMsg) msg = `${provokeMsg}; ${msg}`;
+      return msg;
+    }
     case "kataptyEndTurn": {
       const tower = getPlayerTower(state, player.id)!;
       const resolved = resolveKataptyTargetIds(state, player.id, action.targetEnemyIds);
@@ -557,18 +636,19 @@ export function applyPlayerAction(
       return `${playerLabel(player)} ${strikeMsg}`;
     }
     case "classActive": {
-      maybeSpendActionTier(state, player, "support");
-      const cls = player.class ?? "Class";
-      addPendingAction(
-        state,
-        createPendingAction("classActive", `${cls} active ability`, {
-          actorPlayerId: playerId,
-          detail: action.detail,
-          targetEnemyIds: action.targetEnemyIds,
-          targetPlayerIds: action.targetPlayerIds,
-        }),
-      );
-      return `${playerLabel(player)} used ${cls} active (pending GM)`;
+      const tier = classActiveTierFor(player);
+      maybeSpendActionTier(state, player, tier);
+      return applyClassActive(state, playerId, action);
+    }
+    case "classPassive": {
+      return applyClassPassive(state, playerId, action);
+    }
+    case "resolveClassReaction": {
+      const reaction = state.combat?.pendingClassReaction;
+      if (reaction?.kind === "borrowing_follow_up" && action.accept) {
+        maybeSpendActionTier(state, player, "support");
+      }
+      return applyResolveClassReaction(state, playerId, action);
     }
     case "weaponActive": {
       maybeSpendActionTier(state, player, "main");
@@ -624,7 +704,7 @@ export function applyPlayerAction(
     case "useEquipment": {
       maybeSpendActionTier(state, player, "support");
       if (areActionLimitsEnforced(state)) player.equipmentUses = 0;
-      if (player.gear === EXPANDED_AGGRESSION_GEAR) {
+      if (playerArmorGearName(player) === EXPANDED_AGGRESSION_GEAR) {
         const gearMsg = activateExpandedAggressionGear(state, player);
         return `${playerLabel(player)} used equipment${gearMsg ? ` — ${gearMsg}` : ""}`;
       }
@@ -1076,6 +1156,11 @@ export function handleCombatMessage(
       const err = validateClearEffects(state, parsed.target);
       if (err) return { handled: true, error: err };
       return { handled: true, message: applyClearEffects(state, parsed.target) };
+    }
+    case "removeAttractor": {
+      const err = validateRemoveAttractor(state, parsed.x, parsed.y, ctx);
+      if (err) return { handled: true, error: err };
+      return { handled: true, message: applyRemoveAttractor(state, parsed.x, parsed.y) };
     }
     case "triggerReversal": {
       if (!ctx.playerId) return { handled: true, error: "Only players can trigger reversal" };

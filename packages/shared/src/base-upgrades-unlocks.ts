@@ -121,12 +121,21 @@ export function isCampaignFeatureUnlocked(
   return getUnlockedFeatures(constructedIds).has(feature);
 }
 
+export function classGrantsSecondWeapon(className: string | undefined): boolean {
+  return className === "HARPE";
+}
+
+export function classGrantsDualGear(className: string | undefined): boolean {
+  return className === "EPEUS";
+}
+
 export type CharacterSheetLoadoutFields = {
   class?: string;
   armor?: string;
   weapon?: string;
   equipment?: string;
   gear?: string;
+  gearArmor?: string;
   weapon2?: string;
   yadathanTower?: string;
 };
@@ -167,15 +176,33 @@ export function validateCharacterSheetLoadout(
     }
   }
   if (fields.gear !== undefined) {
-    if (fields.gear && !features.has("gearSlot")) {
+    const className = fields.class ?? existing?.class;
+    const epeusDual = classGrantsDualGear(className);
+    if (fields.gear && !features.has("gearSlot") && !epeusDual) {
       return "Gear slot not unlocked";
     }
     if (fields.gear && !unlocked.gear.has(fields.gear) && fields.gear !== existing?.gear) {
       return `Gear not unlocked: ${fields.gear}`;
     }
   }
+  if (fields.gearArmor !== undefined) {
+    const className = fields.class ?? existing?.class;
+    const epeusDual = classGrantsDualGear(className);
+    if (fields.gearArmor && !features.has("gearSlot") && !epeusDual) {
+      return "Gear slot not unlocked";
+    }
+    if (
+      fields.gearArmor &&
+      !unlocked.gear.has(fields.gearArmor) &&
+      fields.gearArmor !== existing?.gearArmor
+    ) {
+      return `Gear not unlocked: ${fields.gearArmor}`;
+    }
+  }
   if (fields.weapon2 !== undefined) {
-    if (fields.weapon2 && !features.has("secondWeaponSlot")) {
+    const className = fields.class ?? existing?.class;
+    const harpeExtra = classGrantsSecondWeapon(className);
+    if (fields.weapon2 && !features.has("secondWeaponSlot") && !harpeExtra) {
       return "Second weapon slot not unlocked";
     }
     if (

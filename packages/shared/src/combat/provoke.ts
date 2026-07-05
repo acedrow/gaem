@@ -6,6 +6,7 @@ import { enemyFootprintTiles, enemyOccupiesTile, getEnemyMaxHpByName, getEnemySc
 import { coordKey, tileAt } from "../map.js";
 import { rollDice } from "./damage.js";
 import { applyDamageToEnemy, applyDamageToPlayer, manhattanDistance } from "./attack.js";
+import { playerArmorGearName } from "./attractor.js";
 import {
   buildSwarmGroups,
   enemyHasSwarmTrait,
@@ -235,19 +236,6 @@ function collectPlayerStepProvokes(
     });
   }
 
-  for (const other of state.players) {
-    if (other.id === player.id) continue;
-    const wasAdj = isOrthogonallyAdjacent(from, other);
-    if (!wasAdj) continue;
-    if (isOrthogonallyAdjacent(to, other)) continue;
-    triggers.push({
-      sourceId: other.id,
-      sourceKind: "player",
-      label: playerLabel(other),
-      dice: 1,
-    });
-  }
-
   return triggers;
 }
 
@@ -425,6 +413,7 @@ export function applyKopisRetaliation(
   rng = Math.random,
 ): string | undefined {
   if (!isKopisClass(player.class)) return undefined;
+  if (!player.counters?.movedThisTurn) return undefined;
   const enemyTriggers = triggers.filter((t) => t.sourceKind === "enemy");
   if (!enemyTriggers.length) return undefined;
 
@@ -490,7 +479,7 @@ export function applyProvokeAndFormat(
 }
 
 export function activateExpandedAggressionGear(state: GameState, player: Player): string | null {
-  if (player.gear !== EXPANDED_AGGRESSION_GEAR) return null;
+  if (playerArmorGearName(player) !== EXPANDED_AGGRESSION_GEAR) return null;
   if (!player.counters) player.counters = {};
   player.counters.provokeRangeUntilRound = state.round + 1;
   return "Provoke range extended to Range:2 until end of next turn";

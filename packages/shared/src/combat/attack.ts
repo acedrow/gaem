@@ -16,6 +16,7 @@ import type { WeaponAttackSpec } from "./types.js";
 import type { AttackRangeSpan } from "./types.js";
 import { applyBleedBonus, applyEffectStacks, setTileEffect } from "./effects.js";
 import { parseAndRollDamage } from "./damage.js";
+import { checkSharurEmergencyDefenses } from "./attractor.js";
 import { clampHp, getEnemyMaxHp, getPlayerMaxHp, getEffectiveEnemyMaxHp, removeEnemy } from "../game.js";
 import {
   buildSwarmGroups,
@@ -371,6 +372,9 @@ export function applyDamageToPlayer(
   const before = player.hp ?? maxHp;
   const adjusted = applyBleedBonus(damage, player.effects);
   player.hp = clampHp(before - adjusted, maxHp);
+  if (state) {
+    checkSharurEmergencyDefenses(state, player);
+  }
   if (state && opts?.recordDamage !== false) {
     if (!state.damageEvents) state.damageEvents = [];
     state.damageEvents.push({ x: player.x, y: player.y, amount: adjusted });

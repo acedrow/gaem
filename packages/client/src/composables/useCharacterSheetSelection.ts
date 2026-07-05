@@ -7,7 +7,7 @@ import { activeTab } from "./useGameConsole.js";
 import { useGameState } from "./useGameState.js";
 import { useInfoDataSelection } from "./useInfoDataSelection.js";
 
-export type GearField = "class" | "armor" | "weapon" | "equipment" | "gear" | "weapon2";
+export type GearField = "class" | "armor" | "weapon" | "equipment" | "gear" | "gearArmor" | "weapon2";
 
 export type GearPick = {
   sheetId: string;
@@ -32,6 +32,7 @@ export function useCharacterSheetSelection() {
     if (!field) return null;
     if (field === "class") return "classes";
     if (field === "weapon" || field === "weapon2") return "weapons";
+    if (field === "gear" || field === "gearArmor") return "gear";
     return field;
   });
 
@@ -101,6 +102,7 @@ export function useCharacterSheetSelection() {
           weapon: data.sheet.weapon,
           equipment: data.sheet.equipment,
           gear: data.sheet.gear,
+          gearArmor: data.sheet.gearArmor,
           weapon2: data.sheet.weapon2,
           yadathanTower: data.sheet.yadathanTower,
         });

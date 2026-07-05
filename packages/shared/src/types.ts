@@ -78,6 +78,7 @@ export type Player = {
   yadathanTower?: string;
   equipment?: string;
   gear?: string;
+  gearArmor?: string;
   weapon2?: string;
   speed?: number;
   hp?: number;
@@ -190,6 +191,7 @@ export type CharacterSheet = {
   weapon: string;
   equipment?: string;
   gear?: string;
+  gearArmor?: string;
   weapon2?: string;
   tags?: string[];
   yadathanTower?: string;
@@ -229,6 +231,7 @@ export type ClientMessage =
       weapon?: string;
       equipment?: string;
       gear?: string;
+      gearArmor?: string;
       weapon2?: string;
       yadathanTower?: string;
     }
@@ -246,6 +249,7 @@ export type ClientMessage =
       type: "clearEffects";
       target: { kind: "player" | "enemy"; id: string };
     }
+  | { type: "removeAttractor"; x: number; y: number }
   | { type: "phaseAction"; action: PhaseAction }
   | { type: "setSandboxMode"; sandboxMode: boolean }
   | { type: "baseCampaignAction"; action: BaseCampaignAction };

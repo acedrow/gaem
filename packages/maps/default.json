@@ -8,7 +8,7 @@
       "x": 0,
       "y": 0,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -16,7 +16,7 @@
       "x": 1,
       "y": 0,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -24,7 +24,7 @@
       "x": 2,
       "y": 0,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -32,7 +32,7 @@
       "x": 3,
       "y": 0,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -40,7 +40,7 @@
       "x": 4,
       "y": 0,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -48,7 +48,7 @@
       "x": 5,
       "y": 0,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -56,7 +56,7 @@
       "x": 6,
       "y": 0,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -64,7 +64,7 @@
       "x": 7,
       "y": 0,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -72,7 +72,7 @@
       "x": 8,
       "y": 0,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -80,7 +80,7 @@
       "x": 9,
       "y": 0,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -88,7 +88,7 @@
       "x": 10,
       "y": 0,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -96,7 +96,7 @@
       "x": 11,
       "y": 0,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -104,7 +104,7 @@
       "x": 0,
       "y": 1,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -192,7 +192,7 @@
       "x": 11,
       "y": 1,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -200,7 +200,7 @@
       "x": 0,
       "y": 2,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -288,7 +288,7 @@
       "x": 11,
       "y": 2,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -296,7 +296,7 @@
       "x": 0,
       "y": 3,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -384,7 +384,7 @@
       "x": 11,
       "y": 3,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -392,7 +392,7 @@
       "x": 0,
       "y": 4,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -480,7 +480,7 @@
       "x": 11,
       "y": 4,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -488,7 +488,7 @@
       "x": 0,
       "y": 5,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -576,7 +576,7 @@
       "x": 11,
       "y": 5,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -584,7 +584,7 @@
       "x": 0,
       "y": 6,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -672,7 +672,7 @@
       "x": 11,
       "y": 6,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -680,7 +680,7 @@
       "x": 0,
       "y": 7,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -768,7 +768,7 @@
       "x": 11,
       "y": 7,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -776,7 +776,7 @@
       "x": 0,
       "y": 8,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -864,7 +864,7 @@
       "x": 11,
       "y": 8,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -872,7 +872,7 @@
       "x": 0,
       "y": 9,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -880,7 +880,7 @@
       "x": 1,
       "y": 9,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -888,7 +888,7 @@
       "x": 2,
       "y": 9,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -896,7 +896,7 @@
       "x": 3,
       "y": 9,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -904,7 +904,7 @@
       "x": 4,
       "y": 9,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -912,7 +912,7 @@
       "x": 5,
       "y": 9,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -920,7 +920,7 @@
       "x": 6,
       "y": 9,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -928,7 +928,7 @@
       "x": 7,
       "y": 9,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -936,7 +936,7 @@
       "x": 8,
       "y": 9,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -944,7 +944,7 @@
       "x": 9,
       "y": 9,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -952,7 +952,7 @@
       "x": 10,
       "y": 9,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     },
@@ -960,7 +960,7 @@
       "x": 11,
       "y": 9,
       "terrain": [
-        "impassable"
+        "obstacle"
       ],
       "elevation": 0
     }

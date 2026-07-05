@@ -6,7 +6,7 @@ import weaponsJson from "./data/player/weapons.json" with { type: "json" };
 import type { CharacterSheet, Player } from "./types.js";
 import { RULE_EFFECTS, getEffectSummary as getEffectSummaryFromData } from "./effects-data.js";
 import type { RuleEffect } from "./effects-data.js";
-import type { StructuredArmorAction, WeaponAttackSpec } from "./combat/types.js";
+import type { ClassActiveKind, ActionTier, StructuredArmorAction, WeaponAttackSpec } from "./combat/types.js";
 import type { AbilityText } from "./rule-text.js";
 import {
   validateCharacterSheetLoadout,
@@ -57,6 +57,17 @@ export function getClassByName(name: string): PlayerClass | undefined {
   return PLAYER_CLASSES.find((c) => c.name === name);
 }
 
+export function getClassActiveTier(className: string | undefined): ActionTier {
+  const cls = getClassByName(className ?? "");
+  return (cls as { activeTier?: ActionTier })?.activeTier ?? "support";
+}
+
+export function getClassActiveKind(className: string | undefined): ClassActiveKind | undefined {
+  return (getClassByName(className ?? "") as { activeKind?: ClassActiveKind })?.activeKind;
+}
+
+export { classGrantsSecondWeapon, classGrantsDualGear } from "./base-upgrades-unlocks.js";
+
 export function getClassMaxHp(className: string | undefined): number {
   if (!className) return 0;
   return getClassByName(className)?.hp ?? 0;
@@ -92,6 +103,7 @@ export function applyLoadoutToPlayer(
     equipment?: string;
     gear?: string;
     weapon2?: string;
+    gearArmor?: string;
     yadathanTower?: string;
   },
 ): void {
@@ -100,6 +112,7 @@ export function applyLoadoutToPlayer(
   player.weapon = loadout.weapon;
   player.equipment = loadout.equipment || undefined;
   player.gear = loadout.gear || undefined;
+  player.gearArmor = loadout.gearArmor || undefined;
   player.weapon2 = loadout.weapon2 || undefined;
   player.speed = getArmorSpeed(loadout.armor);
   const armor = getArmorByName(loadout.armor);
@@ -157,6 +170,9 @@ export function validateCharacterSheetRefs(
   }
   if (fields.gear !== undefined && fields.gear && !gearNames.has(fields.gear)) {
     return `Invalid gear: ${fields.gear}`;
+  }
+  if (fields.gearArmor !== undefined && fields.gearArmor && !gearNames.has(fields.gearArmor)) {
+    return `Invalid gear: ${fields.gearArmor}`;
   }
   if (fields.weapon2 !== undefined && fields.weapon2 && !weaponNames.has(fields.weapon2)) {
     return `Invalid weapon: ${fields.weapon2}`;

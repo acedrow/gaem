@@ -92,13 +92,76 @@ export type PendingReaction = {
   incomingDamage?: number;
 };
 
+export type ThrownTrap = {
+  ownerId: string;
+  weaponName: string;
+  x: number;
+  y: number;
+  originX: number;
+  originY: number;
+};
+
+export type BoardToken = {
+  id: string;
+  ownerId: string;
+  x: number;
+  y: number;
+  kind: "kopis";
+};
+
+export type AttractorTile = {
+  id: string;
+  ownerId: string;
+  x: number;
+  y: number;
+  void: boolean;
+};
+
+export type HarpeTrapPullReaction = {
+  kind: "harpe_trap_pull";
+  playerId: string;
+  enemyId: string;
+  trapOwnerId: string;
+  weaponName: string;
+  trapX: number;
+  trapY: number;
+  damageDealt: number;
+};
+
+export type BorrowingFollowUpReaction = {
+  kind: "borrowing_follow_up";
+  playerId: string;
+  allyPlayerId: string;
+  direction: import("../pattern-data.js").PatternDirection;
+  anchorX?: number;
+  anchorY?: number;
+  extraEnemyIds: string[];
+  maxDamage: number;
+};
+
+export type PendingClassReaction = HarpeTrapPullReaction | BorrowingFollowUpReaction;
+
+export type ClassActiveKind =
+  | "weapon_trap"
+  | "mag_dump"
+  | "back_up"
+  | "borrowing_this"
+  | "synesis_conversion"
+  | "bag_of_tricks";
+
 export type CombatState = {
   playerCountAtStart: number;
   pendingActions: PendingAction[];
   pendingReaction: PendingReaction | null;
+  pendingClassReaction: PendingClassReaction | null;
   activeEnemyId: string | null;
   swarmChipResolvedIds?: string[];
   passedEnemyIdsByPlayer?: Record<string, string[]>;
+  thrownTraps?: ThrownTrap[];
+  boardTokens?: BoardToken[];
+  attractors?: AttractorTile[];
+  gearCheckGrants?: Record<string, string>;
+  kopisMarks?: Record<string, string>;
 };
 
 export type PlayerAction =
@@ -131,8 +194,36 @@ export type PlayerAction =
       y?: number;
     }
   | { action: "towerTeleport"; x: number; y: number; keraunoTargetEnemyId?: string }
+  | { action: "assistedLaunch"; anchorX: number; anchorY: number }
   | { action: "kataptyEndTurn"; targetEnemyIds?: string[] }
-  | { action: "classActive"; detail?: string; targetEnemyIds?: string[]; targetPlayerIds?: string[] }
+  | {
+      action: "classActive";
+      kind?: ClassActiveKind;
+      harpeRecall?: boolean;
+      harpeEquipWeapon?: string;
+      targetEnemyIds?: string[];
+      targetPlayerIds?: string[];
+      x?: number;
+      y?: number;
+      allyPlayerId?: string;
+      direction?: PatternDirection;
+      anchorX?: number;
+      anchorY?: number;
+      followUpMaxDamage?: boolean;
+      gearSlot?: "weapon" | "armor";
+      gearName?: string;
+    }
+  | {
+      action: "classPassive";
+      kind: "baseline_communism";
+      targetPlayerId: string;
+    }
+  | {
+      action: "resolveClassReaction";
+      pullDistance?: number;
+      pullToward?: "self" | "weapon";
+      accept?: boolean;
+    }
   | {
       action: "weaponActive";
       detail?: string;
@@ -189,7 +280,13 @@ export function createDefaultCombatState(playerCount: number): CombatState {
     playerCountAtStart: playerCount,
     pendingActions: [],
     pendingReaction: null,
+    pendingClassReaction: null,
     activeEnemyId: null,
     swarmChipResolvedIds: [],
+    thrownTraps: [],
+    boardTokens: [],
+    attractors: [],
+    gearCheckGrants: {},
+    kopisMarks: {},
   };
 }
