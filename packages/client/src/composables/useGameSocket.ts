@@ -6,13 +6,19 @@ import { appendConsoleEntry, setConsoleEntries } from "./useGameConsole.js";
 import { useGameConnection } from "./useGameConnection.js";
 import { useGameState } from "./useGameState.js";
 
+export const gameWsUrl =
+  import.meta.env.VITE_WS_URL ??
+  (import.meta.env.DEV
+    ? `ws://${location.hostname}:3001/ws`
+    : `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`);
+
 export function useGameSocket(opts: {
   wsUrl: string;
   role: Ref<"gm" | "player">;
   playerProfile: Ref<{ id: string; name: string } | null | undefined>;
   selectedSheetId: Ref<string | null>;
   onError: (message: string) => void;
-  onSelectionInvalidated: (state: ServerMessage & { type: "state" }) => void;
+  onSelectionInvalidated?: (state: ServerMessage & { type: "state" }) => void;
 }) {
   const { connection } = useGameConnection();
   const { setGameState, registerSend, clearGameState } = useGameState();
@@ -54,7 +60,7 @@ export function useGameSocket(opts: {
       }
       if (msg.type === "state") {
         setGameState(msg.state, msg.yourPlayerId);
-        opts.onSelectionInvalidated(msg);
+        opts.onSelectionInvalidated?.(msg);
       } else if (msg.type === "consoleSync") {
         setConsoleEntries(msg.entries);
       } else if (msg.type === "console") {

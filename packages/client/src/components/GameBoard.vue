@@ -92,10 +92,8 @@ import { useDamageIndicators } from "../composables/useDamageIndicators.js";
 import { useEnemyDeathAnimations } from "../composables/useEnemyDeathAnimations.js";
 import { useEnemyMoveAnimation } from "../composables/useEnemyMoveAnimation.js";
 import { usePlayerTeleportAnimation } from "../composables/usePlayerTeleportAnimation.js";
-import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
 import { useCharacterSheets } from "../composables/useCharacterSheets.js";
 import { useEnemySpawnSelection } from "../composables/useEnemySpawnSelection.js";
-import { useGameSocket } from "../composables/useGameSocket.js";
 import { showToast } from "../composables/useToasts.js";
 import { usePortraitCache } from "../composables/usePortraitCache.js";
 import { useApi } from "../composables/useApi.js";
@@ -117,13 +115,6 @@ const props = defineProps<{
   overlayEl?: HTMLElement | null;
 }>();
 
-const wsUrl =
-  import.meta.env.VITE_WS_URL ??
-  (import.meta.env.DEV
-    ? `ws://${location.hostname}:3001/ws`
-    : `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`);
-
-const { selectedSheetId } = useCharacterSheetSelection();
 const {
   boardSelection,
   selectedEnemyId,
@@ -140,7 +131,7 @@ const {
 const selectedPlayerId = computed(() =>
   boardSelection.value?.kind === "player" ? boardSelection.value.id : null,
 );
-const { gameState, yourPlayerId } = useGameState();
+const { gameState, yourPlayerId, send } = useGameState();
 const activePlayerSelected = computed(() => {
   const id = yourPlayerId.value;
   if (!id) return false;
@@ -268,30 +259,20 @@ const {
   overlayInsetPx,
 );
 
-const playerProfileRef = computed(() => props.playerProfile ?? null);
-
-const { send, connect, disconnect: disconnectSocket } = useGameSocket({
-  wsUrl,
-  role: computed(() => props.role),
-  playerProfile: playerProfileRef,
-  selectedSheetId,
-  onError: (message) => {
-    showToast(message);
-  },
-  onSelectionInvalidated: (msg) => {
-    const selection = boardSelection.value;
-    if (selection?.kind === "enemy") {
-      const ids = selection.swarmMemberIds ?? [selection.id];
-      if (!ids.some((id) => msg.state.enemies.some((e) => e.id === id))) {
-        clearBoardSelection();
-      }
-    } else if (
-      selection?.kind === "player" &&
-      !msg.state.players.some((p) => p.id === selection.id)
-    ) {
+watch(gameState, (s) => {
+  if (!s) return;
+  const selection = boardSelection.value;
+  if (selection?.kind === "enemy") {
+    const ids = selection.swarmMemberIds ?? [selection.id];
+    if (!ids.some((id) => s.enemies.some((e) => e.id === id))) {
       clearBoardSelection();
     }
-  },
+  } else if (
+    selection?.kind === "player" &&
+    !s.players.some((p) => p.id === selection.id)
+  ) {
+    clearBoardSelection();
+  }
 });
 
 function finalizeDefeatedEnemy(enemyId: string) {
@@ -2413,7 +2394,6 @@ function onKeydown(e: KeyboardEvent) {
 
 onMounted(() => {
   void loadSheets();
-  connect();
   window.addEventListener("keydown", onKeydown);
 });
 
@@ -2427,7 +2407,6 @@ onUnmounted(() => {
   window.removeEventListener("keydown", onKeydown);
   overlayInsetObserver?.disconnect();
   disconnectViewport();
-  disconnectSocket();
 });
 </script>
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { PhaseAction } from "@gaem/shared";
 import { isPlayerDowned, isSandboxMode, kataptyNeedsTargetPick, remainingPlayerIds, roundPhaseLabel, turnHolderLabel } from "@gaem/shared";
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRouter } from "vue-router";
 
 import { useBoardActionMode } from "../composables/useBoardActionMode.js";
@@ -9,6 +9,7 @@ import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
 import { activeTab } from "../composables/useGameConsole.js";
 import { useGameConnection } from "../composables/useGameConnection.js";
+import { gameWsUrl, useGameSocket } from "../composables/useGameSocket.js";
 import { useGameState } from "../composables/useGameState.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import { activeMainTab } from "../composables/useMainSectionTab.js";
@@ -35,6 +36,17 @@ const { setMode } = useBoardActionMode();
 
 const boardOverlaysEl = ref<HTMLElement | null>(null);
 
+const playerProfileRef = computed(() => playerProfile.value ?? null);
+const sessionRole = computed(() => role.value!);
+
+const { connect, disconnect: disconnectSocket } = useGameSocket({
+  wsUrl: gameWsUrl,
+  role: sessionRole,
+  playerProfile: playerProfileRef,
+  selectedSheetId,
+  onError: (message) => showToast(message),
+});
+
 onMounted(() => {
   initUiPersistence({
     boardSelection,
@@ -51,6 +63,11 @@ onMounted(() => {
   if (activeMainTab.value === "baseUpgrades") {
     openResourcesPanel();
   }
+  connect();
+});
+
+onUnmounted(() => {
+  disconnectSocket();
 });
 
 const mapName = computed(() => gameState.value?.mapName ?? gameState.value?.mapId ?? null);
