@@ -1,6 +1,8 @@
-import type { PatternDirection } from "@gaem/shared";
-import { nextPatternDirection } from "@gaem/shared";
 import { computed, ref } from "vue";
+import { nextPatternDirection } from "@gaem/shared";
+import type { PatternDirection } from "@gaem/shared";
+
+import { clearActiveTool } from "./useGmTools.js";
 
 export type BoardActionMode =
   | "move"
@@ -112,6 +114,7 @@ export function useBoardActionMode() {
   const isActive = computed(() => mode.value !== null);
 
   function setMode(next: BoardActionMode) {
+    if (next !== null) clearActiveTool();
     mode.value = next;
     attackAimed.value = false;
     attackAnchor.value = null;

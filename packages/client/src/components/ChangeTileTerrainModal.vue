@@ -9,6 +9,7 @@ import TerrainTypePreview from "./TerrainTypePreview.vue";
 const props = defineProps<{
   open: boolean;
   coords: { x: number; y: number } | null;
+  bulkCoords?: { x: number; y: number }[];
 }>();
 
 const emit = defineEmits<{
@@ -20,28 +21,35 @@ const { gameState, send } = useGameState();
 const selectedTerrain = ref<TerrainType>("standard");
 
 watch(
-  () => [props.open, props.coords] as const,
-  ([isOpen, coords]) => {
-    if (!isOpen || !coords) return;
-    const tile = gameState.value ? tileAt(gameState.value.tiles, coords.x, coords.y) : undefined;
+  () => [props.open, props.coords, props.bulkCoords] as const,
+  ([isOpen, coords, bulkCoords]) => {
+    const point = bulkCoords?.[0] ?? coords;
+    if (!isOpen || !point) return;
+    const tile = gameState.value ? tileAt(gameState.value.tiles, point.x, point.y) : undefined;
     selectedTerrain.value = tile?.terrain[0] ?? "standard";
   },
 );
 
-const canApply = computed(() => !!props.coords);
+const canApply = computed(() => applyCoords.value.length > 0);
+
+const applyCoords = computed(() =>
+  props.bulkCoords?.length ? props.bulkCoords : props.coords ? [props.coords] : [],
+);
 
 function terrainLabel(terrain: TerrainType): string {
   return terrainTypeDisplayName(terrain);
 }
 
 function apply() {
-  if (!canApply.value || !props.coords) return;
-  send({
-    type: "setTileTerrain",
-    x: props.coords.x,
-    y: props.coords.y,
-    terrain: selectedTerrain.value,
-  });
+  if (!canApply.value) return;
+  for (const coords of applyCoords.value) {
+    send({
+      type: "setTileTerrain",
+      x: coords.x,
+      y: coords.y,
+      terrain: selectedTerrain.value,
+    });
+  }
   emit("close");
 }
 </script>

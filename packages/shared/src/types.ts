@@ -242,6 +242,11 @@ export type ClientMessage =
   | { type: "triggerReversal"; extraAllyIds?: string[] }
   | { type: "declineReversal" }
   | {
+      type: "gmApplyDamage";
+      target: { kind: "player" | "enemy"; id: string };
+      amount: number;
+    }
+  | {
       type: "applyEffect";
       target: { kind: "player" | "enemy"; id: string };
       effects: string[];

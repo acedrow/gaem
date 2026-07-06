@@ -11,6 +11,7 @@ import NumberStepper from "./NumberStepper.vue";
 const props = defineProps<{
   open: boolean;
   target: { kind: "player" | "enemy"; id: string } | null;
+  bulkTargets?: { kind: "player" | "enemy"; id: string }[];
 }>();
 
 const emit = defineEmits<{
@@ -33,21 +34,27 @@ watch(
 );
 
 const selectedEffect = computed(() => UNIT_EFFECTS.find((e) => e.id === selectedId.value));
-const canApply = computed(() => !!props.target && !!selectedId.value && stacks.value !== 0);
+const applyTargets = computed(() =>
+  props.bulkTargets?.length ? props.bulkTargets : props.target ? [props.target] : [],
+);
+const canApply = computed(
+  () => applyTargets.value.length > 0 && !!selectedId.value && stacks.value !== 0,
+);
 
 function apply() {
-  if (!canApply.value || !props.target) return;
-  send({
-    type: "applyEffect",
-    target: props.target,
-    effects: [`${selectedId.value}:${stacks.value}`],
-  });
+  if (!canApply.value) return;
+  const token = `${selectedId.value}:${stacks.value}`;
+  for (const target of applyTargets.value) {
+    send({ type: "applyEffect", target, effects: [token] });
+  }
   emit("close");
 }
 
 function clearEffects() {
-  if (!props.target) return;
-  send({ type: "clearEffects", target: props.target });
+  if (!applyTargets.value.length) return;
+  for (const target of applyTargets.value) {
+    send({ type: "clearEffects", target });
+  }
   emit("close");
 }
 </script>
@@ -89,7 +96,7 @@ function clearEffects() {
       v-if="isGm"
       type="button"
       class="btn-danger"
-      :disabled="!target"
+      :disabled="!applyTargets.length"
       @click="clearEffects"
     >
       Clear effects

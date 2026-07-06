@@ -60,6 +60,7 @@ const props = defineProps<{
   canDragDeploy: boolean;
   isPlayerSelected: boolean;
   isEnemySelected: boolean;
+  isBulkTileSelected?: boolean;
   showHealthBars: boolean;
   showEnemyHealthBars: boolean;
   enemyDying?: boolean;
@@ -217,6 +218,7 @@ const terrainImageUrl = computed(() => {
       'scaled-enemy-effects': scaledEnemyEffects,
       'enemy-dying': enemyDying,
       'enemy-defeated': enemyDefeated,
+      'bulk-tile-selected': isBulkTileSelected,
     }"
     @click="emit('click')"
     @mouseenter="emit('hover')"
@@ -674,6 +676,11 @@ const terrainImageUrl = computed(() => {
 
 .piece.selected {
   outline: 2px solid var(--color-on-accent);
+}
+
+.cell.bulk-tile-selected {
+  outline: 2px solid var(--color-accent-bright);
+  outline-offset: -2px;
 }
 
 .token-hp-bar {

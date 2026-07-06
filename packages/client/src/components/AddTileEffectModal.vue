@@ -10,6 +10,7 @@ import NumberStepper from "./NumberStepper.vue";
 const props = defineProps<{
   open: boolean;
   coords: { x: number; y: number } | null;
+  bulkCoords?: { x: number; y: number }[];
 }>();
 
 const emit = defineEmits<{
@@ -31,22 +32,25 @@ watch(
 );
 
 const selectedEffect = computed(() => TILE_EFFECTS.find((e) => e.id === selectedId.value));
-const canApply = computed(() => !!props.coords && !!selectedId.value && stacks.value !== 0);
+const applyCoords = computed(() =>
+  props.bulkCoords?.length ? props.bulkCoords : props.coords ? [props.coords] : [],
+);
+const canApply = computed(() => applyCoords.value.length > 0 && !!selectedId.value && stacks.value !== 0);
 
 function apply() {
-  if (!canApply.value || !props.coords) return;
-  send({
-    type: "applyTileEffect",
-    x: props.coords.x,
-    y: props.coords.y,
-    effects: [`${selectedId.value}:${stacks.value}`],
-  });
+  if (!canApply.value) return;
+  const token = `${selectedId.value}:${stacks.value}`;
+  for (const coords of applyCoords.value) {
+    send({ type: "applyTileEffect", x: coords.x, y: coords.y, effects: [token] });
+  }
   emit("close");
 }
 
 function clearTileEffects() {
-  if (!props.coords) return;
-  send({ type: "clearTileEffects", x: props.coords.x, y: props.coords.y });
+  if (!applyCoords.value.length) return;
+  for (const coords of applyCoords.value) {
+    send({ type: "clearTileEffects", x: coords.x, y: coords.y });
+  }
   emit("close");
 }
 </script>

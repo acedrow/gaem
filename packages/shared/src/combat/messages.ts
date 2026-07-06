@@ -1058,6 +1058,35 @@ export function applySetEnemyHp(state: GameState, enemyId: string, hp: number): 
     : `${enemyLabel(enemy)} HP set to ${clamped}`;
 }
 
+export function validateGmApplyDamage(
+  state: GameState,
+  target: { kind: "player" | "enemy"; id: string },
+  amount: number,
+): string | null {
+  if (!Number.isFinite(amount) || amount <= 0) return "Invalid damage amount";
+  if (target.kind === "player" && !state.players.some((p) => p.id === target.id)) return "Unknown player";
+  if (target.kind === "enemy" && !state.enemies.some((e) => e.id === target.id)) return "Unknown enemy";
+  return null;
+}
+
+export function applyGmApplyDamage(
+  state: GameState,
+  target: { kind: "player" | "enemy"; id: string },
+  amount: number,
+): string {
+  const damage = Math.trunc(amount);
+  if (target.kind === "player") {
+    const player = state.players.find((p) => p.id === target.id);
+    if (!player) return "Unknown player";
+    const dealt = applyDamageToPlayer(player, damage, state);
+    return `Dealt ${dealt} to ${playerLabel(player)}`;
+  }
+  const enemy = state.enemies.find((e) => e.id === target.id);
+  if (!enemy) return "Unknown enemy";
+  const dealt = applyDamageToEnemy(enemy, damage, state);
+  return `Dealt ${dealt} to ${enemyLabel(enemy)}`;
+}
+
 export function validateApplyEffect(
   state: GameState,
   target: { kind: "player" | "enemy"; id: string },
@@ -1332,6 +1361,12 @@ export function handleCombatMessage(
       const err = validateSetEnemyHp(state, parsed.enemyId, parsed.hp);
       if (err) return { handled: true, error: err };
       return { handled: true, message: applySetEnemyHp(state, parsed.enemyId, parsed.hp) };
+    }
+    case "gmApplyDamage": {
+      if (ctx.role !== "gm") return { handled: true, error: "Only GM can do that" };
+      const err = validateGmApplyDamage(state, parsed.target, parsed.amount);
+      if (err) return { handled: true, error: err };
+      return { handled: true, message: applyGmApplyDamage(state, parsed.target, parsed.amount) };
     }
     case "applyEffect": {
       const err = validateApplyEffect(state, parsed.target, parsed.effects);

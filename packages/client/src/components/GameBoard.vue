@@ -117,6 +117,7 @@ import { useEnemyMoveAnimation } from "../composables/useEnemyMoveAnimation.js";
 import { usePlayerTeleportAnimation } from "../composables/usePlayerTeleportAnimation.js";
 import { useCharacterSheets } from "../composables/useCharacterSheets.js";
 import { useEnemySpawnSelection } from "../composables/useEnemySpawnSelection.js";
+import { clearActiveTool, useGmTools } from "../composables/useGmTools.js";
 import { showToast } from "../composables/useToasts.js";
 import { usePortraitCache } from "../composables/usePortraitCache.js";
 import { useApi } from "../composables/useApi.js";
@@ -174,6 +175,18 @@ const { enemyPortraitUrlForName } = useApi();
 const { portraitBackgroundFor } = useEnemyPortraitColors();
 const { dataCategory } = useInfoDataSelection();
 const { selectedSpawnEnemyName, clearSpawnEnemySelection } = useEnemySpawnSelection();
+const {
+  activeTool: gmActiveTool,
+  selectTargetKind: gmSelectTargetKind,
+  bulkSelection: gmBulkSelection,
+  setBulkSelection: setGmBulkSelection,
+  clearBulkSelection: clearGmBulkSelection,
+  isTileBulkSelected,
+  isPlayerBulkSelected,
+  isEnemyBulkSelected,
+  isCellInBulkSelection,
+  applyDamageEffectToToken,
+} = useGmTools();
 const {
   selectedPatternId,
   selectedPattern,
@@ -249,10 +262,18 @@ const contextMenu = ref<{
 }>({ open: false, x: 0, y: 0, items: [] });
 const effectModalOpen = ref(false);
 const effectModalTarget = ref<{ kind: "player" | "enemy"; id: string } | null>(null);
+const effectModalBulkTargets = ref<{ kind: "player" | "enemy"; id: string }[] | undefined>(
+  undefined,
+);
 const tileEffectModalOpen = ref(false);
 const tileEffectModalCoords = ref<{ x: number; y: number } | null>(null);
+const tileEffectModalBulkCoords = ref<{ x: number; y: number }[] | undefined>(undefined);
 const tileTerrainModalOpen = ref(false);
 const tileTerrainModalCoords = ref<{ x: number; y: number } | null>(null);
+const tileTerrainModalBulkCoords = ref<{ x: number; y: number }[] | undefined>(undefined);
+const marqueeActive = ref(false);
+const marqueeStart = ref<{ x: number; y: number } | null>(null);
+const marqueeEnd = ref<{ x: number; y: number } | null>(null);
 const viewportEl = ref<HTMLElement | null>(null);
 
 const boardWidthPx = computed(() => {
@@ -1683,8 +1704,9 @@ const boardCellRows = computed(() => {
       cell,
       isHovered: hoveredKey.value === c.key,
       canDragDeploy: !!player && canDragDeploy(player),
-      isPlayerSelected: !!player && isPlayerSelected(player.id),
-      isEnemySelected: !!enemyAnchor && isEnemySelected(enemyAnchor.id),
+      isPlayerSelected: !!player && (isPlayerSelected(player.id) || isPlayerBulkSelected(player.id)),
+      isEnemySelected: !!enemyAnchor && (isEnemySelected(enemyAnchor.id) || isEnemyBulkSelected(enemyAnchor.id)),
+      isBulkTileSelected: isTileBulkSelected(c.x, c.y),
       playerHue: player ? hueFromId(player.id) : null,
       enemyDying: !!enemyAnchor && isEnemyDying(enemyAnchor.id),
       enemyDefeated: !!enemyAnchor && isEnemyDefeated(enemyAnchor.id),
@@ -2095,6 +2117,7 @@ function boardTargetingContext() {
 }
 
 function onEnemyCellClick(x: number, y: number, enemyId: string) {
+  if (tryGmDamageEffectToken({ kind: "enemy", id: enemyId })) return;
   if (
     props.role === "player" &&
     routesTokenClickToCellTargeting(boardActionMode.value, boardTargetingContext())
@@ -3071,6 +3094,7 @@ function handleCombatCellClick(x: number, y: number): boolean {
 }
 
 function onBoardPlayerClick(x: number, y: number, playerId: string, characterSheetId?: string) {
+  if (tryGmDamageEffectToken({ kind: "player", id: playerId })) return;
   if (props.role === "gm" && boardActionMode.value === "gmEnemyAttack") {
     if (handleGmEnemyAttackCellClick(x, y)) return;
   }
@@ -3156,9 +3180,142 @@ function onSwarmAttackClose() {
   swarmAttackPending.value = null;
 }
 
+function cellFromClientPoint(clientX: number, clientY: number): { x: number; y: number } | null {
+  const el = document.elementFromPoint(clientX, clientY)?.closest("[data-cell-x]") as HTMLElement | null;
+  if (!el) return null;
+  const x = Number(el.dataset.cellX);
+  const y = Number(el.dataset.cellY);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x, y };
+}
+
+function cellsInGridRect(
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  width: number,
+  height: number,
+): { x: number; y: number }[] {
+  const minX = Math.max(0, Math.min(x0, x1));
+  const maxX = Math.min(width - 1, Math.max(x0, x1));
+  const minY = Math.max(0, Math.min(y0, y1));
+  const maxY = Math.min(height - 1, Math.max(y0, y1));
+  const coords: { x: number; y: number }[] = [];
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = minX; x <= maxX; x++) coords.push({ x, y });
+  }
+  return coords;
+}
+
+function finishMarqueeSelection(startClient: { x: number; y: number }, endClient: { x: number; y: number }) {
+  const s = gameState.value;
+  const occ = occupancy.value;
+  if (!s || !occ) return;
+  const startCell = cellFromClientPoint(startClient.x, startClient.y);
+  const endCell = cellFromClientPoint(endClient.x, endClient.y);
+  if (!startCell || !endCell) {
+    clearGmBulkSelection();
+    return;
+  }
+  const rectCells = cellsInGridRect(startCell.x, startCell.y, endCell.x, endCell.y, s.width, s.height);
+  if (gmSelectTargetKind.value === "tiles") {
+    setGmBulkSelection({ kind: "tiles", coords: rectCells });
+    return;
+  }
+  if (gmSelectTargetKind.value === "players") {
+    const ids = new Set<string>();
+    for (const cell of rectCells) {
+      const player = occ.playerByKey.get(coordKey(cell.x, cell.y));
+      if (player) ids.add(player.id);
+    }
+    setGmBulkSelection(ids.size ? { kind: "players", ids: [...ids] } : null);
+    return;
+  }
+  const ids = new Set<string>();
+  for (const cell of rectCells) {
+    const enemy = occ.enemyByKey.get(coordKey(cell.x, cell.y));
+    if (enemy) ids.add(enemy.id);
+  }
+  setGmBulkSelection(ids.size ? { kind: "enemies", ids: [...ids] } : null);
+}
+
+function onMarqueePointerDown(e: PointerEvent) {
+  if (props.role !== "gm" || gmActiveTool.value !== "select") return;
+  if (e.button !== 0) return;
+  const target = e.target as HTMLElement;
+  if (target.closest(".reset-zoom-btn")) return;
+  e.preventDefault();
+  marqueeActive.value = true;
+  marqueeStart.value = { x: e.clientX, y: e.clientY };
+  marqueeEnd.value = { x: e.clientX, y: e.clientY };
+  let didDrag = false;
+  const onMove = (ev: PointerEvent) => {
+    didDrag = true;
+    marqueeEnd.value = { x: ev.clientX, y: ev.clientY };
+  };
+  const onUp = (_ev: PointerEvent) => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    marqueeActive.value = false;
+    const start = marqueeStart.value;
+    const end = marqueeEnd.value;
+    marqueeStart.value = null;
+    marqueeEnd.value = null;
+    if (!start || !end) return;
+    if (didDrag) finishMarqueeSelection(start, end);
+  };
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+}
+
+const marqueeOverlayStyle = computed(() => {
+  if (!marqueeActive.value || !marqueeStart.value || !marqueeEnd.value || !viewportEl.value) return null;
+  const rect = viewportEl.value.getBoundingClientRect();
+  const x0 = marqueeStart.value.x - rect.left;
+  const y0 = marqueeStart.value.y - rect.top;
+  const x1 = marqueeEnd.value.x - rect.left;
+  const y1 = marqueeEnd.value.y - rect.top;
+  const left = Math.min(x0, x1);
+  const top = Math.min(y0, y1);
+  return {
+    left: `${left}px`,
+    top: `${top}px`,
+    width: `${Math.abs(x1 - x0)}px`,
+    height: `${Math.abs(y1 - y0)}px`,
+  };
+});
+
+function tryGmDamageEffectToken(target: { kind: "player" | "enemy"; id: string }): boolean {
+  if (props.role !== "gm" || gmActiveTool.value !== "damageEffect") return false;
+  applyDamageEffectToToken(target);
+  return true;
+}
+
 function onGmCellClick(x: number, y: number) {
   const s = gameState.value;
   if (!s) return;
+
+  if (gmActiveTool.value === "damageEffect") {
+    const occ = occupancy.value;
+    const key = coordKey(x, y);
+    const player = occ?.playerByKey.get(key);
+    if (player) {
+      applyDamageEffectToToken({ kind: "player", id: player.id });
+      return;
+    }
+    const enemy = occ?.enemyByKey.get(key);
+    if (enemy) {
+      applyDamageEffectToToken({ kind: "enemy", id: enemy.id });
+      return;
+    }
+    return;
+  }
+
+  if (gmActiveTool.value === "select") {
+    if (!selectOccupantAt(x, y)) clearGmBulkSelection();
+    return;
+  }
 
   if (boardActionMode.value === "gmEnemyAttack") {
     if (handleGmEnemyAttackCellClick(x, y)) return;
@@ -3259,6 +3416,43 @@ function buildContextMenuItems(x: number, y: number): BoardContextMenuItem[] {
   const enemy = occ?.enemyByKey.get(key);
   const attractor = s?.combat?.attractors?.find((a) => a.x === x && a.y === y);
   const tile = s ? tileAt(s.tiles, x, y) : undefined;
+  const bulk = gmBulkSelection.value;
+  const useBulk =
+    props.role === "gm" &&
+    !!bulk &&
+    !!occ &&
+    isCellInBulkSelection(x, y, occ);
+  const countLabel = (n: number) => (useBulk && n > 1 ? ` (${n})` : "");
+
+  if (useBulk && bulk.kind === "tiles") {
+    const n = bulk.coords.length;
+    items.push({ id: "change-tile-terrain", label: `Change terrain type${countLabel(n)}` });
+    items.push({ id: "add-tile-effect", label: `Add tile effect${countLabel(n)}` });
+    if (bulk.coords.some((c) => hasTileEffects(tileAt(s!.tiles, c.x, c.y)))) {
+      items.push({ id: "clear-tile-effects", label: `Clear tile effects${countLabel(n)}`, danger: true });
+    }
+    return items;
+  }
+
+  if (useBulk && bulk.kind === "players") {
+    const n = bulk.ids.length;
+    items.push({ id: "add-effect", label: `Add effect${countLabel(n)}` });
+    if (bulk.ids.some((id) => hasEffectStacks(s?.players.find((p) => p.id === id)))) {
+      items.push({ id: "clear-effects", label: `Clear effects${countLabel(n)}`, danger: true });
+    }
+    return items;
+  }
+
+  if (useBulk && bulk.kind === "enemies") {
+    const n = bulk.ids.length;
+    items.push({ id: "add-effect", label: `Add effect${countLabel(n)}` });
+    if (bulk.ids.some((id) => hasEffectStacks(s?.enemies.find((e) => e.id === id)))) {
+      items.push({ id: "clear-effects", label: `Clear effects${countLabel(n)}`, danger: true });
+    }
+    items.push({ id: "remove-enemy", label: `Remove enemy${countLabel(n)}`, danger: true });
+    return items;
+  }
+
   const canRemoveAttractor =
     !!attractor &&
     (props.role === "gm" ||
@@ -3309,8 +3503,15 @@ function onBoardContextMenu(e: MouseEvent) {
   const key = coordKey(x, y);
   const player = occ?.playerByKey.get(key);
   const enemy = occ?.enemyByKey.get(key);
-  if (enemy) selectBoardEnemy(enemy.id);
-  else if (player) selectBoardPlayer(player.id, player.characterSheetId);
+  const inBulk =
+    props.role === "gm" &&
+    !!gmBulkSelection.value &&
+    !!occ &&
+    isCellInBulkSelection(x, y, occ);
+  if (!inBulk) {
+    if (enemy) selectBoardEnemy(enemy.id);
+    else if (player) selectBoardPlayer(player.id, player.characterSheetId);
+  }
 
   contextMenu.value = {
     open: true,
@@ -3325,9 +3526,31 @@ function onBoardContextMenu(e: MouseEvent) {
 }
 
 function onContextMenuSelect(id: string) {
+  const bulk = gmBulkSelection.value;
+  const occ = occupancy.value;
+  const cellX = contextMenu.value.cellX;
+  const cellY = contextMenu.value.cellY;
+  const useBulk =
+    !!bulk &&
+    cellX != null &&
+    cellY != null &&
+    !!occ &&
+    isCellInBulkSelection(cellX, cellY, occ);
+
   if (id === "add-effect") {
+    if (useBulk && (bulk.kind === "players" || bulk.kind === "enemies")) {
+      effectModalBulkTargets.value = bulk.ids.map((targetId) => ({
+        kind: bulk.kind === "players" ? "player" : "enemy",
+        id: targetId,
+      }));
+      effectModalTarget.value = null;
+      effectModalOpen.value = true;
+      closeContextMenu();
+      return;
+    }
     const enemyId = contextMenu.value.enemyId;
     const playerId = contextMenu.value.playerId;
+    effectModalBulkTargets.value = undefined;
     if (enemyId) {
       effectModalTarget.value = { kind: "enemy", id: enemyId };
     } else if (playerId) {
@@ -3338,6 +3561,16 @@ function onContextMenuSelect(id: string) {
     return;
   }
   if (id === "clear-effects") {
+    if (useBulk && (bulk.kind === "players" || bulk.kind === "enemies")) {
+      for (const targetId of bulk.ids) {
+        send({
+          type: "clearEffects",
+          target: { kind: bulk.kind === "players" ? "player" : "enemy", id: targetId },
+        });
+      }
+      closeContextMenu();
+      return;
+    }
     const enemyId = contextMenu.value.enemyId;
     const playerId = contextMenu.value.playerId;
     if (enemyId) {
@@ -3349,9 +3582,17 @@ function onContextMenuSelect(id: string) {
     return;
   }
   if (id === "add-tile-effect") {
+    if (useBulk && bulk.kind === "tiles") {
+      tileEffectModalBulkCoords.value = bulk.coords;
+      tileEffectModalCoords.value = null;
+      tileEffectModalOpen.value = true;
+      closeContextMenu();
+      return;
+    }
     const x = contextMenu.value.cellX;
     const y = contextMenu.value.cellY;
     if (x != null && y != null) {
+      tileEffectModalBulkCoords.value = undefined;
       tileEffectModalCoords.value = { x, y };
       tileEffectModalOpen.value = true;
     }
@@ -3359,9 +3600,17 @@ function onContextMenuSelect(id: string) {
     return;
   }
   if (id === "change-tile-terrain") {
+    if (useBulk && bulk.kind === "tiles") {
+      tileTerrainModalBulkCoords.value = bulk.coords;
+      tileTerrainModalCoords.value = null;
+      tileTerrainModalOpen.value = true;
+      closeContextMenu();
+      return;
+    }
     const x = contextMenu.value.cellX;
     const y = contextMenu.value.cellY;
     if (x != null && y != null) {
+      tileTerrainModalBulkCoords.value = undefined;
       tileTerrainModalCoords.value = { x, y };
       tileTerrainModalOpen.value = true;
     }
@@ -3369,6 +3618,13 @@ function onContextMenuSelect(id: string) {
     return;
   }
   if (id === "clear-tile-effects") {
+    if (useBulk && bulk.kind === "tiles") {
+      for (const coords of bulk.coords) {
+        send({ type: "clearTileEffects", x: coords.x, y: coords.y });
+      }
+      closeContextMenu();
+      return;
+    }
     const x = contextMenu.value.cellX;
     const y = contextMenu.value.cellY;
     if (x != null && y != null) {
@@ -3377,8 +3633,15 @@ function onContextMenuSelect(id: string) {
     closeContextMenu();
     return;
   }
-  if (id === "remove-enemy" && contextMenu.value.enemyId) {
-    removeEnemyById(contextMenu.value.enemyId);
+  if (id === "remove-enemy") {
+    if (useBulk && bulk.kind === "enemies") {
+      for (const enemyId of bulk.ids) removeEnemyById(enemyId);
+      closeContextMenu();
+      return;
+    }
+    if (contextMenu.value.enemyId) {
+      removeEnemyById(contextMenu.value.enemyId);
+    }
     closeContextMenu();
     return;
   }
@@ -3489,6 +3752,10 @@ function onKeydown(e: KeyboardEvent) {
 
   if (props.role === "gm") {
     if (e.key === "Escape") {
+      if (gmActiveTool.value || gmBulkSelection.value) {
+        clearActiveTool();
+        return;
+      }
       if (selectedSpawnEnemyName.value) {
         clearSpawnEnemySelection();
         return;
@@ -3549,10 +3816,17 @@ onUnmounted(() => {
       <div
         ref="viewportEl"
         class="board-viewport"
+        @pointerdown="onMarqueePointerDown"
         @click="onViewportClick"
         @contextmenu="onBoardContextMenu"
         @wheel.prevent="onWheel"
       >
+        <div
+          v-if="marqueeOverlayStyle"
+          class="marquee-overlay"
+          :style="marqueeOverlayStyle"
+          aria-hidden="true"
+        />
         <div class="board-stage" :style="stageStyle">
           <div class="board" :style="gridStyle">
             <BoardCell
@@ -3564,6 +3838,7 @@ onUnmounted(() => {
                   draggingDeploy,
                   row.isPlayerSelected,
                   row.isEnemySelected,
+                  row.isBulkTileSelected,
                   row.playerHp,
                   row.enemyHp,
                   row.dyingEnemyCount,
@@ -3582,6 +3857,7 @@ onUnmounted(() => {
                 :can-drag-deploy="row.canDragDeploy"
                 :is-player-selected="row.isPlayerSelected"
                 :is-enemy-selected="row.isEnemySelected"
+                :is-bulk-tile-selected="row.isBulkTileSelected"
                 :player-hue="row.playerHue"
                 :show-health-bars="showHealthBars"
                 :show-enemy-health-bars="showEnemyHealthBars"
@@ -3746,19 +4022,22 @@ onUnmounted(() => {
     <AddEffectModal
       :open="effectModalOpen"
       :target="effectModalTarget"
-      @close="effectModalOpen = false"
+      :bulk-targets="effectModalBulkTargets"
+      @close="effectModalOpen = false; effectModalBulkTargets = undefined"
     />
 
     <AddTileEffectModal
       :open="tileEffectModalOpen"
       :coords="tileEffectModalCoords"
-      @close="tileEffectModalOpen = false"
+      :bulk-coords="tileEffectModalBulkCoords"
+      @close="tileEffectModalOpen = false; tileEffectModalBulkCoords = undefined"
     />
 
     <ChangeTileTerrainModal
       :open="tileTerrainModalOpen"
       :coords="tileTerrainModalCoords"
-      @close="tileTerrainModalOpen = false"
+      :bulk-coords="tileTerrainModalBulkCoords"
+      @close="tileTerrainModalOpen = false; tileTerrainModalBulkCoords = undefined"
     />
 
     <BreakerPromptModal
@@ -3822,6 +4101,15 @@ onUnmounted(() => {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+
+.marquee-overlay {
+  position: absolute;
+  z-index: 10;
+  pointer-events: none;
+  border: 1px dashed var(--color-accent-bright);
+  background: var(--color-accent-subtle-bg);
+  opacity: 0.45;
 }
 
 .reset-zoom-btn {

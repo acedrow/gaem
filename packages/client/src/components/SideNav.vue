@@ -11,6 +11,7 @@ import type { DataCategory } from "../composables/useInfoDataSelection.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import { useSession } from "../composables/useSession.js";
 import CharacterSheetFormFields from "./CharacterSheetFormFields.vue";
+import GmToolsToolbar from "./GmToolsToolbar.vue";
 import ModalDialog from "./ModalDialog.vue";
 
 type PlayerProfileOption = PlayerProfile & { isActive?: boolean };
@@ -142,6 +143,8 @@ watch(sheetsVersion, () => {
 
 <template>
   <nav class="side-nav">
+    <GmToolsToolbar v-if="role === 'gm'" />
+
     <button class="nav-link nav-toggle" :class="{ expanded: sheetsExpanded }" type="button" @click="toggleSheets">
       Character Sheets
       <span class="chevron" aria-hidden="true">{{ sheetsExpanded ? "▾" : "▸" }}</span>

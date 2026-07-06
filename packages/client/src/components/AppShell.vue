@@ -19,6 +19,7 @@ import { initUiPersistence } from "../composables/uiPersist.js";
 import ActionBar from "./ActionBar.vue";
 import BaseUpgradesPanel from "./BaseUpgradesPanel.vue";
 import GmActionBar from "./GmActionBar.vue";
+import GmCombatHeaderControls from "./GmCombatHeaderControls.vue";
 import ReversalPrompt from "./ReversalPrompt.vue";
 import ClassReactionPrompt from "./ClassReactionPrompt.vue";
 import GameBoard from "./GameBoard.vue";
@@ -287,6 +288,7 @@ function onOverworldClick() {
         <p v-else-if="activeMainTab === 'taccom' && roundStatus" class="round-status">
           Round {{ roundStatus.round }} · {{ roundStatus.phase }} · {{ roundStatus.turn }}
         </p>
+        <GmCombatHeaderControls v-if="activeMainTab === 'taccom' && role === 'gm'" />
         <button
           v-if="activeMainTab === 'taccom' && phaseAction"
           class="phase-action-btn"
