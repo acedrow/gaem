@@ -17,6 +17,7 @@ export const TERRAIN_TYPES = [
   "impassable",
   "cover",
   "obstacle",
+  "advantageous",
   "void",
 ] as const;
 

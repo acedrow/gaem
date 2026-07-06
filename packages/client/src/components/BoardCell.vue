@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import type { EffectStacks, Enemy, MapTile, Player } from "@gaem/shared";
-import { getEnemyMaxHp, getEnemyScale, getEffectSummary, getPlayerMaxHp, isFortificationEnemy, formatTileEffectTooltipLabel, tileEffectDisplayName, tileEffectShowsStackCount } from "@gaem/shared";
+import { getEnemyMaxHp, getEnemyScale, getEffectSummary, getPlayerMaxHp, isFortificationEnemy, formatTileEffectTooltipLabel, primaryTerrainTypeForIcon, terrainTypeDisplayName, tileEffectDisplayName, tileEffectShowsStackCount } from "@gaem/shared";
 import { computed } from "vue";
 
 import { TILE_EFFECT_IMAGE_URLS } from "../lib/tileEffectOverlays.js";
 import { TERRAIN_TILE_IMAGE_URLS } from "../lib/terrainTileImages.js";
 import EffectIcon from "./EffectIcon.vue";
 import HpBar from "./HpBar.vue";
+import TerrainTypeIcon from "./TerrainTypeIcon.vue";
 import TowerIcon from "./TowerIcon.vue";
 
 export type CellRenderState = {
@@ -47,6 +48,7 @@ export type CellRenderState = {
 };
 
 const MAX_VISIBLE_EFFECTS = 4;
+const TILE_GLYPH_ICON_SIZE = 8;
 
 const props = defineProps<{
   x: number;
@@ -163,6 +165,10 @@ const tileEffectEntries = computed(() => {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([id, count]) => ({ id, stacks: count }));
 });
+
+const primaryTerrainIcon = computed(() =>
+  primaryTerrainTypeForIcon(props.cell.tile?.terrain ?? []),
+);
 
 const tileEffectImageOverlays = computed(() =>
   tileEffectEntries.value
@@ -346,7 +352,14 @@ const terrainImageUrl = computed(() => {
         +{{ overflowCount }}
       </span>
     </div>
-    <div v-if="tileEffectBadgeEntries.length" class="tile-effect-badges">
+    <div v-if="primaryTerrainIcon || tileEffectBadgeEntries.length" class="tile-glyphs">
+      <span
+        v-if="primaryTerrainIcon"
+        class="effect-badge"
+        :title="terrainTypeDisplayName(primaryTerrainIcon)"
+      >
+        <TerrainTypeIcon :terrain-type="primaryTerrainIcon" :size="TILE_GLYPH_ICON_SIZE" />
+      </span>
       <span
         v-for="effect in tileEffectBadgeEntries"
         :key="effect.id"
@@ -356,7 +369,7 @@ const terrainImageUrl = computed(() => {
         <EffectIcon
           :effect-id="effect.id"
           :stacks="effect.stacks"
-          :size="12"
+          :size="TILE_GLYPH_ICON_SIZE"
           :show-stacks="tileEffectShowsStackCount(effect.id)"
         />
       </span>
@@ -376,26 +389,15 @@ const terrainImageUrl = computed(() => {
 }
 
 .cell.impassable {
-  background: var(--color-border-strong);
   cursor: not-allowed;
 }
 
 .cell.obstacle {
-  background: var(--color-tile-difficult);
   cursor: not-allowed;
 }
 
 .cell.void {
-  background: var(--color-bg);
   cursor: not-allowed;
-}
-
-.cell.cover {
-  background: var(--color-tile-grass);
-}
-
-.cell.uneasy {
-  background: var(--color-tile-sand);
 }
 
 .cell.movable {
@@ -747,6 +749,29 @@ const terrainImageUrl = computed(() => {
   pointer-events: none;
 }
 
+.tile-glyphs {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.tile-glyphs .effect-badge {
+  padding: 0;
+  border-radius: 2px;
+  line-height: 0;
+}
+
+.tile-glyphs :deep(.stack-badge) {
+  top: -2px;
+  right: -3px;
+  font-size: 0.45rem;
+}
+
 .tile-effect-image {
   inset: 0;
   background-size: cover;
@@ -762,17 +787,6 @@ const terrainImageUrl = computed(() => {
   background-position: center;
   background-repeat: no-repeat;
   z-index: 0;
-}
-
-.tile-effect-badges {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1px;
-  z-index: 4;
-  pointer-events: none;
 }
 
 .board-overlay {

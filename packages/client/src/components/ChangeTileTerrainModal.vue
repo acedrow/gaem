@@ -2,9 +2,9 @@
 import { TERRAIN_TYPES, terrainTypeDisplayName, tileAt, type TerrainType } from "@gaem/shared";
 import { computed, ref, watch } from "vue";
 
-import { TERRAIN_TILE_IMAGE_URLS } from "../lib/terrainTileImages.js";
 import { useGameState } from "../composables/useGameState.js";
 import ModalDialog from "./ModalDialog.vue";
+import TerrainTypePreview from "./TerrainTypePreview.vue";
 
 const props = defineProps<{
   open: boolean;
@@ -48,7 +48,7 @@ function apply() {
 
 <template>
   <ModalDialog
-    title="Change tile type"
+    title="Change terrain type"
     :open="open"
     ok-label="Apply"
     :ok-disabled="!canApply"
@@ -68,12 +68,7 @@ function apply() {
           :class="{ selected: selectedTerrain === terrain }"
           @click="selectedTerrain = terrain"
         >
-          <span
-            v-if="TERRAIN_TILE_IMAGE_URLS[terrain]"
-            class="terrain-preview"
-            :style="{ backgroundImage: `url(${TERRAIN_TILE_IMAGE_URLS[terrain]})` }"
-          />
-          <span v-else class="terrain-preview terrain-preview--plain" :class="terrain" />
+          <TerrainTypePreview :terrain-type="terrain" :size="28" />
           <span class="terrain-name">{{ terrainLabel(terrain) }}</span>
         </button>
       </div>
@@ -134,40 +129,6 @@ function apply() {
 .terrain-option.selected {
   border-color: var(--color-accent-muted);
   background: var(--color-accent-faint-bg);
-}
-
-.terrain-preview {
-  flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  border-radius: 3px;
-  background-size: cover;
-  background-position: center;
-  border: 1px solid var(--color-border);
-}
-
-.terrain-preview--plain.standard {
-  background: var(--color-surface-raised);
-}
-
-.terrain-preview--plain.uneasy {
-  background: var(--color-tile-sand);
-}
-
-.terrain-preview--plain.impassable {
-  background: var(--color-border-strong);
-}
-
-.terrain-preview--plain.cover {
-  background: var(--color-tile-grass);
-}
-
-.terrain-preview--plain.obstacle {
-  background: var(--color-tile-difficult);
-}
-
-.terrain-preview--plain.void {
-  background: var(--color-bg);
 }
 
 .terrain-name {

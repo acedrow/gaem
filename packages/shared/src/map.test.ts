@@ -29,10 +29,12 @@ describe("map", () => {
     const impassable: MapTile = { x: 0, y: 0, terrain: ["impassable"], elevation: 0 };
     const voidTile: MapTile = { x: 0, y: 0, terrain: ["void"], elevation: 0 };
     const obstacle: MapTile = { x: 0, y: 0, terrain: ["obstacle"], elevation: 0 };
+    const advantageous: MapTile = { x: 0, y: 0, terrain: ["advantageous"], elevation: 0 };
     const override: MapTile = { x: 0, y: 0, terrain: ["impassable"], elevation: 0, walkable: true };
 
     expect(isWalkable(standard)).toBe(true);
     expect(computeWalkable(standard)).toBe(true);
+    expect(isWalkable(advantageous)).toBe(true);
     expect(isWalkable(impassable)).toBe(false);
     expect(isWalkable(voidTile)).toBe(false);
     expect(isWalkable(obstacle)).toBe(false);

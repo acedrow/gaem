@@ -8,12 +8,12 @@ import {
 } from "../weapon-patterns.js";
 import { getEnemyScale, enemyFootprintTiles } from "../enemy-data.js";
 import { buildBoardOccupancy } from "../game.js";
-import { coordKey, isInBounds, isWalkable, tileAt } from "../map.js";
+import { coordKey, isInBounds, isWalkable, setTileTerrain, tileAt } from "../map.js";
 import type { Enemy, GameState, MapTile, Player } from "../types.js";
 import { getWeaponByName } from "../player-data.js";
 import type { WeaponAttackSpec } from "./types.js";
 import type { AttackRangeSpan } from "./types.js";
-import { applyBleedBonus, applyEffectStacks, setTileEffect } from "./effects.js";
+import { applyBleedBonus, applyEffectStacks } from "./effects.js";
 import { parseAndRollDamage } from "./damage.js";
 import { checkSharurEmergencyDefenses } from "./attractor.js";
 import { clampHp, getEnemyMaxHp, getPlayerMaxHp, getEffectiveEnemyMaxHp, removeEnemy } from "../game.js";
@@ -879,7 +879,7 @@ export function applyOmnistrike(
     for (const tile of unionTiles) {
       const mapTile = tileAt(state.tiles, tile.x, tile.y);
       if (mapTile && effects.some((e) => e === "Advantageous")) {
-        setTileEffect(mapTile, "Advantageous:1");
+        setTileTerrain(mapTile, "advantageous");
       }
       const enemy = occ.enemyByKey.get(coordKey(tile.x, tile.y));
       if (enemy) {

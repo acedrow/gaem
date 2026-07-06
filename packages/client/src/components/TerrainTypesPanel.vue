@@ -3,9 +3,9 @@ import { TERRAIN_TYPE_ENTRIES, type TerrainTypeEntry } from "@gaem/shared";
 import { ref } from "vue";
 
 import { useBoardSelection } from "../composables/useBoardSelection.js";
-import { TERRAIN_TILE_IMAGE_URLS } from "../lib/terrainTileImages.js";
 import PanelShell from "./PanelShell.vue";
 import RuleText from "./RuleText.vue";
+import TerrainTypePreview from "./TerrainTypePreview.vue";
 
 const { closeRightPanel } = useBoardSelection();
 const expanded = ref<Set<string>>(new Set());
@@ -31,12 +31,7 @@ function toggle(entry: TerrainTypeEntry) {
           @click="toggle(entry)"
         >
           <span class="item-header">
-            <span
-              v-if="TERRAIN_TILE_IMAGE_URLS[entry.id]"
-              class="terrain-preview"
-              :style="{ backgroundImage: `url(${TERRAIN_TILE_IMAGE_URLS[entry.id]})` }"
-            />
-            <span v-else class="terrain-preview terrain-preview--plain" :class="entry.id" />
+            <TerrainTypePreview :terrain-type="entry.id" :size="22" />
             <span class="item-name">{{ entry.name }}</span>
           </span>
           <span class="chevron" aria-hidden="true">{{ isExpanded(entry.id) ? "▾" : "▸" }}</span>
@@ -58,40 +53,6 @@ function toggle(entry: TerrainTypeEntry) {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-}
-
-.terrain-preview {
-  flex-shrink: 0;
-  width: 22px;
-  height: 22px;
-  border-radius: 3px;
-  background-size: cover;
-  background-position: center;
-  border: 1px solid var(--color-border);
-}
-
-.terrain-preview--plain.standard {
-  background: var(--color-surface-raised);
-}
-
-.terrain-preview--plain.uneasy {
-  background: var(--color-tile-sand);
-}
-
-.terrain-preview--plain.impassable {
-  background: var(--color-border-strong);
-}
-
-.terrain-preview--plain.cover {
-  background: var(--color-tile-grass);
-}
-
-.terrain-preview--plain.obstacle {
-  background: var(--color-tile-difficult);
-}
-
-.terrain-preview--plain.void {
-  background: var(--color-bg);
 }
 
 .chevron {

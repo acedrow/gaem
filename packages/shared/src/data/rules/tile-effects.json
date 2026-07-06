@@ -13,13 +13,7 @@
     "stacking": "add",
     "icon": "M2.5 8 Q8 3.5 13.5 8 Q8 12.5 2.5 8 Z M8 8 A2 2 0 1 0 8 8.01"
   },
-  {
-    "id": "Advantageous",
-    "summary": "Inert until triggered by a relevant character ability.",
-    "description": "Advantageous tiles do nothing until interacted with by a relevant character ability.",
-    "stacking": "max",
-    "icon": "M8 4 V12 M4 8 H12"
-  },
+
   {
     "id": "AnnihilationCorridor",
     "summary": "Enemies in this corridor take 1 HP damage at the end of their turn. Cleared after combat.",

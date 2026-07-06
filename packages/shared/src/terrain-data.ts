@@ -6,6 +6,7 @@ export type TerrainTypeEntry = {
   name: string;
   summary: string;
   description: string;
+  icon?: string;
 };
 
 const entries = terrainTypesJson as TerrainTypeEntry[];
@@ -29,4 +30,18 @@ export function getTerrainTypeById(id: string): TerrainTypeEntry | undefined {
 
 export function terrainTypeDisplayName(id: string): string {
   return entryById.get(id as TerrainType)?.name ?? id;
+}
+
+export function terrainTypeIcon(id: string): string | undefined {
+  return entryById.get(id as TerrainType)?.icon;
+}
+
+export function primaryTerrainTypeForIcon(terrain: TerrainType[]): TerrainType | null {
+  if (terrain.includes("void")) return null;
+  if (terrain.includes("impassable")) return "impassable";
+  if (terrain.includes("obstacle")) return "obstacle";
+  if (terrain.includes("cover")) return "cover";
+  if (terrain.includes("uneasy")) return "uneasy";
+  if (terrain.includes("advantageous")) return "advantageous";
+  return null;
 }

@@ -101,6 +101,7 @@ import {
   hasTileEffects,
   getEffectSummary,
   formatTileEffectTooltipLabel,
+  terrainTypeDisplayName,
   type ProvokeTrigger,
 } from "@gaem/shared";
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
@@ -1327,8 +1328,6 @@ function terrainClass(tile: MapTile | undefined): string | null {
   if (tile.terrain.includes("impassable")) return "impassable";
   if (tile.terrain.includes("obstacle")) return "obstacle";
   if (tile.terrain.includes("void")) return "void";
-  if (tile.terrain.includes("cover")) return "cover";
-  if (tile.terrain.includes("uneasy")) return "uneasy";
   return null;
 }
 
@@ -1961,6 +1960,10 @@ function effectTooltipLabel(id: string, stacks: number): string {
   const summary = getEffectSummary(id);
   const base = summary ? `${id}: ${stacks} — ${summary}` : `${id}: ${stacks}`;
   return base;
+}
+
+function terrainTooltipLabel(terrain: string[]): string {
+  return terrain.map((id) => terrainTypeDisplayName(id)).join(", ");
 }
 
 function gmEnemyMoveDestAt(x: number, y: number): { x: number; y: number } | null {
@@ -3264,7 +3267,7 @@ function buildContextMenuItems(x: number, y: number): BoardContextMenuItem[] {
     items.push({ id: "add-effect", label: "Add effect" });
   }
   if (props.role === "gm") {
-    items.push({ id: "change-tile-terrain", label: "Change tile type" });
+    items.push({ id: "change-tile-terrain", label: "Change terrain type" });
     items.push({ id: "add-tile-effect", label: "Add tile effect" });
     if (hasTileEffects(tile)) {
       items.push({ id: "clear-tile-effects", label: "Clear tile effects", danger: true });
@@ -3600,7 +3603,7 @@ onUnmounted(() => {
         <div v-if="tooltipData" class="board-tooltip popover-tooltip" :style="tooltipStyle ?? undefined">
           <div class="tooltip-section">
             <span class="tooltip-row">({{ tooltipData.x }}, {{ tooltipData.y }})</span>
-            <span class="tooltip-row">Terrain: {{ tooltipData.tile.terrain.join(", ") }}</span>
+            <span class="tooltip-row">Terrain: {{ terrainTooltipLabel(tooltipData.tile.terrain) }}</span>
             <span class="tooltip-row">Elevation: {{ tooltipData.tile.elevation }}</span>
           </div>
           <div v-if="tooltipData.players.length" class="tooltip-section">

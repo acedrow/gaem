@@ -5,11 +5,11 @@ import { computed } from "vue";
 import { useBoardSelection } from "../composables/useBoardSelection.js";
 import type { DataFocus } from "../composables/useInfoDataSelection.js";
 import { kindLabel } from "../lib/game-data-search.js";
-import { TERRAIN_TILE_IMAGE_URLS } from "../lib/terrainTileImages.js";
 import EffectIcon from "./EffectIcon.vue";
 import PanelShell from "./PanelShell.vue";
 import PlayerItemDetail from "./PlayerItemDetail.vue";
 import RuleText from "./RuleText.vue";
+import TerrainTypePreview from "./TerrainTypePreview.vue";
 
 const props = defineProps<{ focus: DataFocus }>();
 
@@ -49,12 +49,7 @@ const item = computed(
   <PanelShell :title="title" :kicker="categoryLabel" @close="closeRightPanel">
     <div v-if="terrainType" class="panel-body">
       <div class="terrain-header">
-        <span
-          v-if="TERRAIN_TILE_IMAGE_URLS[terrainType.id]"
-          class="terrain-preview"
-          :style="{ backgroundImage: `url(${TERRAIN_TILE_IMAGE_URLS[terrainType.id]})` }"
-        />
-        <span v-else class="terrain-preview terrain-preview--plain" :class="terrainType.id" />
+        <TerrainTypePreview :terrain-type="terrainType.id" :size="36" />
       </div>
       <p class="item-summary">{{ terrainType.summary }}</p>
       <p class="item-description">
@@ -88,40 +83,6 @@ const item = computed(
 
 .terrain-header {
   margin-bottom: 0.5rem;
-}
-
-.terrain-preview {
-  display: inline-block;
-  width: 36px;
-  height: 36px;
-  border-radius: 4px;
-  background-size: cover;
-  background-position: center;
-  border: 1px solid var(--color-border);
-}
-
-.terrain-preview--plain.standard {
-  background: var(--color-surface-raised);
-}
-
-.terrain-preview--plain.uneasy {
-  background: var(--color-tile-sand);
-}
-
-.terrain-preview--plain.impassable {
-  background: var(--color-border-strong);
-}
-
-.terrain-preview--plain.cover {
-  background: var(--color-tile-grass);
-}
-
-.terrain-preview--plain.obstacle {
-  background: var(--color-tile-difficult);
-}
-
-.terrain-preview--plain.void {
-  background: var(--color-bg);
 }
 
 .item-summary {
