@@ -89,6 +89,8 @@ import {
   assistedLaunchAnchors,
   computeAssistedLaunch,
   tilesInAttractorZone,
+  hasTileEffects,
+  getEffectSummary,
   type ProvokeTrigger,
 } from "@gaem/shared";
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
@@ -115,6 +117,8 @@ import { usePlayerSettings } from "../composables/usePlayerSettings.js";
 import BoardCell, { type CellRenderState } from "./BoardCell.vue";
 import BoardContextMenu, { type BoardContextMenuItem } from "./BoardContextMenu.vue";
 import AddEffectModal from "./AddEffectModal.vue";
+import AddTileEffectModal from "./AddTileEffectModal.vue";
+import ChangeTileTerrainModal from "./ChangeTileTerrainModal.vue";
 import BreakerPromptModal from "./BreakerPromptModal.vue";
 import ProvokePromptModal from "./ProvokePromptModal.vue";
 import SwarmChipModal from "./SwarmChipModal.vue";
@@ -227,6 +231,10 @@ const contextMenu = ref<{
 }>({ open: false, x: 0, y: 0, items: [] });
 const effectModalOpen = ref(false);
 const effectModalTarget = ref<{ kind: "player" | "enemy"; id: string } | null>(null);
+const tileEffectModalOpen = ref(false);
+const tileEffectModalCoords = ref<{ x: number; y: number } | null>(null);
+const tileTerrainModalOpen = ref(false);
+const tileTerrainModalCoords = ref<{ x: number; y: number } | null>(null);
 const viewportEl = ref<HTMLElement | null>(null);
 
 const boardWidthPx = computed(() => {
@@ -1484,6 +1492,7 @@ const cellStateByKey = computed(() => {
         enemyAnchor?.kind === "tower" && enemyAnchor.ownerPlayerId
           ? hueFromId(enemyAnchor.ownerPlayerId)
           : null,
+      tileEffects: tile?.tileEffects,
     });
   }
   return map;
@@ -1780,7 +1789,10 @@ function effectEntries(stacks?: EffectStacks) {
 }
 
 function effectTooltipLabel(id: string, stacks: number): string {
-  return `${id}: ${stacks}`;
+  if (id === "Stained") return "Stained";
+  const summary = getEffectSummary(id);
+  const base = summary ? `${id}: ${stacks} — ${summary}` : `${id}: ${stacks}`;
+  return base;
 }
 
 function gmEnemyMoveDestAt(x: number, y: number): { x: number; y: number } | null {
@@ -2860,12 +2872,20 @@ function buildContextMenuItems(x: number, y: number): BoardContextMenuItem[] {
   const player = occ?.playerByKey.get(key);
   const enemy = occ?.enemyByKey.get(key);
   const attractor = s?.combat?.attractors?.find((a) => a.x === x && a.y === y);
+  const tile = s ? tileAt(s.tiles, x, y) : undefined;
   const canRemoveAttractor =
     !!attractor &&
     (props.role === "gm" ||
       (props.role === "player" && yourPlayerId.value === attractor.ownerId));
   if (player || enemy) {
     items.push({ id: "add-effect", label: "Add effect" });
+  }
+  if (props.role === "gm") {
+    items.push({ id: "change-tile-terrain", label: "Change tile type" });
+    items.push({ id: "add-tile-effect", label: "Add tile effect" });
+    if (hasTileEffects(tile)) {
+      items.push({ id: "clear-tile-effects", label: "Clear tile effects", danger: true });
+    }
   }
   if (props.role === "gm" && hasEffectStacks(player ?? enemy)) {
     items.push({ id: "clear-effects", label: "Clear effects", danger: true });
@@ -2938,6 +2958,35 @@ function onContextMenuSelect(id: string) {
       send({ type: "clearEffects", target: { kind: "enemy", id: enemyId } });
     } else if (playerId) {
       send({ type: "clearEffects", target: { kind: "player", id: playerId } });
+    }
+    closeContextMenu();
+    return;
+  }
+  if (id === "add-tile-effect") {
+    const x = contextMenu.value.cellX;
+    const y = contextMenu.value.cellY;
+    if (x != null && y != null) {
+      tileEffectModalCoords.value = { x, y };
+      tileEffectModalOpen.value = true;
+    }
+    closeContextMenu();
+    return;
+  }
+  if (id === "change-tile-terrain") {
+    const x = contextMenu.value.cellX;
+    const y = contextMenu.value.cellY;
+    if (x != null && y != null) {
+      tileTerrainModalCoords.value = { x, y };
+      tileTerrainModalOpen.value = true;
+    }
+    closeContextMenu();
+    return;
+  }
+  if (id === "clear-tile-effects") {
+    const x = contextMenu.value.cellX;
+    const y = contextMenu.value.cellY;
+    if (x != null && y != null) {
+      send({ type: "clearTileEffects", x, y });
     }
     closeContextMenu();
     return;
@@ -3191,6 +3240,16 @@ onUnmounted(() => {
               {{ terrainObjectLabel(object) }}
             </span>
           </div>
+          <div v-if="effectEntries(tooltipData.tile.tileEffects).length" class="tooltip-section">
+            <span class="tooltip-heading">Tile effects</span>
+            <span
+              v-for="effect in effectEntries(tooltipData.tile.tileEffects)"
+              :key="effect.id"
+              class="tooltip-row tooltip-effect"
+            >
+              {{ effectTooltipLabel(effect.id, effect.stacks) }}
+            </span>
+          </div>
         </div>
 
         <div
@@ -3264,6 +3323,18 @@ onUnmounted(() => {
       :open="effectModalOpen"
       :target="effectModalTarget"
       @close="effectModalOpen = false"
+    />
+
+    <AddTileEffectModal
+      :open="tileEffectModalOpen"
+      :coords="tileEffectModalCoords"
+      @close="tileEffectModalOpen = false"
+    />
+
+    <ChangeTileTerrainModal
+      :open="tileTerrainModalOpen"
+      :coords="tileTerrainModalCoords"
+      @close="tileTerrainModalOpen = false"
     />
 
     <BreakerPromptModal

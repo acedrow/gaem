@@ -249,6 +249,14 @@ export type ClientMessage =
       type: "clearEffects";
       target: { kind: "player" | "enemy"; id: string };
     }
+  | {
+      type: "applyTileEffect";
+      x: number;
+      y: number;
+      effects: string[];
+    }
+  | { type: "clearTileEffects"; x: number; y: number }
+  | { type: "setTileTerrain"; x: number; y: number; terrain: TerrainType }
   | { type: "removeAttractor"; x: number; y: number }
   | { type: "phaseAction"; action: PhaseAction }
   | { type: "setSandboxMode"; sandboxMode: boolean }

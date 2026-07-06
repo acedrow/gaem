@@ -19,5 +19,12 @@
     "description": "Advantageous tiles do nothing until interacted with by a relevant character ability.",
     "stacking": "max",
     "icon": "M8 4 V12 M4 8 H12"
+  },
+  {
+    "id": "Stained",
+    "summary": "Paracletus stain. Enemies and other factions cannot build on Stained squares.",
+    "description": "Any square may be stained through various effects. Enemies or other factions cannot build on Stained squares. Stainwalk abilities trigger when a unit occupies a Stained square.",
+    "stacking": "add",
+    "icon": "M3 11 C3 7.5 5.5 4.5 8 4.5 C10.5 4.5 13 7.5 13 11 C13 13.5 10.5 15 8 15 C5.5 15 3 13.5 3 11 Z"
   }
 ]

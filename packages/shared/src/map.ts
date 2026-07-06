@@ -58,6 +58,15 @@ export function computeWalkable(tile: MapTile): boolean {
   return !tile.terrain.some((t) => BLOCKING_TERRAIN.has(t));
 }
 
+export function isTerrainType(value: string): value is TerrainType {
+  return TERRAIN_SET.has(value);
+}
+
+export function setTileTerrain(tile: MapTile, terrain: TerrainType): void {
+  tile.terrain = [terrain];
+  delete tile.walkable;
+}
+
 export function isWalkable(tile: MapTile | undefined): boolean {
   if (!tile) return false;
   if (tile.walkable !== undefined) return tile.walkable;

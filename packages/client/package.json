@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "sync-enemy-portraits": "mkdir -p public/enemies && cp -r ../assets/enemies public/",
-    "predev": "npm run sync-enemy-portraits",
-    "prebuild": "npm run sync-enemy-portraits",
+    "sync-tile-assets": "mkdir -p public/tiles && cp -r ../assets/tiles/. public/tiles/",
+    "sync-assets": "npm run sync-enemy-portraits && npm run sync-tile-assets",
+    "predev": "npm run sync-assets",
+    "prebuild": "npm run sync-assets",
     "dev": "vite",
     "dev:cf": "vite build --watch",
     "build": "vite build",

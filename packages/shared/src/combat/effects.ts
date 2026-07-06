@@ -120,8 +120,30 @@ export function movementCostMultiplier(effects?: EffectStacks): number {
 }
 
 export function setTileEffect(tile: MapTile, token: string): void {
-  const parsed = parseEffectToken(token);
-  if (!parsed) return;
-  if (!tile.tileEffects) tile.tileEffects = {};
-  tile.tileEffects[parsed.id] = (tile.tileEffects[parsed.id] ?? 0) + parsed.stacks;
+  applyTileEffectStacks(tile, [token]);
+}
+
+export function applyTileEffectStacks(tile: MapTile, tokens: string[]): void {
+  for (const token of tokens) {
+    const parsed = parseEffectToken(token);
+    if (!parsed || parsed.stacks === 0) continue;
+    if (!tile.tileEffects) tile.tileEffects = {};
+    const current = tile.tileEffects[parsed.id] ?? 0;
+    const next =
+      parsed.stacks > 0 && getEffectStacking(parsed.id) === "max"
+        ? Math.max(current, parsed.stacks)
+        : current + parsed.stacks;
+    if (next <= 0) delete tile.tileEffects[parsed.id];
+    else tile.tileEffects[parsed.id] = next;
+  }
+  if (tile.tileEffects && Object.keys(tile.tileEffects).length === 0) delete tile.tileEffects;
+}
+
+export function clearTileEffects(tile: MapTile): void {
+  delete tile.tileEffects;
+}
+
+export function hasTileEffects(tile: MapTile | undefined): boolean {
+  if (!tile?.tileEffects) return false;
+  return Object.values(tile.tileEffects).some((stacks) => stacks > 0);
 }

@@ -27,8 +27,8 @@ import {
   clearMurielPassedEnemies,
   tickProvokeRangeGear,
 } from "./combat/provoke.js";
-import { grantVarunastraGearCheck, applyAttractorEndOfTurnPulls } from "./combat/attractor.js";
-import { applyMovementStepHooks } from "./combat/class-abilities.js";
+import { grantVarunastraGearCheck, applyAttractorEndOfTurnPulls, checkSharurEmergencyDefenses } from "./combat/attractor.js";
+import { applyPostMovementHooks } from "./combat/class-abilities.js";
 
 export type BoardOccupancy = {
   playerByKey: Map<string, Player>;
@@ -766,32 +766,44 @@ export function applyEnemyMove(
   if (!enemy) return "";
 
   const triggers = previewEnemyMoveProvokes(state, enemyId, toX, toY, opts);
-  const hookResult = applyMovementStepHooks(state, enemy, toX, toY, "enemy");
-  let provokeMsg = "";
-  if (triggers.length) {
-    provokeMsg = applyProvokeAndFormat(state, { kind: "enemy", enemy }, triggers);
-  }
-  if (hookResult.interrupt) {
-    const hookMsg = hookResult.messages.join("; ");
-    return hookMsg + (provokeMsg ? `; ${provokeMsg}` : "") + " (movement interrupted)";
-  }
+  const movedEnemyIds: string[] = [];
 
   if (swarmGroupForEnemy(state, enemyId)) {
     if (opts?.soloSwarmMember) {
       applySwarmMemberMove(state, enemyId, toX, toY);
-      const hookMsg = hookResult.messages.length ? hookResult.messages.join("; ") + "; " : "";
-      return hookMsg + provokeMsg;
+      movedEnemyIds.push(enemyId);
+    } else {
+      const moverId = applySwarmMove(state, enemyId, toX, toY);
+      if (moverId) movedEnemyIds.push(moverId);
     }
-    applySwarmMove(state, enemyId, toX, toY);
-    const hookMsg = hookResult.messages.length ? hookResult.messages.join("; ") + "; " : "";
-    return hookMsg + provokeMsg;
+  } else {
+    const prevGroups = buildSwarmGroups(state);
+    if (!isSandboxMode(state)) spendEnemyMovement(enemy, 1);
+    enemy.x = toX;
+    enemy.y = toY;
+    reconcileSwarmHp(state, prevGroups);
+    movedEnemyIds.push(enemyId);
   }
-  const prevGroups = buildSwarmGroups(state);
-  if (!isSandboxMode(state)) spendEnemyMovement(enemy, 1);
-  enemy.x = toX;
-  enemy.y = toY;
-  reconcileSwarmHp(state, prevGroups);
-  const hookMsg = hookResult.messages.length ? hookResult.messages.join("; ") + "; " : "";
+
+  const hookMessages: string[] = [];
+  let interrupt = false;
+  for (const id of movedEnemyIds) {
+    const moved = state.enemies.find((e) => e.id === id);
+    if (!moved) continue;
+    const hookResult = applyPostMovementHooks(state, moved, "enemy");
+    hookMessages.push(...hookResult.messages);
+    if (hookResult.interrupt) interrupt = true;
+  }
+
+  let provokeMsg = "";
+  if (triggers.length) {
+    provokeMsg = applyProvokeAndFormat(state, { kind: "enemy", enemy }, triggers);
+  }
+  if (interrupt) {
+    const hookMsg = hookMessages.join("; ");
+    return hookMsg + (provokeMsg ? `; ${provokeMsg}` : "") + " (movement interrupted)";
+  }
+  const hookMsg = hookMessages.length ? hookMessages.join("; ") + "; " : "";
   return hookMsg + provokeMsg;
 }
 
@@ -900,6 +912,7 @@ export function setPlayerHp(
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return "Unknown player";
   player.hp = clampHp(hp, getPlayerMaxHp(player));
+  checkSharurEmergencyDefenses(state, player);
   return null;
 }
 

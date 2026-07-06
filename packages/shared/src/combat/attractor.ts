@@ -2,7 +2,8 @@ import type { GameState, GaemRole, Player } from "../types.js";
 import { isOrthogonallyAdjacent } from "../patterns.js";
 import type { AttractorTile } from "./types.js";
 import { applyPullToward, isAttractorVoidTile } from "./pull.js";
-import { getGearByName } from "../player-data.js";
+import { getGearByName, getClassMaxHp } from "../player-data.js";
+import { computeWalkable, tileAt } from "../map.js";
 
 const ATTRACTOR_ZONE_RADIUS = 2;
 
@@ -27,6 +28,13 @@ export function tilesInAttractorZone(attractor: AttractorTile): { x: number; y: 
     }
   }
   return tiles;
+}
+
+function applyVoidToAttractorTile(state: GameState, x: number, y: number): void {
+  const tile = tileAt(state.tiles, x, y);
+  if (!tile || tile.terrain.includes("void")) return;
+  tile.terrain = [...tile.terrain, "void"];
+  tile.walkable = computeWalkable(tile);
 }
 
 export function placeAttractor(
@@ -64,8 +72,11 @@ export function applyRemoveAttractor(state: GameState, x: number, y: number): st
   if (!attractor) return "No attractor here";
   state.combat!.attractors = getAttractors(state).filter((a) => a.id !== attractor.id);
   if (attractor.void) {
-    const tile = state.tiles.find((t) => t.x === x && t.y === y);
-    if (tile) tile.terrain = tile.terrain.filter((t) => t !== "void");
+    const tile = tileAt(state.tiles, x, y);
+    if (tile) {
+      tile.terrain = tile.terrain.filter((t) => t !== "void");
+      tile.walkable = computeWalkable(tile);
+    }
   }
   const owner = state.players.find((p) => p.id === attractor.ownerId);
   const ownerName = owner?.nickname ?? attractor.ownerId;
@@ -77,10 +88,7 @@ export function convertOwnerAttractorsToVoid(state: GameState, ownerId: string):
   for (const a of getAttractors(state)) {
     if (a.ownerId !== ownerId || a.void) continue;
     a.void = true;
-    const tile = state.tiles.find((t) => t.x === a.x && t.y === a.y);
-    if (tile && !tile.terrain.includes("void")) {
-      tile.terrain = [...tile.terrain, "void"];
-    }
+    applyVoidToAttractorTile(state, a.x, a.y);
     count++;
   }
   return count;
@@ -102,12 +110,19 @@ function attractorsAffectingTile(state: GameState, x: number, y: number): Attrac
 export function applyAttractorEntryPulls(
   state: GameState,
   unit: Player | { id: string; x: number; y: number; hp?: number },
-  x: number,
-  y: number,
   kind: "player" | "enemy",
+  opts?: { rng?: () => number },
 ): string[] {
-  const attractors = attractorsAffectingTile(state, x, y);
+  const attractors = attractorsAffectingTile(state, unit.x, unit.y);
   if (!attractors.length) return [];
+  const rng = opts?.rng ?? Math.random;
+
+  if (kind === "player" && attractors.length > 1) {
+    const a = attractors[Math.floor(rng() * attractors.length)]!;
+    const msg = applyPullToward(state, unit as Player, a.x, a.y, 1, { kind });
+    return msg ? [msg] : [];
+  }
+
   const messages: string[] = [];
   for (const a of attractors) {
     const msg = applyPullToward(state, unit as Player, a.x, a.y, 1, { kind });
@@ -133,13 +148,15 @@ export function applyAttractorEndOfTurnPulls(
 
 export function checkSharurEmergencyDefenses(state: GameState, player: Player): string | null {
   if (player.class !== "SHARUR") return null;
-  if ((player.hp ?? 0) > 10) return null;
+  const hp = player.hp ?? getClassMaxHp(player.class);
+  if (hp > 10) return null;
   if (!player.counters) player.counters = {};
-  if (player.counters.sharurEmergencyTriggered) return null;
-  player.counters.sharurEmergencyTriggered = 1;
+  const alreadyTriggered = !!player.counters.sharurEmergencyTriggered;
+  if (!alreadyTriggered) player.counters.sharurEmergencyTriggered = 1;
   const count = convertOwnerAttractorsToVoid(state, player.id);
-  if (!count) return "Emergency Auto Defenses (no attractors)";
-  return `Emergency Auto Defenses — ${count} attractor(s) became Void`;
+  if (count) return `Emergency Auto Defenses — ${count} attractor(s) became Void`;
+  if (!alreadyTriggered) return "Emergency Auto Defenses (no attractors)";
+  return null;
 }
 
 export function grantVarunastraGearCheck(state: GameState, varunastra: Player): string[] {

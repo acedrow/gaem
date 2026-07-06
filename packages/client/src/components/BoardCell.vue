@@ -3,6 +3,8 @@ import type { EffectStacks, Enemy, MapTile, Player } from "@gaem/shared";
 import { getEnemyMaxHp, getEnemyScale, getEffectSummary, getPlayerMaxHp, isFortificationEnemy } from "@gaem/shared";
 import { computed } from "vue";
 
+import { TILE_EFFECT_IMAGE_URLS } from "../lib/tileEffectOverlays.js";
+import { TERRAIN_TILE_IMAGE_URLS } from "../lib/terrainTileImages.js";
 import EffectIcon from "./EffectIcon.vue";
 import HpBar from "./HpBar.vue";
 import TowerIcon from "./TowerIcon.vue";
@@ -41,6 +43,7 @@ export type CellRenderState = {
   attractorCenter?: boolean;
   attractorVoid?: boolean;
   towerOwnerHue?: number | null;
+  tileEffects?: EffectStacks;
 };
 
 const MAX_VISIBLE_EFFECTS = 4;
@@ -147,6 +150,37 @@ const showEnemyHpBar = computed(
     enemyHp.value &&
     (props.cell.showSwarmHp !== false),
 );
+
+const tileEffectEntries = computed(() => {
+  const stacks = props.cell.tileEffects;
+  if (!stacks) return [];
+  return Object.entries(stacks)
+    .filter(([, v]) => v > 0)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([id, count]) => ({ id, stacks: count }));
+});
+
+const tileEffectImageOverlays = computed(() =>
+  tileEffectEntries.value
+    .filter((effect) => TILE_EFFECT_IMAGE_URLS[effect.id])
+    .map((effect) => ({
+      id: effect.id,
+      url: TILE_EFFECT_IMAGE_URLS[effect.id]!,
+    })),
+);
+
+const tileEffectBadgeEntries = computed(() =>
+  tileEffectEntries.value.filter((effect) => !TILE_EFFECT_IMAGE_URLS[effect.id]),
+);
+
+const terrainImageUrl = computed(() => {
+  const terrain = props.cell.tile?.terrain ?? [];
+  for (const type of terrain) {
+    const url = TERRAIN_TILE_IMAGE_URLS[type];
+    if (url) return url;
+  }
+  return null;
+});
 </script>
 
 <template>
@@ -188,6 +222,19 @@ const showEnemyHpBar = computed(
       title="Attractor"
     />
     <span v-if="cell.hasSeed" class="seed-marker" title="Seed" />
+    <span
+      v-if="terrainImageUrl"
+      class="board-overlay terrain-tile-image"
+      :style="{ backgroundImage: `url(${terrainImageUrl})` }"
+      aria-hidden="true"
+    />
+    <span
+      v-for="overlay in tileEffectImageOverlays"
+      :key="overlay.id"
+      class="board-overlay tile-effect-image"
+      :style="{ backgroundImage: `url(${overlay.url})` }"
+      :title="overlay.id"
+    />
     <span v-if="cell.combatTargetInvalid" class="combat-target-invalid-mark" aria-hidden="true" />
     <span
       v-if="cell.enemyAnchor && !enemyAnimating"
@@ -292,6 +339,16 @@ const showEnemyHpBar = computed(
       </span>
       <span v-if="overflowCount > 0" class="effect-overflow" :title="`${overflowCount} more effects`">
         +{{ overflowCount }}
+      </span>
+    </div>
+    <div v-if="tileEffectBadgeEntries.length" class="tile-effect-badges">
+      <span
+        v-for="effect in tileEffectBadgeEntries"
+        :key="effect.id"
+        class="effect-badge"
+        :title="effectTitle(effect.id, effect.stacks)"
+      >
+        <EffectIcon :effect-id="effect.id" :stacks="effect.stacks" :size="12" show-stacks />
       </span>
     </div>
   </button>
@@ -676,6 +733,34 @@ const showEnemyHpBar = computed(
   border-radius: 50%;
   background: var(--color-success);
   border: 1px solid var(--color-success-dark);
+  z-index: 4;
+  pointer-events: none;
+}
+
+.tile-effect-image {
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0.9;
+  z-index: 1;
+}
+
+.terrain-tile-image {
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  z-index: 0;
+}
+
+.tile-effect-badges {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
   z-index: 4;
   pointer-events: none;
 }

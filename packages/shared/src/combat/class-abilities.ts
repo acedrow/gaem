@@ -20,7 +20,8 @@ import {
 } from "./attack.js";
 import { maxWeaponDamage, rollDice } from "./damage.js";
 import { applyPullToward } from "./pull.js";
-import { placeAttractor, applyAttractorEntryPulls, getAttractorAt } from "./attractor.js";
+import { applyAttractorEntryPulls, getAttractorAt, placeAttractor } from "./attractor.js";
+import { applyVoidTileDefeat } from "./void-tile.js";
 
 export const HARPE_CLASS = "HARPE";
 export const KOPIS_CLASS = "KOPIS";
@@ -352,11 +353,9 @@ export type MovementHookResult = {
   interrupt: boolean;
 };
 
-export function applyMovementStepHooks(
+export function applyPostMovementHooks(
   state: GameState,
   unit: Player | Enemy,
-  stepX: number,
-  stepY: number,
   kind: "player" | "enemy",
 ): MovementHookResult {
   const messages: string[] = [];
@@ -369,7 +368,7 @@ export function applyMovementStepHooks(
     player.counters.movedThisTurn = 1;
 
     const tokenIdx = state.combat!.boardTokens!.findIndex(
-      (t) => t.ownerId === player.id && t.x === stepX && t.y === stepY,
+      (t) => t.ownerId === player.id && t.x === player.x && t.y === player.y,
     );
     if (tokenIdx >= 0) {
       state.combat!.boardTokens!.splice(tokenIdx, 1);
@@ -378,16 +377,16 @@ export function applyMovementStepHooks(
     }
   }
 
-  const attractorMsgs = applyAttractorEntryPulls(
-    state,
-    unit as Player,
-    stepX,
-    stepY,
-    kind,
-  );
-  messages.push(...attractorMsgs);
+  const voidMsg = applyVoidTileDefeat(state, unit, kind);
+  if (voidMsg) messages.push(voidMsg);
 
-  const trapResult = checkHarpeTrapCrossing(state, unit, stepX, stepY, kind);
+  const hp = unit.hp;
+  if (hp === undefined || hp > 0) {
+    const attractorMsgs = applyAttractorEntryPulls(state, unit as Player, kind);
+    messages.push(...attractorMsgs);
+  }
+
+  const trapResult = checkHarpeTrapCrossing(state, unit, unit.x, unit.y, kind);
   if (trapResult) {
     messages.push(trapResult.message);
     if (trapResult.interrupt) interrupt = true;

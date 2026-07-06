@@ -1,4 +1,4 @@
-import type { GaemRole, ClientMessage } from "../types.js";
+import type { GaemRole, ClientMessage, TerrainType } from "../types.js";
 import { isCampaignFeatureUnlocked } from "../base-upgrades-unlocks.js";
 import type {
   AssistedOutcome,
@@ -23,12 +23,11 @@ import type { StructuredArmorAction } from "./types.js";
 import { createDefaultActionBudget, type ActionTier } from "./types.js";
 import { getEnemyScale, enemyFootprintTiles } from "../enemy-data.js";
 import { buildBoardOccupancy } from "../game.js";
-import { coordKey, isInBounds, isWalkable, tileAt } from "../map.js";
+import { coordKey, isInBounds, isTerrainType, isWalkable, setTileTerrain, tileAt } from "../map.js";
 import { isOrthogonallyAdjacent } from "../patterns.js";
 import { actionTierBlockedReason, applyCommitHaste, spendActionTierOrHaste, validateCommitHaste } from "./actions.js";
 import {
   adjacentEnemies,
-  applyMovementPath,
   applySprintBegin,
   applySprintCancel,
   applySprintMove,
@@ -63,7 +62,7 @@ import {
   validateOmnistrikeAction,
   validateWarhookAction,
 } from "./attack.js";
-import { applyEffectStacks, clearEffectStacks, parseEffectToken, tickUnitEndOfTurn } from "./effects.js";
+import { applyEffectStacks, applyTileEffectStacks, clearEffectStacks, clearTileEffects, hasTileEffects, parseEffectToken, tickUnitEndOfTurn } from "./effects.js";
 import { isKnownEffectId } from "../effects-data.js";
 import { createPendingAction, addPendingAction, applyAssistedOutcome } from "./pending.js";
 import { setActiveEnemy } from "./enemy.js";
@@ -104,7 +103,6 @@ import {
   yadathanReversalEligible,
 } from "./yadathan.js";
 import {
-  applyAssistedLaunch,
   computeAssistedLaunch,
   formatAssistedLaunchMessage,
   validateAssistedLaunch,
@@ -121,7 +119,7 @@ import {
 import {
   applyClassActive,
   applyClassPassive,
-  applyMovementStepHooks,
+  applyPostMovementHooks,
   applyResolveClassReaction,
   classActiveTierFor,
   handleEnemyDefeated,
@@ -129,8 +127,13 @@ import {
   validateClassPassive,
   validateResolveClassReaction,
 } from "./class-abilities.js";
-import { playerArmorGearName, validateRemoveAttractor, applyRemoveAttractor } from "./attractor.js";
+import { playerArmorGearName, validateRemoveAttractor, applyRemoveAttractor, applyAttractorEndOfTurnPulls } from "./attractor.js";
 import { applyTransferenceHeal } from "./transference.js";
+import {
+  computePathCost,
+  normalizeMovementPath,
+} from "./movement.js";
+import { spendMovement } from "./actions.js";
 
 export type CombatMessageContext = {
   role: GaemRole;
@@ -170,24 +173,38 @@ export function applyMovePath(
     const dest = path[0]!;
     player.x = dest.x;
     player.y = dest.y;
-    return `${playerLabel(player)} moved to (${dest.x}, ${dest.y})`;
+    const hookMsgs = applyPostMovementHooks(state, player, "player").messages;
+    let msg = `${playerLabel(player)} moved to (${dest.x}, ${dest.y})`;
+    if (hookMsgs.length) msg = `${hookMsgs.join("; ")}; ${msg}`;
+    return msg;
   }
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return "Unknown player";
-  const stepMessages: string[] = [];
-  for (const step of path) {
-    const hooks = applyMovementStepHooks(state, player, step.x, step.y, "player");
-    stepMessages.push(...hooks.messages);
+  const resolved = normalizeMovementPath(state, playerId, path);
+  if (!resolved) return "No path to destination";
+  const err = validateMovementPath(state, playerId, resolved);
+  if (err) return err;
+  const computed = computePathCost(state, player, resolved)!;
+  if (!isSandboxMode(state) && player.actionBudget) {
+    if (!spendMovement(player.actionBudget, computed.total)) return "Not enough movement";
   }
-  const triggers = collectPathProvokeTriggers(state, playerId, path);
+  const triggers = collectPathProvokeTriggers(state, playerId, resolved);
+  const stepMessages: string[] = [];
+  const traveled: { x: number; y: number }[] = [];
+  for (const step of resolved) {
+    player.x = step.x;
+    player.y = step.y;
+    traveled.push(step);
+    const hooks = applyPostMovementHooks(state, player, "player");
+    stepMessages.push(...hooks.messages);
+    if (hooks.interrupt || (player.hp ?? 0) <= 0) break;
+  }
   let provokeMsg = "";
   if (triggers.length) {
     provokeMsg = applyProvokeAndFormat(state, { kind: "player", player }, triggers);
   }
-  const err = applyMovementPath(state, playerId, path);
-  if (err) return err;
-  recordPassedEnemiesOnPath(state, player, path);
-  const dest = path[path.length - 1]!;
+  recordPassedEnemiesOnPath(state, player, traveled.length ? traveled : resolved);
+  const dest = traveled[traveled.length - 1] ?? resolved[resolved.length - 1]!;
   let msg = `${playerLabel(player)} moved to (${dest.x}, ${dest.y})`;
   if (stepMessages.length) msg = `${stepMessages.join("; ")}; ${msg}`;
   if (provokeMsg) msg = `${provokeMsg}; ${msg}`;
@@ -531,9 +548,12 @@ export function applyPlayerAction(
         provokeMsg = applyProvokeAndFormat(state, { kind: "player", player }, triggers);
       }
       const base = applySprintMove(state, playerId, action.x, action.y);
+      const hookMsgs = applyPostMovementHooks(state, player, "player").messages;
       recordPassedEnemiesOnPath(state, player, [{ x: action.x, y: action.y }]);
-      if (provokeMsg) return `${provokeMsg}; ${base}`;
-      return base;
+      let msg = base;
+      if (hookMsgs.length) msg = `${hookMsgs.join("; ")}; ${msg}`;
+      if (provokeMsg) msg = `${provokeMsg}; ${msg}`;
+      return msg;
     }
     case "sprintCancel": {
       return applySprintCancel(state, playerId);
@@ -620,9 +640,18 @@ export function applyPlayerAction(
       if (triggers.length) {
         provokeMsg = applyProvokeAndFormat(state, { kind: "player", player }, triggers);
       }
-      const result = applyAssistedLaunch(state, playerId, action.anchorX, action.anchorY);
-      recordPassedEnemiesOnPath(state, player, result.path);
-      let msg = formatAssistedLaunchMessage(player, result);
+      const stepMessages: string[] = [];
+      for (const step of preview.path) {
+        player.x = step.x;
+        player.y = step.y;
+        stepMessages.push(...applyPostMovementHooks(state, player, "player").messages);
+        if ((player.hp ?? 0) <= 0) break;
+      }
+      if (!player.counters) player.counters = {};
+      player.counters.assistedLaunchUsed = 1;
+      recordPassedEnemiesOnPath(state, player, preview.path);
+      let msg = formatAssistedLaunchMessage(player, preview);
+      if (stepMessages.length) msg = `${stepMessages.join("; ")}; ${msg}`;
       if (provokeMsg) msg = `${provokeMsg}; ${msg}`;
       return msg;
     }
@@ -899,10 +928,18 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
       if (state.combat?.activeEnemyId === enemy.id) setActiveEnemy(state, null);
       const group = swarmGroupForEnemy(state, enemy.id);
       const ticks = tickUnitEndOfTurn(state, enemy);
+      const attractorEndMsgs: string[] = [];
+      const pullIds = group ? group.memberIds : [enemy.id];
+      for (const id of pullIds) {
+        const member = state.enemies.find((e) => e.id === id);
+        if (!member || (member.hp ?? 0) <= 0) continue;
+        attractorEndMsgs.push(...applyAttractorEndOfTurnPulls(state, member, "enemy"));
+      }
       let msg = group
         ? `${enemyLabel(enemy)} swarm ended turn`
         : `${enemyLabel(enemy)} ended turn`;
       if (ticks.length) msg += `. ${ticks.join("; ")}`;
+      if (attractorEndMsgs.length) msg += `. ${attractorEndMsgs.join("; ")}`;
       const phaseMsg = finishGmTurnIfPlayersRemain(state);
       if (phaseMsg) msg += `. GM phase ended — ${phaseMsg}`;
       return msg;
@@ -996,6 +1033,78 @@ export function applyClearEffects(
   clearEffectStacks(unit);
   const label = target.kind === "player" ? playerLabel(unit as import("../types.js").Player) : enemyLabel(unit as import("../types.js").Enemy);
   return `Cleared effects on ${label}`;
+}
+
+function validateTileEffectTokens(effects: string[]): string | null {
+  if (!effects.length) return "No effects";
+  for (const token of effects) {
+    const parsed = parseEffectToken(token);
+    if (!parsed) return `Invalid effect token: ${token}`;
+    if (parsed.stacks === 0) return `Invalid effect stacks: ${token}`;
+    if (!isKnownEffectId(parsed.id)) return `Unknown effect: ${parsed.id}`;
+  }
+  return null;
+}
+
+export function validateApplyTileEffect(
+  state: GameState,
+  x: number,
+  y: number,
+  effects: string[],
+): string | null {
+  if (!isInBounds(x, y, state.width, state.height)) return "Out of bounds";
+  const tile = tileAt(state.tiles, x, y);
+  if (!tile) return "No tile here";
+  return validateTileEffectTokens(effects);
+}
+
+export function applyApplyTileEffect(
+  state: GameState,
+  x: number,
+  y: number,
+  effects: string[],
+): string {
+  const tile = tileAt(state.tiles, x, y)!;
+  applyTileEffectStacks(tile, effects);
+  return `Applied ${effects.join(", ")} to (${x}, ${y})`;
+}
+
+export function validateClearTileEffects(state: GameState, x: number, y: number): string | null {
+  if (!isInBounds(x, y, state.width, state.height)) return "Out of bounds";
+  const tile = tileAt(state.tiles, x, y);
+  if (!tile) return "No tile here";
+  if (!hasTileEffects(tile)) return "No tile effects here";
+  return null;
+}
+
+export function applyClearTileEffects(state: GameState, x: number, y: number): string {
+  const tile = tileAt(state.tiles, x, y)!;
+  clearTileEffects(tile);
+  return `Cleared tile effects at (${x}, ${y})`;
+}
+
+export function validateSetTileTerrain(
+  state: GameState,
+  x: number,
+  y: number,
+  terrain: string,
+): string | null {
+  if (!isInBounds(x, y, state.width, state.height)) return "Out of bounds";
+  const tile = tileAt(state.tiles, x, y);
+  if (!tile) return "No tile here";
+  if (!isTerrainType(terrain)) return `Invalid terrain type: ${terrain}`;
+  return null;
+}
+
+export function applySetTileTerrain(
+  state: GameState,
+  x: number,
+  y: number,
+  terrain: TerrainType,
+): string {
+  const tile = tileAt(state.tiles, x, y)!;
+  setTileTerrain(tile, terrain);
+  return `Set (${x}, ${y}) terrain to ${terrain}`;
 }
 
 export function validateAssistedOutcome(_state: GameState, _outcome: AssistedOutcome, role: GaemRole): string | null {
@@ -1156,6 +1265,27 @@ export function handleCombatMessage(
       const err = validateClearEffects(state, parsed.target);
       if (err) return { handled: true, error: err };
       return { handled: true, message: applyClearEffects(state, parsed.target) };
+    }
+    case "applyTileEffect": {
+      if (ctx.role !== "gm") return { handled: true, error: "Only GM can do that" };
+      const err = validateApplyTileEffect(state, parsed.x, parsed.y, parsed.effects);
+      if (err) return { handled: true, error: err };
+      return { handled: true, message: applyApplyTileEffect(state, parsed.x, parsed.y, parsed.effects) };
+    }
+    case "clearTileEffects": {
+      if (ctx.role !== "gm") return { handled: true, error: "Only GM can do that" };
+      const err = validateClearTileEffects(state, parsed.x, parsed.y);
+      if (err) return { handled: true, error: err };
+      return { handled: true, message: applyClearTileEffects(state, parsed.x, parsed.y) };
+    }
+    case "setTileTerrain": {
+      if (ctx.role !== "gm") return { handled: true, error: "Only GM can do that" };
+      const err = validateSetTileTerrain(state, parsed.x, parsed.y, parsed.terrain);
+      if (err) return { handled: true, error: err };
+      return {
+        handled: true,
+        message: applySetTileTerrain(state, parsed.x, parsed.y, parsed.terrain),
+      };
     }
     case "removeAttractor": {
       const err = validateRemoveAttractor(state, parsed.x, parsed.y, ctx);

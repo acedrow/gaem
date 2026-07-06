@@ -454,6 +454,17 @@ export function applySwarmMemberMove(
   destX: number,
   destY: number,
 ): void {
+  applySwarmMemberForcedMove(state, memberId, destX, destY);
+  const group = swarmGroupForEnemy(state, memberId);
+  if (group && !isSandboxMode(state)) spendSwarmMovement(state, group.memberIds, 1);
+}
+
+export function applySwarmMemberForcedMove(
+  state: GameState,
+  memberId: string,
+  destX: number,
+  destY: number,
+): void {
   const prevGroups = buildSwarmGroups(state);
   const group = swarmGroupForEnemy(state, memberId);
   if (!group) return;
@@ -462,7 +473,6 @@ export function applySwarmMemberMove(
   const prevMemberIds = [...group.memberIds];
   const prevHp = group.currentHp;
   const staysInSwarm = memberStaysInSwarmAfterMove(state, memberId, prevMemberIds, destX, destY);
-  if (!isSandboxMode(state)) spendSwarmMovement(state, group.memberIds, 1);
   member.x = destX;
   member.y = destY;
   reconcileSwarmHp(state, prevGroups);
