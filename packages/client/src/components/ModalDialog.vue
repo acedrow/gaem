@@ -32,10 +32,18 @@ function isTopmostModal(): boolean {
 }
 
 function onDocumentKeydown(e: KeyboardEvent) {
-  if (!props.open || e.key !== "Enter") return;
+  if (!props.open || !isTopmostModal()) return;
+
+  if (e.key === "Escape") {
+    e.preventDefault();
+    e.stopPropagation();
+    emit("close");
+    return;
+  }
+
+  if (e.key !== "Enter") return;
   if (e.repeat || e.isComposing) return;
   if (e.metaKey || e.ctrlKey || e.altKey) return;
-  if (!isTopmostModal()) return;
 
   const target = e.target;
   if (target instanceof HTMLElement) {

@@ -22,6 +22,7 @@ Monorepo (npm workspaces). Node 22 (`nvm use`).
 ```bash
 npm install
 npm run build          # shared → server → client
+npm run test           # shared + client vitest suites
 npm run dev            # local stack (client :5173, server :3001)
 npm run dev:cf         # wrangler dev with built client
 npm run deploy:cf      # production deploy
@@ -30,6 +31,22 @@ npm run deploy:cf      # production deploy
 After changing `@gaem/shared`, rebuild (or run `dev`, which watches shared).
 
 Do **not** commit, push, or open PRs unless the user explicitly asks.
+
+## Verification (required for all code changes)
+
+Before considering any implementation task done, **run these commands and fix failures**:
+
+```bash
+npm run build
+npm run test
+```
+
+- **`npm run build`** — mandatory. Shared type errors block client and server; client imports `@gaem/shared` from `dist/`.
+- **`npm run test`** — mandatory when tests exist for the code you touched. If you add or change shared game logic, add or update tests in `packages/shared` when the behavior is worth guarding (see Code style). Run the full root `npm run test` at minimum; re-run focused suites while iterating if helpful.
+
+Do not skip verification because a change "looks small" or "only touches the client." Export omissions, missing shared rebuilds, and broken imports often surface only at build time.
+
+After fixing a build or test failure, re-run both commands to confirm nothing else regressed.
 
 ## Architecture
 
@@ -134,6 +151,7 @@ When adding a client message or game action, update `types.ts`, shared validator
 - Reuse shared UI before adding one-off markup: `PanelShell`, `HpBar`, `NumberStepper`, `ModalDialog`, `PlayerItemDetail`, `BoardCell`.
 - CSS design tokens and utilities live in `packages/client/src/style.css` (`var(--color-*)`, `.panel`, `.list-card`, `.stepper`, etc.). Avoid hardcoding `#30363d`-style palette in new scoped styles.
 - `GameBoard` is performance-sensitive: precompute cell state, avoid per-cell scans in templates, use `BoardCell` + `v-memo`.
+- **Tile tooltips** — show effect name (and stack count only when stacks matter). Never append `summary` or `description` text in board tile tooltips. Presence-only tile effects (e.g. Stained, Annihilation Corridor) use a display name with no stack value. Prefer `TILE_EFFECT_IMAGE_URLS` overlays for board markers when an icon asset exists.
 
 ## Code style
 
@@ -157,7 +175,8 @@ Many panels branch on `useSession().isGm`. Players see reduced enemy/sheet detai
 
 ## Checklist before finishing
 
-- [ ] `npm run build` passes
+- [ ] `npm run build` passes (run it; do not assume)
+- [ ] `npm run test` passes (run it; fix or add tests for changed behavior)
 - [ ] Shared game logic updated if behavior changed
 - [ ] Server and cf-worker stay in sync for WS/REST changes
 - [ ] No secrets committed (`.env`, `.dev.vars`)

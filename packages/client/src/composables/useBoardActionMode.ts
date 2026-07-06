@@ -22,6 +22,10 @@ export type BoardActionMode =
   | "harpeTrap"
   | "varunastraBorrow"
   | "assistedLaunch"
+  | "equipmentCorridor"
+  | "equipmentCover"
+  | "equipmentForceProjection"
+  | "equipmentRedirect"
   | "gmEnemyAttack"
   | null;
 
@@ -29,6 +33,8 @@ export type OmnistrikeStep = "selectBombs" | "placeFirst" | "placeSecond" | "con
 export type WarhookStep = "selectTarget" | "selectLanding";
 export type TowerTeleportStep = "selectLanding" | "selectKeraunoTarget";
 export type AssistedLaunchStep = "selectAnchor" | "confirm";
+export type RedirectStep = "selectSource" | "selectAttack" | "selectTarget" | "confirmPattern";
+export type ForceProjectionStep = "selectSquare" | "attack";
 
 const mode = ref<BoardActionMode>(null);
 const attackDirection = ref<PatternDirection>("n");
@@ -56,7 +62,28 @@ const kataptyTargetIds = ref<string[]>([]);
 const borrowAllyId = ref<string | null>(null);
 const assistedLaunchStep = ref<AssistedLaunchStep>("selectAnchor");
 const assistedLaunchAnchor = ref<{ x: number; y: number } | null>(null);
+const equipmentCoverTiles = ref<{ x: number; y: number }[]>([]);
+const forceProjectionOrigin = ref<{ x: number; y: number } | null>(null);
+const forceProjectionStep = ref<ForceProjectionStep>("selectSquare");
+const redirectSourceEnemyId = ref<string | null>(null);
+const redirectAttackIndex = ref<number | null>(null);
+const redirectStep = ref<RedirectStep>("selectSource");
 const gmEnemyAttack = ref<{ enemyId: string; attackIndex: number; damage?: number; swarm?: boolean } | null>(null);
+
+function resetEquipmentCoverState() {
+  equipmentCoverTiles.value = [];
+}
+
+function resetRedirectState() {
+  redirectSourceEnemyId.value = null;
+  redirectAttackIndex.value = null;
+  redirectStep.value = "selectSource";
+}
+
+function resetForceProjectionState() {
+  forceProjectionOrigin.value = null;
+  forceProjectionStep.value = "selectSquare";
+}
 
 function resetAssistedLaunchState() {
   assistedLaunchStep.value = "selectAnchor";
@@ -100,6 +127,9 @@ export function useBoardActionMode() {
     resetOmnistrikeState();
     resetWarhookState();
     resetTowerTeleportState();
+    resetEquipmentCoverState();
+    resetForceProjectionState();
+    resetRedirectState();
   }
 
   function clearMode() {
@@ -152,6 +182,12 @@ export function useBoardActionMode() {
     borrowAllyId,
     assistedLaunchStep,
     assistedLaunchAnchor,
+    equipmentCoverTiles,
+    forceProjectionOrigin,
+    forceProjectionStep,
+    redirectSourceEnemyId,
+    redirectAttackIndex,
+    redirectStep,
     gmEnemyAttack,
     isActive,
     setMode,

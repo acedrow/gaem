@@ -31,8 +31,17 @@ import {
   collectBombPatternTiles,
   unionPatternTiles,
   resolveBombAttackSpec,
-  OMNISTRIKE_DIRECTION,
-  previewPlayerAttack,
+  getEquipmentAttackSpec,
+  collectEquipmentPatternTiles,
+  isHylicAnnihilationCorridor,
+  areOrthogonallyConnected,
+  isRedirectableEnemyAttack,
+  listRedirectableEnemyAttackIndices,
+  rejectionFieldTileKeys,
+  forceProjectionTileKeys,
+  redirectionSourceTileKeys,
+  enemyDirectAttackTargetEnemyIds,
+  previewEnemyAttack,
   PATTERN_DIRECTIONS,
   rangeAttackTileKeys,
   rangeTargetDistance,
@@ -91,6 +100,7 @@ import {
   tilesInAttractorZone,
   hasTileEffects,
   getEffectSummary,
+  formatTileEffectTooltipLabel,
   type ProvokeTrigger,
 } from "@gaem/shared";
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
@@ -199,8 +209,15 @@ const {
   borrowAllyId,
   assistedLaunchStep,
   assistedLaunchAnchor,
+  equipmentCoverTiles,
+  forceProjectionOrigin,
+  forceProjectionStep,
+  redirectSourceEnemyId,
+  redirectAttackIndex,
+  redirectStep,
   gmEnemyAttack,
   clearMode: clearBoardActionMode,
+  rotateAttackDirection,
 } = useBoardActionMode();
 const { sendPlayerAction, sendMovePath, pendingReaction, reversalExtraAllyIds } = useCombatActions();
 
@@ -544,20 +561,19 @@ const rezTargetKeys = computed(() => {
   return keys;
 });
 
-const ANCHORED_ATTACK_DIRECTION: PatternDirection = "e";
-
 const anchoredPlacementPreview = computed(() => {
-  if (boardActionMode.value !== "attack") return null;
+  if (!isWeaponAttackMode.value) return null;
   const ctx = attackContext.value;
   const s = gameState.value;
   if (!ctx || !s || !usesAnchoredPatternPlacement(ctx.spec)) return null;
   const anchor = attackAimed.value ? attackAnchor.value : previewHoverCell.value;
   if (!anchor) return null;
+  const user = ctx.origin ?? { x: ctx.me.x, y: ctx.me.y };
   return evaluateAnchoredPatternPlacement(
-    ctx.me,
+    user,
     anchor,
     ctx.spec,
-    ANCHORED_ATTACK_DIRECTION,
+    attackDirection.value,
     s,
   );
 });
@@ -578,7 +594,7 @@ const omnistrikePlacementPreview = computed(() => {
       ctx.me,
       anchor,
       ctx.bombA,
-      OMNISTRIKE_DIRECTION,
+      attackDirection.value,
       s,
       ctx.combinedSpan,
     );
@@ -586,12 +602,12 @@ const omnistrikePlacementPreview = computed(() => {
 
   const firstAnchor = omnistrikeAnchors.value[0];
   if (!firstAnchor) return null;
-  const firstTiles = collectBombPatternTiles(s, firstAnchor, ctx.bombA, OMNISTRIKE_DIRECTION);
+  const firstTiles = collectBombPatternTiles(s, firstAnchor, ctx.bombA, attackDirection.value);
   return evaluateOmnistrikePlacement(
     ctx.me,
     anchor,
     ctx.bombB,
-    OMNISTRIKE_DIRECTION,
+    attackDirection.value,
     s,
     ctx.combinedSpan,
     firstTiles,
@@ -612,7 +628,7 @@ const omnistrikeLockedFirstKeys = computed(() => {
   ) {
     return new Set<string>();
   }
-  return coordsToKeySet(collectBombPatternTiles(s, anchor, ctx.bombA, OMNISTRIKE_DIRECTION));
+  return coordsToKeySet(collectBombPatternTiles(s, anchor, ctx.bombA, attackDirection.value));
 });
 
 const omnistrikePrimaryKeys = computed(() => {
@@ -624,8 +640,8 @@ const omnistrikePrimaryKeys = computed(() => {
   const anchorA = omnistrikeAnchors.value[0];
   const anchorB = omnistrikeAnchors.value[1];
   if (!ctx || !s || !anchorA || !anchorB) return new Set<string>();
-  const tilesA = collectBombPatternTiles(s, anchorA, ctx.bombA, OMNISTRIKE_DIRECTION);
-  const tilesB = collectBombPatternTiles(s, anchorB, ctx.bombB, OMNISTRIKE_DIRECTION);
+  const tilesA = collectBombPatternTiles(s, anchorA, ctx.bombA, attackDirection.value);
+  const tilesB = collectBombPatternTiles(s, anchorB, ctx.bombB, attackDirection.value);
   return coordsToKeySet(unionPatternTiles(tilesA, tilesB));
 });
 
@@ -931,12 +947,30 @@ const combatAttackInvalidKeys = computed(() => {
   return preview.tooCloseKeys;
 });
 
+const isWeaponAttackMode = computed(() => {
+  const m = boardActionMode.value;
+  if (m === "attack") return true;
+  return m === "equipmentForceProjection" && forceProjectionStep.value === "attack";
+});
+
 const attackContext = computed(() => {
   const me = yourPlayer.value;
-  if (boardActionMode.value !== "attack" || !me?.weapon) return null;
+  const mode = boardActionMode.value;
+  if (mode === "equipmentForceProjection" && forceProjectionStep.value === "attack" && forceProjectionOrigin.value && me?.weapon) {
+    const spec = resolveCombatAttackSpec(me, me.weapon);
+    if (!spec) return null;
+    return {
+      me,
+      weapon: me.weapon,
+      spec,
+      origin: forceProjectionOrigin.value,
+      equipmentUse: true as const,
+    };
+  }
+  if (mode !== "attack" || !me?.weapon) return null;
   const spec = resolveCombatAttackSpec(me, me.weapon);
   if (!spec) return null;
-  return { me, weapon: me.weapon, spec };
+  return { me, weapon: me.weapon, spec, origin: { x: me.x, y: me.y } };
 });
 
 const borrowContext = computed(() => {
@@ -951,6 +985,128 @@ const borrowContext = computed(() => {
   return { me, weapon: ally.weapon, spec };
 });
 
+const equipmentCorridorContext = computed(() => {
+  const me = yourPlayer.value;
+  if (boardActionMode.value !== "equipmentCorridor" || !me?.equipment) return null;
+  if (!isHylicAnnihilationCorridor(me.equipment)) return null;
+  const spec = getEquipmentAttackSpec(me.equipment);
+  if (!spec) return null;
+  return { me, spec };
+});
+
+const equipmentCorridorPlacementPreview = computed(() => {
+  if (boardActionMode.value !== "equipmentCorridor") return null;
+  const ctx = equipmentCorridorContext.value;
+  const s = gameState.value;
+  if (!ctx || !s) return null;
+  const anchor = attackAimed.value ? attackAnchor.value : previewHoverCell.value;
+  if (!anchor) return null;
+  const patternTiles = collectEquipmentPatternTiles(
+    s,
+    anchor,
+    ctx.me.equipment!,
+    attackDirection.value,
+  );
+  const tileCount = ctx.spec.tiles?.length ?? 0;
+  return { patternTiles, valid: patternTiles.length >= tileCount };
+});
+
+const equipmentCorridorPrimaryKeys = computed(() => {
+  if (boardActionMode.value !== "equipmentCorridor" || !attackAimed.value) return new Set<string>();
+  const preview = equipmentCorridorPlacementPreview.value;
+  if (!preview?.valid) return new Set<string>();
+  return coordsToKeySet(preview.patternTiles);
+});
+
+const equipmentCorridorSecondaryKeys = computed(() => {
+  if (boardActionMode.value !== "equipmentCorridor" || attackAimed.value) return new Set<string>();
+  const preview = equipmentCorridorPlacementPreview.value;
+  if (!preview?.valid) return new Set<string>();
+  return coordsToKeySet(preview.patternTiles);
+});
+
+const equipmentCorridorInvalidKeys = computed(() => {
+  if (boardActionMode.value !== "equipmentCorridor" || attackAimed.value) return new Set<string>();
+  const preview = equipmentCorridorPlacementPreview.value;
+  if (!preview || preview.valid) return new Set<string>();
+  return coordsToKeySet(preview.patternTiles);
+});
+
+const equipmentCoverRangeKeys = computed(() => {
+  if (boardActionMode.value !== "equipmentCover") return new Set<string>();
+  const me = yourPlayer.value;
+  const s = gameState.value;
+  if (!me || !s) return new Set<string>();
+  return rejectionFieldTileKeys(s, me);
+});
+
+const equipmentCoverSelectedKeys = computed(() => coordsToKeySet(equipmentCoverTiles.value));
+
+const equipmentCoverSecondaryKeys = computed(() => {
+  if (boardActionMode.value !== "equipmentCover") return new Set<string>();
+  const range = equipmentCoverRangeKeys.value;
+  const selected = equipmentCoverSelectedKeys.value;
+  const keys = new Set<string>();
+  for (const key of range) {
+    if (!selected.has(key)) keys.add(key);
+  }
+  return keys;
+});
+
+const equipmentForceProjectionSquareKeys = computed(() => {
+  if (boardActionMode.value !== "equipmentForceProjection" || forceProjectionStep.value !== "selectSquare") {
+    return new Set<string>();
+  }
+  const me = yourPlayer.value;
+  const s = gameState.value;
+  const occ = occupancy.value;
+  if (!me || !s || !occ) return new Set<string>();
+  return forceProjectionTileKeys(s, me, occ);
+});
+
+const redirectSourceKeys = computed(() => {
+  if (boardActionMode.value !== "equipmentRedirect" || redirectStep.value !== "selectSource") {
+    return new Set<string>();
+  }
+  const me = yourPlayer.value;
+  const s = gameState.value;
+  if (!me || !s) return new Set<string>();
+  return redirectionSourceTileKeys(s, me);
+});
+
+const redirectTargetKeys = computed(() => {
+  if (boardActionMode.value !== "equipmentRedirect" || redirectStep.value !== "selectTarget") {
+    return new Set<string>();
+  }
+  const s = gameState.value;
+  const sourceId = redirectSourceEnemyId.value;
+  const attackIndex = redirectAttackIndex.value;
+  if (!s || !sourceId || attackIndex == null) return new Set<string>();
+  const source = s.enemies.find((e) => e.id === sourceId);
+  if (!source?.name) return new Set<string>();
+  const attacks = getEnemyListingByName(source.name)?.attacks ?? [];
+  const parsed = parseEnemyAttackString(attacks[attackIndex] ?? "");
+  const ids = enemyDirectAttackTargetEnemyIds(s, sourceId, parsed);
+  const keys = new Set<string>();
+  for (const id of ids) {
+    const enemy = s.enemies.find((e) => e.id === id);
+    if (enemy) keys.add(coordKey(enemy.x, enemy.y));
+  }
+  return keys;
+});
+
+const redirectPatternPrimaryKeys = computed(() => {
+  if (boardActionMode.value !== "equipmentRedirect" || redirectStep.value !== "confirmPattern") {
+    return new Set<string>();
+  }
+  const s = gameState.value;
+  const sourceId = redirectSourceEnemyId.value;
+  const attackIndex = redirectAttackIndex.value;
+  if (!s || !sourceId || attackIndex == null) return new Set<string>();
+  const tiles = previewEnemyAttack(s, sourceId, attackIndex, attackDirection.value);
+  return coordsToKeySet(tiles);
+});
+
 const borrowAnchoredPlacementPreview = computed(() => {
   if (boardActionMode.value !== "varunastraBorrow" || !borrowAllyId.value) return null;
   const ctx = borrowContext.value;
@@ -962,7 +1118,7 @@ const borrowAnchoredPlacementPreview = computed(() => {
     ctx.me,
     anchor,
     ctx.spec,
-    ANCHORED_ATTACK_DIRECTION,
+    attackDirection.value,
     s,
   );
 });
@@ -989,9 +1145,11 @@ const attackPreviewByDirection = computed(() => {
   if (isRangeTargetAttack(ctx.spec) || usesAnchoredPatternPlacement(ctx.spec)) {
     return new Map<PatternDirection, Set<string>>();
   }
+  const origin = ctx.origin ?? { x: ctx.me.x, y: ctx.me.y };
   const map = new Map<PatternDirection, Set<string>>();
   for (const direction of PATTERN_DIRECTIONS) {
-    map.set(direction, coordsToKeySet(previewPlayerAttack(s, ctx.me.id, direction, ctx.weapon)));
+    const tiles = collectAttackTiles(s, origin, ctx.spec, direction);
+    map.set(direction, coordsToKeySet(tiles));
   }
   return map;
 });
@@ -1061,7 +1219,7 @@ const borrowCombatSecondaryKeys = computed(() => {
 });
 
 const combatAttackPrimaryKeys = computed(() => {
-  if (boardActionMode.value !== "attack") return new Set<string>();
+  if (!isWeaponAttackMode.value) return new Set<string>();
   const ctx = attackContext.value;
   const s = gameState.value;
   if (!ctx || !s) return new Set<string>();
@@ -1081,14 +1239,16 @@ const combatAttackPrimaryKeys = computed(() => {
 const combatAttackSecondaryKeys = computed(() => {
   const ctx = attackContext.value;
   const s = gameState.value;
-  if (!ctx || !s) {
+  if (!ctx || !s || !isWeaponAttackMode.value) {
     return new Set<string>();
   }
+
+  const origin = ctx.origin ?? { x: ctx.me.x, y: ctx.me.y };
 
   if (isRangeTargetAttack(ctx.spec)) {
     return rangeAttackTileKeys(
       s,
-      ctx.me,
+      origin,
       rangeTargetDistance(ctx.spec),
     );
   }
@@ -1102,9 +1262,9 @@ const combatAttackSecondaryKeys = computed(() => {
 
   if (isRangedPatternAttack(ctx.spec)) {
     if (ctx.spec.rangeSpan) {
-      return rangedPatternPlacementKeys(s, ctx.me, ctx.spec.rangeSpan);
+      return rangedPatternPlacementKeys(s, origin, ctx.spec.rangeSpan);
     }
-    return rangeAttackTileKeys(s, ctx.me, ctx.spec.range!);
+    return rangeAttackTileKeys(s, origin, ctx.spec.range!);
   }
 
   const keys = new Set<string>();
@@ -1368,6 +1528,12 @@ const cellStateByKey = computed(() => {
       combatAttackPrimaryKeys.value.has(ck) ||
       borrowCombatPrimaryKeys.value.has(ck) ||
       omnistrikePrimaryKeys.value.has(ck) ||
+      equipmentCorridorPrimaryKeys.value.has(ck) ||
+      equipmentCoverSelectedKeys.value.has(ck) ||
+      equipmentForceProjectionSquareKeys.value.has(ck) ||
+      redirectSourceKeys.value.has(ck) ||
+      redirectTargetKeys.value.has(ck) ||
+      redirectPatternPrimaryKeys.value.has(ck) ||
       warhookPrimaryKeys.value.has(ck) ||
       classAbilityPrimaryKeys.value.has(ck) ||
       towerTeleportPrimaryKeys.value.has(ck) ||
@@ -1381,6 +1547,8 @@ const cellStateByKey = computed(() => {
       combatAttackSecondaryKeys.value.has(ck) ||
       borrowCombatSecondaryKeys.value.has(ck) ||
       omnistrikeSecondaryKeys.value.has(ck) ||
+      equipmentCorridorSecondaryKeys.value.has(ck) ||
+      equipmentCoverSecondaryKeys.value.has(ck) ||
       warhookSecondaryKeys.value.has(ck) ||
       armorPlaceTowerKeys.value.has(ck) ||
       classAbilitySecondaryKeys.value.has(ck) ||
@@ -1422,6 +1590,7 @@ const cellStateByKey = computed(() => {
       combatTargetInvalid:
         combatAttackInvalidKeys.value.has(coordKey(c.x, c.y)) ||
         omnistrikeInvalidKeys.value.has(coordKey(c.x, c.y)) ||
+        equipmentCorridorInvalidKeys.value.has(coordKey(c.x, c.y)) ||
         sharurAttractorInvalidKeys.value.has(coordKey(c.x, c.y)),
       patternRecoil: patternRecoilKeys.value.has(coordKey(c.x, c.y)),
       tile,
@@ -1789,7 +1958,6 @@ function effectEntries(stacks?: EffectStacks) {
 }
 
 function effectTooltipLabel(id: string, stacks: number): string {
-  if (id === "Stained") return "Stained";
   const summary = getEffectSummary(id);
   const base = summary ? `${id}: ${stacks} — ${summary}` : `${id}: ${stacks}`;
   return base;
@@ -2043,10 +2211,11 @@ function attackTilesForAction(action: Extract<PlayerAction, { action: "attack" }
     });
   }
   const direction = action.direction;
+  const base = ctx.origin ?? { x: me.x, y: me.y };
   const origin =
     action.anchorX != null && action.anchorY != null
       ? patternOriginFromAnchor({ x: action.anchorX, y: action.anchorY }, ctx.spec.anchorTile, direction)
-      : { x: me.x, y: me.y };
+      : base;
   return collectAttackTiles(s, origin, ctx.spec, direction);
 }
 
@@ -2061,6 +2230,23 @@ function submitAttackAction(action: Extract<PlayerAction, { action: "attack" }>)
     breakerPromptOpen.value = true;
     return;
   }
+  if (ctx.equipmentUse && forceProjectionOrigin.value) {
+    const origin = forceProjectionOrigin.value;
+    sendPlayerAction({
+      action: "useEquipment",
+      detail: me.equipment,
+      projectionX: origin.x,
+      projectionY: origin.y,
+      direction: action.direction,
+      anchorX: action.anchorX,
+      anchorY: action.anchorY,
+      targetEnemyIds: action.targetEnemyIds,
+      weaponName: ctx.weapon,
+      useBreaker: action.useBreaker,
+    });
+    clearBoardActionMode();
+    return;
+  }
   sendPlayerAction(action);
   clearBoardActionMode();
 }
@@ -2068,7 +2254,25 @@ function submitAttackAction(action: Extract<PlayerAction, { action: "attack" }>)
 function onBreakerConfirm(useBreaker: boolean) {
   const action = pendingAttackAction.value;
   if (!action) return;
-  sendPlayerAction({ ...action, useBreaker });
+  const ctx = attackContext.value;
+  const me = yourPlayer.value;
+  if (ctx?.equipmentUse && forceProjectionOrigin.value && me) {
+    const origin = forceProjectionOrigin.value;
+    sendPlayerAction({
+      action: "useEquipment",
+      detail: me.equipment,
+      projectionX: origin.x,
+      projectionY: origin.y,
+      direction: action.direction,
+      anchorX: action.anchorX,
+      anchorY: action.anchorY,
+      targetEnemyIds: action.targetEnemyIds,
+      weaponName: ctx.weapon,
+      useBreaker,
+    });
+  } else {
+    sendPlayerAction({ ...action, useBreaker });
+  }
   pendingAttackAction.value = null;
   breakerPromptOpen.value = false;
   clearBoardActionMode();
@@ -2086,10 +2290,23 @@ function handleAttackCellClick(x: number, y: number, targetEnemyId?: string): bo
   if (!me || !s || !ctx) return false;
 
   const key = coordKey(x, y);
+  const origin = ctx.origin ?? { x: me.x, y: me.y };
   const attackAction = {
     action: "attack" as const,
     direction: attackDirection.value,
   };
+
+  function dirsAt(tx: number, ty: number): PatternDirection[] {
+    if (origin.x === me.x && origin.y === me.y) {
+      return playerAttackDirectionsAt(s, me.id, tx, ty, ctx.weapon);
+    }
+    const dirs: PatternDirection[] = [];
+    for (const direction of PATTERN_DIRECTIONS) {
+      const tiles = collectAttackTiles(s, origin, ctx.spec, direction);
+      if (tiles.some((t) => t.x === tx && t.y === ty)) dirs.push(direction);
+    }
+    return dirs;
+  }
 
   if (isRangeTargetAttack(ctx.spec)) {
     if (!combatAttackSecondaryKeys.value.has(key)) return false;
@@ -2097,7 +2314,7 @@ function handleAttackCellClick(x: number, y: number, targetEnemyId?: string): bo
     if (targetEnemyId) {
       const enemy = s.enemies.find((e) => e.id === targetEnemyId);
       if (!enemy) return false;
-      if (manhattanDistance(me, enemy) > rangeTargetDistance(ctx.spec)) return false;
+      if (manhattanDistance(origin, enemy) > rangeTargetDistance(ctx.spec)) return false;
 
       const maxTargets = rangeTargetMax(ctx.spec);
       const selected = rangeAttackTargetIds.value;
@@ -2127,10 +2344,10 @@ function handleAttackCellClick(x: number, y: number, targetEnemyId?: string): bo
   if (usesAnchoredPatternPlacement(ctx.spec)) {
     if (!attackAimed.value) {
       const placement = evaluateAnchoredPatternPlacement(
-        me,
+        origin,
         { x, y },
         ctx.spec,
-        ANCHORED_ATTACK_DIRECTION,
+        attackDirection.value,
         s,
       );
       if (placement.tooFar) {
@@ -2144,7 +2361,6 @@ function handleAttackCellClick(x: number, y: number, targetEnemyId?: string): bo
       if (!placement.valid) return false;
       attackAnchor.value = { x, y };
       attackAimed.value = true;
-      attackDirection.value = ANCHORED_ATTACK_DIRECTION;
       return true;
     }
 
@@ -2153,7 +2369,7 @@ function handleAttackCellClick(x: number, y: number, targetEnemyId?: string): bo
       if (!anchor) return false;
       submitAttackAction({
         action: "attack",
-        direction: ANCHORED_ATTACK_DIRECTION,
+        direction: attackDirection.value,
         anchorX: anchor.x,
         anchorY: anchor.y,
       });
@@ -2168,7 +2384,7 @@ function handleAttackCellClick(x: number, y: number, targetEnemyId?: string): bo
   if (isRangedPatternAttack(ctx.spec)) {
     if (!combatAttackSecondaryKeys.value.has(key)) return false;
 
-    const dirs = playerAttackDirectionsAt(s, me.id, x, y, ctx.weapon);
+    const dirs = dirsAt(x, y);
     if (dirs.length === 0) return false;
 
     if (attackAimed.value && (combatAttackPrimaryKeys.value.has(key) || combatAttackSecondaryKeys.value.has(key))) {
@@ -2184,7 +2400,7 @@ function handleAttackCellClick(x: number, y: number, targetEnemyId?: string): bo
     return true;
   }
 
-  const dirs = playerAttackDirectionsAt(s, me.id, x, y, ctx.weapon);
+  const dirs = dirsAt(x, y);
   if (dirs.length === 0) return false;
 
   if (attackAimed.value && combatAttackPrimaryKeys.value.has(key)) {
@@ -2198,6 +2414,125 @@ function handleAttackCellClick(x: number, y: number, targetEnemyId?: string): bo
   attackDirection.value = nextDir;
   attackAimed.value = true;
   return true;
+}
+
+function handleEquipmentCoverCellClick(x: number, y: number): boolean {
+  const me = yourPlayer.value;
+  const s = gameState.value;
+  if (!me || !s) return false;
+  const key = coordKey(x, y);
+  if (!equipmentCoverRangeKeys.value.has(key)) return false;
+
+  const selected = [...equipmentCoverTiles.value];
+  const idx = selected.findIndex((t) => t.x === x && t.y === y);
+  if (idx >= 0) {
+    equipmentCoverTiles.value = selected.filter((_, i) => i !== idx);
+    return true;
+  }
+  if (selected.length >= 3) return false;
+
+  const next = [...selected, { x, y }];
+  if (next.length > 1 && !areOrthogonallyConnected(next)) {
+    showToast("Tiles must be connected");
+    return true;
+  }
+  equipmentCoverTiles.value = next;
+
+  if (next.length === 3 && areOrthogonallyConnected(next)) {
+    sendPlayerAction({
+      action: "useEquipment",
+      detail: me.equipment,
+      coverTiles: next,
+    });
+    clearBoardActionMode();
+  }
+  return true;
+}
+
+function handleForceProjectionSquareClick(x: number, y: number): boolean {
+  const key = coordKey(x, y);
+  if (!equipmentForceProjectionSquareKeys.value.has(key)) return false;
+  forceProjectionOrigin.value = { x, y };
+  forceProjectionStep.value = "attack";
+  attackAimed.value = false;
+  attackAnchor.value = null;
+  rangeAttackTargetIds.value = [];
+  return true;
+}
+
+function advanceRedirectAfterAttackPick() {
+  const s = gameState.value;
+  const sourceId = redirectSourceEnemyId.value;
+  const attackIndex = redirectAttackIndex.value;
+  if (!s || !sourceId || attackIndex == null) return;
+  const source = s.enemies.find((e) => e.id === sourceId);
+  if (!source?.name) return;
+  const attacks = getEnemyListingByName(source.name)?.attacks ?? [];
+  const parsed = parseEnemyAttackString(attacks[attackIndex] ?? "");
+  redirectStep.value = isDirectTargetEnemyAttack(parsed) ? "selectTarget" : "confirmPattern";
+  attackAimed.value = false;
+  attackDirection.value = "n";
+}
+
+function handleEquipmentRedirectCellClick(x: number, y: number, enemyId?: string): boolean {
+  const me = yourPlayer.value;
+  const s = gameState.value;
+  if (!me || !s) return false;
+  const step = redirectStep.value;
+
+  if (step === "selectSource") {
+    if (!enemyId || !redirectSourceKeys.value.has(coordKey(x, y))) return false;
+    const anchor = s.enemies.find((e) => e.id === enemyId);
+    if (!anchor?.name) return false;
+    const indices = listRedirectableEnemyAttackIndices(anchor.name);
+    if (!indices.length) {
+      showToast("No supported attacks");
+      return true;
+    }
+    redirectSourceEnemyId.value = enemyId;
+    if (indices.length === 1) {
+      redirectAttackIndex.value = indices[0]!;
+      advanceRedirectAfterAttackPick();
+    } else {
+      redirectAttackIndex.value = indices[0]!;
+      redirectStep.value = "selectAttack";
+    }
+    return true;
+  }
+
+  if (step === "selectTarget" && enemyId && redirectTargetKeys.value.has(coordKey(x, y))) {
+    sendPlayerAction({
+      action: "useEquipment",
+      detail: me.equipment,
+      sourceEnemyId: redirectSourceEnemyId.value!,
+      attackIndex: redirectAttackIndex.value!,
+      targetEnemyId: enemyId,
+    });
+    clearBoardActionMode();
+    return true;
+  }
+
+  if (step === "confirmPattern" && redirectPatternPrimaryKeys.value.has(coordKey(x, y))) {
+    sendPlayerAction({
+      action: "useEquipment",
+      detail: me.equipment,
+      sourceEnemyId: redirectSourceEnemyId.value!,
+      attackIndex: redirectAttackIndex.value!,
+      direction: attackDirection.value,
+    });
+    clearBoardActionMode();
+    return true;
+  }
+
+  if (step === "selectAttack") {
+    if (enemyId === redirectSourceEnemyId.value) {
+      advanceRedirectAfterAttackPick();
+      return true;
+    }
+    return true;
+  }
+
+  return false;
 }
 
 function submitBorrowClassActive(opts?: {
@@ -2257,7 +2592,7 @@ function handleBorrowCellClick(x: number, y: number, targetEnemyId?: string): bo
         me,
         { x, y },
         ctx.spec,
-        ANCHORED_ATTACK_DIRECTION,
+        attackDirection.value,
         s,
       );
       if (placement.tooFar) {
@@ -2271,7 +2606,6 @@ function handleBorrowCellClick(x: number, y: number, targetEnemyId?: string): bo
       if (!placement.valid) return false;
       attackAnchor.value = { x, y };
       attackAimed.value = true;
-      attackDirection.value = ANCHORED_ATTACK_DIRECTION;
       return true;
     }
 
@@ -2279,7 +2613,7 @@ function handleBorrowCellClick(x: number, y: number, targetEnemyId?: string): bo
       const anchor = attackAnchor.value;
       if (!anchor) return false;
       submitBorrowClassActive({
-        direction: ANCHORED_ATTACK_DIRECTION,
+        direction: attackDirection.value,
         anchorX: anchor.x,
         anchorY: anchor.y,
       });
@@ -2390,6 +2724,41 @@ function handleWarhookCellClick(x: number, y: number): boolean {
   return true;
 }
 
+function handleEquipmentCorridorCellClick(x: number, y: number): boolean {
+  const me = yourPlayer.value;
+  const s = gameState.value;
+  const ctx = equipmentCorridorContext.value;
+  if (!me || !s || !ctx) return false;
+
+  const key = coordKey(x, y);
+
+  if (!attackAimed.value) {
+    const tiles = collectEquipmentPatternTiles(s, { x, y }, me.equipment!, attackDirection.value);
+    if (tiles.length < (ctx.spec.tiles?.length ?? 0)) return false;
+    attackAnchor.value = { x, y };
+    attackAimed.value = true;
+    return true;
+  }
+
+  if (equipmentCorridorPrimaryKeys.value.has(key)) {
+    const anchor = attackAnchor.value;
+    if (!anchor) return false;
+    sendPlayerAction({
+      action: "useEquipment",
+      detail: me.equipment,
+      direction: attackDirection.value,
+      anchorX: anchor.x,
+      anchorY: anchor.y,
+    });
+    clearBoardActionMode();
+    return true;
+  }
+
+  attackAimed.value = false;
+  attackAnchor.value = null;
+  return true;
+}
+
 function handleOmnistrikeCellClick(x: number, y: number): boolean {
   const ctx = omnistrikeContext.value;
   const s = gameState.value;
@@ -2408,6 +2777,7 @@ function handleOmnistrikeCellClick(x: number, y: number): boolean {
         omnistrike: {
           bombIndices: [ctx.indexA, ctx.indexB],
           anchors: [anchorA, anchorB],
+          direction: attackDirection.value,
         },
       });
       clearBoardActionMode();
@@ -2423,7 +2793,7 @@ function handleOmnistrikeCellClick(x: number, y: number): boolean {
       ctx.me,
       { x, y },
       ctx.bombA,
-      OMNISTRIKE_DIRECTION,
+      attackDirection.value,
       s,
       ctx.combinedSpan,
     );
@@ -2444,12 +2814,12 @@ function handleOmnistrikeCellClick(x: number, y: number): boolean {
   if (step === "placeSecond") {
     const firstAnchor = omnistrikeAnchors.value[0];
     if (!firstAnchor) return false;
-    const firstTiles = collectBombPatternTiles(s, firstAnchor, ctx.bombA, OMNISTRIKE_DIRECTION);
+    const firstTiles = collectBombPatternTiles(s, firstAnchor, ctx.bombA, attackDirection.value);
     const placement = evaluateOmnistrikePlacement(
       ctx.me,
       { x, y },
       ctx.bombB,
-      OMNISTRIKE_DIRECTION,
+      attackDirection.value,
       s,
       ctx.combinedSpan,
       firstTiles,
@@ -2520,6 +2890,19 @@ function handleCombatCellClick(x: number, y: number): boolean {
   }
   if (m === "omnistrike") {
     return handleOmnistrikeCellClick(x, y);
+  }
+  if (m === "equipmentCorridor") {
+    return handleEquipmentCorridorCellClick(x, y);
+  }
+  if (m === "equipmentCover") {
+    return handleEquipmentCoverCellClick(x, y);
+  }
+  if (m === "equipmentForceProjection") {
+    if (forceProjectionStep.value === "selectSquare") return handleForceProjectionSquareClick(x, y);
+    return handleAttackCellClick(x, y, enemy?.id);
+  }
+  if (m === "equipmentRedirect") {
+    return handleEquipmentRedirectCellClick(x, y, enemy?.id);
   }
   if (m === "warhook") {
     return handleWarhookCellClick(x, y);
@@ -3055,6 +3438,44 @@ function onKeydown(e: KeyboardEvent) {
       cyclePatternDirection();
       return;
     }
+    const mode = boardActionMode.value;
+    if (
+      mode === "attack" ||
+      mode === "omnistrike" ||
+      mode === "equipmentCorridor" ||
+      mode === "equipmentForceProjection" ||
+      mode === "equipmentRedirect" ||
+      mode === "varunastraBorrow"
+    ) {
+      if (mode === "omnistrike" && omnistrikeStep.value === "selectBombs") return;
+      if (mode === "equipmentRedirect" && redirectStep.value === "selectAttack") {
+        const s = gameState.value;
+        const sourceId = redirectSourceEnemyId.value;
+        if (s && sourceId) {
+          const source = s.enemies.find((e) => e.id === sourceId);
+          if (source?.name) {
+            const indices = listRedirectableEnemyAttackIndices(source.name);
+            const cur = redirectAttackIndex.value ?? indices[0]!;
+            const pos = indices.indexOf(cur);
+            redirectAttackIndex.value = indices[(pos + 1) % indices.length]!;
+          }
+        }
+        e.preventDefault();
+        return;
+      }
+      e.preventDefault();
+      rotateAttackDirection();
+      if (mode === "attack" || mode === "equipmentForceProjection") {
+        const ctx = attackContext.value;
+        if (ctx && !usesAnchoredPatternPlacement(ctx.spec)) attackAimed.value = true;
+      } else if (mode === "equipmentRedirect" && redirectStep.value === "confirmPattern") {
+        attackAimed.value = true;
+      } else if (mode === "varunastraBorrow") {
+        const ctx = borrowContext.value;
+        if (ctx && !usesAnchoredPatternPlacement(ctx.spec)) attackAimed.value = true;
+      }
+      return;
+    }
   }
 
   if (contextMenu.value.open && e.key === "Escape") {
@@ -3247,7 +3668,7 @@ onUnmounted(() => {
               :key="effect.id"
               class="tooltip-row tooltip-effect"
             >
-              {{ effectTooltipLabel(effect.id, effect.stacks) }}
+              {{ formatTileEffectTooltipLabel(effect.id, effect.stacks) }}
             </span>
           </div>
         </div>

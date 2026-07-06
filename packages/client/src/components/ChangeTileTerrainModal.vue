@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { TERRAIN_TYPES, tileAt, type TerrainType } from "@gaem/shared";
+import { TERRAIN_TYPES, terrainTypeDisplayName, tileAt, type TerrainType } from "@gaem/shared";
 import { computed, ref, watch } from "vue";
 
 import { TERRAIN_TILE_IMAGE_URLS } from "../lib/terrainTileImages.js";
@@ -31,7 +31,7 @@ watch(
 const canApply = computed(() => !!props.coords);
 
 function terrainLabel(terrain: TerrainType): string {
-  return terrain.charAt(0).toUpperCase() + terrain.slice(1);
+  return terrainTypeDisplayName(terrain);
 }
 
 function apply() {

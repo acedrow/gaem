@@ -17,6 +17,7 @@ const DATA_CATEGORIES = new Set<DataCategory>([
   "gear",
   "resources",
   "effects",
+  "terrain",
   "patterns",
   "paracletus",
 ]);

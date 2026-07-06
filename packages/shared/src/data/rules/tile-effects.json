@@ -21,6 +21,13 @@
     "icon": "M8 4 V12 M4 8 H12"
   },
   {
+    "id": "AnnihilationCorridor",
+    "summary": "Enemies in this corridor take 1 HP damage at the end of their turn. Cleared after combat.",
+    "description": "Hylic Annihilation Corridor zone. Enemies occupying these tiles take 1 HP damage at the end of their turn. Removed when combat ends.",
+    "stacking": "max",
+    "icon": "M2 8 H14 M8 2 V14"
+  },
+  {
     "id": "Stained",
     "summary": "Paracletus stain. Enemies and other factions cannot build on Stained squares.",
     "description": "Any square may be stained through various effects. Enemies or other factions cannot build on Stained squares. Stainwalk abilities trigger when a unit occupies a Stained square.",

@@ -8,6 +8,7 @@ import {
   PLAYER_GEAR,
   PLAYER_WEAPONS,
   RULE_EFFECTS,
+  TERRAIN_TYPE_ENTRIES,
 } from "@gaem/shared";
 
 import type { DataFocusKind } from "../composables/useInfoDataSelection.js";
@@ -88,6 +89,12 @@ const PLAYER_DATA_INDEX: SearchEntry[] = [
     name: item.id,
     subtitle: item.summary,
     haystack: haystack(item.id, item.summary, item.description),
+  })),
+  ...TERRAIN_TYPE_ENTRIES.map((item) => ({
+    kind: "terrain" as const,
+    name: item.name,
+    subtitle: item.summary,
+    haystack: haystack(item.id, item.name, item.summary, item.description),
   })),
 ];
 
@@ -171,6 +178,7 @@ export function kindLabel(kind: GameDataSearchResultKind): string {
   if (kind === "equipment") return "Equipment";
   if (kind === "gear") return "Gear";
   if (kind === "effects") return "Effect";
+  if (kind === "terrain") return "Terrain";
   if (kind === "characterSheet") return "Character sheet";
   return "Enemy";
 }

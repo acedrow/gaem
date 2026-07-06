@@ -36,7 +36,16 @@ export type PlayerWeapon = Omit<WeaponJson, "activeAbility" | "passiveAbility"> 
   passiveAbility?: AbilityText;
   attack?: WeaponAttackSpec;
 };
-export type PlayerEquipment = EquipmentJson;
+export type PlayerEquipment = EquipmentJson & {
+  placement?: {
+    tiles?: readonly (readonly [number, number])[];
+    anchorTile?: readonly [number, number];
+    patternId?: string;
+    size?: number;
+    width?: number;
+    directional?: boolean;
+  };
+};
 export type PlayerGear = GearJson;
 export type EffectGlossaryEntry = RuleEffect;
 

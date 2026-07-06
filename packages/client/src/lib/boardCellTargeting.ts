@@ -24,6 +24,10 @@ export const BOARD_CELL_TARGETING_MODES = [
   "harpeTrap",
   "varunastraBorrow",
   "assistedLaunch",
+  "equipmentCorridor",
+  "equipmentCover",
+  "equipmentForceProjection",
+  "equipmentRedirect",
 ] as const satisfies readonly Exclude<BoardActionMode, null | "gmEnemyAttack">[];
 
 const targetingModes = new Set<BoardActionMode>(BOARD_CELL_TARGETING_MODES);

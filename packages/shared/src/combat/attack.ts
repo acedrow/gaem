@@ -5,7 +5,6 @@ import {
   bespokeTilesInBounds,
   parseAttackRangeSpan,
   patternOriginFromAnchor,
-  usesAnchoredPatternPlacement,
 } from "../weapon-patterns.js";
 import { getEnemyScale, enemyFootprintTiles } from "../enemy-data.js";
 import { buildBoardOccupancy } from "../game.js";
@@ -205,7 +204,7 @@ export function collectAttackTiles(
     return bespokeTilesInBounds(
       origin,
       spec.tiles,
-      usesAnchoredPatternPlacement(spec) ? "e" : direction,
+      direction,
       state.width,
       state.height,
     );
@@ -631,6 +630,7 @@ export const OMNISTRIKE_DIRECTION: PatternDirection = "e";
 export type OmnistrikePayload = {
   bombIndices: [number, number];
   anchors: [{ x: number; y: number }, { x: number; y: number }];
+  direction: PatternDirection;
 };
 
 export function resolveBombAttackSpec(
@@ -777,8 +777,8 @@ export function resolveOmnistrikePlacements(
   const combinedSpan = computeOmnistrikeRangeSpan(bombA, bombB);
   if (!combinedSpan) return null;
 
-  const tilesA = collectBombPatternTiles(state, payload.anchors[0], bombA, OMNISTRIKE_DIRECTION);
-  const tilesB = collectBombPatternTiles(state, payload.anchors[1], bombB, OMNISTRIKE_DIRECTION);
+  const tilesA = collectBombPatternTiles(state, payload.anchors[0], bombA, payload.direction);
+  const tilesB = collectBombPatternTiles(state, payload.anchors[1], bombB, payload.direction);
   if (!tilesA.length || !tilesB.length) return null;
   if (!patternsAdjacentOrOverlap(tilesA, tilesB)) return null;
 
@@ -786,7 +786,7 @@ export function resolveOmnistrikePlacements(
     player,
     payload.anchors[0],
     bombA,
-    OMNISTRIKE_DIRECTION,
+    payload.direction,
     state,
     combinedSpan,
     tilesB,
@@ -795,7 +795,7 @@ export function resolveOmnistrikePlacements(
     player,
     payload.anchors[1],
     bombB,
-    OMNISTRIKE_DIRECTION,
+    payload.direction,
     state,
     combinedSpan,
     tilesA,
@@ -832,8 +832,8 @@ export function validateOmnistrikeAction(
     const combinedSpan = bombA && bombB ? computeOmnistrikeRangeSpan(bombA, bombB) : null;
     if (!combinedSpan) return "Invalid placement";
 
-    const tilesA = collectBombPatternTiles(state, payload.anchors[0], bombA!, OMNISTRIKE_DIRECTION);
-    const tilesB = collectBombPatternTiles(state, payload.anchors[1], bombB!, OMNISTRIKE_DIRECTION);
+    const tilesA = collectBombPatternTiles(state, payload.anchors[0], bombA!, payload.direction);
+    const tilesB = collectBombPatternTiles(state, payload.anchors[1], bombB!, payload.direction);
     if (!patternsAdjacentOrOverlap(tilesA, tilesB)) return "Patterns must be adjacent or overlap";
 
     for (const [anchor, spec, other] of [
@@ -844,7 +844,7 @@ export function validateOmnistrikeAction(
         player,
         anchor,
         spec,
-        OMNISTRIKE_DIRECTION,
+        payload.direction,
         state,
         combinedSpan,
         other,
@@ -1135,6 +1135,45 @@ export function enemyDirectAttackTargetPlayerIds(
     for (const key of rangeAttackTileKeys(state, origin, range)) {
       const p = occ.playerByKey.get(key);
       if (p) ids.add(p.id);
+    }
+  }
+  return [...ids];
+}
+
+export function enemyDirectAttackTargetEnemyIds(
+  state: GameState,
+  sourceEnemyId: string,
+  parsed: ParsedEnemyAttack,
+  occupancy?: ReturnType<typeof buildBoardOccupancy>,
+): string[] {
+  const range = parsed.range ?? 1;
+  const occ = occupancy ?? buildBoardOccupancy(state);
+  const sourceGroup = swarmGroupForEnemy(state, sourceEnemyId);
+  const sourceCanonical = sourceGroup?.canonicalId ?? sourceEnemyId;
+  const ids = new Set<string>();
+
+  if (range <= 1 && /adjacent/i.test(parsed.raw)) {
+    const sourceTiles = enemyAttackOriginTiles(state, sourceEnemyId);
+    for (const enemy of state.enemies) {
+      if ((enemy.hp ?? 0) <= 0) continue;
+      const targetCanonical = swarmGroupForEnemy(state, enemy.id)?.canonicalId ?? enemy.id;
+      if (targetCanonical === sourceCanonical) continue;
+      const targetTiles = enemyFootprintTiles(enemy.x, enemy.y, getEnemyScale(enemy));
+      const adjacent = sourceTiles.some((st) =>
+        targetTiles.some((tt) => isOrthogonallyAdjacent(st, tt)),
+      );
+      if (adjacent) ids.add(targetCanonical);
+    }
+    return [...ids];
+  }
+
+  for (const origin of enemyAttackOriginTiles(state, sourceEnemyId)) {
+    for (const key of rangeAttackTileKeys(state, origin, range)) {
+      const enemy = occ.enemyByKey.get(key);
+      if (!enemy || (enemy.hp ?? 0) <= 0) continue;
+      const targetCanonical = swarmGroupForEnemy(state, enemy.id)?.canonicalId ?? enemy.id;
+      if (targetCanonical === sourceCanonical) continue;
+      ids.add(targetCanonical);
     }
   }
   return [...ids];

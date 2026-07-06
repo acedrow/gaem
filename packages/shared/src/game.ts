@@ -2,6 +2,7 @@ import type { Enemy, GameMap, GameState, GaemRole, PhaseAction, Player, TerrainO
 import { playerLabel } from "./console.js";
 import { createDefaultActionBudget, createDefaultCombatState } from "./combat/types.js";
 import { initSabaothCharges } from "./combat/attack.js";
+import { clearAnnihilationCorridorTileEffects, clearEquipmentTerrainSnapshots } from "./combat/equipment.js";
 import { tickRoundCountdowns, tickUnitEndOfTurn } from "./combat/effects.js";
 import { resetEnemyExhaustion, resetGmTurnActions } from "./combat/enemy.js";
 import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles, ensureEnemyMovement, refreshEnemyMovement, spendEnemyMovement } from "./enemy-data.js";
@@ -162,6 +163,8 @@ function resetToCombatStart(state: GameState): void {
   state.round = 1;
   resetToRoundStart(state);
   state.turnLog = [];
+  clearAnnihilationCorridorTileEffects(state);
+  clearEquipmentTerrainSnapshots(state);
 }
 
 export function remainingPlayerIds(state: GameState): string[] {

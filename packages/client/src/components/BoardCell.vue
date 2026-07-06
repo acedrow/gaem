@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { EffectStacks, Enemy, MapTile, Player } from "@gaem/shared";
-import { getEnemyMaxHp, getEnemyScale, getEffectSummary, getPlayerMaxHp, isFortificationEnemy } from "@gaem/shared";
+import { getEnemyMaxHp, getEnemyScale, getEffectSummary, getPlayerMaxHp, isFortificationEnemy, formatTileEffectTooltipLabel, tileEffectDisplayName, tileEffectShowsStackCount } from "@gaem/shared";
 import { computed } from "vue";
 
 import { TILE_EFFECT_IMAGE_URLS } from "../lib/tileEffectOverlays.js";
@@ -95,6 +95,10 @@ function effectTitle(id: string, stacks: number): string {
   return summary ? `${id}:${stacks} — ${summary}` : `${id}:${stacks}`;
 }
 
+function tileEffectTitle(id: string, stacks: number): string {
+  return formatTileEffectTooltipLabel(id, stacks);
+}
+
 function towerIconSize(enemy: Enemy): number {
   const scale = getEnemyScale(enemy);
   return scale > 1 ? 22 : 16;
@@ -166,6 +170,7 @@ const tileEffectImageOverlays = computed(() =>
     .map((effect) => ({
       id: effect.id,
       url: TILE_EFFECT_IMAGE_URLS[effect.id]!,
+      title: tileEffectDisplayName(effect.id),
     })),
 );
 
@@ -233,7 +238,7 @@ const terrainImageUrl = computed(() => {
       :key="overlay.id"
       class="board-overlay tile-effect-image"
       :style="{ backgroundImage: `url(${overlay.url})` }"
-      :title="overlay.id"
+      :title="overlay.title"
     />
     <span v-if="cell.combatTargetInvalid" class="combat-target-invalid-mark" aria-hidden="true" />
     <span
@@ -346,9 +351,14 @@ const terrainImageUrl = computed(() => {
         v-for="effect in tileEffectBadgeEntries"
         :key="effect.id"
         class="effect-badge"
-        :title="effectTitle(effect.id, effect.stacks)"
+        :title="tileEffectTitle(effect.id, effect.stacks)"
       >
-        <EffectIcon :effect-id="effect.id" :stacks="effect.stacks" :size="12" show-stacks />
+        <EffectIcon
+          :effect-id="effect.id"
+          :stacks="effect.stacks"
+          :size="12"
+          :show-stacks="tileEffectShowsStackCount(effect.id)"
+        />
       </span>
     </div>
   </button>

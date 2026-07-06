@@ -23,6 +23,27 @@ export const RULE_EFFECTS = [
   ...TILE_EFFECTS.filter((e) => !unitEffectIds.has(e.id)),
 ] as RuleEffect[];
 
+const TILE_EFFECT_DISPLAY_NAMES: Record<string, string> = {
+  Stained: "Stained",
+  AnnihilationCorridor: "Annihilation Corridor",
+};
+
+const TILE_EFFECTS_WITHOUT_STACK_DISPLAY = new Set(Object.keys(TILE_EFFECT_DISPLAY_NAMES));
+
+export function tileEffectDisplayName(id: string): string {
+  return TILE_EFFECT_DISPLAY_NAMES[id] ?? id;
+}
+
+export function tileEffectShowsStackCount(id: string): boolean {
+  return !TILE_EFFECTS_WITHOUT_STACK_DISPLAY.has(id);
+}
+
+export function formatTileEffectTooltipLabel(id: string, stacks: number): string {
+  const name = tileEffectDisplayName(id);
+  if (!tileEffectShowsStackCount(id)) return name;
+  return stacks > 1 ? `${name}: ${stacks}` : name;
+}
+
 const effectById = new Map<string, RuleEffect>([
   ...TILE_EFFECTS.map((e) => [e.id, e] as const),
   ...WEAPON_EFFECTS.map((e) => [e.id, e] as const),

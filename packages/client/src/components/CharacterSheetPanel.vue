@@ -7,6 +7,10 @@ import {
   classGrantsSecondWeapon,
   classGrantsDualGear,
   getEquipmentByName,
+  isHylicAnnihilationCorridor,
+  isHylicRejectionField,
+  isThoughtGuidingRedirectionCircuits,
+  isTransientForceProjection,
   getGearByName,
   getWeaponByName,
   getClassMaxHp,
@@ -126,6 +130,7 @@ const {
   attackAnchor,
   omnistrikeStep,
   omnistrikeBombs,
+  setMode,
 } = useBoardActionMode();
 
 const playerClass = computed(() => form.value.class);
@@ -148,7 +153,12 @@ const {
   clearMode,
 } = useCombatModeActions({ playerClass, playerId: () => boardPlayerId.value });
 
-const { rangeAttackHint, rangedPatternAttackHint, omnistrikeHint, warhookHint } =
+const equipmentActionActive = computed(() => {
+  const boardMode = form.value.equipment ? equipmentBoardMode(form.value.equipment) : null;
+  return boardMode != null && mode.value === boardMode;
+});
+
+const { rangeAttackHint, rangedPatternAttackHint, omnistrikeHint, equipmentCorridorHint, warhookHint } =
   useCombatModeHints({
     player: boardPlayer,
     weaponName: equippedWeaponName,
@@ -248,7 +258,26 @@ function selectWeaponVariant(index: number) {
   sendPlayerAction({ action: "selectWeaponVariant", index });
 }
 
+function equipmentBoardMode(equipmentName: string) {
+  if (isHylicAnnihilationCorridor(equipmentName)) return "equipmentCorridor";
+  if (isHylicRejectionField(equipmentName)) return "equipmentCover";
+  if (isTransientForceProjection(equipmentName)) return "equipmentForceProjection";
+  if (isThoughtGuidingRedirectionCircuits(equipmentName)) return "equipmentRedirect";
+  return null;
+}
+
 function useEquipmentItem() {
+  if (!form.value.equipment) return;
+  const boardMode = equipmentBoardMode(form.value.equipment);
+  if (boardMode) {
+    if (mode.value === boardMode) clearMode();
+    else {
+      attackAimed.value = false;
+      attackAnchor.value = null;
+      setMode(boardMode);
+    }
+    return;
+  }
   sendPlayerAction({ action: "useEquipment", detail: form.value.equipment });
 }
 
@@ -793,6 +822,7 @@ onUnmounted(() => {
             <p v-if="rangeAttackHint" class="range-attack-hint">{{ rangeAttackHint }}</p>
             <p v-if="rangedPatternAttackHint" class="range-attack-hint">{{ rangedPatternAttackHint }}</p>
             <p v-if="omnistrikeHint" class="range-attack-hint">{{ omnistrikeHint }}</p>
+            <p v-if="equipmentCorridorHint" class="range-attack-hint">{{ equipmentCorridorHint }}</p>
             <p v-if="warhookHint" class="range-attack-hint">{{ warhookHint }}</p>
             <div
               v-if="mode === 'omnistrike' && omnistrikeStep === 'selectBombs' && selectedWeapon?.attack"
@@ -829,7 +859,11 @@ onUnmounted(() => {
             @start-edit="startGearFieldEdit('equipment')"
           >
             <template v-if="showSheetCombatActions && selectedEquipment && form.equipment" #actions>
-              <SheetActionButton :disabled="!canUseEquipmentCharge" @click="useEquipmentItem">
+              <SheetActionButton
+                :disabled="!canUseEquipmentCharge"
+                :active="equipmentActionActive"
+                @click="useEquipmentItem"
+              >
                 Use
                 <template #tooltip>
                   <RuleText :text="selectedEquipment.effect" />

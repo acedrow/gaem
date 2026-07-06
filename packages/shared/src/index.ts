@@ -9,6 +9,7 @@ export * from "./player-data.js";
 export * from "./enemy-data.js";
 export * from "./pattern-data.js";
 export * from "./effects-data.js";
+export * from "./terrain-data.js";
 export * from "./base-upgrades-data.js";
 export * from "./base-upgrades-campaign.js";
 export * from "./base-upgrades-unlocks.js";

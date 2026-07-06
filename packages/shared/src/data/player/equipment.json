@@ -2,7 +2,11 @@
   {
     "name": "Hylic Annihilation Corridor",
     "description": "The desire to liberate Hell wells up within every human's heart. Overflows. Poured into this reification engine, it manifests in a lance of psychophasic rage.",
-    "effect": "Create a Line:5, Width:1 box on the map. Enemies in this box take 1 HP Damage at the end of their turn. The box disappears after combat."
+    "effect": "Create a Line:5, Width:1 box on the map. Enemies in this box take 1 HP Damage at the end of their turn. The box disappears after combat.",
+    "placement": {
+      "tiles": [[0, 0], [1, 0], [2, 0], [3, 0], [4, 0]],
+      "anchorTile": [0, 0]
+    }
   },
   {
     "name": "Promethean-Grade Hylic Rejection Field",

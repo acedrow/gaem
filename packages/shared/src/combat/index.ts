@@ -17,3 +17,4 @@ export * from "./attractor.js";
 export * from "./void-tile.js";
 export * from "./transference.js";
 export * from "./assisted-launch.js";
+export * from "./equipment.js";

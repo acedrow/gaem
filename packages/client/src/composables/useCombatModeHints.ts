@@ -11,7 +11,7 @@ import { computed, type Ref } from "vue";
 import { useBoardActionMode } from "./useBoardActionMode.js";
 
 const DEFAULT_ATTACK_HINT =
-  "Click a highlighted tile to aim, then click the attack area to confirm";
+  "Click a highlighted tile to aim, press R to rotate, then click the attack area to confirm";
 
 export function useCombatModeHints(opts: {
   player: Ref<Player | null | undefined>;
@@ -26,10 +26,16 @@ export function useCombatModeHints(opts: {
     kataptyTargetIds,
     borrowAllyId,
     assistedLaunchStep,
+    equipmentCoverTiles,
+    forceProjectionStep,
+    redirectStep,
   } = useBoardActionMode();
 
   const attackHint = computed(() => {
-    if (mode.value !== "attack" || !opts.player.value || !opts.weaponName.value) {
+    const attackMode =
+      mode.value === "attack" ||
+      (mode.value === "equipmentForceProjection" && forceProjectionStep.value === "attack");
+    if (!attackMode || !opts.player.value || !opts.weaponName.value) {
       return DEFAULT_ATTACK_HINT;
     }
     const spec = resolveCombatAttackSpec(opts.player.value, opts.weaponName.value);
@@ -41,7 +47,7 @@ export function useCombatModeHints(opts: {
       return `Select up to ${max} enemies (${count}/${max}). Click an enemy to toggle, empty tile to confirm.`;
     }
     if (usesAnchoredPatternPlacement(spec)) {
-      return "Hover to preview, click to place the pattern, then click the pattern to attack";
+      return "Hover to preview, click to place the pattern, press R to rotate, then click the pattern to attack";
     }
     if (isRangedPatternAttack(spec)) {
       return "Click a tile in range to aim, then click a highlighted tile to attack";
@@ -64,7 +70,7 @@ export function useCombatModeHints(opts: {
     const spec = resolveCombatAttackSpec(opts.player.value, opts.weaponName.value);
     if (!spec || isRangeTargetAttack(spec)) return null;
     if (usesAnchoredPatternPlacement(spec)) {
-      return "Hover to preview, click to place the pattern, then click the pattern to attack";
+      return "Hover to preview, click to place the pattern, press R to rotate, then click the pattern to attack";
     }
     if (isRangedPatternAttack(spec)) {
       return "Click a tile in range to aim, then click a highlighted tile to attack";
@@ -78,11 +84,11 @@ export function useCombatModeHints(opts: {
       case "selectBombs":
         return "Select two bomb types to combine (tap to toggle).";
       case "placeFirst":
-        return "Place the first pattern — hover to preview, click to confirm placement.";
+        return "Place the first pattern — hover to preview, press R to rotate, click to confirm placement.";
       case "placeSecond":
-        return "Place the second pattern adjacent to or overlapping the first.";
+        return "Place the second pattern adjacent to or overlapping the first. Press R to rotate.";
       case "confirm":
-        return "Click the combined pattern to launch Omnistrike.";
+        return "Click the combined pattern to launch Omnistrike. Press R to rotate.";
       default:
         return null;
     }
@@ -122,10 +128,50 @@ export function useCombatModeHints(opts: {
     return "Click the highlighted landing tile to launch";
   });
 
+  const equipmentCorridorHint = computed(() => {
+    if (mode.value !== "equipmentCorridor") return null;
+    return "Hover to preview, click to place the corridor anywhere on the map, press R to rotate, then click to confirm";
+  });
+
+  const equipmentCoverHint = computed(() => {
+    if (mode.value !== "equipmentCover") return null;
+    return `Select 3 connected tiles within range (${equipmentCoverTiles.value.length}/3). Click a selected tile to deselect.`;
+  });
+
+  const equipmentForceProjectionHint = computed(() => {
+    if (mode.value !== "equipmentForceProjection") return null;
+    if (forceProjectionStep.value === "selectSquare") {
+      return "Click an empty square within Range:3, then make your weapon attack from that square";
+    }
+    return attackHint.value;
+  });
+
+  const equipmentRedirectHint = computed(() => {
+    if (mode.value !== "equipmentRedirect") return null;
+    switch (redirectStep.value) {
+      case "selectSource":
+        return "Click an enemy within Range:5 to redirect its attack";
+      case "selectAttack":
+        return "Press R to cycle attacks, then click the source enemy again to confirm";
+      case "selectTarget":
+        return "Click a valid enemy target for the redirected attack";
+      case "confirmPattern":
+        return "Press R to rotate the pattern, then click the highlighted area to confirm";
+      default:
+        return null;
+    }
+  });
+
   const boardHintRows = computed(() => {
     const rows: { key: string; text: string }[] = [];
     if (mode.value === "attack") rows.push({ key: "attack", text: attackHint.value });
     if (omnistrikeHint.value) rows.push({ key: "omnistrike", text: omnistrikeHint.value });
+    if (equipmentCorridorHint.value) rows.push({ key: "equipmentCorridor", text: equipmentCorridorHint.value });
+    if (equipmentCoverHint.value) rows.push({ key: "equipmentCover", text: equipmentCoverHint.value });
+    if (equipmentForceProjectionHint.value) {
+      rows.push({ key: "equipmentForceProjection", text: equipmentForceProjectionHint.value });
+    }
+    if (equipmentRedirectHint.value) rows.push({ key: "equipmentRedirect", text: equipmentRedirectHint.value });
     if (warhookHint.value) rows.push({ key: "warhook", text: warhookHint.value });
     if (armorHint.value) rows.push({ key: "armor", text: armorHint.value });
     if (towerTeleportHint.value) rows.push({ key: "towerTeleport", text: towerTeleportHint.value });
@@ -146,6 +192,10 @@ export function useCombatModeHints(opts: {
     kataptyHint,
     varunastraBorrowHint,
     assistedLaunchHint,
+    equipmentCorridorHint,
+    equipmentCoverHint,
+    equipmentForceProjectionHint,
+    equipmentRedirectHint,
     boardHintRows,
   };
 }

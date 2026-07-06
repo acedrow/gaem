@@ -62,6 +62,22 @@ import {
   validateOmnistrikeAction,
   validateWarhookAction,
 } from "./attack.js";
+import {
+  applyAnnihilationCorridorEndOfTurnDamage,
+  applyForceProjection,
+  applyHylicCorridor,
+  applyHylicRejectionField,
+  applyRedirectionCircuits,
+  equipmentRequiresBoardPlacement,
+  isHylicAnnihilationCorridor,
+  isHylicRejectionField,
+  isThoughtGuidingRedirectionCircuits,
+  isTransientForceProjection,
+  validateForceProjection,
+  validateHylicCorridorAction,
+  validateHylicRejectionField,
+  validateRedirectionCircuits,
+} from "./equipment.js";
 import { applyEffectStacks, applyTileEffectStacks, clearEffectStacks, clearTileEffects, hasTileEffects, parseEffectToken, tickUnitEndOfTurn } from "./effects.js";
 import { isKnownEffectId } from "../effects-data.js";
 import { createPendingAction, addPendingAction, applyAssistedOutcome } from "./pending.js";
@@ -277,12 +293,11 @@ export function validatePlayerAction(
         }
       } else if (usesAnchoredPatternPlacement(spec)) {
         if (action.anchorX === undefined || action.anchorY === undefined) return "Select placement";
-        const direction = "e" as const;
         const placement = evaluateAnchoredPatternPlacement(
           player,
           { x: action.anchorX, y: action.anchorY },
           spec,
-          direction,
+          action.direction,
           state,
         );
         if (placement.tooFar) return "outside maximum range";
@@ -409,6 +424,29 @@ export function validatePlayerAction(
       ) {
         return "Equipment already used";
       }
+      const equipmentName = action.detail ?? player.equipment;
+      if (equipmentRequiresBoardPlacement(equipmentName)) {
+        if (isHylicAnnihilationCorridor(equipmentName)) {
+          if (action.anchorX === undefined || action.anchorY === undefined) return "Select placement";
+          if (!action.direction) return "Select corridor direction";
+          return validateHylicCorridorAction(
+            state,
+            player,
+            { x: action.anchorX, y: action.anchorY },
+            action.direction,
+          );
+        }
+        if (isHylicRejectionField(equipmentName)) {
+          if (!action.coverTiles?.length) return "Select cover tiles";
+          return validateHylicRejectionField(state, player, action.coverTiles);
+        }
+        if (isTransientForceProjection(equipmentName)) {
+          return validateForceProjection(state, player, action);
+        }
+        if (isThoughtGuidingRedirectionCircuits(equipmentName)) {
+          return validateRedirectionCircuits(state, player, action);
+        }
+      }
       return null;
     }
     case "interact": {
@@ -467,7 +505,7 @@ export function applyPlayerAction(
           );
         }
       } else {
-        const direction = usesAnchoredPatternPlacement(spec) ? "e" : action.direction;
+        const direction = action.direction;
         const attackOrigin =
           usesAnchoredPatternPlacement(spec) && action.anchorX != null && action.anchorY != null
             ? patternOriginFromAnchor({ x: action.anchorX, y: action.anchorY }, spec.anchorTile, direction)
@@ -737,6 +775,44 @@ export function applyPlayerAction(
         const gearMsg = activateExpandedAggressionGear(state, player);
         return `${playerLabel(player)} used equipment${gearMsg ? ` — ${gearMsg}` : ""}`;
       }
+      if (isHylicAnnihilationCorridor(action.detail ?? player.equipment) && action.direction) {
+        const anchor = { x: action.anchorX!, y: action.anchorY! };
+        const detail = applyHylicCorridor(state, player, anchor, action.direction);
+        return `${playerLabel(player)} used Hylic Annihilation Corridor — ${detail}`;
+      }
+      if (isHylicRejectionField(action.detail ?? player.equipment) && action.coverTiles) {
+        const detail = applyHylicRejectionField(state, action.coverTiles);
+        return `${playerLabel(player)} used Hylic Rejection Field — ${detail}`;
+      }
+      if (isThoughtGuidingRedirectionCircuits(action.detail ?? player.equipment) && action.sourceEnemyId != null) {
+        const { message, hitEnemyIds } = applyRedirectionCircuits(state, player, action);
+        const defeatMsgs: string[] = [];
+        for (const id of hitEnemyIds) {
+          const enemy = state.enemies.find((e) => e.id === id);
+          if (enemy && (enemy.hp ?? 0) <= 0) {
+            const tokenMsg = handleEnemyDefeated(state, enemy, playerId);
+            if (tokenMsg) defeatMsgs.push(tokenMsg);
+          }
+        }
+        if (defeatMsgs.length) return `${message}; ${defeatMsgs.join("; ")}`;
+        return message;
+      }
+      if (isTransientForceProjection(action.detail ?? player.equipment) && action.projectionX != null) {
+        const { message, result, hitEnemyIds } = applyForceProjection(state, player, action);
+        const xfer = applyTransferenceHeal(player, result.damage);
+        const defeatMsgs: string[] = [];
+        for (const id of hitEnemyIds) {
+          const enemy = state.enemies.find((e) => e.id === id);
+          if (enemy && (enemy.hp ?? 0) <= 0) {
+            const tokenMsg = handleEnemyDefeated(state, enemy, playerId);
+            if (tokenMsg) defeatMsgs.push(tokenMsg);
+          }
+        }
+        let msg = message;
+        if (xfer) msg += `; ${xfer}`;
+        if (defeatMsgs.length) msg += `; ${defeatMsgs.join("; ")}`;
+        return msg;
+      }
       addPendingAction(
         state,
         createPendingAction("useEquipment", "Equipment", {
@@ -928,6 +1004,7 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
       if (state.combat?.activeEnemyId === enemy.id) setActiveEnemy(state, null);
       const group = swarmGroupForEnemy(state, enemy.id);
       const ticks = tickUnitEndOfTurn(state, enemy);
+      const corridorMsg = applyAnnihilationCorridorEndOfTurnDamage(state, enemy);
       const attractorEndMsgs: string[] = [];
       const pullIds = group ? group.memberIds : [enemy.id];
       for (const id of pullIds) {
@@ -939,6 +1016,7 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
         ? `${enemyLabel(enemy)} swarm ended turn`
         : `${enemyLabel(enemy)} ended turn`;
       if (ticks.length) msg += `. ${ticks.join("; ")}`;
+      if (corridorMsg) msg += `. ${corridorMsg}`;
       if (attractorEndMsgs.length) msg += `. ${attractorEndMsgs.join("; ")}`;
       const phaseMsg = finishGmTurnIfPlayersRemain(state);
       if (phaseMsg) msg += `. GM phase ended — ${phaseMsg}`;

@@ -1,4 +1,5 @@
 import type { PatternDirection } from "../pattern-data.js";
+import type { TerrainType } from "../types.js";
 
 export const ACTION_TIERS = ["main", "support", "aux"] as const;
 export type ActionTier = (typeof ACTION_TIERS)[number];
@@ -162,6 +163,7 @@ export type CombatState = {
   attractors?: AttractorTile[];
   gearCheckGrants?: Record<string, string>;
   kopisMarks?: Record<string, string>;
+  equipmentTerrainSnapshots?: { x: number; y: number; terrain: TerrainType[] }[];
 };
 
 export type PlayerAction =
@@ -233,6 +235,7 @@ export type PlayerAction =
       omnistrike?: {
         bombIndices: [number, number];
         anchors: [{ x: number; y: number }, { x: number; y: number }];
+        direction: PatternDirection;
       };
       warhook?: {
         targetEnemyId?: string;
@@ -244,7 +247,23 @@ export type PlayerAction =
         useBreaker?: boolean;
       };
     }
-  | { action: "useEquipment"; detail?: string }
+  | {
+      action: "useEquipment";
+      detail?: string;
+      direction?: PatternDirection;
+      anchorX?: number;
+      anchorY?: number;
+      coverTiles?: { x: number; y: number }[];
+      sourceEnemyId?: string;
+      attackIndex?: number;
+      targetEnemyId?: string;
+      projectionX?: number;
+      projectionY?: number;
+      weaponName?: string;
+      damageRoll?: number;
+      targetEnemyIds?: string[];
+      useBreaker?: boolean;
+    }
   | { action: "interact"; detail?: string }
   | { action: "commitHaste"; tier: ActionTier };
 

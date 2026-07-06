@@ -227,6 +227,14 @@ watch(sheetsVersion, () => {
       </button>
       <button
         class="sheet-item"
+        :class="{ selected: dataCategory === 'terrain' }"
+        type="button"
+        @click="onSelectData('terrain')"
+      >
+        <span class="sheet-name">Terrain</span>
+      </button>
+      <button
+        class="sheet-item"
         :class="{ selected: dataCategory === 'patterns' }"
         type="button"
         @click="onSelectData('patterns')"
