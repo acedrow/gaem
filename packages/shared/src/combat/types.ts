@@ -163,6 +163,7 @@ export type CombatState = {
   attractors?: AttractorTile[];
   gearCheckGrants?: Record<string, string>;
   kopisMarks?: Record<string, string>;
+  kingsMarksByPlayer?: Record<string, string[]>;
   countdownKinds?: Record<string, string>;
   equipmentTerrainSnapshots?: { x: number; y: number; terrain: TerrainType[] }[];
 };
@@ -267,6 +268,7 @@ export type PlayerAction =
       useBreaker?: boolean;
     }
   | { action: "interact"; detail?: string }
+  | { action: "useGear"; detail?: string }
   | { action: "commitHaste"; tier: ActionTier };
 
 export type GmEnemyAction =

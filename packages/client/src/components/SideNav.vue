@@ -37,6 +37,10 @@ const createForm = ref({
   class: "",
   armor: "",
   weapon: "",
+  equipment: "",
+  gear: "",
+  gearArmor: "",
+  weapon2: "",
   yadathanTower: "",
 });
 
@@ -103,7 +107,18 @@ function onSelectData(category: DataCategory) {
 }
 
 function openCreate() {
-  createForm.value = { player: "", name: "", class: "", armor: "", weapon: "", yadathanTower: "" };
+  createForm.value = {
+    player: "",
+    name: "",
+    class: "",
+    armor: "",
+    weapon: "",
+    equipment: "",
+    gear: "",
+    gearArmor: "",
+    weapon2: "",
+    yadathanTower: "",
+  };
   createError.value = null;
   showCreate.value = true;
 }

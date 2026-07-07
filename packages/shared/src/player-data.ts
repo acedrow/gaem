@@ -12,6 +12,7 @@ import {
   validateCharacterSheetLoadout,
   type CharacterSheetLoadoutFields,
 } from "./base-upgrades-unlocks.js";
+import { applyGearPassivesOnLoadout } from "./combat/gear.js";
 import { isValidYadathanTowerName, isYadathanArmorName, YADATHAN_ARMOR_NAME } from "./combat/yadathan.js";
 
 export type { StructuredArmorAction, WeaponAttackSpec, AbilityText };
@@ -135,6 +136,7 @@ export function applyLoadoutToPlayer(
   } else if (!isYadathanArmorName(loadout.armor)) {
     player.yadathanTower = undefined;
   }
+  applyGearPassivesOnLoadout(player);
   player.hp = normalizePlayerHp(player);
 }
 

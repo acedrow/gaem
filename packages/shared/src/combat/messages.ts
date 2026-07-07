@@ -73,12 +73,15 @@ import {
   equipmentRequiresBoardPlacement,
   isHylicAnnihilationCorridor,
   isHylicRejectionField,
+  isMotesOfBountifulForethought,
   isThoughtGuidingRedirectionCircuits,
   isTransientForceProjection,
   validateForceProjection,
   validateHylicCorridorAction,
   validateHylicRejectionField,
+  validateMotesPlacement,
   validateRedirectionCircuits,
+  applyMotesPlacement,
 } from "./equipment.js";
 import { applyEffectStacks, applyTileEffectStacks, clearEffectStacks, clearTileEffects, hasTileEffects, parseEffectToken, tickUnitEndOfTurn } from "./effects.js";
 import { isKnownEffectId } from "../effects-data.js";
@@ -127,13 +130,20 @@ import {
 } from "./assisted-launch.js";
 import {
   applyProvokeAndFormat,
-  activateExpandedAggressionGear,
   collectPathProvokeTriggers,
   previewSprintProvokes,
   previewPathProvokes,
   recordPassedEnemiesOnPath,
-  EXPANDED_AGGRESSION_GEAR,
 } from "./provoke.js";
+import { applyUseGear, validateUseGear, applySoterCoverIfEligible } from "./gear.js";
+import {
+  applyKushielPushRecoil,
+  applyPostAttackLoadoutHooks,
+  applyStructuredReversalEffect,
+  applyWeaponActiveStructured,
+  resolveAttackUseBreaker,
+  validateWeaponActiveStructured,
+} from "./loadout-combat.js";
 import {
   applyClassActive,
   applyClassPassive,
@@ -413,15 +423,20 @@ export function validatePlayerAction(
       return validateResolveClassReaction(state, playerId, action);
     }
     case "weaponActive": {
-      const blocked = actionTierBlocked(player, "main", state);
-      if (blocked) return blocked;
+      if (player.weapon === "Heaven Burning Sword") {
+        const blocked = actionTierBlocked(player, "aux", state);
+        if (blocked) return blocked;
+      } else {
+        const blocked = actionTierBlocked(player, "main", state);
+        if (blocked) return blocked;
+      }
       if (isSabaothWeaponName(player.weapon) && action.omnistrike) {
         return validateOmnistrikeAction(state, player, action.omnistrike);
       }
       if (isWarhookWeaponName(player.weapon) && action.warhook) {
         return validateWarhookAction(state, player, action.warhook);
       }
-      return null;
+      return validateWeaponActiveStructured(state, player, action);
     }
     case "useEquipment": {
       const blocked = actionTierBlocked(player, "support", state);
@@ -455,6 +470,10 @@ export function validatePlayerAction(
         if (isThoughtGuidingRedirectionCircuits(equipmentName)) {
           return validateRedirectionCircuits(state, player, action);
         }
+        if (isMotesOfBountifulForethought(equipmentName)) {
+          if (!action.coverTiles?.length) return "Select 3 tiles";
+          return validateMotesPlacement(state, player, action.coverTiles);
+        }
       }
       return null;
     }
@@ -465,6 +484,11 @@ export function validatePlayerAction(
         return null;
       }
       return null;
+    }
+    case "useGear": {
+      const blocked = actionTierBlocked(player, "support", state);
+      if (blocked) return blocked;
+      return validateUseGear(state, player, action.detail);
     }
     case "commitHaste": {
       if (!areActionLimitsEnforced(state)) return "Action limits disabled";
@@ -496,11 +520,12 @@ export function applyPlayerAction(
       if (!spec) return "Weapon has no attack profile";
       let result;
       const weaponName = weapon;
+      const useBreaker = resolveAttackUseBreaker(player, weaponName, action.useBreaker);
       if (isRangeTargetAttack(spec)) {
         const targetIds = dedupeSwarmTargetIds(state, resolveRangeAttackTargetIds(action));
         if (targetIds.length) {
           result = applyRangeAttackToEnemies(state, spec, targetIds, action.damageRoll, {
-            useBreaker: action.useBreaker,
+            useBreaker,
             weaponName,
           });
         } else {
@@ -510,7 +535,7 @@ export function applyPlayerAction(
             { x: player.x, y: player.y },
             action.direction,
             action.damageRoll,
-            { useBreaker: action.useBreaker, weaponName, elevationBonusTile: action.elevationBonusTile },
+            { useBreaker, weaponName, elevationBonusTile: action.elevationBonusTile },
           );
         }
       } else {
@@ -525,11 +550,17 @@ export function applyPlayerAction(
           attackOrigin,
           direction,
           action.damageRoll,
-          { useBreaker: action.useBreaker, weaponName, elevationBonusTile: action.elevationBonusTile },
+          { useBreaker, weaponName, elevationBonusTile: action.elevationBonusTile },
         );
       }
-      const hitEnemies = result.targets
-        .map((t) => state.enemies.find((e) => e.id === t.enemyId))
+      const attackTileKeys = new Set(
+        collectAttackTiles(state, { x: player.x, y: player.y }, spec, action.direction).map((t) =>
+          coordKey(t.x, t.y),
+        ),
+      );
+      const hitIds = result.targets.map((t) => t.enemyId);
+      const hitEnemies = hitIds
+        .map((id) => state.enemies.find((e) => e.id === id))
         .filter(Boolean);
       const names = hitEnemies.map((e) => enemyLabel(e!)).join(", ");
       const defeated = hitEnemies
@@ -548,6 +579,9 @@ export function applyPlayerAction(
       }
       if (defeated) msg += `; defeated ${defeated}`;
       if (defeatMsgs.length) msg += `; ${defeatMsgs.join("; ")}`;
+      const loadoutMsgs = applyPostAttackLoadoutHooks(state, player, weaponName, hitIds, attackTileKeys);
+      if (loadoutMsgs.length) msg += `; ${loadoutMsgs.join("; ")}`;
+      applySoterCoverIfEligible(player, (player.counters?.movedThisTurn ?? 0) > 0, true);
       return msg;
     }
     case "shove": {
@@ -660,16 +694,14 @@ export function applyPlayerAction(
       maybeSpendActionTier(state, player, "support");
       if (structured.kind === "push_recoil") {
         const push = action.push ?? structured.push ?? 1;
-        addPendingAction(
+        const detail = applyKushielPushRecoil(
           state,
-          createPendingAction("classActive", `${armor.name} armor action`, {
-            actorPlayerId: playerId,
-            detail: `Push:${push} with equal Recoil`,
-            targetEnemyIds: action.targetEnemyId ? [action.targetEnemyId] : undefined,
-            targetPlayerIds: action.targetPlayerId ? [action.targetPlayerId] : undefined,
-          }),
+          player,
+          action.targetEnemyId,
+          action.targetPlayerId,
+          push,
         );
-        return `${playerLabel(player)} used ${armor.name} armor action (pending GM)`;
+        return `${playerLabel(player)} ${detail}`;
       }
       if (structured.kind === "place_tower" && action.x != null && action.y != null) {
         const result = applyPlaceTower(state, player, action.x, action.y);
@@ -729,6 +761,15 @@ export function applyPlayerAction(
       return applyResolveClassReaction(state, playerId, action);
     }
     case "weaponActive": {
+      const structuredMsg = applyWeaponActiveStructured(state, player, action);
+      if (structuredMsg) {
+        if (player.weapon === "Heaven Burning Sword") {
+          maybeSpendActionTier(state, player, "aux");
+        } else {
+          maybeSpendActionTier(state, player, "main");
+        }
+        return structuredMsg;
+      }
       maybeSpendActionTier(state, player, "main");
       if (isSabaothWeaponName(player.weapon) && action.omnistrike) {
         const result = applyOmnistrike(state, player, action.omnistrike);
@@ -782,8 +823,8 @@ export function applyPlayerAction(
     case "useEquipment": {
       maybeSpendActionTier(state, player, "support");
       if (areActionLimitsEnforced(state)) player.equipmentUses = 0;
-      if (playerArmorGearName(player) === EXPANDED_AGGRESSION_GEAR) {
-        const gearMsg = activateExpandedAggressionGear(state, player);
+      if (playerArmorGearName(player) === "Expanded Aggression Rituals (Armor)") {
+        const gearMsg = applyUseGear(state, player, "Expanded Aggression Rituals (Armor)");
         return `${playerLabel(player)} used equipment${gearMsg ? ` — ${gearMsg}` : ""}`;
       }
       if (isHylicAnnihilationCorridor(action.detail ?? player.equipment) && action.direction) {
@@ -824,6 +865,10 @@ export function applyPlayerAction(
         if (defeatMsgs.length) msg += `; ${defeatMsgs.join("; ")}`;
         return msg;
       }
+      if (isMotesOfBountifulForethought(action.detail ?? player.equipment) && action.coverTiles) {
+        const detail = applyMotesPlacement(state, player, action.coverTiles);
+        return `${playerLabel(player)} used Motes of Bountiful Forethought — ${detail}`;
+      }
       addPendingAction(
         state,
         createPendingAction("useEquipment", "Equipment", {
@@ -845,6 +890,11 @@ export function applyPlayerAction(
         }),
       );
       return `${playerLabel(player)} interacted (pending GM)`;
+    }
+    case "useGear": {
+      maybeSpendActionTier(state, player, "support");
+      const detail = applyUseGear(state, player, action.detail);
+      return `${playerLabel(player)} ${detail}`;
     }
     case "commitHaste": {
       const detail = applyCommitHaste(player, action.tier);
@@ -1262,6 +1312,17 @@ export function applyTriggerReversal(
   if (isYadathanArmorName(player.armor)) {
     const detail = applyYadathanReversal(state, player, incomingDamage, extraAllyIds);
     return `${playerLabel(player)} triggered Reversal — ${detail}`;
+  }
+
+  const structured = applyStructuredReversalEffect(
+    state,
+    player,
+    player.armor ?? "",
+    incomingDamage,
+    extraAllyIds,
+  );
+  if (structured) {
+    return `${playerLabel(player)} triggered Reversal — ${structured}`;
   }
 
   addPendingAction(

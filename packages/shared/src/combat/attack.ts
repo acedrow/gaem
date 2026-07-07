@@ -27,6 +27,7 @@ import {
   resolveDamageAgainstTarget,
 } from "./damage.js";
 import { checkSharurEmergencyDefenses } from "./attractor.js";
+import { enforceAssistedAscensionFloor } from "./gear.js";
 import { clampHp, getEnemyMaxHp, getPlayerMaxHp, getEffectiveEnemyMaxHp, removeEnemy } from "../game.js";
 import {
   buildSwarmGroups,
@@ -463,6 +464,7 @@ export function applyDamageToPlayer(
   if (state) {
     checkSharurEmergencyDefenses(state, player);
   }
+  enforceAssistedAscensionFloor(player);
   if (state && opts?.recordDamage !== false) {
     if (!state.damageEvents) state.damageEvents = [];
     state.damageEvents.push({ x: player.x, y: player.y, amount: adjusted });

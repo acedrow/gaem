@@ -282,5 +282,29 @@
     },
     "activeAbility": "Saturn's Lament — Apply Bleed:2 to every enemy in your target area.",
     "passiveAbility": "Gigantomachy Relitigated — When you use your movement, you can spend 1 Speed to move adjacent to any creature with Bleed. Reduce their Bleed by 1."
+  },
+  {
+    "name": "Catalytic-Actuated Positron Rifle",
+    "description": "Utilizing an n-space condensed hyper-toroidal accelerator to generate a coherent charged particle beam, the catalytic-actuated positron rifle (often referred to by pilots as a \"CAP gun\") represents the current cutting edge in Hell-paradigm directed energy weaponry.",
+    "attack": {
+      "patternId": "line",
+      "size": 20,
+      "width": 1,
+      "damage": "25",
+      "effects": ["Piercing"]
+    },
+    "activeAbility": "Secondary Mode — Charge up to 2 counters as a Main Action. When fired, expend counters for +1D10/+2D10 damage and wider Line. At 2 counters, firing without exploding marks a hostile within Range:20 for allied Piercing attacks that roll damage twice.",
+    "passiveAbility": "Molten Furrows — Line area becomes Uneasy until end of your next turn; creatures entering take 1D10 damage. 25 damage if you haven't moved this turn, 1D10 if you have. Recoil:2 when moved."
+  },
+  {
+    "name": "Monadic Offense Manifestation Array",
+    "description": "A developmental outgrowth of research into Temporal/Spiritual Interpolation — less a singular armament and more an expression of the pilot's will made manifest.",
+    "attack": {
+      "damage": "8+4D10",
+      "effects": ["Bleed:2"],
+      "rangeTargets": { "range": 3, "maxTargets": 3 }
+    },
+    "activeAbility": "Secondary Mode — As a Support Action, imbue an allied character within Range:3 with a manifested weapon. They may attack as a Support Action: 2D10 damage, Range:3, teleport adjacent before attacking; gains Transference against Bleeding targets.",
+    "passiveAbility": "Spread damage across up to three Range:3 targets as evenly as possible. Against a single target, roll damage twice and take the best result."
   }
 ]

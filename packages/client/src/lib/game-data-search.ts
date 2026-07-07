@@ -117,7 +117,17 @@ function characterSheetEntries(sheets: CharacterSheet[]): SearchEntry[] {
     name: sheet.name,
     sheetId: sheet.id,
     subtitle: sheet.class,
-    haystack: haystack(sheet.name, sheet.class, sheet.armor, sheet.weapon),
+    haystack: haystack(
+      sheet.name,
+      sheet.class,
+      sheet.armor,
+      sheet.weapon,
+      sheet.weapon2,
+      sheet.equipment,
+      sheet.gear,
+      sheet.gearArmor,
+      ...(sheet.tags ?? []),
+    ),
   }));
 }
 

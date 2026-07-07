@@ -5,6 +5,7 @@ import { areActionLimitsEnforced, buildBoardOccupancy, canPlayerMove, isSandboxM
 import { playerLabel } from "../console.js";
 import { coordKey, isInBounds, isWalkable, tileAt } from "../map.js";
 import { getArmorSpeed } from "../player-data.js";
+import { isMalakbelArmorName } from "./armor-kit.js";
 import { movementCostMultiplier } from "./effects.js";
 import { canUseActionTier, spendActionTierOrHaste, spendMovement } from "./actions.js";
 import { createDefaultActionBudget, type ActionBudget } from "./types.js";
@@ -27,6 +28,20 @@ function terrainMoveCost(
   return cost;
 }
 
+function stepAllowed(
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number,
+  allowDiagonal: boolean,
+): boolean {
+  if (isOrthogonallyAdjacent({ x: fromX, y: fromY }, { x: toX, y: toY })) return true;
+  if (!allowDiagonal) return false;
+  const dx = Math.abs(toX - fromX);
+  const dy = Math.abs(toY - fromY);
+  return dx === 1 && dy === 1;
+}
+
 export function computePathCost(
   state: GameState,
   player: Player,
@@ -36,10 +51,11 @@ export function computePathCost(
   let cx = player.x;
   let cy = player.y;
   const mult = movementCostMultiplier(player.effects);
+  const allowDiagonal = isMalakbelArmorName(player.armor);
   const steps: MovementStep[] = [];
   let total = 0;
   for (const step of path) {
-    if (!isOrthogonallyAdjacent({ x: cx, y: cy }, step)) return null;
+    if (!stepAllowed(cx, cy, step.x, step.y, allowDiagonal)) return null;
     const base = terrainMoveCost(state, cx, cy, step.x, step.y);
     const cost = base * mult;
     total += cost;
@@ -147,11 +163,12 @@ export function validateMovementPath(
   const occupancy = buildBoardOccupancy(state);
   let cx = player.x;
   let cy = player.y;
+  const allowDiagonal = isMalakbelArmorName(player.armor);
 
   for (let i = 0; i < path.length; i++) {
     const step = path[i]!;
     if (!isInBounds(step.x, step.y, state.width, state.height)) return "Out of bounds";
-    if (!isOrthogonallyAdjacent({ x: cx, y: cy }, step)) return "Path must be adjacent steps";
+    if (!stepAllowed(cx, cy, step.x, step.y, allowDiagonal)) return "Path must be adjacent steps";
     if (!isWalkable(tileAt(state.tiles, step.x, step.y))) return "Blocked";
     const key = coordKey(step.x, step.y);
     const isLast = i === path.length - 1;

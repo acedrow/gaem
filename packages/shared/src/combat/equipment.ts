@@ -1,5 +1,5 @@
 import type { PatternDirection } from "../pattern-data.js";
-import { coordKey, isInBounds, setTileTerrain, tileAt } from "../map.js";
+import { coordKey, isInBounds, isWalkable, setTileTerrain, tileAt } from "../map.js";
 import { enemyLabel, playerLabel } from "../console.js";
 import {
   applyAttackToEnemies,
@@ -37,6 +37,7 @@ export const HYLIC_ANNIHILATION_CORRIDOR = "Hylic Annihilation Corridor";
 export const PROMETHEAN_GRADE_HYLIC_REJECTION_FIELD = "Promethean-Grade Hylic Rejection Field";
 export const THOUGHT_GUIDING_REDIRECTION_CIRCUITS = "Thought-Guiding Redirection Circuits";
 export const TRANSIENT_FORCE_PROJECTION = "Transient Force Projection";
+export const MOTES_OF_BOUNTIFUL_FORETHOUGHT = "Motes of Bountiful Forethought";
 export const ANNIHILATION_CORRIDOR_TILE_EFFECT = "AnnihilationCorridor";
 
 const CORRIDOR_TILES: WeaponAttackSpec["tiles"] = [
@@ -68,12 +69,17 @@ export function isTransientForceProjection(name: string | undefined | null): boo
   return name === TRANSIENT_FORCE_PROJECTION;
 }
 
+export function isMotesOfBountifulForethought(name: string | undefined | null): boolean {
+  return name === MOTES_OF_BOUNTIFUL_FORETHOUGHT;
+}
+
 export function equipmentRequiresBoardPlacement(name: string | undefined | null): boolean {
   return (
     isHylicAnnihilationCorridor(name) ||
     isHylicRejectionField(name) ||
     isThoughtGuidingRedirectionCircuits(name) ||
-    isTransientForceProjection(name)
+    isTransientForceProjection(name) ||
+    isMotesOfBountifulForethought(name)
   );
 }
 
@@ -509,4 +515,32 @@ export function redirectionSourceTileKeys(
     }
   }
   return keys;
+}
+
+export function validateMotesPlacement(
+  state: GameState,
+  player: Player,
+  tiles: { x: number; y: number }[],
+): string | null {
+  if (tiles.length !== 3) return "Select exactly 3 tiles";
+  for (const t of tiles) {
+    if (manhattanDistance(player, t) > 5) return "Out of range";
+    if (!isInBounds(t.x, t.y, state.width, state.height)) return "Out of bounds";
+    if (!isWalkable(tileAt(state.tiles, t.x, t.y))) return "Invalid tile";
+  }
+  return null;
+}
+
+export function applyMotesPlacement(
+  state: GameState,
+  player: Player,
+  tiles: { x: number; y: number }[],
+): string {
+  const err = validateMotesPlacement(state, player, tiles);
+  if (err) return err;
+  for (const t of tiles) {
+    const tile = tileAt(state.tiles, t.x, t.y)!;
+    setTileTerrain(tile, "advantageous");
+  }
+  return "placed 3 advantageous tiles";
 }

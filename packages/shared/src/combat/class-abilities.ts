@@ -22,6 +22,7 @@ import { maxWeaponDamage, rollDice } from "./damage.js";
 import { applyPullToward } from "./pull.js";
 import { applyAttractorEntryPulls, getAttractorAt, placeAttractor } from "./attractor.js";
 import { applyVoidTileDefeat } from "./void-tile.js";
+import { applyChrysAorActive, validateChrysAorActive } from "./loadout-combat.js";
 
 export const HARPE_CLASS = "HARPE";
 export const KOPIS_CLASS = "KOPIS";
@@ -29,6 +30,7 @@ export const SHARUR_CLASS = "SHARUR";
 export const VARUNASTRA_CLASS = "VARUNASTRA";
 export const HEPHAESTUS_CLASS = "HEPHAESTUS";
 export const EPEUS_CLASS = "EPEUS";
+export const CHRYSAOR_CLASS = "CHRYSAOR";
 
 function ensureCombat(state: GameState): boolean {
   if (!state.combat) return false;
@@ -118,6 +120,10 @@ export function validateClassActive(
     if (!ally?.weapon) return "Ally has no weapon";
     if (!action.direction) return "Select attack direction";
     return null;
+  }
+
+  if (player.class === CHRYSAOR_CLASS) {
+    return validateChrysAorActive(state, player, action);
   }
 
   return `Unsupported class active: ${kind}`;
@@ -259,6 +265,10 @@ export function applyClassActive(
       }
     }
     return msg;
+  }
+
+  if (player.class === CHRYSAOR_CLASS) {
+    return applyChrysAorActive(state, player, action);
   }
 
   return "Class active not implemented";
