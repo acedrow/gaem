@@ -3,6 +3,7 @@ import type { AbilityText } from "@gaem/shared";
 import { isStructuredAbility, parseAbilityNameBody } from "@gaem/shared";
 import { computed } from "vue";
 
+
 import RuleText from "./RuleText.vue";
 
 const props = defineProps<{
