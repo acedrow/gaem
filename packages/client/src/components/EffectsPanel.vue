@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { TILE_EFFECTS, UNIT_EFFECTS, WEAPON_EFFECTS, type RuleEffect } from "@gaem/shared";
-import { ref } from "vue";
 
 import { useBoardSelection } from "../composables/useBoardSelection.js";
+import { useExpandableSet } from "../composables/useExpandableSet.js";
 import EffectIcon from "./EffectIcon.vue";
 import PanelShell from "./PanelShell.vue";
 import RuleText from "./RuleText.vue";
 
+const { isExpanded: isKeyExpanded, toggle: toggleKey } = useExpandableSet();
 const { closeRightPanel } = useBoardSelection();
-const expanded = ref<Set<string>>(new Set());
 
 const sections: { title: string; effects: RuleEffect[] }[] = [
   { title: "Unit effects", effects: UNIT_EFFECTS },
@@ -21,13 +21,11 @@ function effectKey(sectionTitle: string, id: string): string {
 }
 
 function isExpanded(sectionTitle: string, id: string): boolean {
-  return expanded.value.has(effectKey(sectionTitle, id));
+  return isKeyExpanded(effectKey(sectionTitle, id));
 }
 
 function toggle(sectionTitle: string, id: string) {
-  const key = effectKey(sectionTitle, id);
-  if (expanded.value.has(key)) expanded.value.delete(key);
-  else expanded.value.add(key);
+  toggleKey(effectKey(sectionTitle, id));
 }
 </script>
 

@@ -654,7 +654,7 @@ const terrainImageUrl = computed(() => {
 }
 
 .piece.enemy {
-  background: hsl(0 70% 45%);
+  background: var(--color-enemy-piece);
   z-index: 1;
 }
 

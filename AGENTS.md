@@ -23,6 +23,8 @@ Monorepo (npm workspaces). Node 22 (`nvm use`).
 npm install
 npm run build          # shared → server → client
 npm run test           # shared + client vitest suites
+npm run lint           # eslint across all packages
+npm run lint:fix       # eslint with autofix
 npm run dev            # local stack (client :5173, server :3001)
 npm run dev:cf         # wrangler dev with built client
 npm run deploy:cf      # production deploy
@@ -39,14 +41,28 @@ Before considering any implementation task done, **run these commands and fix fa
 ```bash
 npm run build
 npm run test
+npm run lint
 ```
 
 - **`npm run build`** — mandatory. Shared type errors block client and server; client imports `@gaem/shared` from `dist/`.
 - **`npm run test`** — mandatory when tests exist for the code you touched. If you add or change shared game logic, add or update tests in `packages/shared` when the behavior is worth guarding (see Code style). Run the full root `npm run test` at minimum; re-run focused suites while iterating if helpful.
+- **`npm run lint`** — mandatory. Must report **0 errors** (warnings are pre-existing cleanup backlog; do not add new ones). The config (`eslint.config.mjs`, flat) is tuned to catch real defects, not formatting. Do not silence a rule to make a change pass — fix the code, or add a scoped `// eslint-disable-next-line <rule>` with a one-line justification only when the code is genuinely intentional. Type-aware rules on the backends need `@gaem/shared` built first (`npm run build`), since they resolve types from `dist/`.
 
 Do not skip verification because a change "looks small" or "only touches the client." Export omissions, missing shared rebuilds, and broken imports often surface only at build time.
 
-After fixing a build or test failure, re-run both commands to confirm nothing else regressed.
+After fixing a build, test, or lint failure, re-run all three commands to confirm nothing else regressed.
+
+### What the linter enforces (recurring blind spots)
+
+These rules exist because these mistakes have been made before:
+
+- **`@typescript-eslint/no-floating-promises` / `no-misused-promises`** (backends, type-aware) — an un-awaited KV or `broadcastConsole` write can be lost when a Durable Object hibernates. Always `await` persistence/logging, or mark deliberate fire-and-forget with `void`.
+- **`vue/require-v-for-key` / `vue/valid-v-for`** — every `v-for` needs a key; use a **stable** id, never the loop index, for lists that can reorder (the linter can't detect index misuse, so this is on you in review).
+- **`vue/no-side-effects-in-computed-properties`** — computeds must be pure; don't mutate refs inside them (memoization caches are the rare, explicitly-disabled exception).
+- **`@typescript-eslint/no-unused-vars`** — dead imports/vars (warning). Prefix intentionally-unused with `_`.
+- **Server ↔ cf-worker parity** is not lint-enforceable, so it is guarded by a test: `packages/shared/src/ws-parity.test.ts` reads both backends' WS dispatch source and fails if their inline message-type handlers diverge or if any `ClientMessage` type is left unhandled. When you add/rename a client message, update `types.ts`, the shared handler or both backends, and this test will confirm coverage. Shared game logic still belongs in `@gaem/shared` so a fix reaches both backends; keep `PatchBody`/validators complete on both sides.
+
+**CI:** `.github/workflows/verify.yml` runs `build → lint → test` on every PR and push to `main`. Deploys (`deploy-cloudflare.yml`) are separate — don't rely on deploy to catch regressions.
 
 ## Architecture
 
@@ -177,6 +193,7 @@ Many panels branch on `useSession().isGm`. Players see reduced enemy/sheet detai
 
 - [ ] `npm run build` passes (run it; do not assume)
 - [ ] `npm run test` passes (run it; fix or add tests for changed behavior)
+- [ ] `npm run lint` reports 0 errors and no new warnings
 - [ ] Shared game logic updated if behavior changed
 - [ ] Server and cf-worker stay in sync for WS/REST changes
 - [ ] No secrets committed (`.env`, `.dev.vars`)

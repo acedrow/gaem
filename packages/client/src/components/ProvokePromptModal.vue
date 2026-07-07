@@ -29,7 +29,7 @@ const emit = defineEmits<{
       ({{ triggers.length }}×1D6). Damage is rolled automatically when you confirm.
     </p>
     <ul v-if="triggers.length <= 5" class="sources">
-      <li v-for="(t, i) in triggers" :key="i">{{ t.label }}</li>
+      <li v-for="(t, i) in triggers" :key="`${t.label}-${i}`">{{ t.label }}</li>
     </ul>
   </ModalDialog>
 </template>

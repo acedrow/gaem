@@ -122,14 +122,5 @@ function applyPending(pendingId: string, reject = false) {
 .action-btn {
   font-size: 0.75rem;
   padding: 0.25rem 0.5rem;
-  border-radius: 6px;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text);
-  cursor: pointer;
-}
-
-.action-btn.reject {
-  color: var(--color-danger);
 }
 </style>

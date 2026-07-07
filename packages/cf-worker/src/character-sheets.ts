@@ -167,7 +167,9 @@ type PatchBody = {
   weapon?: unknown;
   equipment?: unknown;
   gear?: unknown;
+  gearArmor?: unknown;
   weapon2?: unknown;
+  yadathanTower?: unknown;
   tags?: unknown;
   player?: unknown;
 };
@@ -196,6 +198,7 @@ export async function handlePatchCharacterSheet(
     weapon: sheet.weapon,
     equipment: sheet.equipment,
     gear: sheet.gear,
+    gearArmor: sheet.gearArmor,
     weapon2: sheet.weapon2,
     yadathanTower: sheet.yadathanTower,
     tags: sheet.tags,

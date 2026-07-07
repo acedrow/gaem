@@ -299,28 +299,10 @@ function weaponSwap() {
 
 .chip.speed {
   margin-left: auto;
-  font-size: 0.72rem;
-  font-weight: 600;
-  padding: 0.15rem 0.45rem;
-  border-radius: 999px;
-  background: var(--color-surface-raised);
-  border: 1px solid var(--color-border);
-  color: var(--color-text);
 }
 
 .action-btn {
-  font-size: 0.78rem;
-  padding: 0.3rem 0.55rem;
-  border-radius: 6px;
-  border: 1px solid var(--color-border);
   background: var(--color-surface-raised);
-  color: var(--color-text);
-  cursor: pointer;
-}
-
-.action-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 
 .action-btn.active {

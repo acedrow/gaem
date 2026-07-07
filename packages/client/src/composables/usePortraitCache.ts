@@ -1,6 +1,6 @@
 import type { CharacterSheet, Player } from "@gaem/shared";
 import type { Ref } from "vue";
-import { onUnmounted, ref, watch } from "vue";
+import { computed, onUnmounted, ref, watch } from "vue";
 
 import { useApi } from "./useApi.js";
 
@@ -38,7 +38,18 @@ export function usePortraitCache(
     urls.value = next;
   }
 
-  watch([sheets, players], () => void refresh(), { immediate: true, deep: true });
+  // Only refetch when the set of portrait-bearing sheets on the board changes,
+  // not on unrelated player/sheet mutations (hp, position, effects, etc.).
+  const portraitSignature = computed(() =>
+    (players.value ?? [])
+      .map((p) => p.characterSheetId)
+      .filter((id): id is string => !!id)
+      .map((id) => `${id}:${sheets.value.find((s) => s.id === id)?.portraitKey ?? ""}`)
+      .sort()
+      .join("|"),
+  );
+
+  watch(portraitSignature, () => void refresh(), { immediate: true });
 
   onUnmounted(() => {
     for (const url of Object.values(urls.value)) URL.revokeObjectURL(url);

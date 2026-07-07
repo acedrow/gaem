@@ -4,6 +4,8 @@ import { computed } from "vue";
 
 import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useGameState } from "../composables/useGameState.js";
+import HpBar from "./HpBar.vue";
+import PanelShell from "./PanelShell.vue";
 
 const props = defineProps<{ playerId: string }>();
 
@@ -17,21 +19,16 @@ const currentHp = computed(() => player.value?.hp ?? 0);
 </script>
 
 <template>
-  <div class="panel">
-    <div class="panel-header">
-      <h2 class="panel-title">{{ displayName }}</h2>
-      <button class="close-btn" type="button" title="Close" @click="closeRightPanel">×</button>
-    </div>
-
+  <PanelShell :title="displayName" close-variant="ghost" @close="closeRightPanel">
     <div v-if="player" class="panel-body">
       <p v-if="player.class" class="meta">Class: {{ player.class }}</p>
-      <p class="meta">HP {{ currentHp }} / {{ maxHp }}</p>
+      <HpBar :current-hp="currentHp" :max-hp="maxHp" />
       <p class="meta">Position ({{ player.x }}, {{ player.y }})</p>
       <p class="muted">No character sheet linked.</p>
     </div>
 
     <p v-else class="muted">Player not found.</p>
-  </div>
+  </PanelShell>
 </template>
 
 <style scoped>
@@ -39,33 +36,6 @@ const currentHp = computed(() => player.value?.hp ?? 0);
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-}
-
-.panel-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-
-.panel-title {
-  margin: 0;
-}
-
-.close-btn {
-  flex-shrink: 0;
-  border: none;
-  background: transparent;
-  color: var(--color-muted);
-  font-size: 1.4rem;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0 0.15rem;
-}
-
-.close-btn:hover {
-  color: var(--color-text);
 }
 
 .meta {

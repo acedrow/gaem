@@ -379,8 +379,8 @@ function selectBomb(index: number) {
 }
 
 .pattern-cell.heal-blue {
-  background: #4a8fd4;
-  border-color: #2d6aad;
+  background: var(--color-board-target-heal);
+  border-color: var(--color-board-target-heal-outline);
 }
 
 .pattern-cell.origin {

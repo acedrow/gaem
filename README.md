@@ -45,4 +45,12 @@ npm run dev:cf       # shared + client watch, sync maps, wrangler dev (hot reloa
 npm run deploy:cf    # build and deploy to Cloudflare (main branch via CI)
 ```
 
+Before pushing, run the same checks CI does (`.github/workflows/verify.yml`):
+
+```bash
+npm run build
+npm run lint
+npm run test
+```
+
 In dev, the client talks to `http://localhost:3001`. In production, the Worker serves the SPA and handles all API/WS routes on the same origin.

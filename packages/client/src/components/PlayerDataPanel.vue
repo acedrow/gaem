@@ -20,6 +20,7 @@ import { computed, ref } from "vue";
 import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useCampaignUnlocks } from "../composables/useCampaignUnlocks.js";
 import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
+import { useExpandableSet } from "../composables/useExpandableSet.js";
 import PanelShell from "./PanelShell.vue";
 import PlayerItemDetail from "./PlayerItemDetail.vue";
 import RuleText from "./RuleText.vue";
@@ -32,7 +33,7 @@ const props = defineProps<{
 const { closeRightPanel } = useBoardSelection();
 const { gearPick, gearPickCategory, cancelGearPick, equipGear } = useCharacterSheetSelection();
 const { optionUnlocked } = useCampaignUnlocks();
-const expanded = ref<Set<string>>(new Set());
+const { isExpanded, toggle } = useExpandableSet();
 const equipping = ref(false);
 const equipError = ref<string | null>(null);
 const towerModalOpen = ref(false);
@@ -93,17 +94,8 @@ const items = computed(() => {
   });
 });
 
-function isExpanded(name: string): boolean {
-  return expanded.value.has(name);
-}
-
 function isLocked(name: string): boolean {
   return !optionUnlocked(unlockCategory.value, name);
-}
-
-function toggle(name: string) {
-  if (expanded.value.has(name)) expanded.value.delete(name);
-  else expanded.value.add(name);
 }
 
 function onClose() {

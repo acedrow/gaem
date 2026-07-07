@@ -4,6 +4,7 @@ defineProps<{
   subtitle?: string;
   kicker?: string;
   showBack?: boolean;
+  closeVariant?: "ghost";
 }>();
 
 const emit = defineEmits<{
@@ -16,7 +17,15 @@ const emit = defineEmits<{
   <div class="panel">
     <div v-if="showBack" class="panel-toolbar">
       <button class="back-btn" type="button" title="Back" @click="emit('back')">←</button>
-      <button class="close-btn" type="button" title="Close" @click="emit('close')">×</button>
+      <button
+        class="close-btn"
+        :class="{ 'close-btn--ghost': closeVariant === 'ghost' }"
+        type="button"
+        title="Close"
+        @click="emit('close')"
+      >
+        ×
+      </button>
     </div>
     <div class="panel-header" :class="{ 'with-toolbar': showBack }">
       <div class="title-block">
@@ -27,6 +36,7 @@ const emit = defineEmits<{
       <button
         v-if="!showBack"
         class="close-btn"
+        :class="{ 'close-btn--ghost': closeVariant === 'ghost' }"
         type="button"
         title="Close"
         @click="emit('close')"

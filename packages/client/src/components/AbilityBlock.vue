@@ -35,10 +35,10 @@ const parsed = computed(() => {
     <template v-if="structured">
       <RuleText v-if="structured.intro" class="ability-body" :text="structured.intro" />
       <template v-if="!hideSections">
-        <template v-for="(section, i) in structured.sections" :key="i">
+        <template v-for="(section, i) in structured.sections" :key="`${section.title ?? ''}-${i}`">
           <div v-if="section.title" class="ability-section-title">{{ section.title }}</div>
           <ul v-if="section.options.length > 1" class="ability-options">
-            <li v-for="(option, j) in section.options" :key="j">
+            <li v-for="(option, j) in section.options" :key="`${option}-${j}`">
               <RuleText :text="option" />
             </li>
           </ul>

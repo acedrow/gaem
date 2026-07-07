@@ -110,8 +110,7 @@ function cancelHaste() {
   padding: 0.25rem 0.5rem;
 }
 
-.chip-btn,
-.chip {
+.chip-btn {
   font-size: 0.72rem;
   font-weight: 600;
   padding: 0.15rem 0.45rem;

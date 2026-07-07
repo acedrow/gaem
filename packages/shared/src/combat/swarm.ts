@@ -96,9 +96,13 @@ function groupForEnemyId(groups: Map<string, string[]>, enemyId: string): string
   return null;
 }
 
-export function swarmGroupForEnemy(state: GameState, enemyId: string): SwarmGroup | null {
-  const groups = buildSwarmGroups(state);
-  const memberIds = groupForEnemyId(groups, enemyId);
+export function swarmGroupForEnemy(
+  state: GameState,
+  enemyId: string,
+  groups?: Map<string, string[]>,
+): SwarmGroup | null {
+  const resolvedGroups = groups ?? buildSwarmGroups(state);
+  const memberIds = groupForEnemyId(resolvedGroups, enemyId);
   if (!memberIds || memberIds.length < 2) return null;
   const canonicalId = [...memberIds].sort()[0]!;
   const first = state.enemies.find((e) => e.id === memberIds[0])!;
@@ -142,7 +146,7 @@ function soloJoinContribution(enemy: Enemy): number {
 function splitHp(totalHp: number, sizes: number[]): number[] {
   const totalSize = sizes.reduce((a, b) => a + b, 0);
   const shares = sizes.map((s) => Math.floor((totalHp * s) / totalSize));
-  let assigned = shares.reduce((a, b) => a + b, 0);
+  const assigned = shares.reduce((a, b) => a + b, 0);
   let remainder = totalHp - assigned;
   const order = sizes.map((_, i) => i).sort((a, b) => sizes[b]! - sizes[a]!);
   let ri = 0;

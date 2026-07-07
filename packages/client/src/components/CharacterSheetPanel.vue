@@ -603,7 +603,7 @@ onUnmounted(() => {
             >
               {{ form.name || "Character sheet" }}
             </h2>
-            <button class="close-btn" type="button" title="Close" @click="closeRightPanel">×</button>
+            <button class="close-btn close-btn--ghost" type="button" title="Close" @click="closeRightPanel">×</button>
           </div>
 
           <HpBar
@@ -649,7 +649,7 @@ onUnmounted(() => {
       </div>
       <div v-else class="sheet-title-row">
         <h2 class="panel-title">Character sheet</h2>
-        <button class="close-btn" type="button" title="Close" @click="closeRightPanel">×</button>
+        <button class="close-btn close-btn--ghost" type="button" title="Close" @click="closeRightPanel">×</button>
       </div>
     </div>
 
@@ -1039,21 +1039,6 @@ onUnmounted(() => {
   padding: 0.1rem 0.35rem;
 }
 
-.close-btn {
-  flex-shrink: 0;
-  border: none;
-  background: transparent;
-  color: var(--color-muted);
-  font-size: 1.4rem;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0 0.15rem;
-}
-
-.close-btn:hover {
-  color: var(--color-text);
-}
-
 .portrait-frame {
   position: relative;
   width: 88px;
@@ -1238,14 +1223,6 @@ onUnmounted(() => {
 
 .danger {
   border-color: var(--color-danger-muted-border);
-  color: var(--color-danger);
-}
-
-.muted {
-  color: var(--color-muted);
-}
-
-.error {
   color: var(--color-danger);
 }
 

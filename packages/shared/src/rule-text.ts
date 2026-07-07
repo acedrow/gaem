@@ -162,5 +162,7 @@ export function formatRuleText(text: string): string {
     });
   }
 
+  // NUL bytes are intentional internal placeholder sentinels, never user input.
+  // eslint-disable-next-line no-control-regex
   return html.replace(/\x00(\d+)\x00/g, (_, i) => placeholders[Number(i)]!);
 }

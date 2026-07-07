@@ -12,7 +12,6 @@ import type {
   ConsoleLogEntry,
   GaemRole,
   GameState,
-  PlayerProfile,
   ServerMessage,
 } from "@gaem/shared";
 import {
@@ -22,6 +21,7 @@ import {
   applyPhaseAction,
   applyBaseCampaignAction,
   applySetSandboxMode,
+  canSetPlayerHp,
   characterTargetLabel,
   CONSOLE_MSG_CONNECTED,
   CONSOLE_MSG_DISCONNECTED,
@@ -63,6 +63,14 @@ import {
 } from "./character-sheets.js";
 import { getEnemyPortraitHandler, loadEnemyPortraits } from "./enemy-portraits.js";
 import { parseAuth } from "./auth.js";
+import {
+  createProfileHandler,
+  deleteProfileHandler,
+  hasProfile,
+  listProfilesHandler,
+  patchProfileHandler,
+  playerProfiles,
+} from "./player-profiles.js";
 import { randomIntegersHandler, rollDiceHandler } from "./random-integers.js";
 
 const PORT = Number(process.env.PORT) || 3001;
@@ -81,8 +89,6 @@ app.use((_, res, next) => {
 app.options("*", (_req, res) => {
   res.sendStatus(204);
 });
-
-const playerProfiles = new Map<string, PlayerProfile>();
 
 function persistWeaponSwapToSheet(playerId: string | null | undefined) {
   if (!playerId) return;
@@ -117,30 +123,11 @@ app.get("/api/player-profiles", (_req, res) => {
       .filter(([ws, profileId]) => !!profileId && !!socketPlayer.get(ws))
       .map(([, profileId]) => profileId as string)
   );
-  res.json({
-    profiles: [...playerProfiles.values()].map((p) => ({
-      ...p,
-      isActive: active.has(p.id),
-    })),
-  });
+  listProfilesHandler(res, active);
 });
 
 app.post("/api/player-profiles", (req, res) => {
-  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
-  if (!name) {
-    res.status(400).json({ error: "Name is required" });
-    return;
-  }
-  const now = new Date().toISOString();
-  const profile: PlayerProfile = {
-    id: randomUUID(),
-    name,
-    createdAt: now,
-    updatedAt: now,
-    data: {},
-  };
-  playerProfiles.set(profile.id, profile);
-  res.status(201).json({ profile });
+  createProfileHandler(req, res);
 });
 
 app.patch("/api/player-profiles/:id", (req, res) => {
@@ -150,20 +137,7 @@ app.patch("/api/player-profiles/:id", (req, res) => {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
-  const profile = playerProfiles.get(req.params.id);
-  if (!profile) {
-    res.status(404).json({ error: "Not found" });
-    return;
-  }
-  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
-  if (!name) {
-    res.status(400).json({ error: "Name is required" });
-    return;
-  }
-  profile.name = name;
-  profile.updatedAt = new Date().toISOString();
-  playerProfiles.set(profile.id, profile);
-  res.json({ profile });
+  patchProfileHandler(req.params.id, req, res);
 });
 
 app.delete("/api/player-profiles/:id", (req, res) => {
@@ -173,26 +147,13 @@ app.delete("/api/player-profiles/:id", (req, res) => {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
-  if (!playerProfiles.has(req.params.id)) {
-    res.status(404).json({ error: "Not found" });
-    return;
-  }
-  if ([...characterSheets.values()].some((s) => s.player === req.params.id)) {
-    res.status(409).json({ error: "Player has linked character sheets" });
-    return;
-  }
-  playerProfiles.delete(req.params.id);
-  res.json({ ok: true });
+  deleteProfileHandler(req.params.id, res);
 });
 
 const portraitParser = express.raw({
   type: ["image/jpeg", "image/png", "image/webp"],
   limit: "5mb",
 });
-
-function hasProfile(id: string): boolean {
-  return playerProfiles.has(id);
-}
 
 function resolveSheetForJoin(
   playerKey: string,
@@ -235,15 +196,6 @@ function resolveSheetForJoin(
         yadathanTower: sheet.yadathanTower,
       }
     : {};
-}
-
-function canSetPlayerHp(
-  role: GaemRole | null | undefined,
-  socketPlayerId: string | null | undefined,
-  targetPlayerId: string
-): boolean {
-  if (role === "gm") return true;
-  return role === "player" && socketPlayerId === targetPlayerId;
 }
 
 function canSyncPlayerSheet(
@@ -441,16 +393,12 @@ wss.on("connection", (ws: WebSocket) => {
         return;
       }
 
-      const requestedProfileId = parsed.playerKey ?? currentProfileId ?? null;
-      if (!requestedProfileId || !playerProfiles.has(requestedProfileId)) {
-        sendError(ws, "Invalid player profile");
-        return;
-      }
+      const playerKey = parsed.playerKey ?? currentProfileId ?? randomUUID();
 
       const profileInUse = [...socketProfile.entries()].some(
         ([otherWs, otherProfileId]) =>
           otherWs !== ws &&
-          otherProfileId === requestedProfileId &&
+          otherProfileId === playerKey &&
           !!socketPlayer.get(otherWs)
       );
       if (profileInUse) {
@@ -458,14 +406,14 @@ wss.on("connection", (ws: WebSocket) => {
         return;
       }
 
-      const profile = playerProfiles.get(requestedProfileId);
-      const nickname = profile?.name ?? parsed.nickname;
+      const profile = playerProfiles.get(playerKey);
+      const nickname = parsed.nickname ?? profile?.name;
       const sheetJoin = resolveSheetForJoin(
-        requestedProfileId,
+        playerKey,
         parsed.characterSheetId
       );
       const resolved = resolvePlayerForJoin(gameState, {
-        playerKey: requestedProfileId,
+        playerKey,
         nickname,
         preferredId: currentId,
         newId: randomUUID(),
@@ -483,7 +431,7 @@ wss.on("connection", (ws: WebSocket) => {
         return;
       }
       socketPlayer.set(ws, resolved.playerId);
-      socketProfile.set(ws, requestedProfileId);
+      socketProfile.set(ws, playerKey);
       socketRole.set(ws, "player");
       broadcastConsole(actorForSocket(ws), CONSOLE_MSG_CONNECTED);
       broadcastState();

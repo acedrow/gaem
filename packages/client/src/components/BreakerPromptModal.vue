@@ -86,11 +86,7 @@ function onConfirm() {
 .action-btn {
   font-size: 0.8rem;
   padding: 0.35rem 0.65rem;
-  border-radius: 6px;
-  border: 1px solid var(--color-border);
   background: var(--color-surface-raised);
-  color: var(--color-text);
-  cursor: pointer;
 }
 
 .action-btn.selected {

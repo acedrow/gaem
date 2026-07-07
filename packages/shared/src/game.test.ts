@@ -5,6 +5,7 @@ import {
   applyEnemyMove,
   applyMove,
   buildBoardOccupancy,
+  canSetPlayerHp,
   clampHp,
   findSpawn,
   isTileOccupied,
@@ -142,6 +143,22 @@ describe("game", () => {
       const wrongPhase = makeGameState({ roundPhase: "playerTurn", turn: { role: "player", playerId: "p1" } });
       addTestEnemy(wrongPhase, "e1", 3, 3);
       expect(validateEnemyMove(wrongPhase, "e1", 4, 3)).toBe("Not GM turn");
+    });
+  });
+
+  describe("canSetPlayerHp", () => {
+    it("lets the GM set any player's HP", () => {
+      expect(canSetPlayerHp("gm", null, "p1")).toBe(true);
+    });
+
+    it("lets a player set only their own HP", () => {
+      expect(canSetPlayerHp("player", "p1", "p1")).toBe(true);
+      expect(canSetPlayerHp("player", "p1", "p2")).toBe(false);
+    });
+
+    it("rejects unauthenticated sockets", () => {
+      expect(canSetPlayerHp(null, null, "p1")).toBe(false);
+      expect(canSetPlayerHp(undefined, "p1", "p1")).toBe(false);
     });
   });
 });

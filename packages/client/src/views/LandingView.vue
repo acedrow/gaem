@@ -233,7 +233,6 @@ function joinAsSelectedPlayer() {
   background: var(--color-bg);
 }
 
-.muted { color: var(--color-muted); }
 .error { color: var(--color-danger); margin: 0.5rem 0; }
 
 .loading-row {

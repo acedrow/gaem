@@ -374,10 +374,6 @@ function playerName(id: string): string {
   padding: 0.1rem 0.45rem;
 }
 
-.muted {
-  color: var(--color-muted);
-}
-
 .error {
   color: var(--color-danger);
   margin: 0.5rem 0;

@@ -1,35 +1,22 @@
 <script setup lang="ts">
 import { listEnemyListings } from "@gaem/shared";
-import { ref } from "vue";
 
 import { useApi } from "../composables/useApi.js";
 import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useEnemySpawnSelection } from "../composables/useEnemySpawnSelection.js";
+import { useExpandableSet } from "../composables/useExpandableSet.js";
+import PanelShell from "./PanelShell.vue";
 
 const { closeRightPanel } = useBoardSelection();
 const { selectedSpawnEnemyName, selectSpawnEnemy } = useEnemySpawnSelection();
 const { enemyPortraitUrl } = useApi();
 
 const enemies = listEnemyListings();
-const expanded = ref<Set<string>>(new Set());
-
-function isExpanded(name: string): boolean {
-  return expanded.value.has(name);
-}
-
-function toggle(name: string) {
-  if (expanded.value.has(name)) expanded.value.delete(name);
-  else expanded.value.add(name);
-}
+const { isExpanded, toggle } = useExpandableSet();
 </script>
 
 <template>
-  <div class="panel">
-    <div class="panel-header">
-      <h2 class="panel-title">Enemies — Paracletus</h2>
-      <button class="close-btn" type="button" title="Close" @click="closeRightPanel">×</button>
-    </div>
-
+  <PanelShell title="Enemies — Paracletus" close-variant="ghost" @close="closeRightPanel">
     <p v-if="selectedSpawnEnemyName" class="spawn-hint">
       Click an empty walkable tile to spawn {{ selectedSpawnEnemyName }}.
     </p>
@@ -80,7 +67,7 @@ function toggle(name: string) {
             <p v-if="enemy.codename" class="codename"><em>{{ enemy.codename }}</em></p>
             <p v-if="enemy.description" class="item-description">{{ enemy.description }}</p>
 
-            <p v-for="(attack, i) in enemy.attacks" :key="i" class="ability">
+            <p v-for="(attack, i) in enemy.attacks" :key="`${enemy.name}-attack-${i}`" class="ability">
               <span class="ability-label">Attack {{ i + 1 }}</span>
               {{ attack }}
             </p>
@@ -109,38 +96,10 @@ function toggle(name: string) {
         </article>
       </div>
     </div>
-  </div>
+  </PanelShell>
 </template>
 
 <style scoped>
-.panel-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-  flex-shrink: 0;
-}
-
-.panel-title {
-  margin: 0;
-}
-
-.close-btn {
-  flex-shrink: 0;
-  border: none;
-  background: transparent;
-  color: var(--color-muted);
-  font-size: 1.4rem;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0 0.15rem;
-}
-
-.close-btn:hover {
-  color: var(--color-text);
-}
-
 .spawn-hint {
   margin: 0 0 0.65rem;
   font-size: 0.8rem;

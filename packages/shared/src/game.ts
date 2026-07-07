@@ -919,6 +919,15 @@ export function setPlayerHp(
   return null;
 }
 
+export function canSetPlayerHp(
+  role: GaemRole | null | undefined,
+  socketPlayerId: string | null | undefined,
+  targetPlayerId: string,
+): boolean {
+  if (role === "gm") return true;
+  return role === "player" && socketPlayerId === targetPlayerId;
+}
+
 export function syncPlayerSheet(
   state: GameState,
   characterSheetId: string,

@@ -194,6 +194,22 @@ h3,
   background: var(--color-surface-hover);
 }
 
+.close-btn--ghost {
+  width: auto;
+  height: auto;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 1.4rem;
+  padding: 0 0.15rem;
+}
+
+.close-btn--ghost:hover {
+  color: var(--color-text);
+  background: transparent;
+}
+
 .stepper {
   display: flex;
   align-items: center;
@@ -465,6 +481,16 @@ h3,
 
 .action-btn.reject {
   color: var(--color-danger);
+}
+
+.chip {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
 }
 
 .modal-field {

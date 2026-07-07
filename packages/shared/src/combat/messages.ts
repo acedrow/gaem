@@ -613,6 +613,8 @@ export function applyPlayerAction(
     }
     case "selectWeaponVariant": {
       const weapon = getWeaponByName(player.weapon ?? "");
+      // Only reached for bomb-carrying weapons (Sabaoth), so bombs is present.
+      // eslint-disable-next-line @typescript-eslint/no-non-null-asserted-optional-chain
       const bombs = weapon?.attack?.bombs!;
       if (!player.counters) player.counters = {};
       ensureSabaothCharges(player);

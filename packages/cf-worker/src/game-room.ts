@@ -7,6 +7,7 @@ import {
   applyPhaseAction,
   applyBaseCampaignAction,
   applySetSandboxMode,
+  canSetPlayerHp,
   characterTargetLabel,
   CONSOLE_MSG_CONNECTED,
   CONSOLE_MSG_DISCONNECTED,
@@ -83,15 +84,6 @@ async function resolveSheetForJoin(
     : {};
 }
 
-function canSetPlayerHp(
-  role: GaemRole | null | undefined,
-  socketPlayerId: string | null | undefined,
-  targetPlayerId: string
-): boolean {
-  if (role === "gm") return true;
-  return role === "player" && socketPlayerId === targetPlayerId;
-}
-
 async function canSyncPlayerSheet(
   env: Env,
   role: GaemRole | null | undefined,
@@ -112,7 +104,7 @@ export class GameRoom {
     env: Env
   ) {
     this.env = env;
-    this.ctx.blockConcurrencyWhile(async () => {
+    void this.ctx.blockConcurrencyWhile(async () => {
       const stored = await this.ctx.storage.get<GameState>(GAME_STATE_KEY);
       const map = await getMap(this.env, stored?.mapId ?? DEFAULT_MAP_ID);
       if (stored) {
@@ -266,7 +258,7 @@ export class GameRoom {
         removeEnemy(this.gameState, parsed.enemyId, { entireSwarm: parsed.entireSwarm ?? false });
         if ((enemy.hp ?? 0) > 0) {
           const actor = await this.actorForSocket(ws);
-          this.broadcastConsole(actor, `removed ${enemyLabel(enemy)}`);
+          await this.broadcastConsole(actor, `removed ${enemyLabel(enemy)}`);
         }
       } else {
         if (att?.role !== "gm") {
@@ -289,7 +281,7 @@ export class GameRoom {
             const actor = await this.actorForSocket(ws);
             let msg = `moved ${enemyLabel(enemy)} to (${parsed.x}, ${parsed.y})`;
             if (provokeMsg) msg = `${provokeMsg}; ${msg}`;
-            this.broadcastConsole(actor, msg);
+            await this.broadcastConsole(actor, msg);
           }
         } else {
           const id = crypto.randomUUID();
@@ -306,7 +298,7 @@ export class GameRoom {
           const enemy = this.gameState.enemies.find((e) => e.id === id);
           if (enemy) {
             const actor = await this.actorForSocket(ws);
-            this.broadcastConsole(actor, `spawned ${enemyLabel(enemy)} at (${parsed.x}, ${parsed.y})`);
+            await this.broadcastConsole(actor, `spawned ${enemyLabel(enemy)} at (${parsed.x}, ${parsed.y})`);
           }
         }
       }
@@ -330,7 +322,7 @@ export class GameRoom {
       }
       const actor = await this.actorForSocket(ws);
       const target = await this.targetLabelForPlayer(parsed.playerId);
-      this.broadcastConsole(actor, `set ${target} HP to ${Math.trunc(parsed.hp)}`);
+      await this.broadcastConsole(actor, `set ${target} HP to ${Math.trunc(parsed.hp)}`);
       await this.broadcastState();
       return;
     }
@@ -376,8 +368,10 @@ export class GameRoom {
       const actor = await this.actorForSocket(ws);
       const label = sheet?.name ?? "Character";
       logSyncPlayerLoadoutChanges(
+        // Best-effort logging: the shared emit callback is synchronous, so this
+        // KV-backed broadcast cannot be awaited here without changing shared.
         (a, message) => {
-          this.broadcastConsole(a, message);
+          void this.broadcastConsole(a, message);
         },
         actor,
         label,
@@ -489,7 +483,7 @@ export class GameRoom {
       }
       applyMove(this.gameState, id, parsed.x, parsed.y);
       const actor = await this.actorForSocket(ws);
-      this.broadcastConsole(actor, `moved to (${parsed.x}, ${parsed.y})`);
+      await this.broadcastConsole(actor, `moved to (${parsed.x}, ${parsed.y})`);
       const key = att?.playerKey;
       if (key) {
         const profile = await getPlayerProfile(this.env, key);

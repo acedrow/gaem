@@ -1,0 +1,27 @@
+name: Verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      # Build first: the client imports @gaem/shared from dist/, and the
+      # type-aware lint rules on the backends resolve types from dist/ too.
+      - run: npm run build
+      - run: npm run lint
+      - run: npm run test

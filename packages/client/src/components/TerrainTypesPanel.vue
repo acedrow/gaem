@@ -1,23 +1,14 @@
 <script setup lang="ts">
-import { TERRAIN_TYPE_ENTRIES, type TerrainTypeEntry } from "@gaem/shared";
-import { ref } from "vue";
+import { TERRAIN_TYPE_ENTRIES } from "@gaem/shared";
 
 import { useBoardSelection } from "../composables/useBoardSelection.js";
+import { useExpandableSet } from "../composables/useExpandableSet.js";
 import PanelShell from "./PanelShell.vue";
 import RuleText from "./RuleText.vue";
 import TerrainTypePreview from "./TerrainTypePreview.vue";
 
 const { closeRightPanel } = useBoardSelection();
-const expanded = ref<Set<string>>(new Set());
-
-function isExpanded(id: string): boolean {
-  return expanded.value.has(id);
-}
-
-function toggle(entry: TerrainTypeEntry) {
-  if (expanded.value.has(entry.id)) expanded.value.delete(entry.id);
-  else expanded.value.add(entry.id);
-}
+const { isExpanded, toggle } = useExpandableSet();
 </script>
 
 <template>
@@ -28,7 +19,7 @@ function toggle(entry: TerrainTypeEntry) {
           type="button"
           class="list-card-header"
           :class="{ expanded: isExpanded(entry.id) }"
-          @click="toggle(entry)"
+          @click="toggle(entry.id)"
         >
           <span class="item-header">
             <TerrainTypePreview :terrain-type="entry.id" :size="22" />

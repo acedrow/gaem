@@ -35,7 +35,7 @@ import {
   collectEquipmentPatternTiles,
   isHylicAnnihilationCorridor,
   areOrthogonallyConnected,
-  isRedirectableEnemyAttack,
+  isDirectTargetEnemyAttack,
   listRedirectableEnemyAttackIndices,
   rejectionFieldTileKeys,
   forceProjectionTileKeys,
@@ -70,6 +70,7 @@ import {
   tilesOnCardinalLine,
   tilesOnSegment,
   TOWER_IATROS,
+  buildSwarmGroups,
   canSwarmMemberReachDest,
   getSwarmMemberHp,
   getSwarmMaxHp,
@@ -354,7 +355,7 @@ function finalizeDefeatedEnemy(enemyId: string) {
   send({ type: "removeEnemy", enemyId });
 }
 
-const { isEnemyDying, isEnemyDefeated, isEnemyPendingRemoval, dyingEnemyIds } =
+const { isEnemyDying, isEnemyDefeated, isEnemyPendingRemoval } =
   useEnemyDeathAnimations(gameState, finalizeDefeatedEnemy);
 const {
   active: teleportAnimation,
@@ -510,7 +511,11 @@ const cells = computed(() => {
       out.push({ x, y, key: boardCellKey(x, y) });
     }
   }
+  // Intentional memoization cache: only rebuilt when the board dimensions key
+  // changes, avoiding reallocating the cell list on every unrelated state tick.
+  // eslint-disable-next-line vue/no-side-effects-in-computed-properties
   cellsCache.value = out;
+  // eslint-disable-next-line vue/no-side-effects-in-computed-properties
   cellsCacheKey.value = key;
   return out;
 });
@@ -1494,6 +1499,8 @@ const cellStateByKey = computed(() => {
   const occ = occupancy.value;
   if (!s || !occ) return map;
 
+  const swarmGroups = buildSwarmGroups(s);
+
   const playerCanMove =
     props.role === "player" &&
     !!yourPlayerId.value &&
@@ -1619,7 +1626,7 @@ const cellStateByKey = computed(() => {
       enemyHp:
         enemyAnchor && s && props.role === "gm"
           ? (() => {
-              const group = swarmGroupForEnemy(s, enemyAnchor.id);
+              const group = swarmGroupForEnemy(s, enemyAnchor.id, swarmGroups);
               if (
                 isSoloSwarmMemberSelected.value &&
                 selectedEnemyId.value === enemyAnchor.id &&
@@ -1640,7 +1647,7 @@ const cellStateByKey = computed(() => {
         if (isSoloSwarmMemberSelected.value && selectedEnemyId.value === enemyAnchor.id) {
           return true;
         }
-        const group = swarmGroupForEnemy(s, enemyAnchor.id);
+        const group = swarmGroupForEnemy(s, enemyAnchor.id, swarmGroups);
         if (!group) return true;
         return swarmCanonicalDisplayId(s, group.memberIds) === enemyAnchor.id;
       })(),
@@ -1689,7 +1696,6 @@ const cellStateByKey = computed(() => {
 
 const boardCellRows = computed(() => {
   const states = cellStateByKey.value;
-  const dyingSize = dyingEnemyIds.value.size;
   const teleportingIds = teleportingPlayerIds.value;
   const animatingId = animatingEnemyId.value;
   return cells.value.map((c) => {
@@ -1715,7 +1721,6 @@ const boardCellRows = computed(() => {
       enemyAnimating: enemyAnchor?.id === animatingId,
       playerHp: player?.hp,
       enemyHp: enemyAnchor?.hp,
-      dyingEnemyCount: dyingSize,
     };
   }).filter((row): row is NonNullable<typeof row> => row != null);
 });
@@ -3841,7 +3846,7 @@ onUnmounted(() => {
                   row.isBulkTileSelected,
                   row.playerHp,
                   row.enemyHp,
-                  row.dyingEnemyCount,
+                  row.enemyDying,
                   showHealthBars,
                   showEnemyHealthBars,
                   row.enemyAnimating,
@@ -4173,7 +4178,7 @@ onUnmounted(() => {
   z-index: 5;
   pointer-events: none;
   border-radius: 50%;
-  background: hsl(0 70% 45%);
+  background: var(--color-enemy-piece);
   box-sizing: border-box;
   transition: left 350ms ease, top 350ms ease;
   overflow: hidden;

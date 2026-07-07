@@ -177,7 +177,7 @@ function exhaustEnemy() {
       </div>
       <div v-else-if="listing?.attacks?.length && !activeIsTower" class="actions-row">
         <select v-model="attackIndex" class="select">
-          <option v-for="(_, i) in listing.attacks" :key="i" :value="i">
+          <option v-for="(attack, i) in listing.attacks" :key="`${attack}-${i}`" :value="i">
             Attack {{ i + 1 }}
           </option>
         </select>
@@ -227,16 +227,6 @@ function exhaustEnemy() {
   align-items: center;
 }
 
-.chip {
-  font-size: 0.72rem;
-  font-weight: 600;
-  padding: 0.15rem 0.45rem;
-  border-radius: 999px;
-  background: var(--color-surface-raised);
-  border: 1px solid var(--color-border);
-  color: var(--color-text);
-}
-
 .chip.spent {
   opacity: 0.45;
 }
@@ -250,13 +240,7 @@ function exhaustEnemy() {
 }
 
 .action-btn {
-  font-size: 0.78rem;
-  padding: 0.3rem 0.55rem;
-  border-radius: 6px;
-  border: 1px solid var(--color-border);
   background: var(--color-surface-raised);
-  color: var(--color-text);
-  cursor: pointer;
 }
 
 .action-btn.primary {

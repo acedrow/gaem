@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import type { PatternDirection, PatternModifierValues } from "@gaem/shared";
 import { PATTERN_MODIFIERS, TARGETING_PATTERNS } from "@gaem/shared";
-import { computed } from "vue";
 
 import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { usePatternSelection } from "../composables/usePatternSelection.js";
 import NumberStepper from "./NumberStepper.vue";
 import PanelShell from "./PanelShell.vue";
-import SegmentedControl from "./SegmentedControl.vue";
 
 const { closeRightPanel } = useBoardSelection();
 const {
@@ -39,19 +37,10 @@ function modifierApplies(modifierId: string): boolean {
   if (!modifier?.appliesTo || !pattern) return true;
   return modifier.appliesTo.includes(pattern.id);
 }
-
-function onModifierInput(id: keyof PatternModifierValues, value: number) {
-  setModifierValue(id, value);
-}
 </script>
 
 <template>
-  <div class="panel">
-    <div class="panel-header">
-      <h2 class="panel-title">Patterns</h2>
-      <button class="close-btn" type="button" title="Close" @click="closeRightPanel">×</button>
-    </div>
-
+  <PanelShell title="Patterns" close-variant="ghost" @close="closeRightPanel">
     <div class="controls-block">
       <div class="size-bar">
         <span class="size-label">Size</span>
@@ -155,38 +144,10 @@ function onModifierInput(id: keyof PatternModifierValues, value: number) {
         </article>
       </div>
     </div>
-  </div>
+  </PanelShell>
 </template>
 
 <style scoped>
-.panel-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-  flex-shrink: 0;
-}
-
-.panel-title {
-  margin: 0;
-}
-
-.close-btn {
-  flex-shrink: 0;
-  border: none;
-  background: transparent;
-  color: var(--color-muted);
-  font-size: 1.4rem;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0 0.15rem;
-}
-
-.close-btn:hover {
-  color: var(--color-text);
-}
-
 .size-bar,
 .dir-bar {
   display: flex;

@@ -522,10 +522,6 @@ function spawnUnit() {
 .action-btn {
   font-size: 0.75rem;
   padding: 0.25rem 0.5rem;
-  border-radius: 6px;
-  border: 1px solid var(--color-border);
   background: var(--color-surface-raised);
-  color: var(--color-text);
-  cursor: pointer;
 }
 </style>
