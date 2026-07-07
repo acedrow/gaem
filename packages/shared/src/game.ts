@@ -1,15 +1,14 @@
 import type { Enemy, GameMap, GameState, GaemRole, PhaseAction, Player, TerrainObject, TurnHolder } from "./types.js";
 import { playerLabel } from "./console.js";
 import { createDefaultActionBudget, createDefaultCombatState } from "./combat/types.js";
-import { initSabaothCharges } from "./combat/attack.js";
-import { clearAnnihilationCorridorTileEffects, clearEquipmentTerrainSnapshots } from "./combat/equipment.js";
-import { tickRoundCountdowns, tickUnitEndOfTurn } from "./combat/effects.js";
+import { tickRoundCountdowns, tickUnitEndOfTurn, tickUnitStartOfTurn } from "./combat/effects.js";
 import { resetEnemyExhaustion, resetGmTurnActions } from "./combat/enemy.js";
 import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles, ensureEnemyMovement, refreshEnemyMovement, spendEnemyMovement } from "./enemy-data.js";
 import { applyLoadoutToPlayer, getClassMaxHp, getArmorSpeed } from "./player-data.js";
 import { coordKey, isFootprintInBounds, isInBounds, isWalkable, tileAt } from "./map.js";
 import { isOrthogonallyAdjacent } from "./patterns.js";
 import { isTowerEnemy, kataptyNeedsTargetPick, resolveYadathanEndOfTurn } from "./combat/yadathan.js";
+import { enterTaccom, exitTaccom, resetTaccomEncounter } from "./combat/taccom-reset.js";
 import {
   buildSwarmGroups,
   reconcileSwarmHp,
@@ -159,14 +158,6 @@ function resetToRoundStart(state: GameState): void {
   state.actedPlayerIds = [];
 }
 
-function resetToCombatStart(state: GameState): void {
-  state.round = 1;
-  resetToRoundStart(state);
-  state.turnLog = [];
-  clearAnnihilationCorridorTileEffects(state);
-  clearEquipmentTerrainSnapshots(state);
-}
-
 export function remainingPlayerIds(state: GameState): string[] {
   const acted = new Set(state.actedPlayerIds);
   return state.players
@@ -227,6 +218,7 @@ function beginPlayerTurn(state: GameState, playerId: string): string {
   state.turn = { role: "player", playerId };
   recordTurn(state, { role: "player", playerId });
   const player = state.players.find((p) => p.id === playerId);
+  const startMsgs = player ? tickUnitStartOfTurn(state, player, "player") : [];
   if (player) {
     const speed = player.speed ?? getArmorSpeed(player.armor);
     player.actionBudget = createDefaultActionBudget(speed);
@@ -247,7 +239,9 @@ function beginPlayerTurn(state: GameState, playerId: string): string {
       if (Object.keys(player.counters).length === 0) delete player.counters;
     }
   }
-  return `${playerLabel(player!)} took their turn`;
+  let msg = `${playerLabel(player!)} took their turn`;
+  if (startMsgs.length) msg += `. ${startMsgs.join("; ")}`;
+  return msg;
 }
 
 function tickWarhookBlazingImmunity(player: Player): void {
@@ -376,6 +370,7 @@ export function validatePhaseAction(
     case "gmEndTurn":
     case "resetCombat":
     case "removeAllEnemies":
+    case "endCombat":
       if (ctx.role !== "gm") return "Only the game master can do that";
       return null;
     case "endDeployment":
@@ -463,20 +458,17 @@ export function applyPhaseAction(
       }
     }
     case "endDeployment": {
+      enterTaccom(state);
       state.roundPhase = "startRoundEffects";
       state.turn = { role: "gm" };
-      if (!state.combat) {
-        state.combat = createDefaultCombatState(state.players.length);
-      }
-      for (const player of state.players) {
-        if (player.speed == null) player.speed = getArmorSpeed(player.armor);
-        if (player.equipmentUses === undefined) player.equipmentUses = 1;
-        initSabaothCharges(player);
-      }
       return "Deployment ended — start round effects";
     }
+    case "endCombat": {
+      exitTaccom(state, { removeEnemies: false });
+      return "Combat ended — players reset, deployment";
+    }
     case "resetCombat": {
-      resetToCombatStart(state);
+      resetTaccomEncounter(state);
       return "Combat reset — deployment";
     }
     case "removeAllEnemies": {

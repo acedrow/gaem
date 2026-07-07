@@ -25,6 +25,7 @@ const roundGroups = computed(() => {
 });
 
 const gmActionConfirm: Partial<Record<PhaseAction, string>> = {
+  endCombat: "End combat? Player HP, effects, and currencies reset to deployment.",
   resetCombat: "Reset combat? This clears turn history and returns to deployment.",
   resetRound: "Reset the current round to its start?",
   gmEndRound: "End the current round and start the next one?",
@@ -90,6 +91,9 @@ function sendGmAction(action: PhaseAction) {
       <div class="gm-controls-danger">
         <button type="button" class="control-btn danger" @click="sendGmAction('removeAllEnemies')">
           Remove all enemies
+        </button>
+        <button type="button" class="control-btn danger" @click="sendGmAction('endCombat')">
+          End combat
         </button>
         <button type="button" class="control-btn danger" @click="sendGmAction('resetCombat')">
           Reset combat

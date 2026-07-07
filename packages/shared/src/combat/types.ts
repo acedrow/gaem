@@ -163,6 +163,7 @@ export type CombatState = {
   attractors?: AttractorTile[];
   gearCheckGrants?: Record<string, string>;
   kopisMarks?: Record<string, string>;
+  countdownKinds?: Record<string, string>;
   equipmentTerrainSnapshots?: { x: number; y: number; terrain: TerrainType[] }[];
 };
 
@@ -177,6 +178,7 @@ export type PlayerAction =
       targetEnemyIds?: string[];
       weaponName?: string;
       useBreaker?: boolean;
+      elevationBonusTile?: { x: number; y: number };
     }
   | { action: "shove"; targetEnemyId?: string; targetPlayerId?: string }
   | { action: "sprint" }
@@ -307,5 +309,6 @@ export function createDefaultCombatState(playerCount: number): CombatState {
     attractors: [],
     gearCheckGrants: {},
     kopisMarks: {},
+    countdownKinds: {},
   };
 }

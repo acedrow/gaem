@@ -1,3 +1,55 @@
+import type { EffectStacks, GameState } from "../types.js";
+import { tileAt } from "../map.js";
+import { applyBleedBonus, removeEffectStacks } from "./effects.js";
+
+export type DamageTarget = {
+  effects?: EffectStacks;
+  x?: number;
+  y?: number;
+};
+
+export type ResolveDamageOpts = {
+  damageSpec?: string;
+  hitTile?: { x: number; y: number };
+  state?: GameState;
+};
+
+function coverReduction(target: DamageTarget, state: GameState | undefined, hitTile?: { x: number; y: number }): number {
+  let cover = target.effects?.Cover ?? 0;
+  if (state) {
+    const tile = hitTile
+      ? tileAt(state.tiles, hitTile.x, hitTile.y)
+      : target.x != null && target.y != null
+        ? tileAt(state.tiles, target.x, target.y)
+        : undefined;
+    if (tile?.terrain.includes("cover")) cover += 1;
+  }
+  return cover;
+}
+
+export function resolveDamageAgainstTarget(
+  baseDamage: number,
+  target: DamageTarget,
+  opts?: ResolveDamageOpts,
+): number {
+  let damage = baseDamage;
+  if ((target.effects?.Broken ?? 0) > 0 && opts?.damageSpec) {
+    damage = maxWeaponDamage(opts.damageSpec);
+  }
+  damage = applyBleedBonus(damage, target.effects);
+  const armor = target.effects?.Armor ?? 0;
+  if (armor > 0) damage -= armor;
+  const cover = coverReduction(target, opts?.state, opts?.hitTile);
+  if (cover > 0) damage -= cover;
+  return Math.max(0, damage);
+}
+
+export function consumeBrokenStack(target: DamageTarget): void {
+  if ((target.effects?.Broken ?? 0) > 0) {
+    removeEffectStacks(target, ["Broken:1"]);
+  }
+}
+
 export function rollDice(count: number, sides: number, rng = Math.random): number[] {
   const rolls: number[] = [];
   for (let i = 0; i < count; i++) {

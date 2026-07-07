@@ -14,7 +14,9 @@
     "enemy-portraits:crop": "scripts/rulebook/.venv/bin/python scripts/crop-enemy-portraits.py",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "test": "npm run test -w @gaem/shared && npm run test -w @gaem/client"
+    "test": "npm run test -w @gaem/shared && npm run test -w @gaem/client",
+    "test:e2e": "npm run test:e2e -w @gaem/e2e",
+    "test:all": "npm run test && npm run test:e2e"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

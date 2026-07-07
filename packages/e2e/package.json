@@ -1,0 +1,16 @@
+{
+  "name": "@gaem/e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "@types/node": "^22.15.0",
+    "dotenv": "^16.5.0",
+    "typescript": "^5.8.3"
+  }
+}

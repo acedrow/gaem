@@ -1,6 +1,9 @@
 import { getEffectStacking } from "../effects-data.js";
 import type { EffectStacks, GameState, MapTile, Player, Enemy } from "../types.js";
-import { isSandboxMode } from "../game.js";
+import { buildBoardOccupancy, clampHp, getEnemyMaxHp, getPlayerMaxHp, isSandboxMode } from "../game.js";
+import { coordKey, tileAt } from "../map.js";
+
+export { tickRoundCountdowns } from "./countdown.js";
 
 export function parseEffectToken(token: string): { id: string; stacks: number } | null {
   const match = token.trim().match(/^([A-Za-z][A-Za-z ]*):(-?\d+)$/);
@@ -49,10 +52,78 @@ export function removeEffectStacks(target: { effects?: EffectStacks }, tokens: s
   }
 }
 
+function dealDirectTickDamage(unit: Player | Enemy, amount: number, maxHp: number): void {
+  if (amount <= 0 || unit.hp === undefined) return;
+  const cap = maxHp > 0 ? maxHp : unit.hp;
+  unit.hp = clampHp(unit.hp - amount, cap);
+}
+
+function adjacentUnitsWithBlazing(state: GameState, unit: Player | Enemy): boolean {
+  const occ = buildBoardOccupancy(state);
+  for (const [dx, dy] of [
+    [0, -1],
+    [1, 0],
+    [0, 1],
+    [-1, 0],
+  ]) {
+    const key = coordKey(unit.x + dx!, unit.y + dy!);
+    const other = occ.playerByKey.get(key) ?? occ.enemyByKey.get(key);
+    if (other && other !== unit && (other.effects?.Blazing ?? 0) > 0) return true;
+  }
+  return false;
+}
+
+export function tickUnitStartOfTurn(
+  state: GameState,
+  unit: Player | Enemy,
+  kind: "player" | "enemy",
+): string[] {
+  const messages: string[] = [];
+  if (isSandboxMode(state)) return messages;
+
+  const blazing = unit.effects?.Blazing ?? 0;
+  if (blazing > 0) {
+    const maxHp = kind === "player" ? getPlayerMaxHp(unit as Player) : getEnemyMaxHp(unit as Enemy);
+    dealDirectTickDamage(unit, blazing, maxHp);
+    messages.push(`Blazing ${blazing} damage at start of turn`);
+
+    const occ = buildBoardOccupancy(state);
+    for (const [dx, dy] of [
+      [0, -1],
+      [1, 0],
+      [0, 1],
+      [-1, 0],
+    ]) {
+      const nx = unit.x + dx!;
+      const ny = unit.y + dy!;
+      const key = coordKey(nx, ny);
+      const other = occ.playerByKey.get(key) ?? occ.enemyByKey.get(key);
+      if (!other || other === unit || (other.effects?.Blazing ?? 0) > 0) continue;
+      applyEffectStacks(other, ["Blazing:1"]);
+      const otherMax =
+        "class" in other ? getPlayerMaxHp(other as Player) : getEnemyMaxHp(other as Enemy);
+      dealDirectTickDamage(other, 1, otherMax);
+      messages.push(`Blazing spread to adjacent unit`);
+    }
+  }
+
+  if (kind === "player") {
+    const player = unit as Player;
+    const mapTile = tileAt(state.tiles, player.x, player.y);
+    if ((mapTile?.tileEffects?.Fortified ?? 0) > 0) {
+      delete mapTile!.tileEffects!.Fortified;
+      if (Object.keys(mapTile!.tileEffects!).length === 0) delete mapTile!.tileEffects;
+      player.reversalCharges = (player.reversalCharges ?? 0) + 2;
+      messages.push("Fortified → +2 Reversal Charges");
+    }
+  }
+
+  return messages;
+}
+
 const END_OF_TURN_EFFECTS = new Set([
   "Bleed",
   "Slow",
-  "Blazing",
   "Pin",
   "Aegis",
   "Shock",
@@ -63,12 +134,34 @@ const END_OF_TURN_EFFECTS = new Set([
 export function tickUnitEndOfTurn(state: GameState, unit: Player | Enemy): string[] {
   const messages: string[] = [];
   if (isSandboxMode(state) || !unit.effects) return messages;
+
+  const poison = unit.effects.Poison ?? 0;
+  if (poison > 0) {
+    const maxHp =
+      "class" in unit ? getPlayerMaxHp(unit as Player) : getEnemyMaxHp(unit as Enemy);
+    dealDirectTickDamage(unit, poison, maxHp);
+    messages.push(`Poison ${poison} damage`);
+    const nextPoison = poison - 1;
+    if (nextPoison <= 0) delete unit.effects.Poison;
+    else unit.effects.Poison = nextPoison;
+  }
+
+  const blazing = unit.effects.Blazing ?? 0;
+  if (blazing > 0 && !adjacentUnitsWithBlazing(state, unit)) {
+    const next = blazing - 1;
+    if (next <= 0) delete unit.effects.Blazing;
+    else unit.effects.Blazing = next;
+    messages.push(`Blazing ${blazing} → ${next > 0 ? next : "removed"}`);
+  }
+
   for (const id of Object.keys(unit.effects)) {
     if (!END_OF_TURN_EFFECTS.has(id)) continue;
     const before = unit.effects[id] ?? 0;
     if (id === "Healing") {
       if (before > 0 && unit.hp !== undefined) {
-        unit.hp += before;
+        const maxHp =
+          "class" in unit ? getPlayerMaxHp(unit as Player) : getEnemyMaxHp(unit as Enemy);
+        unit.hp = clampHp(unit.hp + before, maxHp);
         messages.push(`Healing restored ${before} HP`);
       }
     }
@@ -82,31 +175,6 @@ export function tickUnitEndOfTurn(state: GameState, unit: Player | Enemy): strin
     }
   }
   if (Object.keys(unit.effects).length === 0) delete unit.effects;
-  return messages;
-}
-
-export function tickRoundCountdowns(state: GameState): string[] {
-  const messages: string[] = [];
-  if (isSandboxMode(state)) return messages;
-  const units: Array<Player | Enemy> = [...state.players, ...state.enemies];
-  for (const unit of units) {
-    if (!unit.effects?.Countdown) continue;
-    const next = unit.effects.Countdown - 1;
-    if (next <= 0) {
-      delete unit.effects.Countdown;
-      messages.push("Countdown triggered");
-    } else {
-      unit.effects.Countdown = next;
-    }
-    if (unit.effects && Object.keys(unit.effects).length === 0) delete unit.effects;
-  }
-  for (const tile of state.tiles) {
-    if (!tile.tileEffects?.Countdown) continue;
-    const next = tile.tileEffects.Countdown - 1;
-    if (next <= 0) delete tile.tileEffects.Countdown;
-    else tile.tileEffects.Countdown = next;
-    if (tile.tileEffects && Object.keys(tile.tileEffects).length === 0) delete tile.tileEffects;
-  }
   return messages;
 }
 

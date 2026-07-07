@@ -13,8 +13,19 @@ import type { Enemy, GameState, MapTile, Player } from "../types.js";
 import { getWeaponByName } from "../player-data.js";
 import type { WeaponAttackSpec } from "./types.js";
 import type { AttackRangeSpan } from "./types.js";
-import { applyBleedBonus, applyEffectStacks } from "./effects.js";
-import { parseAndRollDamage } from "./damage.js";
+import { applyEffectStacks } from "./effects.js";
+import { trackCountdownKinds } from "./countdown.js";
+
+function applyUnitEffectStacks(state: GameState, unit: Player | Enemy, effects: string[]): void {
+  if (!effects.length) return;
+  applyEffectStacks(unit, effects);
+  trackCountdownKinds(state, unit, effects);
+}
+import {
+  consumeBrokenStack,
+  parseAndRollDamage,
+  resolveDamageAgainstTarget,
+} from "./damage.js";
 import { checkSharurEmergencyDefenses } from "./attractor.js";
 import { clampHp, getEnemyMaxHp, getPlayerMaxHp, getEffectiveEnemyMaxHp, removeEnemy } from "../game.js";
 import {
@@ -199,31 +210,95 @@ export function collectAttackTiles(
   origin: { x: number; y: number },
   spec: WeaponAttackSpec,
   direction: PatternDirection,
+  elevationBonusTile?: { x: number; y: number },
 ): { x: number; y: number }[] {
+  let tiles: { x: number; y: number }[];
   if (spec.tiles?.length) {
-    return bespokeTilesInBounds(
+    tiles = bespokeTilesInBounds(
       origin,
       spec.tiles,
       direction,
       state.width,
       state.height,
     );
-  }
-  if (spec.rangeTargets || (spec.patternId === "range" && spec.range)) {
+  } else if (spec.rangeTargets || (spec.patternId === "range" && spec.range)) {
     return [];
+  } else if (!spec.patternId || spec.size == null) {
+    return [];
+  } else {
+    tiles = fixedPatternTilesInBounds(
+      spec.patternId,
+      origin,
+      spec.size,
+      direction,
+      state.width,
+      state.height,
+      spec.range || spec.width
+        ? { modifiers: { range: spec.range ?? 0, width: spec.width ?? 1, recoil: 0 } }
+        : undefined,
+    );
   }
-  if (!spec.patternId || spec.size == null) return [];
-  return fixedPatternTilesInBounds(
-    spec.patternId,
-    origin,
-    spec.size,
-    direction,
-    state.width,
-    state.height,
-    spec.range || spec.width
-      ? { modifiers: { range: spec.range ?? 0, width: spec.width ?? 1, recoil: 0 } }
-      : undefined,
+
+  if (!elevationBonusTile) return tiles;
+  const bonusKey = coordKey(elevationBonusTile.x, elevationBonusTile.y);
+  if (tiles.some((t) => coordKey(t.x, t.y) === bonusKey)) return tiles;
+  const candidates = elevationBonusTileCandidates(state, origin, tiles);
+  if (!candidates.some((c) => coordKey(c.x, c.y) === bonusKey)) return tiles;
+  return [...tiles, elevationBonusTile];
+}
+
+export function tileElevation(state: GameState, x: number, y: number): number {
+  return tileAt(state.tiles, x, y)?.elevation ?? 0;
+}
+
+export function elevationRangeBonus(attackerElev: number, targetElev: number): number {
+  return targetElev < attackerElev ? attackerElev : 0;
+}
+
+export function effectiveRangeLimit(
+  state: GameState,
+  origin: { x: number; y: number },
+  baseRange: number,
+  target: { x: number; y: number },
+): number {
+  const attackerElev = tileElevation(state, origin.x, origin.y);
+  const targetElev = tileElevation(state, target.x, target.y);
+  return baseRange + elevationRangeBonus(attackerElev, targetElev);
+}
+
+export function elevationBonusTileCandidates(
+  state: GameState,
+  origin: { x: number; y: number },
+  patternTiles: { x: number; y: number }[],
+): { x: number; y: number }[] {
+  const originElev = tileElevation(state, origin.x, origin.y);
+  const hitEnemies = enemiesInTiles(state, patternTiles);
+  const hasLowerEnemy = hitEnemies.some(
+    (t) => tileElevation(state, t.x, t.y) < originElev,
   );
+  if (!hasLowerEnemy) return [];
+
+  const patternKeys = new Set(patternTiles.map((t) => coordKey(t.x, t.y)));
+  const candidates: { x: number; y: number }[] = [];
+  const seen = new Set<string>();
+  for (const tile of patternTiles) {
+    for (const [dx, dy] of [
+      [0, -1],
+      [1, 0],
+      [0, 1],
+      [-1, 0],
+    ]) {
+      const x = tile.x + dx!;
+      const y = tile.y + dy!;
+      const key = coordKey(x, y);
+      if (seen.has(key) || patternKeys.has(key)) continue;
+      if (!isInBounds(x, y, state.width, state.height)) continue;
+      if (tileElevation(state, x, y) >= originElev) continue;
+      seen.add(key);
+      candidates.push({ x, y });
+    }
+  }
+  return candidates;
 }
 
 export function enemiesInTiles(
@@ -270,11 +345,16 @@ export function applyDamageToEnemy(
   enemy: Enemy,
   damage: number,
   state?: GameState,
-  opts?: { recordDamage?: boolean },
+  opts?: { recordDamage?: boolean; damageSpec?: string; hitTile?: { x: number; y: number } },
 ): number {
   const maxHp = state ? getEffectiveEnemyMaxHp(enemy, state) : getEnemyMaxHp(enemy);
   const before = enemy.hp ?? maxHp;
-  const adjusted = applyBleedBonus(damage, enemy.effects);
+  const adjusted = resolveDamageAgainstTarget(
+    damage,
+    { effects: enemy.effects, x: enemy.x, y: enemy.y },
+    { damageSpec: opts?.damageSpec, hitTile: opts?.hitTile, state },
+  );
+  consumeBrokenStack(enemy);
   const newHp = clampHp(before - adjusted, maxHp);
   if (state) {
     const group = swarmGroupForEnemy(state, enemy.id);
@@ -331,9 +411,13 @@ export function applyBreakerAttackToSwarm(
   if (!group) return { targets, brokenIds };
 
   const memberHp = getSwarmMemberHp(group.currentHp, group.size);
-  const allKilled = hits.every(() => damage >= memberHp);
   const primary = state.enemies.find((e) => e.id === group.canonicalId)!;
-  const adjusted = applyBleedBonus(damage, primary.effects);
+  const adjusted = resolveDamageAgainstTarget(
+    damage,
+    { effects: primary.effects, x: primary.x, y: primary.y },
+    { state },
+  );
+  const allKilled = hits.every(() => adjusted >= memberHp);
 
   const recordHitDamage = () => {
     if (!state.damageEvents) state.damageEvents = [];
@@ -352,10 +436,10 @@ export function applyBreakerAttackToSwarm(
     }
     reconcileSwarmHp(state, prevGroups);
   } else {
-    applyDamageToEnemy(primary, damage, state, { recordDamage: false });
+    applyDamageToEnemy(primary, damage, state, { recordDamage: false, hitTile: { x: primary.x, y: primary.y } });
     recordHitDamage();
     targets.push({ enemyId: group.canonicalId, x: primary.x, y: primary.y });
-    applyEffectStacks(primary, effects);
+    applyUnitEffectStacks(state,primary, effects);
   }
 
   return { targets, brokenIds };
@@ -365,11 +449,16 @@ export function applyDamageToPlayer(
   player: Player,
   damage: number,
   state?: GameState,
-  opts?: { recordDamage?: boolean },
+  opts?: { recordDamage?: boolean; damageSpec?: string; hitTile?: { x: number; y: number } },
 ): number {
   const maxHp = getPlayerMaxHp(player);
   const before = player.hp ?? maxHp;
-  const adjusted = applyBleedBonus(damage, player.effects);
+  const adjusted = resolveDamageAgainstTarget(
+    damage,
+    { effects: player.effects, x: player.x, y: player.y },
+    { damageSpec: opts?.damageSpec, hitTile: opts?.hitTile, state },
+  );
+  consumeBrokenStack(player);
   player.hp = clampHp(before - adjusted, maxHp);
   if (state) {
     checkSharurEmergencyDefenses(state, player);
@@ -387,9 +476,9 @@ export function applyAttackToEnemies(
   origin: { x: number; y: number },
   direction: PatternDirection,
   damageRoll?: number,
-  opts?: { useBreaker?: boolean; weaponName?: string },
+  opts?: { useBreaker?: boolean; weaponName?: string; elevationBonusTile?: { x: number; y: number } },
 ): { damage: number; detail: string; targets: AttackTarget[]; effects: string[] } {
-  const tiles = collectAttackTiles(state, origin, spec, direction);
+  const tiles = collectAttackTiles(state, origin, spec, direction, opts?.elevationBonusTile);
   const { total, detail } = resolveAttackDamage(spec, damageRoll);
   const effects = spec.effects ?? [];
 
@@ -407,11 +496,12 @@ export function applyAttackToEnemies(
   }
 
   const targets = enemiesInTiles(state, tiles);
+  const damageOpts = { damageSpec: spec.damage };
   for (const target of targets) {
     const enemy = state.enemies.find((e) => e.id === target.enemyId);
     if (!enemy) continue;
-    applyDamageToEnemy(enemy, total, state);
-    applyEffectStacks(enemy, effects);
+    applyDamageToEnemy(enemy, total, state, { ...damageOpts, hitTile: { x: target.x, y: target.y } });
+    applyUnitEffectStacks(state,enemy, effects);
   }
   return { damage: total, detail, targets, effects };
 }
@@ -450,11 +540,12 @@ function applySethianWholeSwarmAttack(
   const targets: AttackTarget[] = [];
   const parts: string[] = [];
 
+  const damageOpts = { damageSpec: spec.damage };
   for (const [canonicalId, hitCount] of groupHits) {
     const damage = Math.min(total * hitCount, SETHIAN_DAMAGE_CAP);
     const enemy = state.enemies.find((e) => e.id === canonicalId)!;
-    applyDamageToEnemy(enemy, damage, state);
-    applyEffectStacks(enemy, effects);
+    applyDamageToEnemy(enemy, damage, state, { ...damageOpts, hitTile: { x: enemy.x, y: enemy.y } });
+    applyUnitEffectStacks(state,enemy, effects);
     targets.push({ enemyId: canonicalId, x: enemy.x, y: enemy.y });
     parts.push(`${detail}×${hitCount}=${damage}`);
   }
@@ -463,8 +554,8 @@ function applySethianWholeSwarmAttack(
   for (const target of enemiesInTiles(state, tiles)) {
     if (swarmCanonical.has(target.enemyId)) continue;
     const enemy = state.enemies.find((e) => e.id === target.enemyId)!;
-    applyDamageToEnemy(enemy, total, state);
-    applyEffectStacks(enemy, effects);
+    applyDamageToEnemy(enemy, total, state, { ...damageOpts, hitTile: { x: target.x, y: target.y } });
+    applyUnitEffectStacks(state,enemy, effects);
     targets.push(target);
   }
 
@@ -499,8 +590,8 @@ export function applyRangeAttackToEnemies(
         );
         targets.push(...broken);
       } else {
-        applyDamageToEnemy(enemy, total, state);
-        applyEffectStacks(enemy, effects);
+        applyDamageToEnemy(enemy, total, state, { damageSpec: spec.damage, hitTile: { x: enemy.x, y: enemy.y } });
+        applyUnitEffectStacks(state,enemy, effects);
         targets.push({ enemyId: enemy.id, x: enemy.x, y: enemy.y });
       }
     }
@@ -518,10 +609,11 @@ export function applyRangeAttackToEnemies(
   const { total, detail } = resolveAttackDamage(spec, damageRoll);
   const effects = spec.effects ?? [];
   const targets: AttackTarget[] = [];
+  const damageOpts = { damageSpec: spec.damage };
   for (const targetId of targetIds) {
     const enemy = state.enemies.find((e) => e.id === targetId)!;
-    applyDamageToEnemy(enemy, total, state);
-    applyEffectStacks(enemy, effects);
+    applyDamageToEnemy(enemy, total, state, { ...damageOpts, hitTile: { x: enemy.x, y: enemy.y } });
+    applyUnitEffectStacks(state,enemy, effects);
     targets.push({ enemyId: enemy.id, x: enemy.x, y: enemy.y });
   }
   return { damage: total, detail, targets, effects };
@@ -605,7 +697,7 @@ export function applySwarmEnemyAttackToPlayer(
     }
     const strikeDamage = baseDamage + remainingAdjacent;
     totalDamage += applyDamageToPlayer(target, strikeDamage, state, { recordDamage: false });
-    if (parsed.effects) applyEffectStacks(target, parsed.effects);
+    if (parsed.effects) applyUnitEffectStacks(state,target, parsed.effects);
   }
   if (state && totalDamage > 0) {
     if (!state.damageEvents) state.damageEvents = [];
@@ -883,15 +975,20 @@ export function applyOmnistrike(
       }
       const enemy = occ.enemyByKey.get(coordKey(tile.x, tile.y));
       if (enemy) {
-        if (total > 0) applyDamageToEnemy(enemy, total, state);
-        applyEffectStacks(enemy, effects);
+        if (total > 0) {
+          applyDamageToEnemy(enemy, total, state, {
+            damageSpec: bombSpec.damage,
+            hitTile: { x: tile.x, y: tile.y },
+          });
+        }
+        applyUnitEffectStacks(state,enemy, effects);
         if (!seenEnemies.has(enemy.id)) {
           seenEnemies.add(enemy.id);
           allTargets.push({ enemyId: enemy.id, x: tile.x, y: tile.y });
         }
       }
       const ally = occ.playerByKey.get(coordKey(tile.x, tile.y));
-      if (ally) applyEffectStacks(ally, effects);
+      if (ally) applyUnitEffectStacks(state,ally, effects);
     }
   }
 
@@ -1090,10 +1187,13 @@ export function applyWarhook(
         } else if (!payload.useBreaker && isSethianWeaponName(player.weapon) && group) {
           applySethianWholeSwarmAttack(state, spec, [{ x: enemy.x, y: enemy.y }], payload.damageRoll);
         } else {
-          applyDamageToEnemy(enemy, resolved.total, state);
+          applyDamageToEnemy(enemy, resolved.total, state, {
+            damageSpec: spec.damage,
+            hitTile: { x: enemy.x, y: enemy.y },
+          });
         }
       }
-      applyEffectStacks(enemy, ["Blazing:2"]);
+      applyUnitEffectStacks(state,enemy, ["Blazing:2"]);
       targets.push({ enemyId: enemy.id, x: enemy.x, y: enemy.y });
     }
   }

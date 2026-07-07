@@ -56,11 +56,13 @@ Before considering any implementation task done, **run these commands and fix fa
 npm run build
 npm run test
 npm run lint
+npm run test:e2e   # when changing combat UI or WS wiring
 ```
 
 - **`npm run build`** — mandatory. Shared type errors block client and server; client imports `@gaem/shared` from `dist/`.
 - **`npm run test`** — mandatory when tests exist for the code you touched. If you add or change shared game logic, add or update tests in `packages/shared` when the behavior is worth guarding (see Code style). Run the full root `npm run test` at minimum; re-run focused suites while iterating if helpful.
 - **`npm run lint`** — mandatory. Must report **0 errors** (warnings are pre-existing cleanup backlog; do not add new ones). The config (`eslint.config.mjs`, flat) is tuned to catch real defects, not formatting. Do not silence a rule to make a change pass — fix the code, or add a scoped `// eslint-disable-next-line <rule>` with a one-line justification only when the code is genuinely intentional. Type-aware rules on the backends need `@gaem/shared` built first (`npm run build`), since they resolve types from `dist/`.
+- **`npm run test:e2e`** — Playwright headless browser tests for combat UI wiring (`packages/e2e`). Requires `.env.e2e` (see `.env.e2e.example`); CI runs this after unit tests pass.
 
 Do not skip verification because a change "looks small" or "only touches the client." Export omissions, missing shared rebuilds, and broken imports often surface only at build time.
 
@@ -76,7 +78,7 @@ These rules exist because these mistakes have been made before:
 - **`@typescript-eslint/no-unused-vars`** — dead imports/vars (warning). Prefix intentionally-unused with `_`.
 - **Server ↔ cf-worker parity** is not lint-enforceable, so it is guarded by a test: `packages/shared/src/ws-parity.test.ts` reads both backends' WS dispatch source and fails if their inline message-type handlers diverge or if any `ClientMessage` type is left unhandled. When you add/rename a client message, update `types.ts`, the shared handler or both backends, and this test will confirm coverage. Shared game logic still belongs in `@gaem/shared` so a fix reaches both backends; keep `PatchBody`/validators complete on both sides.
 
-**CI:** `.github/workflows/verify.yml` runs `build → lint → test` on every PR and push to `main`. Deploys (`deploy-cloudflare.yml`) are separate — don't rely on deploy to catch regressions.
+**CI:** `.github/workflows/verify.yml` runs `build → lint → test → e2e` on every PR and push to `main`. Deploys (`deploy-cloudflare.yml`) are separate — don't rely on deploy to catch regressions.
 
 ## Architecture
 

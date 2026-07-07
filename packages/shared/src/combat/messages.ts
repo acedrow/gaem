@@ -47,6 +47,8 @@ import {
   applySwarmEnemyAttackToPlayer,
   applyWarhook,
   collectAttackTiles,
+  effectiveRangeLimit,
+  elevationBonusTileCandidates,
   enemiesInTiles,
   getWeaponAttackSpec,
   isDirectTargetEnemyAttack,
@@ -289,7 +291,8 @@ export function validatePlayerAction(
         for (const targetId of targetIds) {
           const enemy = state.enemies.find((e) => e.id === targetId);
           if (!enemy) return "Unknown target";
-          if (manhattanDistance(player, enemy) > rangeTargetDistance(spec)) return "Target out of range";
+          const limit = effectiveRangeLimit(state, player, rangeTargetDistance(spec), enemy);
+          if (manhattanDistance(player, enemy) > limit) return "Target out of range";
         }
       } else if (usesAnchoredPatternPlacement(spec)) {
         if (action.anchorX === undefined || action.anchorY === undefined) return "Select placement";
@@ -303,6 +306,12 @@ export function validatePlayerAction(
         if (placement.tooFar) return "outside maximum range";
         if (placement.tooCloseKeys.size > 0) return "inside minimum range";
         if (!placement.valid) return "Placement out of range";
+      } else if (action.elevationBonusTile) {
+        const attackOrigin = { x: player.x, y: player.y };
+        const baseTiles = collectAttackTiles(state, attackOrigin, spec, action.direction);
+        const candidates = elevationBonusTileCandidates(state, attackOrigin, baseTiles);
+        const key = `${action.elevationBonusTile.x},${action.elevationBonusTile.y}`;
+        if (!candidates.some((c) => `${c.x},${c.y}` === key)) return "Invalid elevation bonus tile";
       }
       return null;
     }
@@ -501,7 +510,7 @@ export function applyPlayerAction(
             { x: player.x, y: player.y },
             action.direction,
             action.damageRoll,
-            { useBreaker: action.useBreaker, weaponName },
+            { useBreaker: action.useBreaker, weaponName, elevationBonusTile: action.elevationBonusTile },
           );
         }
       } else {
@@ -516,7 +525,7 @@ export function applyPlayerAction(
           attackOrigin,
           direction,
           action.damageRoll,
-          { useBreaker: action.useBreaker, weaponName },
+          { useBreaker: action.useBreaker, weaponName, elevationBonusTile: action.elevationBonusTile },
         );
       }
       const hitEnemies = result.targets

@@ -92,7 +92,7 @@ export function addTestEnemy(
   id: string,
   x: number,
   y: number,
-  opts: { name?: string; scale?: number; hp?: number } = {},
+  opts: { name?: string; scale?: number; hp?: number; effects?: Enemy["effects"] } = {},
 ): Enemy {
   const enemy: Enemy = {
     id,
@@ -101,6 +101,7 @@ export function addTestEnemy(
     ...(opts.name !== undefined ? { name: opts.name } : {}),
     ...(opts.scale !== undefined ? { scale: opts.scale } : {}),
     ...(opts.hp !== undefined ? { hp: opts.hp } : {}),
+    ...(opts.effects !== undefined ? { effects: opts.effects } : {}),
   };
   state.enemies.push(enemy);
   return enemy;

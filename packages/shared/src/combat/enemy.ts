@@ -1,6 +1,7 @@
 import type { GameState } from "../types.js";
 import { getEnemyListingByName, refreshEnemyMovement } from "../enemy-data.js";
 import { reconcileSwarmMovement } from "./swarm.js";
+import { tickUnitStartOfTurn } from "./effects.js";
 
 export function bossActionsForEncounter(
   actionsStat: string | undefined,
@@ -53,5 +54,10 @@ export function unexhaustedEnemies(state: GameState) {
 
 export function setActiveEnemy(state: GameState, enemyId: string | null): void {
   if (!state.combat) return;
+  const prev = state.combat.activeEnemyId;
   state.combat.activeEnemyId = enemyId;
+  if (enemyId && enemyId !== prev) {
+    const enemy = state.enemies.find((e) => e.id === enemyId);
+    if (enemy) tickUnitStartOfTurn(state, enemy, "enemy");
+  }
 }
