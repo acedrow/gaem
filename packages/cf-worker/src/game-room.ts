@@ -1,7 +1,6 @@
 import type { ClientMessage, ConsoleActor, ConsoleLogEntry, GaemRole, GameState, ServerMessage } from "@gaem/shared";
 import {
   addEnemy,
-  addPlayer,
   applyEnemyMove,
   applyMove,
   applyPhaseAction,
@@ -19,8 +18,8 @@ import {
   normalizeGameState,
   removeEnemy,
   removePlayer,
-  resolvePlayerForJoin,
   setPlayerHp,
+  spawnPlayerFromSheet,
   syncCharacterSheetWeaponsFromPlayer,
   syncPlayerSheet,
   validateEnemyMove,
@@ -36,7 +35,11 @@ import { getCharacterSheet, listCharacterSheets, saveCharacterSheet } from "./ch
 import { getMap } from "./maps.js";
 import { getPlayerProfile, savePlayerProfile } from "./player-profiles.js";
 
-type Attachment = { playerId: string | null; playerKey: string | null; role: GaemRole | null };
+type Attachment = {
+  characterSheetId: string | null;
+  playerKey: string | null;
+  role: GaemRole | null;
+};
 
 const GAME_STATE_KEY = "gameState";
 
@@ -117,8 +120,14 @@ export class GameRoom {
         this.gameState = normalizeGameState(createInitialStateFromMap(map), map);
         await this.ctx.storage.put(GAME_STATE_KEY, this.gameState);
       }
-      this.reconcilePlayersFromSockets();
     });
+  }
+
+  /** The board token controlled by a socket, derived from its bound character sheet. */
+  private playerIdForAtt(att: Attachment | null): string | null {
+    const sheetId = att?.characterSheetId;
+    if (!sheetId) return null;
+    return this.gameState.players.find((p) => p.characterSheetId === sheetId)?.id ?? null;
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -136,6 +145,15 @@ export class GameRoom {
       const onBoard = !!sheetId && this.gameState.players.some((p) => p.characterSheetId === sheetId);
       return Response.json({ onBoard });
     }
+    if (url.pathname === "/internal/remove-sheet-token" && request.method === "POST") {
+      const body = (await request.json()) as { sheetId: string };
+      const token = this.gameState.players.find((p) => p.characterSheetId === body.sheetId);
+      if (token) {
+        removePlayer(this.gameState, token.id);
+        await this.broadcastState();
+      }
+      return new Response(null, { status: 204 });
+    }
     if (url.pathname === "/internal/campaign-unlocks") {
       return Response.json({
         constructedBaseUpgrades: this.gameState.constructedBaseUpgrades ?? [],
@@ -151,7 +169,7 @@ export class GameRoom {
 
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment({
-      playerId: null,
+      characterSheetId: null,
       playerKey: null,
       role: null,
     } satisfies Attachment);
@@ -188,15 +206,11 @@ export class GameRoom {
         return;
       }
       const role = verified.role;
-      const currentId = att?.playerId ?? null;
       const currentKey = att?.playerKey ?? null;
 
       if (role === "gm") {
-        if (currentId) {
-          removePlayer(this.gameState, currentId);
-        }
         ws.serializeAttachment({
-          playerId: null,
+          characterSheetId: null,
           playerKey: null,
           role: "gm",
         } satisfies Attachment);
@@ -210,42 +224,16 @@ export class GameRoom {
         this.sendError(ws, "That player profile is already in use");
         return;
       }
-      const profile = await getPlayerProfile(this.env, playerKey);
-      const nickname = parsed.nickname ?? profile?.name;
       const sheetJoin = await resolveSheetForJoin(
         this.env,
         playerKey,
         parsed.characterSheetId
       );
-      const resolved = resolvePlayerForJoin(this.gameState, {
+      ws.serializeAttachment({
+        characterSheetId: sheetJoin.characterSheetId ?? null,
         playerKey,
-        nickname,
-        preferredId: currentId,
-        newId: crypto.randomUUID(),
-        className: sheetJoin.className,
-        characterSheetId: sheetJoin.characterSheetId,
-        armor: sheetJoin.armor,
-        weapon: sheetJoin.weapon,
-        equipment: sheetJoin.equipment,
-        gear: sheetJoin.gear,
-        weapon2: sheetJoin.weapon2,
-        yadathanTower: sheetJoin.yadathanTower,
-      });
-      if ("error" in resolved) {
-        this.sendError(ws, "Board full");
-        return;
-      }
-      const playerId = resolved.playerId;
-
-      const p = this.gameState.players.find((pl) => pl.id === playerId);
-      ws.serializeAttachment({ playerId, playerKey, role: "player" } satisfies Attachment);
-      if (profile && p?.nickname && p.nickname !== profile.name) {
-        await savePlayerProfile(this.env, {
-          ...profile,
-          name: p.nickname,
-          updatedAt: new Date().toISOString(),
-        });
-      }
+        role: "player",
+      } satisfies Attachment);
       await this.broadcastConsole(await this.actorForSocket(ws), CONSOLE_MSG_CONNECTED);
       await this.broadcastState();
       return;
@@ -314,7 +302,7 @@ export class GameRoom {
     }
 
     if (parsed.type === "setPlayerHp") {
-      if (!canSetPlayerHp(att?.role, att?.playerId, parsed.playerId)) {
+      if (!canSetPlayerHp(att?.role, this.playerIdForAtt(att), parsed.playerId)) {
         this.sendError(ws, "Forbidden");
         return;
       }
@@ -397,6 +385,63 @@ export class GameRoom {
       return;
     }
 
+    if (parsed.type === "spawnPlayerToken") {
+      const sheet = await getCharacterSheet(this.env, parsed.characterSheetId);
+      if (!sheet) {
+        this.sendError(ws, "Unknown character sheet");
+        return;
+      }
+      if (att?.role !== "gm" && !(att?.role === "player" && !!att?.playerKey && sheet.player === att.playerKey)) {
+        this.sendError(ws, "Forbidden");
+        return;
+      }
+      const profile = await getPlayerProfile(this.env, sheet.player);
+      const result = spawnPlayerFromSheet(this.gameState, {
+        id: crypto.randomUUID(),
+        characterSheetId: sheet.id,
+        playerKey: sheet.player,
+        nickname: profile?.name,
+        className: sheet.class,
+        armor: sheet.armor,
+        weapon: sheet.weapon,
+        equipment: sheet.equipment,
+        gear: sheet.gear,
+        gearArmor: sheet.gearArmor,
+        weapon2: sheet.weapon2,
+        yadathanTower: sheet.yadathanTower,
+      });
+      if ("error" in result) {
+        this.sendError(ws, result.error === "board_full" ? "Board full" : "Token already on board");
+        return;
+      }
+      const actor = await this.actorForSocket(ws);
+      await this.broadcastConsole(actor, `spawned ${sheet.name || "token"}`);
+      await this.broadcastState();
+      return;
+    }
+
+    if (parsed.type === "removePlayerToken") {
+      const token = this.gameState.players.find((p) => p.id === parsed.playerId);
+      if (!token) {
+        this.sendError(ws, "Unknown token");
+        return;
+      }
+      const sheet = token.characterSheetId
+        ? await getCharacterSheet(this.env, token.characterSheetId)
+        : null;
+      const isOwner = att?.role === "player" && !!att?.playerKey && sheet?.player === att.playerKey;
+      if (att?.role !== "gm" && !isOwner) {
+        this.sendError(ws, "Forbidden");
+        return;
+      }
+      const label = await this.targetLabelForPlayer(parsed.playerId);
+      removePlayer(this.gameState, parsed.playerId);
+      const actor = await this.actorForSocket(ws);
+      await this.broadcastConsole(actor, `removed ${label}`);
+      await this.broadcastState();
+      return;
+    }
+
     if (parsed.type === "setSandboxMode") {
       if (att?.role !== "gm") {
         this.sendError(ws, "Only the game master can do that");
@@ -409,7 +454,7 @@ export class GameRoom {
       return;
     }
 
-    const combatCtx = { role: att?.role ?? "player", playerId: att?.playerId ?? null };
+    const combatCtx = { role: att?.role ?? "player", playerId: this.playerIdForAtt(att) };
     const combatResult = handleCombatMessage(this.gameState, parsed, combatCtx);
     if (combatResult.handled) {
       if ("error" in combatResult) {
@@ -430,7 +475,7 @@ export class GameRoom {
         this.sendError(ws, "Not joined");
         return;
       }
-      const ctx = { role: att.role, playerId: att.playerId };
+      const ctx = { role: att.role, playerId: this.playerIdForAtt(att) };
       const err = validatePhaseAction(this.gameState, parsed.action, ctx);
       if (err) {
         this.sendError(ws, err);
@@ -461,7 +506,7 @@ export class GameRoom {
     }
 
     if (parsed.type === "move") {
-      const id = att?.playerId;
+      const id = this.playerIdForAtt(att);
       if (!id) {
         this.sendError(ws, "Only players can move");
         return;
@@ -516,7 +561,7 @@ export class GameRoom {
     if (att?.role) {
       await this.broadcastConsole(await this.actorForSocket(ws), CONSOLE_MSG_DISCONNECTED);
     }
-    const playerId = att?.playerId;
+    const playerId = this.playerIdForAtt(att);
     const playerKey = att?.playerKey;
     if (playerKey) {
       const player = playerId
@@ -536,7 +581,7 @@ export class GameRoom {
       }
     }
     ws.serializeAttachment({
-      playerId: null,
+      characterSheetId: att?.characterSheetId ?? null,
       playerKey: att?.playerKey ?? null,
       role: att?.role ?? null,
     } satisfies Attachment);
@@ -554,8 +599,9 @@ export class GameRoom {
       const profile = await getPlayerProfile(this.env, att.playerKey);
       if (profile?.name) return { name: profile.name, role: "player" };
     }
-    const player = att?.playerId
-      ? this.gameState.players.find((p) => p.id === att.playerId)
+    const playerId = this.playerIdForAtt(att);
+    const player = playerId
+      ? this.gameState.players.find((p) => p.id === playerId)
       : undefined;
     return { name: player?.nickname ?? "Player", role: "player" };
   }
@@ -606,7 +652,7 @@ export class GameRoom {
     const snapshot = structuredClone(this.gameState);
     for (const socket of this.ctx.getWebSockets()) {
       const att = socket.deserializeAttachment() as Attachment | null;
-      const yourId = att?.playerId ?? null;
+      const yourId = this.playerIdForAtt(att);
       const msg: ServerMessage = {
         type: "state",
         state: snapshot,
@@ -622,27 +668,18 @@ export class GameRoom {
     const ids = new Set<string>();
     for (const socket of this.ctx.getWebSockets()) {
       const att = socket.deserializeAttachment() as Attachment | null;
-      if (att?.playerId && att.playerKey) {
+      if (att?.role === "player" && att.playerKey) {
         ids.add(att.playerKey);
       }
     }
     return [...ids];
   }
 
-  private reconcilePlayersFromSockets(): void {
-    for (const socket of this.ctx.getWebSockets()) {
-      const att = socket.deserializeAttachment() as Attachment | null;
-      if (!att?.playerId) continue;
-      if (this.gameState.players.some((p) => p.id === att.playerId)) continue;
-      addPlayer(this.gameState, { id: att.playerId, x: 0, y: 0 });
-    }
-  }
-
   private profileInUseByAnotherSocket(profileId: string, socket: WebSocket): boolean {
     for (const s of this.ctx.getWebSockets()) {
       if (s === socket) continue;
       const att = s.deserializeAttachment() as Attachment | null;
-      if (att?.playerId && att.playerKey === profileId) return true;
+      if (att?.role === "player" && att.playerKey === profileId) return true;
     }
     return false;
   }

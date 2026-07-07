@@ -36,8 +36,8 @@ import {
   parseGameMap,
   removeEnemy,
   removePlayer,
-  resolvePlayerForJoin,
   setPlayerHp,
+  spawnPlayerFromSheet,
   syncCharacterSheetWeaponsFromPlayer,
   syncPlayerSheet,
   validateEnemyMove,
@@ -163,7 +163,7 @@ app.post("/api/random-integers", (req, res) => {
 app.get("/api/player-profiles", (_req, res) => {
   const active = new Set(
     [...socketProfile.entries()]
-      .filter(([ws, profileId]) => !!profileId && !!socketPlayer.get(ws))
+      .filter(([ws, profileId]) => !!profileId && socketRole.get(ws) === "player")
       .map(([, profileId]) => profileId as string)
   );
   listProfilesHandler(res, active);
@@ -283,7 +283,13 @@ app.patch("/api/character-sheets/:id", (req, res) => {
 app.delete("/api/character-sheets/:id", (req, res) => {
   const auth = parseAuth(req, res);
   if (!auth) return;
-  deleteSheetHandler(auth, req.params.id, res);
+  deleteSheetHandler(auth, req.params.id, res, (sheetId) => {
+    const token = gameState.players.find((p) => p.characterSheetId === sheetId);
+    if (token) {
+      removePlayer(gameState, token.id);
+      broadcastState();
+    }
+  });
 });
 
 app.put("/api/character-sheets/:id/portrait", portraitParser, (req, res) => {
@@ -308,12 +314,19 @@ const wss = new WebSocketServer({ noServer: true });
 
 let gameState: GameState;
 
-/** socket -> playerId when joined as player, else null for GM */
-const socketPlayer = new Map<WebSocket, string | null>();
+/** socket -> selected characterSheetId when joined as player, else null */
+const socketSheet = new Map<WebSocket, string | null>();
 /** socket -> player profile id when joined as player */
 const socketProfile = new Map<WebSocket, string | null>();
 /** socket -> role after join */
 const socketRole = new Map<WebSocket, GaemRole | null>();
+
+/** The board token controlled by a socket, derived from its bound character sheet. */
+function playerIdForSocket(ws: WebSocket): string | null {
+  const sheetId = socketSheet.get(ws);
+  if (!sheetId) return null;
+  return gameState.players.find((p) => p.characterSheetId === sheetId)?.id ?? null;
+}
 
 function cloneState() {
   return structuredClone(gameState);
@@ -323,7 +336,7 @@ function broadcastState(): void {
   const snapshot = cloneState();
   for (const ws of wss.clients) {
     if (ws.readyState !== ws.OPEN) continue;
-    const yourId = socketPlayer.get(ws) ?? null;
+    const yourId = playerIdForSocket(ws);
     const msg: ServerMessage = {
       type: "state",
       state: snapshot,
@@ -346,7 +359,7 @@ function actorForSocket(ws: WebSocket): ConsoleActor {
   if (role === "gm") return { name: "GM", role: "gm" };
   const profileId = socketProfile.get(ws);
   const profile = profileId ? playerProfiles.get(profileId) : undefined;
-  const playerId = socketPlayer.get(ws);
+  const playerId = playerIdForSocket(ws);
   const player = playerId
     ? gameState.players.find((p) => p.id === playerId)
     : undefined;
@@ -404,7 +417,7 @@ httpServer.on("upgrade", (request, socket, head) => {
 });
 
 wss.on("connection", (ws: WebSocket) => {
-  socketPlayer.set(ws, null);
+  socketSheet.set(ws, null);
   socketProfile.set(ws, null);
   socketRole.set(ws, null);
   sendConsoleSync(ws);
@@ -428,14 +441,10 @@ wss.on("connection", (ws: WebSocket) => {
         return;
       }
       const role = verified.role;
-      const currentId = socketPlayer.get(ws) ?? null;
       const currentProfileId = socketProfile.get(ws) ?? null;
 
       if (role === "gm") {
-        if (currentId) {
-          removePlayer(gameState, currentId);
-        }
-        socketPlayer.set(ws, null);
+        socketSheet.set(ws, null);
         socketProfile.set(ws, null);
         socketRole.set(ws, "gm");
         broadcastConsole(actorForSocket(ws), CONSOLE_MSG_CONNECTED);
@@ -449,38 +458,14 @@ wss.on("connection", (ws: WebSocket) => {
         ([otherWs, otherProfileId]) =>
           otherWs !== ws &&
           otherProfileId === playerKey &&
-          !!socketPlayer.get(otherWs)
+          socketRole.get(otherWs) === "player"
       );
       if (profileInUse) {
         sendError(ws, "That player profile is already in use");
         return;
       }
 
-      const profile = playerProfiles.get(playerKey);
-      const nickname = parsed.nickname ?? profile?.name;
-      const sheetJoin = resolveSheetForJoin(
-        playerKey,
-        parsed.characterSheetId
-      );
-      const resolved = resolvePlayerForJoin(gameState, {
-        playerKey,
-        nickname,
-        preferredId: currentId,
-        newId: randomUUID(),
-        className: sheetJoin.className,
-        characterSheetId: sheetJoin.characterSheetId,
-        armor: sheetJoin.armor,
-        weapon: sheetJoin.weapon,
-        equipment: sheetJoin.equipment,
-        gear: sheetJoin.gear,
-        weapon2: sheetJoin.weapon2,
-        yadathanTower: sheetJoin.yadathanTower,
-      });
-      if ("error" in resolved) {
-        sendError(ws, "Board full");
-        return;
-      }
-      socketPlayer.set(ws, resolved.playerId);
+      socketSheet.set(ws, resolveSheetForJoin(playerKey, parsed.characterSheetId).characterSheetId ?? null);
       socketProfile.set(ws, playerKey);
       socketRole.set(ws, "player");
       broadcastConsole(actorForSocket(ws), CONSOLE_MSG_CONNECTED);
@@ -550,7 +535,7 @@ wss.on("connection", (ws: WebSocket) => {
 
     if (parsed.type === "setPlayerHp") {
       const role = socketRole.get(ws);
-      const playerId = socketPlayer.get(ws);
+      const playerId = playerIdForSocket(ws);
       if (!canSetPlayerHp(role, playerId, parsed.playerId)) {
         sendError(ws, "Forbidden");
         return;
@@ -633,6 +618,62 @@ wss.on("connection", (ws: WebSocket) => {
       return;
     }
 
+    if (parsed.type === "spawnPlayerToken") {
+      const role = socketRole.get(ws);
+      const playerKey = socketProfile.get(ws);
+      const sheet = characterSheets.get(parsed.characterSheetId);
+      if (!sheet) {
+        sendError(ws, "Unknown character sheet");
+        return;
+      }
+      if (role !== "gm" && !(role === "player" && !!playerKey && sheet.player === playerKey)) {
+        sendError(ws, "Forbidden");
+        return;
+      }
+      const result = spawnPlayerFromSheet(gameState, {
+        id: randomUUID(),
+        characterSheetId: sheet.id,
+        playerKey: sheet.player,
+        nickname: playerProfiles.get(sheet.player)?.name,
+        className: sheet.class,
+        armor: sheet.armor,
+        weapon: sheet.weapon,
+        equipment: sheet.equipment,
+        gear: sheet.gear,
+        gearArmor: sheet.gearArmor,
+        weapon2: sheet.weapon2,
+        yadathanTower: sheet.yadathanTower,
+      });
+      if ("error" in result) {
+        sendError(ws, result.error === "board_full" ? "Board full" : "Token already on board");
+        return;
+      }
+      broadcastConsole(actorForSocket(ws), `spawned ${sheet.name || "token"}`);
+      broadcastState();
+      return;
+    }
+
+    if (parsed.type === "removePlayerToken") {
+      const token = gameState.players.find((p) => p.id === parsed.playerId);
+      if (!token) {
+        sendError(ws, "Unknown token");
+        return;
+      }
+      const role = socketRole.get(ws);
+      const playerKey = socketProfile.get(ws);
+      const sheet = token.characterSheetId ? characterSheets.get(token.characterSheetId) : undefined;
+      const isOwner = role === "player" && !!playerKey && sheet?.player === playerKey;
+      if (role !== "gm" && !isOwner) {
+        sendError(ws, "Forbidden");
+        return;
+      }
+      const label = targetLabelForPlayer(parsed.playerId);
+      removePlayer(gameState, parsed.playerId);
+      broadcastConsole(actorForSocket(ws), `removed ${label}`);
+      broadcastState();
+      return;
+    }
+
     if (parsed.type === "setSandboxMode") {
       if (socketRole.get(ws) !== "gm") {
         sendError(ws, "Only the game master can do that");
@@ -644,7 +685,7 @@ wss.on("connection", (ws: WebSocket) => {
       return;
     }
 
-    const combatCtx = { role: role ?? "player", playerId: socketPlayer.get(ws) ?? null };
+    const combatCtx = { role: role ?? "player", playerId: playerIdForSocket(ws) };
 
     const combatResult = handleCombatMessage(gameState, parsed, combatCtx);
     if (combatResult.handled) {
@@ -665,7 +706,7 @@ wss.on("connection", (ws: WebSocket) => {
         sendError(ws, "Not joined");
         return;
       }
-      const ctx = { role, playerId: socketPlayer.get(ws) ?? null };
+      const ctx = { role, playerId: playerIdForSocket(ws) };
       const err = validatePhaseAction(gameState, parsed.action, ctx);
       if (err) {
         sendError(ws, err);
@@ -694,7 +735,7 @@ wss.on("connection", (ws: WebSocket) => {
     }
 
     if (parsed.type === "move") {
-      const id = socketPlayer.get(ws);
+      const id = playerIdForSocket(ws);
       if (!id) {
         sendError(ws, "Only players can move");
         return;
@@ -732,7 +773,7 @@ wss.on("connection", (ws: WebSocket) => {
     if (socketRole.get(ws)) {
       broadcastConsole(actor, CONSOLE_MSG_DISCONNECTED);
     }
-    socketPlayer.delete(ws);
+    socketSheet.delete(ws);
     socketProfile.delete(ws);
     socketRole.delete(ws);
   });

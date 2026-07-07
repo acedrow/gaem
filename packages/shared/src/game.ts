@@ -898,6 +898,77 @@ export function removePlayer(state: GameState, playerId: string): void {
   state.players = state.players.filter((p) => p.id !== playerId);
 }
 
+export function spawnPlayerFromSheet(
+  state: GameState,
+  opts: {
+    id: string;
+    characterSheetId: string;
+    playerKey?: string;
+    nickname?: string;
+    className?: string;
+    armor?: string;
+    weapon?: string;
+    equipment?: string;
+    gear?: string;
+    gearArmor?: string;
+    weapon2?: string;
+    yadathanTower?: string;
+  },
+): { playerId: string } | { error: "board_full" } | { error: "already_on_board" } {
+  const {
+    id,
+    characterSheetId,
+    playerKey,
+    nickname,
+    className,
+    armor,
+    weapon,
+    equipment,
+    gear,
+    gearArmor,
+    weapon2,
+    yadathanTower,
+  } = opts;
+  const existing = state.players.find((p) => p.characterSheetId === characterSheetId);
+  if (existing) return { error: "already_on_board" };
+  const joined = addPlayer(
+    state,
+    {
+      id,
+      x: 0,
+      y: 0,
+      playerKey,
+      nickname,
+      characterSheetId,
+      class: className,
+      armor,
+      weapon,
+      equipment,
+      gear,
+      gearArmor,
+      weapon2,
+      hp: getClassMaxHp(className),
+    },
+    { className, armor, weapon },
+  );
+  if (!joined) return { error: "board_full" };
+  const entry = state.players.find((p) => p.id === id);
+  if (entry && className && armor && weapon) {
+    applyLoadoutToPlayer(entry, {
+      className,
+      armor,
+      weapon,
+      equipment,
+      gear,
+      gearArmor,
+      weapon2,
+      yadathanTower,
+    });
+  }
+  state.actedPlayerIds.push(id);
+  return { playerId: id };
+}
+
 function playerMatchesProfile(
   player: Player,
   playerKey: string,

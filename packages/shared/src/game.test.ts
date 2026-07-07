@@ -11,6 +11,7 @@ import {
   isTileOccupied,
   removeEnemy,
   setPlayerHp,
+  spawnPlayerFromSheet,
   validateAddEnemy,
   validateEnemyMove,
   validateMove,
@@ -90,6 +91,20 @@ describe("game", () => {
       expect(state.players[0]!.x).toBe(1);
       expect(state.players[0]!.y).toBe(1);
       expect(findSpawn(state)).toEqual({ x: 2, y: 1 });
+    });
+  });
+
+  describe("spawnPlayerFromSheet", () => {
+    it("spawns a token for a sheet once and refuses a duplicate", () => {
+      const state = makeGameState();
+      const first = spawnPlayerFromSheet(state, { id: "t1", characterSheetId: "sheet-1" });
+      expect(first).toEqual({ playerId: "t1" });
+      expect(state.players).toHaveLength(1);
+      expect(state.players[0]!.characterSheetId).toBe("sheet-1");
+
+      const second = spawnPlayerFromSheet(state, { id: "t2", characterSheetId: "sheet-1" });
+      expect(second).toEqual({ error: "already_on_board" });
+      expect(state.players).toHaveLength(1);
     });
   });
 

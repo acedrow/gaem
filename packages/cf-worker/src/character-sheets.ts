@@ -357,6 +357,14 @@ export async function handleDeleteCharacterSheet(
 
   await deletePortrait(env, sheet.portraitKey);
   await deleteCharacterSheet(env, id);
+
+  const roomId = env.GAME_ROOM.idFromName("default");
+  const stub = env.GAME_ROOM.get(roomId);
+  await stub.fetch("http://internal/internal/remove-sheet-token", {
+    method: "POST",
+    body: JSON.stringify({ sheetId: id }),
+  });
+
   return Response.json({ ok: true });
 }
 

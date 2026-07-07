@@ -267,4 +267,6 @@ export type ClientMessage =
   | { type: "removeAttractor"; x: number; y: number }
   | { type: "phaseAction"; action: PhaseAction }
   | { type: "setSandboxMode"; sandboxMode: boolean }
-  | { type: "baseCampaignAction"; action: BaseCampaignAction };
+  | { type: "baseCampaignAction"; action: BaseCampaignAction }
+  | { type: "spawnPlayerToken"; characterSheetId: string }
+  | { type: "removePlayerToken"; playerId: string };

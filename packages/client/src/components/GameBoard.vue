@@ -3445,6 +3445,7 @@ function buildContextMenuItems(x: number, y: number): BoardContextMenuItem[] {
     if (bulk.ids.some((id) => hasEffectStacks(s?.players.find((p) => p.id === id)))) {
       items.push({ id: "clear-effects", label: `Clear effects${countLabel(n)}`, danger: true });
     }
+    items.push({ id: "remove-player", label: `Remove token${countLabel(n)}`, danger: true });
     return items;
   }
 
@@ -3477,6 +3478,9 @@ function buildContextMenuItems(x: number, y: number): BoardContextMenuItem[] {
   }
   if (props.role === "gm" && enemy) {
     items.push({ id: "remove-enemy", label: "Remove enemy", danger: true });
+  }
+  if (player && (props.role === "gm" || player.id === yourPlayerId.value)) {
+    items.push({ id: "remove-player", label: "Remove token", danger: true });
   }
   if (canRemoveAttractor) {
     items.push({ id: "remove-attractor", label: "Remove attractors", danger: true });
@@ -3647,6 +3651,16 @@ function onContextMenuSelect(id: string) {
     if (contextMenu.value.enemyId) {
       removeEnemyById(contextMenu.value.enemyId);
     }
+    closeContextMenu();
+    return;
+  }
+  if (id === "remove-player") {
+    if (useBulk && bulk.kind === "players") {
+      for (const targetId of bulk.ids) send({ type: "removePlayerToken", playerId: targetId });
+    } else if (contextMenu.value.playerId) {
+      send({ type: "removePlayerToken", playerId: contextMenu.value.playerId });
+    }
+    clearBoardSelection();
     closeContextMenu();
     return;
   }

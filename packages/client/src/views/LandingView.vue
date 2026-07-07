@@ -13,16 +13,11 @@ const router = useRouter();
 const { startSession, token } = useSession();
 const { apiFetch } = useApi();
 
-const gmPassword = ref("");
-const gmLoading = ref(false);
-const gmError = ref<string | null>(null);
+const password = ref("");
+const joinLoading = ref<GaemRole | null>(null);
+const joinError = ref<string | null>(null);
 
 const showProfileModal = ref(false);
-const playerStep = ref<"password" | "profile">("password");
-const playerPassword = ref("");
-const authLoading = ref(false);
-const authError = ref<string | null>(null);
-
 const profiles = ref<PlayerProfileOption[]>([]);
 const selectedProfileId = ref<string | null>(null);
 const newProfileName = ref("");
@@ -35,11 +30,11 @@ const selectedProfile = computed(() => {
   return profiles.value.find((p) => p.id === selectedProfileId.value) ?? null;
 });
 
-async function login(role: GaemRole, password: string): Promise<string | null> {
+async function login(role: GaemRole, loginPassword: string): Promise<string | null> {
   const res = await apiFetch("/api/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ role, password }),
+    body: JSON.stringify({ role, password: loginPassword }),
   });
   if (!res.ok) return null;
   const data = (await res.json()) as { token: string };
@@ -66,46 +61,39 @@ async function loadProfiles() {
 }
 
 async function joinAsGm() {
-  const password = gmPassword.value;
-  if (!password) return;
-  gmLoading.value = true;
-  gmError.value = null;
+  const loginPassword = password.value;
+  if (!loginPassword) return;
+  joinLoading.value = "gm";
+  joinError.value = null;
   try {
-    const authToken = await login("gm", password);
+    const authToken = await login("gm", loginPassword);
     if (!authToken) {
-      gmError.value = "Incorrect password";
+      joinError.value = "Incorrect password";
       return;
     }
     startSession("gm", null, authToken);
     router.push("/game");
   } finally {
-    gmLoading.value = false;
+    joinLoading.value = null;
   }
 }
 
-function openPlayerModal() {
-  showProfileModal.value = true;
-  playerPassword.value = "";
-  authError.value = null;
-  playerStep.value = "password";
-}
-
-async function submitPlayerPassword() {
-  const password = playerPassword.value;
-  if (!password) return;
-  authLoading.value = true;
-  authError.value = null;
+async function joinAsPlayer() {
+  const loginPassword = password.value;
+  if (!loginPassword) return;
+  joinLoading.value = "player";
+  joinError.value = null;
   try {
-    const authToken = await login("player", password);
+    const authToken = await login("player", loginPassword);
     if (!authToken) {
-      authError.value = "Incorrect password";
+      joinError.value = "Incorrect password";
       return;
     }
     startSession("player", null, authToken);
-    playerStep.value = "profile";
+    showProfileModal.value = true;
     await loadProfiles();
   } finally {
-    authLoading.value = false;
+    joinLoading.value = null;
   }
 }
 
@@ -139,128 +127,189 @@ function joinAsSelectedPlayer() {
   startSession("player", selectedProfile.value, token.value);
   router.push("/game");
 }
-
-function onModalConfirm() {
-  if (playerStep.value === "password") {
-    void submitPlayerPassword();
-  } else {
-    joinAsSelectedPlayer();
-  }
-}
 </script>
 
 <template>
   <div class="landing">
-    <p class="subtitle">Choose how you want to join the game.</p>
-    <div class="actions">
-      <form class="gm-form" @submit.prevent="joinAsGm">
-        <input
-          v-model="gmPassword"
-          class="name-input"
-          type="password"
-          placeholder="GM password"
-          autocomplete="current-password"
-          :disabled="gmLoading"
-        />
-        <button class="cta" type="submit" :disabled="gmLoading || !gmPassword">
-          {{ gmLoading ? "Joining..." : "Join game as GM" }}
+    <div class="landing-card">
+      <h1 class="title">
+        <span class="title-prefix">welcome to </span>
+        <span class="hell" aria-label="hell">
+          <span class="hell-letter">h</span>
+          <span class="hell-letter">e</span>
+          <span class="hell-letter">l</span>
+          <span class="hell-letter">l</span>
+        </span>
+      </h1>
+
+      <input
+        v-model="password"
+        class="name-input"
+        type="password"
+        placeholder="Password"
+        autocomplete="current-password"
+        :disabled="joinLoading !== null"
+        @keydown.enter.prevent="joinAsPlayer"
+      />
+
+      <div class="role-actions">
+        <button
+          class="cta"
+          :disabled="joinLoading !== null || !password"
+          @click="joinAsPlayer"
+        >
+          {{ joinLoading === "player" ? "Joining..." : "Join as Player" }}
         </button>
-        <p v-if="gmError" class="error">{{ gmError }}</p>
-      </form>
-      <button class="cta" @click="openPlayerModal">Join game as player</button>
+        <button
+          class="cta"
+          :disabled="joinLoading !== null || !password"
+          @click="joinAsGm"
+        >
+          {{ joinLoading === "gm" ? "Joining..." : "Join as GM" }}
+        </button>
+      </div>
+      <p v-if="joinError" class="error">{{ joinError }}</p>
     </div>
   </div>
 
   <ModalDialog
     :open="showProfileModal"
-    :title="playerStep === 'password' ? 'Enter player password' : 'Select player profile'"
+    title="Select player profile"
     wide
-    :ok-label="playerStep === 'password' ? 'Continue' : 'Join game as player'"
-    :ok-disabled="
-      playerStep === 'password'
-        ? authLoading || !playerPassword
-        : loadingProfiles || !selectedProfile || !!selectedProfile?.isActive
-    "
+    ok-label="Join game as player"
+    :ok-disabled="loadingProfiles || !selectedProfile || !!selectedProfile?.isActive"
     @close="showProfileModal = false"
-    @confirm="onModalConfirm"
+    @confirm="joinAsSelectedPlayer"
   >
-    <template v-if="playerStep === 'password'">
-      <p class="subtitle">Enter the shared player password to continue.</p>
+    <p class="subtitle">Choose an existing profile or create a new one.</p>
+
+    <p v-if="loadingProfiles" class="loading-row">
+      <span class="spinner" aria-hidden="true" />
+      <span class="muted">Loading profiles…</span>
+    </p>
+    <p v-else-if="profiles.length === 0" class="muted">No profiles yet.</p>
+
+    <div v-if="profiles.length > 0" class="profile-list">
+      <button
+        v-for="p in profiles"
+        :key="p.id"
+        type="button"
+        class="profile-item"
+        :disabled="loadingProfiles"
+        :class="{ active: selectedProfileId === p.id, inactive: p.isActive }"
+        @click="!p.isActive && (selectedProfileId = p.id)"
+      >
+        {{ p.name }}
+        <span v-if="p.isActive" class="tag">In game</span>
+      </button>
+    </div>
+
+    <p v-if="profileError" class="error">{{ profileError }}</p>
+
+    <div class="create-row">
       <input
-        v-model="playerPassword"
-        class="name-input full"
-        type="password"
-        placeholder="Player password"
-        autocomplete="current-password"
-        :disabled="authLoading"
-        @keydown.enter.prevent="submitPlayerPassword"
+        v-model="newProfileName"
+        class="name-input"
+        type="text"
+        placeholder="New player name"
+        :disabled="loadingProfiles || creatingProfile"
       />
-      <p v-if="authError" class="error">{{ authError }}</p>
-    </template>
-
-    <template v-else>
-      <p class="subtitle">Choose an existing profile or create a new one.</p>
-
-      <p v-if="loadingProfiles" class="loading-row">
-        <span class="spinner" aria-hidden="true" />
-        <span class="muted">Loading profiles…</span>
-      </p>
-      <p v-else-if="profiles.length === 0" class="muted">No profiles yet.</p>
-
-      <div v-if="profiles.length > 0" class="profile-list">
-        <button
-          v-for="p in profiles"
-          :key="p.id"
-          type="button"
-          class="profile-item"
-          :disabled="loadingProfiles"
-          :class="{ active: selectedProfileId === p.id, inactive: p.isActive }"
-          @click="!p.isActive && (selectedProfileId = p.id)"
-        >
-          {{ p.name }}
-          <span v-if="p.isActive" class="tag">In game</span>
-        </button>
-      </div>
-
-      <p v-if="profileError" class="error">{{ profileError }}</p>
-
-      <div class="create-row">
-        <input
-          v-model="newProfileName"
-          class="name-input"
-          type="text"
-          placeholder="New player name"
-          :disabled="loadingProfiles || creatingProfile"
-        />
-        <button
-          class="cta"
-          :disabled="loadingProfiles || creatingProfile || !newProfileName.trim()"
-          @click="createProfile"
-        >
-          {{ creatingProfile ? "Adding..." : "Add new player profile" }}
-        </button>
-      </div>
-    </template>
+      <button
+        class="cta"
+        :disabled="loadingProfiles || creatingProfile || !newProfileName.trim()"
+        @click="createProfile"
+      >
+        {{ creatingProfile ? "Adding..." : "Add new player profile" }}
+      </button>
+    </div>
   </ModalDialog>
 </template>
 
 <style scoped>
-.title {
-  margin: 0;
-  font-size: 1.75rem;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  margin-bottom: 0.5rem;
+.landing {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
 }
 
-.landing {
-  padding: 1.5rem;
-  margin-top: 2rem;
+.landing-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 2rem 1.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+  text-align: center;
 }
+
+.title {
+  margin: 0 0 1.75rem;
+  font-size: 1.75rem;
+  font-weight: 500;
+  letter-spacing: 0.04rem;
+  line-height: 1.2;
+}
+
+.title-prefix {
+  font-family: var(--font-heading);
+}
+
+.hell {
+  font-family: var(--font-heading);
+  color: var(--color-danger);
+}
+
+.hell-letter {
+  display: inline-block;
+  animation-duration: 1.1s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+.hell-letter:nth-child(odd) {
+  animation-name: hell-wiggle-up;
+}
+
+.hell-letter:nth-child(even) {
+  animation-name: hell-wiggle-down;
+}
+
+.hell-letter:nth-child(1) { animation-delay: 0s; }
+.hell-letter:nth-child(2) { animation-delay: 0.12s; }
+.hell-letter:nth-child(3) { animation-delay: 0.24s; }
+.hell-letter:nth-child(4) { animation-delay: 0.36s; }
+
+@keyframes hell-wiggle-up {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+@keyframes hell-wiggle-down {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(2px); }
+}
+
+.role-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.role-actions .cta {
+  flex: 1 1 0;
+}
+
 .subtitle { color: var(--color-muted); margin-bottom: 1.25rem; }
-.actions { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: flex-start; }
-.gm-form { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
-.name-input.full { width: 100%; }
+.name-input {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  padding: 0.55rem 0.65rem;
+}
 .cta {
   border: 1px solid var(--color-border);
   border-radius: 10px;
@@ -318,20 +367,12 @@ function onModalConfirm() {
   margin-top: 0.75rem;
 }
 
-.name-input {
+.create-row .name-input {
   flex: 1 1 220px;
-  border: 1px solid var(--color-border);
-  border-radius: 0;
-  background: var(--color-bg);
-  color: var(--color-text);
-  padding: 0.55rem 0.65rem;
+  width: auto;
 }
 
-.secondary {
-  background: var(--color-bg);
-}
-
-.error { color: var(--color-danger); margin: 0.5rem 0; }
+.error { color: var(--color-danger); margin: 0.75rem 0 0; }
 
 .loading-row {
   display: inline-flex;

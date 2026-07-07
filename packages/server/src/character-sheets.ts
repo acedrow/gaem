@@ -278,7 +278,12 @@ export function patchSheetHandler(
   res.json({ sheet });
 }
 
-export function deleteSheetHandler(auth: AuthContext, id: string, res: Response): void {
+export function deleteSheetHandler(
+  auth: AuthContext,
+  id: string,
+  res: Response,
+  onDeleted?: (sheetId: string) => void,
+): void {
   const sheet = characterSheets.get(id);
   if (!sheet) {
     res.status(404).json({ error: "Not found" });
@@ -294,6 +299,7 @@ export function deleteSheetHandler(auth: AuthContext, id: string, res: Response)
   }
   deletePortrait(sheet.portraitKey);
   characterSheets.delete(id);
+  onDeleted?.(id);
   res.json({ ok: true });
 }
 

@@ -500,6 +500,17 @@ async function deleteSheet() {
   }
 }
 
+function spawnToken() {
+  if (!sheet.value || boardPlayer.value) return;
+  send({ type: "spawnPlayerToken", characterSheetId: props.sheetId });
+}
+
+function removeToken() {
+  const playerId = boardPlayer.value?.id;
+  if (!playerId) return;
+  send({ type: "removePlayerToken", playerId });
+}
+
 async function onPortraitSelected(event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
@@ -922,6 +933,24 @@ onUnmounted(() => {
     </div>
 
     <div v-if="canEdit && sheet" class="panel-footer">
+      <button
+        v-if="!boardPlayer"
+        class="cta"
+        type="button"
+        :disabled="saving"
+        @click="spawnToken"
+      >
+        Spawn token
+      </button>
+      <button
+        v-else
+        class="cta secondary"
+        type="button"
+        :disabled="saving"
+        @click="removeToken"
+      >
+        Remove token
+      </button>
       <button class="cta danger" type="button" :disabled="deleting || saving" @click="deleteSheet">
         {{ deleting ? "Deleting…" : "Delete" }}
       </button>
@@ -960,6 +989,8 @@ onUnmounted(() => {
 
 .panel-footer {
   flex-shrink: 0;
+  display: flex;
+  gap: 0.5rem;
   padding-top: 1rem;
 }
 
