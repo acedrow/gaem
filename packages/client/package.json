@@ -10,7 +10,6 @@
     "predev": "npm run sync-assets",
     "prebuild": "npm run sync-assets",
     "dev": "vite",
-    "dev:cf": "vite build --watch",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run"
