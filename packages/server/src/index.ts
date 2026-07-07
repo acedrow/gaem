@@ -25,6 +25,8 @@ import {
   characterTargetLabel,
   CONSOLE_MSG_CONNECTED,
   CONSOLE_MSG_DISCONNECTED,
+  constantTimeEqual,
+  createAuthToken,
   createInitialStateFromMap,
   DEFAULT_MAP_ID,
   enemyLabel,
@@ -42,6 +44,7 @@ import {
   validateMove,
   validatePhaseAction,
   validateBaseCampaignAction,
+  verifyAuthToken,
 } from "@gaem/shared";
 import express from "express";
 import { WebSocketServer, type WebSocket } from "ws";
@@ -74,6 +77,9 @@ import {
 import { randomIntegersHandler, rollDiceHandler } from "./random-integers.js";
 
 const PORT = Number(process.env.PORT) || 3001;
+const GM_PASSWORD = process.env.GM_PASSWORD ?? "";
+const PLAYER_PASSWORD = process.env.PLAYER_PASSWORD ?? "";
+const AUTH_SECRET = process.env.AUTH_SECRET ?? "";
 
 const app = express();
 app.use(express.json());
@@ -82,12 +88,49 @@ app.use((_, res, next) => {
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,DELETE,OPTIONS");
   res.setHeader(
     "Access-Control-Allow-Headers",
-    "Content-Type, X-Gaem-Role, X-Gaem-Player-Key"
+    "Content-Type, Authorization, X-Gaem-Role, X-Gaem-Player-Key"
   );
   next();
 });
 app.options("*", (_req, res) => {
   res.sendStatus(204);
+});
+
+app.post("/api/login", (req, res) => {
+  if (!AUTH_SECRET || !GM_PASSWORD || !PLAYER_PASSWORD) {
+    res.status(500).json({ error: "Auth not configured" });
+    return;
+  }
+  const role = req.body?.role;
+  const password = typeof req.body?.password === "string" ? req.body.password : "";
+  if (role !== "gm" && role !== "player") {
+    res.status(400).json({ error: "Invalid role" });
+    return;
+  }
+  const expected = role === "gm" ? GM_PASSWORD : PLAYER_PASSWORD;
+  if (!constantTimeEqual(password, expected)) {
+    res.status(401).json({ error: "Incorrect password" });
+    return;
+  }
+  void createAuthToken(role, AUTH_SECRET).then((token) => res.json({ token }));
+});
+
+app.use((req, res, next) => {
+  if (!req.path.startsWith("/api/")) return next();
+  if (req.method === "OPTIONS") return next();
+  if (req.path === "/api/login") return next();
+  if (req.path.startsWith("/api/enemy-portraits")) return next();
+  const header = req.headers.authorization;
+  const token =
+    typeof header === "string" && header.startsWith("Bearer ") ? header.slice(7) : null;
+  void verifyAuthToken(token ?? "", AUTH_SECRET).then((payload) => {
+    if (!payload) {
+      res.status(401).json({ error: "Authentication required" });
+      return;
+    }
+    req.authRole = payload.role;
+    next();
+  });
 });
 
 function persistWeaponSwapToSheet(playerId: string | null | undefined) {
@@ -368,6 +411,7 @@ wss.on("connection", (ws: WebSocket) => {
   broadcastState();
 
   ws.on("message", (raw) => {
+    void (async () => {
     let parsed: ClientMessage;
     try {
       parsed = JSON.parse(String(raw)) as ClientMessage;
@@ -377,7 +421,13 @@ wss.on("connection", (ws: WebSocket) => {
     }
 
     if (parsed.type === "join") {
-      const role = parsed.role ?? "player";
+      const verified = await verifyAuthToken(parsed.token ?? "", AUTH_SECRET);
+      if (!verified) {
+        sendError(ws, "Authentication required");
+        ws.close();
+        return;
+      }
+      const role = verified.role;
       const currentId = socketPlayer.get(ws) ?? null;
       const currentProfileId = socketProfile.get(ws) ?? null;
 
@@ -674,6 +724,7 @@ wss.on("connection", (ws: WebSocket) => {
       broadcastConsole(actorForSocket(ws), `moved to (${parsed.x}, ${parsed.y})`);
       broadcastState();
     }
+    })();
   });
 
   ws.on("close", () => {

@@ -27,6 +27,7 @@ import {
   validateMove,
   validatePhaseAction,
   validateBaseCampaignAction,
+  verifyAuthToken,
 } from "@gaem/shared";
 
 import type { Env } from "./env.js";
@@ -180,7 +181,13 @@ export class GameRoom {
 
     const att = ws.deserializeAttachment() as Attachment | null;
     if (parsed.type === "join") {
-      const role = parsed.role ?? "player";
+      const verified = await verifyAuthToken(parsed.token ?? "", this.env.AUTH_SECRET);
+      if (!verified) {
+        this.sendError(ws, "Authentication required");
+        ws.close();
+        return;
+      }
+      const role = verified.role;
       const currentId = att?.playerId ?? null;
       const currentKey = att?.playerKey ?? null;
 

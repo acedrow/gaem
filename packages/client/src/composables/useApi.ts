@@ -7,7 +7,7 @@ import { useSession } from "./useSession.js";
 type PlayerProfileOption = PlayerProfile & { isActive?: boolean };
 
 export function useApi() {
-  const { apiHeaders } = useSession();
+  const { apiHeaders, clearSession } = useSession();
 
   const apiBase = computed(() =>
     import.meta.env.DEV ? `http://${location.hostname}:3001` : "",
@@ -18,7 +18,12 @@ export function useApi() {
     for (const [key, value] of Object.entries(apiHeaders())) {
       headers.set(key, value);
     }
-    return fetch(`${apiBase.value}${path}`, { ...init, headers });
+    const res = await fetch(`${apiBase.value}${path}`, { ...init, headers });
+    if (res.status === 401 && path !== "/api/login") {
+      clearSession();
+      if (location.pathname !== "/") location.assign("/");
+    }
+    return res;
   }
 
   async function fetchPlayerProfiles(): Promise<PlayerProfileOption[]> {

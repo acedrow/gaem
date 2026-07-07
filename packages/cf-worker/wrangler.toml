@@ -2,6 +2,16 @@ name = "gaem"
 main = "src/index.ts"
 compatibility_date = "2025-04-01"
 
+# Workers Builds restores dependency caches without gitignored dist/ output.
+# Alias to source so wrangler bundles @gaem/shared directly; [build] still
+# compiles shared first so typecheck runs before deploy.
+[alias]
+"@gaem/shared" = "../shared/src/index.ts"
+
+[build]
+command = "npm run build -w @gaem/shared && npm run build -w @gaem/client"
+cwd = "../.."
+
 [assets]
 directory = "../client/dist"
 binding = "ASSETS"

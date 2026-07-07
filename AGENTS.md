@@ -34,6 +34,20 @@ After changing `@gaem/shared`, rebuild (or run `dev`, which watches shared).
 
 Do **not** commit, push, or open PRs unless the user explicitly asks.
 
+## Secrets
+
+Entering the game requires a password (GM or shared player password). Configure these in each runtime; never commit them.
+
+| Variable | Purpose |
+|----------|---------|
+| `GM_PASSWORD` | Password for the GM role |
+| `PLAYER_PASSWORD` | Shared password for all players |
+| `AUTH_SECRET` | HMAC key used to sign/verify session tokens |
+| `RANDOM_ORG_API_KEY` | Optional; dice via random.org |
+
+- Local server: put them in a gitignored `.env` (loaded via `dotenv`).
+- cf-worker: put them in a gitignored `.dev.vars` for local dev, and set with `wrangler secret put <NAME>` for production.
+
 ## Verification (required for all code changes)
 
 Before considering any implementation task done, **run these commands and fix failures**:

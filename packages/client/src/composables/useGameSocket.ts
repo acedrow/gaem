@@ -1,10 +1,10 @@
 import type { ClientMessage, ServerMessage } from "@gaem/shared";
 import type { Ref } from "vue";
-import { ref } from "vue";
 
 import { appendConsoleEntry, setConsoleEntries } from "./useGameConsole.js";
 import { useGameConnection } from "./useGameConnection.js";
 import { useGameState } from "./useGameState.js";
+import { useSession } from "./useSession.js";
 
 export const gameWsUrl =
   import.meta.env.VITE_WS_URL ??
@@ -22,6 +22,7 @@ export function useGameSocket(opts: {
 }) {
   const { connection } = useGameConnection();
   const { setGameState, registerSend, clearGameState } = useGameState();
+  const { token, clearSession } = useSession();
   let socket: WebSocket | null = null;
 
   function send(msg: ClientMessage) {
@@ -38,6 +39,7 @@ export function useGameSocket(opts: {
       send({
         type: "join",
         role: opts.role.value,
+        token: token.value ?? undefined,
         playerKey: opts.role.value === "player" ? opts.playerProfile.value?.id : undefined,
         nickname: opts.role.value === "player" ? opts.playerProfile.value?.name : undefined,
         characterSheetId:
@@ -67,6 +69,10 @@ export function useGameSocket(opts: {
         appendConsoleEntry(msg.entry);
       } else if (msg.type === "error") {
         opts.onError(msg.message);
+        if (msg.message === "Authentication required") {
+          clearSession();
+          location.assign("/");
+        }
       }
     });
   }

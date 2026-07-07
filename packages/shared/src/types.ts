@@ -215,6 +215,7 @@ export type ClientMessage =
       nickname?: string;
       playerKey?: string;
       characterSheetId?: string;
+      token?: string;
     }
   | { type: "move"; x: number; y: number }
   | { type: "movePath"; path: { x: number; y: number }[] }

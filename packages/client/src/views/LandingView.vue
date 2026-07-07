@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { PlayerProfile } from "@gaem/shared";
+import type { GaemRole, PlayerProfile } from "@gaem/shared";
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 
@@ -10,10 +10,19 @@ import ModalDialog from "../components/ModalDialog.vue";
 type PlayerProfileOption = PlayerProfile & { isActive?: boolean };
 
 const router = useRouter();
-const { startSession } = useSession();
+const { startSession, token } = useSession();
 const { apiFetch } = useApi();
 
+const gmPassword = ref("");
+const gmLoading = ref(false);
+const gmError = ref<string | null>(null);
+
 const showProfileModal = ref(false);
+const playerStep = ref<"password" | "profile">("password");
+const playerPassword = ref("");
+const authLoading = ref(false);
+const authError = ref<string | null>(null);
+
 const profiles = ref<PlayerProfileOption[]>([]);
 const selectedProfileId = ref<string | null>(null);
 const newProfileName = ref("");
@@ -25,6 +34,17 @@ const selectedProfile = computed(() => {
   if (!selectedProfileId.value) return null;
   return profiles.value.find((p) => p.id === selectedProfileId.value) ?? null;
 });
+
+async function login(role: GaemRole, password: string): Promise<string | null> {
+  const res = await apiFetch("/api/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ role, password }),
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as { token: string };
+  return data.token;
+}
 
 async function loadProfiles() {
   loadingProfiles.value = true;
@@ -45,9 +65,48 @@ async function loadProfiles() {
   }
 }
 
-async function openPlayerModal() {
+async function joinAsGm() {
+  const password = gmPassword.value;
+  if (!password) return;
+  gmLoading.value = true;
+  gmError.value = null;
+  try {
+    const authToken = await login("gm", password);
+    if (!authToken) {
+      gmError.value = "Incorrect password";
+      return;
+    }
+    startSession("gm", null, authToken);
+    router.push("/game");
+  } finally {
+    gmLoading.value = false;
+  }
+}
+
+function openPlayerModal() {
   showProfileModal.value = true;
-  await loadProfiles();
+  playerPassword.value = "";
+  authError.value = null;
+  playerStep.value = "password";
+}
+
+async function submitPlayerPassword() {
+  const password = playerPassword.value;
+  if (!password) return;
+  authLoading.value = true;
+  authError.value = null;
+  try {
+    const authToken = await login("player", password);
+    if (!authToken) {
+      authError.value = "Incorrect password";
+      return;
+    }
+    startSession("player", null, authToken);
+    playerStep.value = "profile";
+    await loadProfiles();
+  } finally {
+    authLoading.value = false;
+  }
 }
 
 async function createProfile() {
@@ -73,16 +132,20 @@ async function createProfile() {
   }
 }
 
-function joinAsGm() {
-  startSession("gm", null);
+function joinAsSelectedPlayer() {
+  if (!selectedProfile.value || selectedProfile.value.isActive) return;
+  if (!token.value) return;
+  showProfileModal.value = false;
+  startSession("player", selectedProfile.value, token.value);
   router.push("/game");
 }
 
-function joinAsSelectedPlayer() {
-  if (!selectedProfile.value || selectedProfile.value.isActive) return;
-  showProfileModal.value = false;
-  startSession("player", selectedProfile.value);
-  router.push("/game");
+function onModalConfirm() {
+  if (playerStep.value === "password") {
+    void submitPlayerPassword();
+  } else {
+    joinAsSelectedPlayer();
+  }
 }
 </script>
 
@@ -90,61 +153,94 @@ function joinAsSelectedPlayer() {
   <div class="landing">
     <p class="subtitle">Choose how you want to join the game.</p>
     <div class="actions">
-      <button class="cta" @click="joinAsGm">Join game as GM</button>
+      <form class="gm-form" @submit.prevent="joinAsGm">
+        <input
+          v-model="gmPassword"
+          class="name-input"
+          type="password"
+          placeholder="GM password"
+          autocomplete="current-password"
+          :disabled="gmLoading"
+        />
+        <button class="cta" type="submit" :disabled="gmLoading || !gmPassword">
+          {{ gmLoading ? "Joining..." : "Join game as GM" }}
+        </button>
+        <p v-if="gmError" class="error">{{ gmError }}</p>
+      </form>
       <button class="cta" @click="openPlayerModal">Join game as player</button>
     </div>
   </div>
 
   <ModalDialog
     :open="showProfileModal"
-    title="Select player profile"
+    :title="playerStep === 'password' ? 'Enter player password' : 'Select player profile'"
     wide
-    ok-label="Join game as player"
-    :ok-disabled="loadingProfiles || !selectedProfile || !!selectedProfile?.isActive"
+    :ok-label="playerStep === 'password' ? 'Continue' : 'Join game as player'"
+    :ok-disabled="
+      playerStep === 'password'
+        ? authLoading || !playerPassword
+        : loadingProfiles || !selectedProfile || !!selectedProfile?.isActive
+    "
     @close="showProfileModal = false"
-    @confirm="joinAsSelectedPlayer"
+    @confirm="onModalConfirm"
   >
-    <p class="subtitle">Choose an existing profile or create a new one.</p>
-
-    <p v-if="loadingProfiles" class="loading-row">
-      <span class="spinner" aria-hidden="true" />
-      <span class="muted">Loading profiles…</span>
-    </p>
-    <p v-else-if="profiles.length === 0" class="muted">No profiles yet.</p>
-
-    <div v-if="profiles.length > 0" class="profile-list">
-      <button
-        v-for="p in profiles"
-        :key="p.id"
-        type="button"
-        class="profile-item"
-        :disabled="loadingProfiles"
-        :class="{ active: selectedProfileId === p.id, inactive: p.isActive }"
-        @click="!p.isActive && (selectedProfileId = p.id)"
-      >
-        {{ p.name }}
-        <span v-if="p.isActive" class="tag">In game</span>
-      </button>
-    </div>
-
-    <p v-if="profileError" class="error">{{ profileError }}</p>
-
-    <div class="create-row">
+    <template v-if="playerStep === 'password'">
+      <p class="subtitle">Enter the shared player password to continue.</p>
       <input
-        v-model="newProfileName"
-        class="name-input"
-        type="text"
-        placeholder="New player name"
-        :disabled="loadingProfiles || creatingProfile"
+        v-model="playerPassword"
+        class="name-input full"
+        type="password"
+        placeholder="Player password"
+        autocomplete="current-password"
+        :disabled="authLoading"
+        @keydown.enter.prevent="submitPlayerPassword"
       />
-      <button
-        class="cta"
-        :disabled="loadingProfiles || creatingProfile || !newProfileName.trim()"
-        @click="createProfile"
-      >
-        {{ creatingProfile ? "Adding..." : "Add new player profile" }}
-      </button>
-    </div>
+      <p v-if="authError" class="error">{{ authError }}</p>
+    </template>
+
+    <template v-else>
+      <p class="subtitle">Choose an existing profile or create a new one.</p>
+
+      <p v-if="loadingProfiles" class="loading-row">
+        <span class="spinner" aria-hidden="true" />
+        <span class="muted">Loading profiles…</span>
+      </p>
+      <p v-else-if="profiles.length === 0" class="muted">No profiles yet.</p>
+
+      <div v-if="profiles.length > 0" class="profile-list">
+        <button
+          v-for="p in profiles"
+          :key="p.id"
+          type="button"
+          class="profile-item"
+          :disabled="loadingProfiles"
+          :class="{ active: selectedProfileId === p.id, inactive: p.isActive }"
+          @click="!p.isActive && (selectedProfileId = p.id)"
+        >
+          {{ p.name }}
+          <span v-if="p.isActive" class="tag">In game</span>
+        </button>
+      </div>
+
+      <p v-if="profileError" class="error">{{ profileError }}</p>
+
+      <div class="create-row">
+        <input
+          v-model="newProfileName"
+          class="name-input"
+          type="text"
+          placeholder="New player name"
+          :disabled="loadingProfiles || creatingProfile"
+        />
+        <button
+          class="cta"
+          :disabled="loadingProfiles || creatingProfile || !newProfileName.trim()"
+          @click="createProfile"
+        >
+          {{ creatingProfile ? "Adding..." : "Add new player profile" }}
+        </button>
+      </div>
+    </template>
   </ModalDialog>
 </template>
 
@@ -162,7 +258,9 @@ function joinAsSelectedPlayer() {
   margin-top: 2rem;
 }
 .subtitle { color: var(--color-muted); margin-bottom: 1.25rem; }
-.actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+.actions { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: flex-start; }
+.gm-form { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+.name-input.full { width: 100%; }
 .cta {
   border: 1px solid var(--color-border);
   border-radius: 10px;

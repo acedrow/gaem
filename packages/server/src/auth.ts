@@ -1,26 +1,32 @@
 import type { GaemRole } from "@gaem/shared";
 import type { Request, Response } from "express";
 
+declare module "express-serve-static-core" {
+  interface Request {
+    authRole?: GaemRole;
+  }
+}
+
 export type AuthContext = {
   role: GaemRole;
   playerKey: string | null;
 };
 
 export function parseAuth(req: Request, res: Response): AuthContext | null {
-  const roleHeader = req.headers["x-gaem-role"];
-  if (roleHeader !== "gm" && roleHeader !== "player") {
-    res.status(401).json({ error: "Missing or invalid X-Gaem-Role" });
+  const role = req.authRole;
+  if (role !== "gm" && role !== "player") {
+    res.status(401).json({ error: "Authentication required" });
     return null;
   }
   const playerKey =
     typeof req.headers["x-gaem-player-key"] === "string"
       ? req.headers["x-gaem-player-key"]
       : null;
-  if (roleHeader === "player" && !playerKey) {
+  if (role === "player" && !playerKey) {
     res.status(401).json({ error: "X-Gaem-Player-Key required for player role" });
     return null;
   }
-  return { role: roleHeader, playerKey };
+  return { role, playerKey };
 }
 
 export function requireAuth(

@@ -11,7 +11,9 @@ import {
   handlePutPortrait,
   listCharacterSheets,
 } from "./character-sheets.js";
-import { parseAuth } from "./auth.js";
+import { constantTimeEqual, createAuthToken } from "@gaem/shared";
+
+import { verifyAuth } from "./auth.js";
 import {
   createPlayerProfile,
   deletePlayerProfile,
@@ -39,6 +41,26 @@ export default {
       return Response.json({ ok: true });
     }
 
+    if (url.pathname === "/api/login" && request.method === "POST") {
+      if (!env.AUTH_SECRET || !env.GM_PASSWORD || !env.PLAYER_PASSWORD) {
+        return Response.json({ error: "Auth not configured" }, { status: 500 });
+      }
+      const body = (await request.json().catch(() => null)) as
+        | { role?: unknown; password?: unknown }
+        | null;
+      const role = body?.role;
+      const password = typeof body?.password === "string" ? body.password : "";
+      if (role !== "gm" && role !== "player") {
+        return Response.json({ error: "Invalid role" }, { status: 400 });
+      }
+      const expected = role === "gm" ? env.GM_PASSWORD : env.PLAYER_PASSWORD;
+      if (!constantTimeEqual(password, expected)) {
+        return Response.json({ error: "Incorrect password" }, { status: 401 });
+      }
+      const token = await createAuthToken(role, env.AUTH_SECRET);
+      return Response.json({ token });
+    }
+
     if (url.pathname === "/ws") {
       const id = env.GAME_ROOM.idFromName("default");
       const stub = env.GAME_ROOM.get(id);
@@ -46,6 +68,8 @@ export default {
     }
 
     if (url.pathname === "/api/player-profiles" && request.method === "GET") {
+      const auth = await verifyAuth(request, env);
+      if (auth instanceof Response) return auth;
       const profiles = await listPlayerProfiles(env);
       const id = env.GAME_ROOM.idFromName("default");
       const stub = env.GAME_ROOM.get(id);
@@ -58,6 +82,8 @@ export default {
     }
 
     if (url.pathname === "/api/player-profiles" && request.method === "POST") {
+      const auth = await verifyAuth(request, env);
+      if (auth instanceof Response) return auth;
       const body = (await request.json().catch(() => null)) as
         | { name?: unknown }
         | null;
@@ -71,7 +97,7 @@ export default {
 
     const profileMatch = url.pathname.match(PROFILE_ID_RE);
     if (profileMatch) {
-      const auth = parseAuth(request);
+      const auth = await verifyAuth(request, env);
       if (auth instanceof Response) return auth;
       if (auth.role !== "gm") {
         return Response.json({ error: "Forbidden" }, { status: 403 });
@@ -115,10 +141,12 @@ export default {
 
     if (url.pathname === "/api/random-integers") {
       if (request.method === "GET") {
+        const auth = await verifyAuth(request, env);
+        if (auth instanceof Response) return auth;
         return handleRandomIntegersGet(env, request);
       }
       if (request.method === "POST") {
-        const auth = parseAuth(request);
+        const auth = await verifyAuth(request, env);
         if (auth instanceof Response) return auth;
         return handleRollDicePost(env, auth, request);
       }
@@ -129,7 +157,7 @@ export default {
     if (enemyPortraitRes) return enemyPortraitRes;
 
     if (url.pathname === "/api/character-sheets") {
-      const auth = parseAuth(request);
+      const auth = await verifyAuth(request, env);
       if (auth instanceof Response) return auth;
 
       if (request.method === "GET") {
@@ -142,7 +170,7 @@ export default {
 
     const portraitMatch = url.pathname.match(PORTRAIT_RE);
     if (portraitMatch) {
-      const auth = parseAuth(request);
+      const auth = await verifyAuth(request, env);
       if (auth instanceof Response) return auth;
       const sheetId = portraitMatch[1];
 
@@ -156,7 +184,7 @@ export default {
 
     const sheetMatch = url.pathname.match(SHEET_ID_RE);
     if (sheetMatch) {
-      const auth = parseAuth(request);
+      const auth = await verifyAuth(request, env);
       if (auth instanceof Response) return auth;
       const sheetId = sheetMatch[1];
 
