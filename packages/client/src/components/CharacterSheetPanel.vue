@@ -282,7 +282,7 @@ function useEquipmentItem() {
 }
 
 function useGearItem() {
-  sendPlayerAction({ action: "useGear", detail: form.value.gear });
+  sendPlayerAction({ action: "interact", detail: form.value.gear });
 }
 
 const maxHp = computed(() => getClassMaxHp(form.value.class));
@@ -411,7 +411,6 @@ async function saveSheet() {
           weapon: form.value.weapon,
           equipment: form.value.equipment,
           gear: form.value.gear,
-          gearArmor: form.value.gearArmor || undefined,
           weapon2: form.value.weapon2,
           yadathanTower: form.value.yadathanTower || undefined,
         });
@@ -433,7 +432,6 @@ function resetFormFromSheet() {
     weapon: sheet.value.weapon,
     equipment: sheet.value.equipment ?? "",
     gear: sheet.value.gear ?? "",
-    gearArmor: sheet.value.gearArmor ?? "",
     weapon2: sheet.value.weapon2 ?? "",
     yadathanTower: sheet.value.yadathanTower ?? "",
     tags: [...(sheet.value.tags ?? [])],

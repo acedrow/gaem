@@ -37,10 +37,6 @@ const createForm = ref({
   class: "",
   armor: "",
   weapon: "",
-  equipment: "",
-  gear: "",
-  gearArmor: "",
-  weapon2: "",
   yadathanTower: "",
 });
 
@@ -113,10 +109,6 @@ function openCreate() {
     class: "",
     armor: "",
     weapon: "",
-    equipment: "",
-    gear: "",
-    gearArmor: "",
-    weapon2: "",
     yadathanTower: "",
   };
   createError.value = null;
