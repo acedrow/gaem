@@ -77,8 +77,12 @@ async function addPlayer() {
       body: JSON.stringify({ name }),
     });
     if (!res.ok) throw new Error("create failed");
+    const data = (await res.json()) as { profile: PlayerProfileOption };
     newName.value = "";
     await load();
+    if (!profiles.value.some((p) => p.id === data.profile.id)) {
+      profiles.value = [...profiles.value, { ...data.profile, isActive: false }];
+    }
   } catch {
     error.value = "Unable to add player";
   } finally {

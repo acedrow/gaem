@@ -68,7 +68,7 @@ export default {
     }
 
     if (url.pathname === "/api/player-profiles" && request.method === "GET") {
-      const auth = await verifyAuth(request, env);
+      const auth = await verifyAuth(request, env, { requirePlayerKey: false });
       if (auth instanceof Response) return auth;
       const profiles = await listPlayerProfiles(env);
       const id = env.GAME_ROOM.idFromName("default");
@@ -82,7 +82,7 @@ export default {
     }
 
     if (url.pathname === "/api/player-profiles" && request.method === "POST") {
-      const auth = await verifyAuth(request, env);
+      const auth = await verifyAuth(request, env, { requirePlayerKey: false });
       if (auth instanceof Response) return auth;
       const body = (await request.json().catch(() => null)) as
         | { name?: unknown }

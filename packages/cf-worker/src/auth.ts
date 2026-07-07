@@ -8,10 +8,16 @@ export type AuthContext = {
   playerKey: string | null;
 };
 
+export type VerifyAuthOptions = {
+  requirePlayerKey?: boolean;
+};
+
 export async function verifyAuth(
   request: Request,
-  env: Env
+  env: Env,
+  options: VerifyAuthOptions = {},
 ): Promise<AuthContext | Response> {
+  const requirePlayerKey = options.requirePlayerKey ?? true;
   const header = request.headers.get("Authorization");
   const token = header?.startsWith("Bearer ") ? header.slice(7) : "";
   const payload = await verifyAuthToken(token, env.AUTH_SECRET);
@@ -19,7 +25,7 @@ export async function verifyAuth(
     return Response.json({ error: "Authentication required" }, { status: 401 });
   }
   const playerKey = request.headers.get("X-Gaem-Player-Key");
-  if (payload.role === "player" && !playerKey) {
+  if (payload.role === "player" && requirePlayerKey && !playerKey) {
     return Response.json({ error: "X-Gaem-Player-Key required for player role" }, { status: 401 });
   }
   return { role: payload.role, playerKey };

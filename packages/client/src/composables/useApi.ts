@@ -19,7 +19,11 @@ export function useApi() {
       headers.set(key, value);
     }
     const res = await fetch(`${apiBase.value}${path}`, { ...init, headers });
-    if (res.status === 401 && path !== "/api/login") {
+    if (
+      res.status === 401 &&
+      path !== "/api/login" &&
+      !path.startsWith("/api/player-profiles")
+    ) {
       clearSession();
       if (location.pathname !== "/") location.assign("/");
     }
