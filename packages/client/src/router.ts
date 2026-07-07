@@ -1,6 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
 
-import AppShell from "./components/AppShell.vue";
 import { useSession } from "./composables/useSession.js";
 import LandingView from "./views/LandingView.vue";
 
@@ -10,7 +9,7 @@ const router = createRouter({
     { path: "/", name: "landing", component: LandingView },
     {
       path: "/game",
-      component: AppShell,
+      component: () => import("./components/AppShell.vue"),
       meta: { requiresSession: true },
     },
     {

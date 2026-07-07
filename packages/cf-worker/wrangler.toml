@@ -9,8 +9,9 @@ compatibility_date = "2025-04-01"
 "@gaem/shared" = "../shared/src/index.ts"
 
 [build]
-command = "npm run build -w @gaem/shared && npm run build -w @gaem/client"
+command = "bash scripts/cf-wrangler-build.sh"
 cwd = "../.."
+watch_dir = "packages/cf-worker/src"
 
 [assets]
 directory = "../client/dist"
