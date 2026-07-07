@@ -143,6 +143,48 @@ app.post("/api/player-profiles", (req, res) => {
   res.status(201).json({ profile });
 });
 
+app.patch("/api/player-profiles/:id", (req, res) => {
+  const auth = parseAuth(req, res);
+  if (!auth) return;
+  if (auth.role !== "gm") {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  const profile = playerProfiles.get(req.params.id);
+  if (!profile) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+  if (!name) {
+    res.status(400).json({ error: "Name is required" });
+    return;
+  }
+  profile.name = name;
+  profile.updatedAt = new Date().toISOString();
+  playerProfiles.set(profile.id, profile);
+  res.json({ profile });
+});
+
+app.delete("/api/player-profiles/:id", (req, res) => {
+  const auth = parseAuth(req, res);
+  if (!auth) return;
+  if (auth.role !== "gm") {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  if (!playerProfiles.has(req.params.id)) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if ([...characterSheets.values()].some((s) => s.player === req.params.id)) {
+    res.status(409).json({ error: "Player has linked character sheets" });
+    return;
+  }
+  playerProfiles.delete(req.params.id);
+  res.json({ ok: true });
+});
+
 const portraitParser = express.raw({
   type: ["image/jpeg", "image/png", "image/webp"],
   limit: "5mb",

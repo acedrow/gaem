@@ -45,3 +45,7 @@ export async function savePlayerProfile(
 ): Promise<void> {
   await env.PLAYER_KV.put(key(profile.id), JSON.stringify(profile));
 }
+
+export async function deletePlayerProfile(env: Env, id: string): Promise<void> {
+  await env.PLAYER_KV.delete(key(id));
+}

@@ -9,15 +9,23 @@ import {
   handleListCharacterSheets,
   handlePatchCharacterSheet,
   handlePutPortrait,
+  listCharacterSheets,
 } from "./character-sheets.js";
 import { parseAuth } from "./auth.js";
-import { createPlayerProfile, listPlayerProfiles } from "./player-profiles.js";
+import {
+  createPlayerProfile,
+  deletePlayerProfile,
+  getPlayerProfile,
+  listPlayerProfiles,
+  savePlayerProfile,
+} from "./player-profiles.js";
 import { handleRandomIntegersGet, handleRollDicePost } from "./random-integers.js";
 
 export { GameRoom };
 
 const SHEET_ID_RE = /^\/api\/character-sheets\/([^/]+)$/;
 const PORTRAIT_RE = /^\/api\/character-sheets\/([^/]+)\/portrait$/;
+const PROFILE_ID_RE = /^\/api\/player-profiles\/([^/]+)$/;
 
 export default {
   async fetch(
@@ -59,6 +67,50 @@ export default {
       }
       const profile = await createPlayerProfile(env, name);
       return Response.json({ profile }, { status: 201 });
+    }
+
+    const profileMatch = url.pathname.match(PROFILE_ID_RE);
+    if (profileMatch) {
+      const auth = parseAuth(request);
+      if (auth instanceof Response) return auth;
+      if (auth.role !== "gm") {
+        return Response.json({ error: "Forbidden" }, { status: 403 });
+      }
+      const profileId = profileMatch[1];
+
+      if (request.method === "PATCH") {
+        const profile = await getPlayerProfile(env, profileId);
+        if (!profile) {
+          return Response.json({ error: "Not found" }, { status: 404 });
+        }
+        const body = (await request.json().catch(() => null)) as
+          | { name?: unknown }
+          | null;
+        const name = typeof body?.name === "string" ? body.name.trim() : "";
+        if (!name) {
+          return Response.json({ error: "Name is required" }, { status: 400 });
+        }
+        profile.name = name;
+        profile.updatedAt = new Date().toISOString();
+        await savePlayerProfile(env, profile);
+        return Response.json({ profile });
+      }
+
+      if (request.method === "DELETE") {
+        const profile = await getPlayerProfile(env, profileId);
+        if (!profile) {
+          return Response.json({ error: "Not found" }, { status: 404 });
+        }
+        const sheets = await listCharacterSheets(env);
+        if (sheets.some((s) => s.player === profileId)) {
+          return Response.json(
+            { error: "Player has linked character sheets" },
+            { status: 409 }
+          );
+        }
+        await deletePlayerProfile(env, profileId);
+        return Response.json({ ok: true });
+      }
     }
 
     if (url.pathname === "/api/random-integers") {

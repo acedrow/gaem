@@ -1,9 +1,16 @@
 <script setup lang="ts">
+import { ref } from "vue";
+
 import { usePlayerSettings } from "../composables/usePlayerSettings.js";
+import { useSession } from "../composables/useSession.js";
 import { useTheme } from "../composables/useTheme.js";
+import ManagePlayersModal from "./ManagePlayersModal.vue";
 
 const { showHealthBars, showConnectionsInConsole } = usePlayerSettings();
 const { theme, themes } = useTheme();
+const { isGm } = useSession();
+
+const managePlayersOpen = ref(false);
 </script>
 
 <template>
@@ -65,7 +72,16 @@ const { theme, themes } = useTheme();
           <span class="theme-label">{{ option.label }}</span>
         </button>
       </div>
+
+      <template v-if="isGm">
+        <h3 class="settings-section-heading">Game master</h3>
+        <button type="button" class="manage-players-btn" @click="managePlayersOpen = true">
+          Manage players
+        </button>
+      </template>
     </div>
+
+    <ManagePlayersModal :open="managePlayersOpen" @close="managePlayersOpen = false" />
   </div>
 </template>
 
@@ -194,5 +210,23 @@ const { theme, themes } = useTheme();
 .theme-label {
   font-size: 0.85rem;
   font-weight: 600;
+}
+
+.manage-players-btn {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: 0.55rem 0.65rem;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-align: left;
+}
+
+.manage-players-btn:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-border-strong);
 }
 </style>
