@@ -4213,7 +4213,7 @@ onUnmounted(() => {
   color: var(--color-danger);
   text-shadow: var(--shadow-text);
   opacity: 0;
-  animation: damage-indicator 3s ease-in-out forwards;
+  animation: damage-indicator 2s ease-in-out forwards;
 }
 
 @keyframes damage-indicator {

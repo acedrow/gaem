@@ -2,7 +2,7 @@
 import { UNIT_EFFECTS } from "@gaem/shared";
 import { computed } from "vue";
 
-import { useGmTools, type GmSelectTargetKind } from "../composables/useGmTools.js";
+import { useGmTools, type GmSelectTargetKind, GM_EFFECT_NONE } from "../composables/useGmTools.js";
 import EffectIcon from "./EffectIcon.vue";
 import NumberStepper from "./NumberStepper.vue";
 
@@ -67,11 +67,12 @@ const bulkLabel = computed(() => {
       <div class="control-group effect-group">
         <span class="control-label">Effect</span>
         <select v-model="effectId" class="effect-select">
+          <option :value="GM_EFFECT_NONE">None</option>
           <option v-for="effect in UNIT_EFFECTS" :key="effect.id" :value="effect.id">
             {{ effect.id }}
           </option>
         </select>
-        <EffectIcon :effect-id="effectId" :size="16" />
+        <EffectIcon v-if="effectId" :effect-id="effectId" :size="16" />
       </div>
       <div class="control-group">
         <span class="control-label">Stacks</span>

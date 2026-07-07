@@ -1,4 +1,4 @@
-import { UNIT_EFFECTS, coordKey } from "@gaem/shared";
+import { coordKey } from "@gaem/shared";
 import { computed, ref } from "vue";
 
 import { useBoardActionMode } from "./useBoardActionMode.js";
@@ -13,11 +13,13 @@ export type GmBulkSelection =
   | { kind: "players"; ids: string[] }
   | { kind: "enemies"; ids: string[] };
 
+export const GM_EFFECT_NONE = "";
+
 const activeTool = ref<GmTool | null>(null);
 const selectTargetKind = ref<GmSelectTargetKind>("enemies");
 const bulkSelection = ref<GmBulkSelection | null>(null);
 const damageAmount = ref(0);
-const effectId = ref(UNIT_EFFECTS[0]?.id ?? "");
+const effectId = ref(GM_EFFECT_NONE);
 const effectStacks = ref(1);
 
 export function clearActiveTool() {
@@ -45,6 +47,9 @@ export function useGmTools() {
     clearMode();
     clearSpawnEnemySelection();
     bulkSelection.value = null;
+    if (tool === "damageEffect") {
+      effectId.value = GM_EFFECT_NONE;
+    }
     activeTool.value = tool;
   }
 

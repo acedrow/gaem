@@ -533,7 +533,7 @@ const terrainImageUrl = computed(() => {
 .cell.enemy-dying .piece.enemy,
 .cell.enemy-dying .effect-badges {
   pointer-events: none;
-  animation: enemy-death-fade 0.75s ease-in-out 2.25s forwards;
+  animation: enemy-death-fade 0.5s ease-in-out 1.5s forwards;
 }
 
 .cell.enemy-defeated .piece.enemy,
