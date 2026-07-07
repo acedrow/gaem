@@ -44,6 +44,7 @@ export function canAccessSheet(auth: AuthContext, _sheet: CharacterSheet): boole
   return canViewSheet(auth);
 }
 
-export function canCreateForPlayer(auth: AuthContext, _playerId: string): boolean {
-  return auth.role === "gm";
+export function canCreateForPlayer(auth: AuthContext, playerId: string): boolean {
+  if (auth.role === "gm") return true;
+  return auth.playerKey === playerId;
 }

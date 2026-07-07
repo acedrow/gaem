@@ -108,7 +108,7 @@ function onSelectData(category: DataCategory) {
 
 function openCreate() {
   createForm.value = {
-    player: "",
+    player: role.value === "player" ? (playerProfile.value?.id ?? "") : "",
     name: "",
     class: "",
     armor: "",
@@ -178,7 +178,7 @@ watch(sheetsVersion, () => {
         </button>
         <p v-if="sheets.length === 0" class="sublist-muted">No sheets yet.</p>
       </template>
-      <button v-if="role === 'gm'" class="new-sheet-btn" type="button" @click="openCreate">+ New sheet</button>
+      <button class="new-sheet-btn" type="button" @click="openCreate">+ New sheet</button>
     </div>
 
     <button class="nav-link nav-toggle" :class="{ expanded: dataExpanded }" type="button" @click="toggleData">
@@ -282,7 +282,7 @@ watch(sheetsVersion, () => {
       <CharacterSheetFormFields
         v-model="createForm"
         :profiles="profiles"
-        show-player
+        :show-player="role === 'gm'"
       />
 
       <p v-if="createError" class="sublist-error">{{ createError }}</p>

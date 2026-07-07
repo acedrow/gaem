@@ -36,8 +36,9 @@ function canAccessSheet(auth: AuthContext, _sheet: CharacterSheet): boolean {
   return canViewSheet(auth);
 }
 
-function canCreateForPlayer(auth: AuthContext, _playerId: string): boolean {
-  return auth.role === "gm";
+function canCreateForPlayer(auth: AuthContext, playerId: string): boolean {
+  if (auth.role === "gm") return true;
+  return auth.playerKey === playerId;
 }
 
 function deletePortrait(portraitKey: string | null): void {
