@@ -2064,6 +2064,7 @@ const cellStateByKey = computed(() => {
       tileEffects: tile?.tileEffects,
       outOfLineOfSight: outOfLineOfSightKeys.value.has(ck),
       tileAppearanceUrl: tile?.appearanceKey ? tileAppearanceUrlFor(tile.appearanceKey) : null,
+      tileBaseColor: tile?.baseColor ?? null,
     });
   }
   return map;
@@ -2151,6 +2152,7 @@ const tooltipData = computed(() => {
     x: cell.x,
     y: cell.y,
     tile,
+    tileName: tile.name,
     moveCost,
     players: occ.playerByKey.has(key) ? [occ.playerByKey.get(key)!] : [],
     enemies: enemyEntry ? [enemyEntry] : [],
@@ -4390,6 +4392,9 @@ onUnmounted(() => {
                 :key="row.key"
                 v-memo="[
                   row.cell,
+                  row.cell.tileBaseColor,
+                  row.cell.tile?.name,
+                  row.cell.tileAppearanceUrl,
                   row.isHovered,
                   draggingDeploy,
                   row.isPlayerSelected,
@@ -4435,7 +4440,7 @@ onUnmounted(() => {
         <div v-if="tooltipData" class="board-tooltip popover-tooltip" :style="tooltipStyle ?? undefined">
           <div class="tooltip-section">
             <span class="tooltip-row">({{ tooltipData.x }}, {{ tooltipData.y }})</span>
-            <span v-if="tooltipData.tile.name" class="tooltip-row">{{ tooltipData.tile.name }}</span>
+            <span v-if="tooltipData.tileName" class="tooltip-row">{{ tooltipData.tileName }}</span>
             <span class="tooltip-row">Terrain: {{ terrainTooltipLabel(tooltipData.tile.terrain) }}</span>
             <span class="tooltip-row">Elevation: {{ tooltipData.tile.elevation }}</span>
             <span v-if="tooltipData.moveCost != null" class="tooltip-row">

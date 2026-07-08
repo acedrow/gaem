@@ -53,6 +53,7 @@ export type CellRenderState = {
   tileEffects?: EffectStacks;
   outOfLineOfSight?: boolean;
   tileAppearanceUrl?: string | null;
+  tileBaseColor?: string | null;
 };
 
 const MAX_VISIBLE_EFFECTS = 4;
@@ -209,7 +210,7 @@ const terrainImageUrl = computed(() => {
     class="cell"
     :data-cell-x="x"
     :data-cell-y="y"
-    :style="cell.tile?.baseColor ? { background: cell.tile.baseColor } : undefined"
+    :style="cell.tileBaseColor ? { backgroundColor: cell.tileBaseColor } : undefined"
     :class="{
       [cell.terrainClass ?? '']: !!cell.terrainClass,
       movable: cell.movable,
@@ -235,6 +236,12 @@ const terrainImageUrl = computed(() => {
     @mouseenter="emit('hover')"
     @mouseleave="emit('unhover')"
   >
+    <span
+      v-if="cell.tileBaseColor"
+      class="tile-base-color"
+      :style="{ backgroundColor: cell.tileBaseColor }"
+      aria-hidden="true"
+    />
     <span v-if="cell.trapLine && !cell.trapWeapon" class="board-overlay trap-line" aria-hidden="true" />
     <span v-if="cell.trapWeapon" class="board-overlay trap-weapon" title="Thrown weapon" />
     <span
@@ -823,6 +830,13 @@ const terrainImageUrl = computed(() => {
   background-repeat: no-repeat;
   opacity: 0.9;
   z-index: 2;
+}
+
+.tile-base-color {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
 }
 
 .tile-appearance-image {

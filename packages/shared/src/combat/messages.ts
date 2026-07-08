@@ -1353,10 +1353,10 @@ export function validateGmPaintTile(
   if (normalizeTileName(tileName).length > TILE_NAME_MAX_LENGTH) {
     return `tileName must be at most ${TILE_NAME_MAX_LENGTH} characters`;
   }
-  if (baseColor !== null && !isValidTileBaseColor(baseColor)) {
+  if (baseColor != null && !isValidTileBaseColor(baseColor)) {
     return "baseColor must be a #RGB or #RRGGBB hex color";
   }
-  if (appearanceKey !== null && (typeof appearanceKey !== "string" || !appearanceKey.trim())) {
+  if (appearanceKey != null && (typeof appearanceKey !== "string" || !appearanceKey.trim())) {
     return "appearanceKey must be a non-empty string";
   }
   return null;

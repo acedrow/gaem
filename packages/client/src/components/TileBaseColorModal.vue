@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { ref, watch } from "vue";
+import { SketchPicker, tinycolor } from "vue-color";
+import "vue-color/style.css";
 
 import ModalDialog from "./ModalDialog.vue";
 
@@ -13,30 +15,26 @@ const emit = defineEmits<{
   "update:modelValue": [value: string | null];
 }>();
 
-const hexInput = ref("");
+const pickerColor = ref("#2d4a3e");
+
+const HEX_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+
+function pickerHex(): string {
+  return tinycolor(pickerColor.value).toHexString();
+}
 
 watch(
   () => props.open,
   (isOpen) => {
     if (!isOpen) return;
-    hexInput.value = props.modelValue ?? "#2d4a3e";
+    pickerColor.value = props.modelValue ?? "#2d4a3e";
   },
 );
 
-const swatchColor = computed(() => {
-  const v = hexInput.value.trim();
-  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v) ? v : "#000000";
-});
-
-function onColorPickerInput(e: Event) {
-  const value = (e.target as HTMLInputElement).value;
-  hexInput.value = value;
-}
-
 function onConfirm() {
-  const v = hexInput.value.trim();
-  if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v)) {
-    emit("update:modelValue", v);
+  const hex = pickerHex();
+  if (HEX_RE.test(hex)) {
+    emit("update:modelValue", hex);
   }
   emit("close");
 }
@@ -57,16 +55,9 @@ function onClear() {
     @confirm="onConfirm"
   >
     <div class="color-modal-body">
-      <label class="color-picker-row">
-        <span class="control-label">Color</span>
-        <input
-          type="color"
-          class="color-input"
-          :value="swatchColor"
-          @input="onColorPickerInput"
-        />
-        <input v-model="hexInput" type="text" class="hex-input" spellcheck="false" />
-      </label>
+      <div class="tile-color-picker">
+        <SketchPicker v-model="pickerColor" :disable-alpha="true" />
+      </div>
       <button type="button" class="clear-btn" @click="onClear">Clear color</button>
     </div>
   </ModalDialog>
@@ -79,39 +70,23 @@ function onClear() {
   gap: 0.75rem;
 }
 
-.color-picker-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+.tile-color-picker {
+  --vc-body-bg: var(--color-surface);
+  --vc-input-bg: var(--color-bg);
+  --vc-input-text: var(--color-text);
+  --vc-input-label: var(--color-muted);
+  --vc-input-border: var(--color-border);
+  --vc-sketch-input-label: var(--color-muted);
+  --vc-sketch-presets-border: var(--color-border);
+  --vc-picker-bg: var(--color-surface-raised);
 }
 
-.control-label {
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--color-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.color-input {
-  width: 2.5rem;
-  height: 2rem;
+.tile-color-picker :deep(.vc-sketch-picker) {
+  width: 100%;
+  box-sizing: border-box;
+  box-shadow: none;
   padding: 0;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  background: transparent;
-  cursor: pointer;
-}
-
-.hex-input {
-  flex: 1;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-size: 0.85rem;
   font-family: inherit;
-  padding: 0.3rem 0.5rem;
 }
 
 .clear-btn {
