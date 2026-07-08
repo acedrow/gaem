@@ -5,6 +5,7 @@ import { logSheetFieldChanges, validateCharacterSheetRefs } from "@gaem/shared";
 import type { Request, Response } from "express";
 
 import type { AuthContext } from "./auth.js";
+import { authHasGmCapabilities } from "./auth.js";
 
 export const characterSheets = new Map<string, CharacterSheet>();
 export const portraits = new Map<string, { body: Buffer; contentType: string }>();
@@ -157,7 +158,7 @@ export function patchSheetHandler(
   };
 
   if (req.body?.player !== undefined) {
-    if (auth.role !== "gm") {
+    if (!authHasGmCapabilities(auth)) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }

@@ -11,6 +11,13 @@ const pullToward = ref<"self" | "weapon">("self");
 
 const isHarpePull = computed(() => pendingClassReaction.value?.kind === "harpe_trap_pull");
 const isBorrowFollowUp = computed(() => pendingClassReaction.value?.kind === "borrowing_follow_up");
+const isOffhandPistolPush = computed(() => pendingClassReaction.value?.kind === "offhand_pistol_push");
+
+const offhandPushEnemyCount = computed(() => {
+  const r = pendingClassReaction.value;
+  if (r?.kind !== "offhand_pistol_push") return 0;
+  return r.enemyIds.length;
+});
 
 const borrowTargetCount = computed(() => {
   const r = pendingClassReaction.value;
@@ -37,6 +44,14 @@ function confirmBorrowFollowUp() {
 }
 
 function skipBorrowFollowUp() {
+  sendPlayerAction({ action: "resolveClassReaction", accept: false });
+}
+
+function confirmOffhandPush() {
+  sendPlayerAction({ action: "resolveClassReaction", accept: true });
+}
+
+function skipOffhandPush() {
   sendPlayerAction({ action: "resolveClassReaction", accept: false });
 }
 
@@ -90,6 +105,19 @@ watch(pendingClassReaction, (r) => {
           Confirm (Support)
         </button>
         <button type="button" class="action-btn reject" @click="skipBorrowFollowUp">Skip</button>
+      </div>
+    </div>
+
+    <div v-else-if="isOffhandPistolPush" class="class-reaction-copy">
+      <strong>Offhand Pistol — Push:1</strong>
+      <p class="class-reaction-detail">
+        Push
+        {{ offhandPushEnemyCount === 1 ? "this enemy" : `these ${offhandPushEnemyCount} enemies` }}
+        1 space away from you?
+      </p>
+      <div class="class-reaction-actions">
+        <button type="button" class="action-btn" @click="confirmOffhandPush">Push</button>
+        <button type="button" class="action-btn reject" @click="skipOffhandPush">Skip</button>
       </div>
     </div>
   </div>

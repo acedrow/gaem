@@ -39,6 +39,7 @@ type Attachment = {
   characterSheetId: string | null;
   playerKey: string | null;
   role: GaemRole | null;
+  gmPermissions?: boolean;
 };
 
 const GAME_STATE_KEY = "gameState";
@@ -130,6 +131,19 @@ export class GameRoom {
     return this.gameState.players.find((p) => p.characterSheetId === sheetId)?.id ?? null;
   }
 
+  private attHasGmCapabilities(att: Attachment | null): boolean {
+    return att?.role === "gm" || att?.gmPermissions === true;
+  }
+
+  private combatCtxForAtt(att: Attachment | null) {
+    const role = att?.role ?? "player";
+    return {
+      role,
+      playerId: this.playerIdForAtt(att),
+      gmPermissions: role === "player" ? att?.gmPermissions === true : undefined,
+    };
+  }
+
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/internal/active-profiles") {
@@ -213,6 +227,7 @@ export class GameRoom {
           characterSheetId: null,
           playerKey: null,
           role: "gm",
+          gmPermissions: false,
         } satisfies Attachment);
         await this.broadcastConsole(await this.actorForSocket(ws), CONSOLE_MSG_CONNECTED);
         await this.broadcastState();
@@ -229,10 +244,12 @@ export class GameRoom {
         playerKey,
         parsed.characterSheetId
       );
+      const profile = await getPlayerProfile(this.env, playerKey);
       ws.serializeAttachment({
         characterSheetId: sheetJoin.characterSheetId ?? null,
         playerKey,
         role: "player",
+        gmPermissions: profile?.gmPermissions === true,
       } satisfies Attachment);
       await this.broadcastConsole(await this.actorForSocket(ws), CONSOLE_MSG_CONNECTED);
       await this.broadcastState();
@@ -243,7 +260,7 @@ export class GameRoom {
       if (parsed.type === "removeEnemy") {
         const enemy = this.gameState.enemies.find((e) => e.id === parsed.enemyId);
         if (!enemy) return;
-        if (att?.role !== "gm" && (enemy.hp ?? 0) > 0) {
+        if (!this.attHasGmCapabilities(att) && (enemy.hp ?? 0) > 0) {
           this.sendError(ws, "Only the game master can manage enemies");
           return;
         }
@@ -253,7 +270,7 @@ export class GameRoom {
           await this.broadcastConsole(actor, `removed ${enemyLabel(enemy)}`);
         }
       } else {
-        if (att?.role !== "gm") {
+        if (!this.attHasGmCapabilities(att)) {
           this.sendError(ws, "Only the game master can manage enemies");
           return;
         }
@@ -299,7 +316,7 @@ export class GameRoom {
     }
 
     if (parsed.type === "setPlayerHp") {
-      if (!canSetPlayerHp(att?.role, this.playerIdForAtt(att), parsed.playerId)) {
+      if (!canSetPlayerHp(att?.role, this.playerIdForAtt(att), parsed.playerId, att?.gmPermissions)) {
         this.sendError(ws, "Forbidden");
         return;
       }
@@ -388,7 +405,7 @@ export class GameRoom {
         this.sendError(ws, "Unknown character sheet");
         return;
       }
-      if (att?.role !== "gm" && !(att?.role === "player" && !!att?.playerKey && sheet.player === att.playerKey)) {
+      if (!this.attHasGmCapabilities(att) && !(att?.role === "player" && !!att?.playerKey && sheet.player === att.playerKey)) {
         this.sendError(ws, "Forbidden");
         return;
       }
@@ -427,7 +444,7 @@ export class GameRoom {
         ? await getCharacterSheet(this.env, token.characterSheetId)
         : null;
       const isOwner = att?.role === "player" && !!att?.playerKey && sheet?.player === att.playerKey;
-      if (att?.role !== "gm" && !isOwner) {
+      if (!this.attHasGmCapabilities(att) && !isOwner) {
         this.sendError(ws, "Forbidden");
         return;
       }
@@ -440,7 +457,7 @@ export class GameRoom {
     }
 
     if (parsed.type === "setSandboxMode") {
-      if (att?.role !== "gm") {
+      if (!this.attHasGmCapabilities(att)) {
         this.sendError(ws, "Only the game master can do that");
         return;
       }
@@ -451,7 +468,7 @@ export class GameRoom {
       return;
     }
 
-    const combatCtx = { role: att?.role ?? "player", playerId: this.playerIdForAtt(att) };
+    const combatCtx = this.combatCtxForAtt(att);
     const combatResult = handleCombatMessage(this.gameState, parsed, combatCtx);
     if (combatResult.handled) {
       if ("error" in combatResult) {
@@ -474,7 +491,7 @@ export class GameRoom {
         this.sendError(ws, "Not joined");
         return;
       }
-      const ctx = { role: att.role, playerId: this.playerIdForAtt(att) };
+      const ctx = this.combatCtxForAtt(att);
       const err = validatePhaseAction(this.gameState, parsed.action, ctx);
       if (err) {
         this.sendError(ws, err);
@@ -514,7 +531,7 @@ export class GameRoom {
         const result = handleCombatMessage(
           this.gameState,
           { type: "movePath", path: [{ x: parsed.x, y: parsed.y }] },
-          { role: att?.role ?? "player", playerId: id },
+          { ...this.combatCtxForAtt(att), playerId: id },
         );
         if (result.handled && "error" in result) {
           this.sendError(ws, result.error);

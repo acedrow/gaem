@@ -2,7 +2,7 @@ import type { CharacterSheet } from "@gaem/shared";
 import { actorForAuth, logSheetFieldChanges, validateCharacterSheetRefs } from "@gaem/shared";
 
 import type { AuthContext } from "./auth.js";
-import { canAccessSheet, canCreateForPlayer, canEditSheet } from "./auth.js";
+import { authHasGmCapabilities, canAccessSheet, canCreateForPlayer, canEditSheet } from "./auth.js";
 import { logConsole } from "./console-log.js";
 import type { Env } from "./env.js";
 import { getPlayerProfile } from "./player-profiles.js";
@@ -210,7 +210,7 @@ export async function handlePatchCharacterSheet(
   }
 
   if (body.player !== undefined) {
-    if (auth.role !== "gm") {
+    if (!(await authHasGmCapabilities(auth, env))) {
       return Response.json({ error: "Forbidden" }, { status: 403 });
     }
     const player = typeof body.player === "string" ? body.player.trim() : "";

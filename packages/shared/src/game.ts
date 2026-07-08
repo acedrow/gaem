@@ -1,3 +1,4 @@
+import { hasGmCapabilities } from "./auth-capabilities.js";
 import type { Enemy, GameMap, GameState, GaemRole, PhaseAction, Player, TerrainObject, TurnHolder } from "./types.js";
 import { playerLabel } from "./console.js";
 import { createDefaultActionBudget, createDefaultCombatState } from "./combat/types.js";
@@ -326,6 +327,7 @@ export function finishGmTurnIfPlayersRemain(state: GameState): string | null {
 export type PhaseActionContext = {
   role: GaemRole;
   playerId: string | null;
+  gmPermissions?: boolean;
 };
 
 export function validatePhaseAction(
@@ -335,7 +337,7 @@ export function validatePhaseAction(
 ): string | null {
   switch (action) {
     case "doEffects":
-      if (ctx.role !== "gm") return "Only the game master can do that";
+      if (!hasGmCapabilities(ctx)) return "Only the game master can do that";
       if (state.roundPhase !== "startRoundEffects") return "Wrong phase";
       return null;
     case "takeTurn": {
@@ -361,17 +363,17 @@ export function validatePhaseAction(
       }
       return null;
     case "endGmTurn":
-      if (ctx.role !== "gm") return "Only the game master can do that";
+      if (!hasGmCapabilities(ctx)) return "Only the game master can do that";
       if (state.roundPhase !== "gmTurn") return "Wrong phase";
       if (remainingPlayerIds(state).length === 0) return "All players have acted";
       return null;
     case "countdownTags":
-      if (ctx.role !== "gm") return "Only the game master can do that";
+      if (!hasGmCapabilities(ctx)) return "Only the game master can do that";
       if (state.roundPhase !== "gmTurn") return "Wrong phase";
       if (remainingPlayerIds(state).length > 0) return "Players still need to act";
       return null;
     case "endRound":
-      if (ctx.role !== "gm") return "Only the game master can do that";
+      if (!hasGmCapabilities(ctx)) return "Only the game master can do that";
       if (state.roundPhase !== "countdownTags") return "Wrong phase";
       return null;
     case "resetRound":
@@ -380,19 +382,19 @@ export function validatePhaseAction(
     case "resetCombat":
     case "removeAllEnemies":
     case "endCombat":
-      if (ctx.role !== "gm") return "Only the game master can do that";
+      if (!hasGmCapabilities(ctx)) return "Only the game master can do that";
       return null;
     case "endDeployment":
-      if (ctx.role !== "gm") return "Only the game master can do that";
+      if (!hasGmCapabilities(ctx)) return "Only the game master can do that";
       if (state.roundPhase !== "deployment") return "Wrong phase";
       if (state.round !== 1) return "Deployment only happens at the start of round 1";
       return null;
     case "rewindPhase":
-      if (ctx.role !== "gm") return "Only the game master can do that";
+      if (!hasGmCapabilities(ctx)) return "Only the game master can do that";
       if (!canRewindPhase(state)) return "Already at the first phase of the round";
       return null;
     case "resetPhase":
-      if (ctx.role !== "gm") return "Only the game master can do that";
+      if (!hasGmCapabilities(ctx)) return "Only the game master can do that";
       if (!canResetPhase(state)) return "No turn in progress to reset";
       return null;
   }
@@ -999,8 +1001,9 @@ export function canSetPlayerHp(
   role: GaemRole | null | undefined,
   socketPlayerId: string | null | undefined,
   targetPlayerId: string,
+  gmPermissions?: boolean,
 ): boolean {
-  if (role === "gm") return true;
+  if (role === "gm" || gmPermissions === true) return true;
   return role === "player" && socketPlayerId === targetPlayerId;
 }
 

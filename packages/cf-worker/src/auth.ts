@@ -1,7 +1,8 @@
 import type { CharacterSheet, GaemRole } from "@gaem/shared";
-import { verifyAuthToken } from "@gaem/shared";
+import { hasGmCapabilities, verifyAuthToken } from "@gaem/shared";
 
 import type { Env } from "./env.js";
+import { getPlayerProfile } from "./player-profiles.js";
 
 export type AuthContext = {
   role: GaemRole;
@@ -47,4 +48,14 @@ export function canAccessSheet(auth: AuthContext, _sheet: CharacterSheet): boole
 export function canCreateForPlayer(auth: AuthContext, playerId: string): boolean {
   if (auth.role === "gm") return true;
   return auth.playerKey === playerId;
+}
+
+export async function authHasGmCapabilities(
+  auth: AuthContext,
+  env: Env,
+): Promise<boolean> {
+  if (auth.role === "gm") return true;
+  if (!auth.playerKey) return false;
+  const profile = await getPlayerProfile(env, auth.playerKey);
+  return hasGmCapabilities({ role: auth.role, gmPermissions: profile?.gmPermissions });
 }

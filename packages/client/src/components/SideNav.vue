@@ -17,7 +17,7 @@ import ModalDialog from "./ModalDialog.vue";
 type PlayerProfileOption = PlayerProfile & { isActive?: boolean };
 
 const { apiFetch, fetchPlayerProfiles } = useApi();
-const { role, playerProfile } = useSession();
+const { role, playerProfile, hasGmCapabilities } = useSession();
 const { selectedSheetId, sheetsExpanded, sheetsVersion, selectSheet } =
   useCharacterSheetSelection();
 const { clearBoardSelection, selectSheetFromNav } = useBoardSelection();
@@ -150,7 +150,7 @@ watch(sheetsVersion, () => {
 
 <template>
   <nav class="side-nav">
-    <GmToolsToolbar v-if="role === 'gm'" />
+    <GmToolsToolbar v-if="hasGmCapabilities" />
 
     <button class="nav-link nav-toggle" :class="{ expanded: sheetsExpanded }" type="button" @click="toggleSheets">
       Character Sheets
@@ -273,7 +273,7 @@ watch(sheetsVersion, () => {
       <CharacterSheetFormFields
         v-model="createForm"
         :profiles="profiles"
-        :show-player="role === 'gm'"
+        :show-player="hasGmCapabilities"
       />
 
       <p v-if="createError" class="sublist-error">{{ createError }}</p>

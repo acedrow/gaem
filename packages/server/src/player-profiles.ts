@@ -11,6 +11,11 @@ export function hasProfile(id: string): boolean {
   return playerProfiles.has(id);
 }
 
+export function profileGmPermissions(profileId: string | null | undefined): boolean {
+  if (!profileId) return false;
+  return playerProfiles.get(profileId)?.gmPermissions === true;
+}
+
 export function listProfilesHandler(res: Response, activeProfileIds: Set<string>): void {
   res.json({
     profiles: [...playerProfiles.values()].map((p) => ({
@@ -32,24 +37,45 @@ export function createProfileHandler(req: Request, res: Response): void {
     name,
     createdAt: now,
     updatedAt: now,
+    gmPermissions: false,
     data: {},
   };
   playerProfiles.set(profile.id, profile);
   res.status(201).json({ profile });
 }
 
-export function patchProfileHandler(id: string, req: Request, res: Response): void {
+export function patchProfileHandler(
+  id: string,
+  req: Request,
+  res: Response,
+  opts?: { allowGmPermissions?: boolean },
+): void {
   const profile = playerProfiles.get(id);
   if (!profile) {
     res.status(404).json({ error: "Not found" });
     return;
   }
-  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
-  if (!name) {
-    res.status(400).json({ error: "Name is required" });
+  const hasName = typeof req.body?.name === "string";
+  const hasGmPermissions = typeof req.body?.gmPermissions === "boolean";
+  if (!hasName && !hasGmPermissions) {
+    res.status(400).json({ error: "Nothing to update" });
     return;
   }
-  profile.name = name;
+  if (hasName) {
+    const name = req.body.name.trim();
+    if (!name) {
+      res.status(400).json({ error: "Name is required" });
+      return;
+    }
+    profile.name = name;
+  }
+  if (hasGmPermissions) {
+    if (!opts?.allowGmPermissions) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    profile.gmPermissions = req.body.gmPermissions;
+  }
   profile.updatedAt = new Date().toISOString();
   playerProfiles.set(profile.id, profile);
   res.json({ profile });

@@ -35,7 +35,7 @@ import { useSession } from "./useSession.js";
 
 export function useCombatActions(playerId?: () => string | null) {
   const { gameState, yourPlayerId, send } = useGameState();
-  const { isGm } = useSession();
+  const { isGm, hasGmCapabilities } = useSession();
 
   const activePlayerId = computed(() => playerId?.() ?? yourPlayerId.value);
 
@@ -66,7 +66,7 @@ export function useCombatActions(playerId?: () => string | null) {
   });
 
   const showGmCombatUi = computed(() => {
-    if (!isGm.value || !combatUiUnlocked.value) return false;
+    if (!hasGmCapabilities.value || !combatUiUnlocked.value) return false;
     const s = gameState.value;
     if (!s) return false;
     return s.roundPhase === "gmTurn" || sandboxMode.value;

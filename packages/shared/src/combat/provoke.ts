@@ -2,16 +2,15 @@ import type { BoardCoord } from "../patterns.js";
 import { isOrthogonallyAdjacent } from "../patterns.js";
 import type { Enemy, GameState, MapTile, Player } from "../types.js";
 import { enemyLabel, playerLabel } from "../console.js";
-import { enemyFootprintTiles, enemyOccupiesTile, getEnemyMaxHpByName, getEnemyScale } from "../enemy-data.js";
+import { enemyFootprintTiles, getEnemyMaxHpByName, getEnemyScale } from "../enemy-data.js";
 import { tileAt } from "../map.js";
 import { rollDice } from "./damage.js";
 import { applyDamageToEnemy, applyDamageToPlayer, manhattanDistance } from "./attack.js";
+import { applyPushFromOrigin } from "./push.js";
 import { playerArmorGearName } from "./attractor.js";
 import {
-  buildSwarmGroups,
   enemyHasSwarmTrait,
   pickSwarmMoveMember,
-  reconcileSwarmHp,
   swarmGroupForEnemy,
 } from "./swarm.js";
 import { isTowerEnemy } from "./yadathan.js";
@@ -379,33 +378,22 @@ export function previewSprintProvokes(
   );
 }
 
-function isTileFreeForPush(state: GameState, x: number, y: number, excludeEnemyId: string): boolean {
-  if (x < 0 || y < 0 || x >= state.width || y >= state.height) return false;
-  for (const p of state.players) {
-    if (p.x === x && p.y === y) return false;
-  }
-  for (const e of state.enemies) {
-    if (e.id === excludeEnemyId) continue;
-    if (enemyOccupiesTile(e, x, y)) return false;
-  }
-  return true;
-}
-
-function tryPushEnemyFromPlayer(
+export function applyOffhandPistolPush(
   state: GameState,
   player: Player,
-  enemy: Enemy,
-): string | null {
-  const dx = enemy.x - player.x;
-  const dy = enemy.y - player.y;
-  const pushX = enemy.x + Math.sign(dx);
-  const pushY = enemy.y + Math.sign(dy);
-  if (!isTileFreeForPush(state, pushX, pushY, enemy.id)) return null;
-  const prevGroups = buildSwarmGroups(state);
-  enemy.x = pushX;
-  enemy.y = pushY;
-  reconcileSwarmHp(state, prevGroups);
-  return `pushed ${enemyLabel(enemy)}`;
+  enemyIds: string[],
+): string {
+  const parts: string[] = [];
+  for (const id of enemyIds) {
+    const enemy = state.enemies.find((e) => e.id === id);
+    if (!enemy || !isEnemyAlive(enemy)) continue;
+    const pushMsg = applyPushFromOrigin(state, enemy, player.x, player.y, 1, {
+      kind: "enemy",
+      excludePlayerId: player.id,
+    });
+    if (pushMsg) parts.push(pushMsg);
+  }
+  return parts.join("; ");
 }
 
 export function applyKopisRetaliation(
@@ -420,19 +408,27 @@ export function applyKopisRetaliation(
   if (!enemyTriggers.length) return undefined;
 
   const parts: string[] = [];
+  const pushEligible: string[] = [];
   for (const trigger of enemyTriggers) {
     const enemy = state.enemies.find((e) => e.id === trigger.sourceId);
     if (!enemy || !isEnemyAlive(enemy)) continue;
     const roll = rollDice(1, 6, rng)[0]!;
     applyDamageToEnemy(enemy, roll, state);
     let part = `${enemyLabel(enemy)} ${roll}`;
-    if (roll >= 4) {
-      const pushed = tryPushEnemyFromPlayer(state, player, enemy);
-      if (pushed) part += ` (${pushed})`;
+    if (roll >= 4 && isEnemyAlive(enemy)) {
+      pushEligible.push(enemy.id);
+      part += " (Push:1 available)";
     }
     parts.push(part);
   }
   if (!parts.length) return undefined;
+  if (pushEligible.length && !state.combat!.pendingClassReaction) {
+    state.combat!.pendingClassReaction = {
+      kind: "offhand_pistol_push",
+      playerId: player.id,
+      enemyIds: pushEligible,
+    };
+  }
   return `Offhand Pistol → ${parts.join(", ")}`;
 }
 

@@ -65,7 +65,7 @@ import {
   characterSheets,
 } from "./character-sheets.js";
 import { getEnemyPortraitHandler, loadEnemyPortraits } from "./enemy-portraits.js";
-import { parseAuth } from "./auth.js";
+import { parseAuth, authHasGmCapabilities } from "./auth.js";
 import {
   createProfileHandler,
   deleteProfileHandler,
@@ -73,6 +73,7 @@ import {
   listProfilesHandler,
   patchProfileHandler,
   playerProfiles,
+  profileGmPermissions,
 } from "./player-profiles.js";
 import { randomIntegersHandler, rollDiceHandler } from "./random-integers.js";
 
@@ -176,17 +177,17 @@ app.post("/api/player-profiles", (req, res) => {
 app.patch("/api/player-profiles/:id", (req, res) => {
   const auth = parseAuth(req, res);
   if (!auth) return;
-  if (auth.role !== "gm") {
+  if (!authHasGmCapabilities(auth)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
-  patchProfileHandler(req.params.id, req, res);
+  patchProfileHandler(req.params.id, req, res, { allowGmPermissions: auth.role === "gm" });
 });
 
 app.delete("/api/player-profiles/:id", (req, res) => {
   const auth = parseAuth(req, res);
   if (!auth) return;
-  if (auth.role !== "gm") {
+  if (!authHasGmCapabilities(auth)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -318,6 +319,7 @@ let gameState: GameState;
 const socketSheet = new Map<WebSocket, string | null>();
 /** socket -> player profile id when joined as player */
 const socketProfile = new Map<WebSocket, string | null>();
+const socketGmPermissions = new Map<WebSocket, boolean>();
 /** socket -> role after join */
 const socketRole = new Map<WebSocket, GaemRole | null>();
 
@@ -326,6 +328,24 @@ function playerIdForSocket(ws: WebSocket): string | null {
   const sheetId = socketSheet.get(ws);
   if (!sheetId) return null;
   return gameState.players.find((p) => p.characterSheetId === sheetId)?.id ?? null;
+}
+
+function socketGmPermissionsFor(ws: WebSocket): boolean {
+  return socketGmPermissions.get(ws) === true;
+}
+
+function socketHasGmCapabilities(ws: WebSocket): boolean {
+  const role = socketRole.get(ws);
+  return role === "gm" || socketGmPermissionsFor(ws);
+}
+
+function combatCtxForSocket(ws: WebSocket) {
+  const role = socketRole.get(ws) ?? "player";
+  return {
+    role,
+    playerId: playerIdForSocket(ws),
+    gmPermissions: role === "player" ? socketGmPermissionsFor(ws) : undefined,
+  };
 }
 
 function cloneState() {
@@ -419,6 +439,7 @@ httpServer.on("upgrade", (request, socket, head) => {
 wss.on("connection", (ws: WebSocket) => {
   socketSheet.set(ws, null);
   socketProfile.set(ws, null);
+  socketGmPermissions.set(ws, false);
   socketRole.set(ws, null);
   sendConsoleSync(ws);
   broadcastState();
@@ -446,6 +467,7 @@ wss.on("connection", (ws: WebSocket) => {
       if (role === "gm") {
         socketSheet.set(ws, null);
         socketProfile.set(ws, null);
+        socketGmPermissions.set(ws, false);
         socketRole.set(ws, "gm");
         broadcastConsole(actorForSocket(ws), CONSOLE_MSG_CONNECTED);
         broadcastState();
@@ -467,6 +489,7 @@ wss.on("connection", (ws: WebSocket) => {
 
       socketSheet.set(ws, resolveSheetForJoin(playerKey, parsed.characterSheetId).characterSheetId ?? null);
       socketProfile.set(ws, playerKey);
+      socketGmPermissions.set(ws, profileGmPermissions(playerKey));
       socketRole.set(ws, "player");
       broadcastConsole(actorForSocket(ws), CONSOLE_MSG_CONNECTED);
       broadcastState();
@@ -478,7 +501,7 @@ wss.on("connection", (ws: WebSocket) => {
       if (parsed.type === "removeEnemy") {
         const enemy = gameState.enemies.find((e) => e.id === parsed.enemyId);
         if (!enemy) return;
-        if (role !== "gm" && (enemy.hp ?? 0) > 0) {
+        if (!socketHasGmCapabilities(ws) && (enemy.hp ?? 0) > 0) {
           sendError(ws, "Only the game master can manage enemies");
           return;
         }
@@ -487,7 +510,7 @@ wss.on("connection", (ws: WebSocket) => {
           broadcastConsole(actorForSocket(ws), `removed ${enemyLabel(enemy)}`);
         }
       } else {
-        if (role !== "gm") {
+        if (!socketHasGmCapabilities(ws)) {
           sendError(ws, "Only the game master can manage enemies");
           return;
         }
@@ -533,7 +556,7 @@ wss.on("connection", (ws: WebSocket) => {
     if (parsed.type === "setPlayerHp") {
       const role = socketRole.get(ws);
       const playerId = playerIdForSocket(ws);
-      if (!canSetPlayerHp(role, playerId, parsed.playerId)) {
+      if (!canSetPlayerHp(role, playerId, parsed.playerId, socketGmPermissionsFor(ws))) {
         sendError(ws, "Forbidden");
         return;
       }
@@ -660,7 +683,7 @@ wss.on("connection", (ws: WebSocket) => {
       const playerKey = socketProfile.get(ws);
       const sheet = token.characterSheetId ? characterSheets.get(token.characterSheetId) : undefined;
       const isOwner = role === "player" && !!playerKey && sheet?.player === playerKey;
-      if (role !== "gm" && !isOwner) {
+      if (!socketHasGmCapabilities(ws) && !isOwner) {
         sendError(ws, "Forbidden");
         return;
       }
@@ -672,7 +695,7 @@ wss.on("connection", (ws: WebSocket) => {
     }
 
     if (parsed.type === "setSandboxMode") {
-      if (socketRole.get(ws) !== "gm") {
+      if (!socketHasGmCapabilities(ws)) {
         sendError(ws, "Only the game master can do that");
         return;
       }
@@ -682,7 +705,7 @@ wss.on("connection", (ws: WebSocket) => {
       return;
     }
 
-    const combatCtx = { role: role ?? "player", playerId: playerIdForSocket(ws) };
+    const combatCtx = combatCtxForSocket(ws);
 
     const combatResult = handleCombatMessage(gameState, parsed, combatCtx);
     if (combatResult.handled) {
@@ -705,7 +728,7 @@ wss.on("connection", (ws: WebSocket) => {
         sendError(ws, "Not joined");
         return;
       }
-      const ctx = { role, playerId: playerIdForSocket(ws) };
+      const ctx = combatCtxForSocket(ws);
       const err = validatePhaseAction(gameState, parsed.action, ctx);
       if (err) {
         sendError(ws, err);
@@ -743,7 +766,7 @@ wss.on("connection", (ws: WebSocket) => {
         const result = handleCombatMessage(
           gameState,
           { type: "movePath", path: [{ x: parsed.x, y: parsed.y }] },
-          { role: role ?? "player", playerId: id },
+          { ...combatCtxForSocket(ws), playerId: id },
         );
         if (result.handled && "error" in result) {
           sendError(ws, result.error);
@@ -774,6 +797,7 @@ wss.on("connection", (ws: WebSocket) => {
     }
     socketSheet.delete(ws);
     socketProfile.delete(ws);
+    socketGmPermissions.delete(ws);
     socketRole.delete(ws);
   });
 });

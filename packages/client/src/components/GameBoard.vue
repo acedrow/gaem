@@ -148,9 +148,12 @@ import GmSwarmAttackModal from "./GmSwarmAttackModal.vue";
 
 const props = defineProps<{
   role: "gm" | "player";
+  gmCapabilities?: boolean;
   playerProfile?: { id: string; name: string } | null;
   overlayEl?: HTMLElement | null;
 }>();
+
+const canUseGmTools = computed(() => props.role === "gm" || props.gmCapabilities === true);
 
 const {
   boardSelection,
@@ -176,7 +179,7 @@ const activePlayerSelected = computed(() => {
   return selectedPlayerId.value === id;
 });
 const { showHealthBars } = usePlayerSettings();
-const showEnemyHealthBars = computed(() => showHealthBars.value && props.role === "gm");
+const showEnemyHealthBars = computed(() => showHealthBars.value && canUseGmTools.value);
 const { indicators: damageIndicators } = useDamageIndicators(gameState);
 const { sheets, loadSheets } = useCharacterSheets();
 const boardPlayers = computed(() => gameState.value?.players);
@@ -1396,7 +1399,7 @@ const combatAttackSelectedKeys = computed(() => {
 
 function shouldRenderRemoteAttackPreview(preview: AttackPreviewState): boolean {
   if (preview.mode === "gmEnemyAttack") {
-    return !(props.role === "gm" && boardActionMode.value === "gmEnemyAttack");
+    return !(canUseGmTools.value && boardActionMode.value === "gmEnemyAttack");
   }
   if (preview.playerId === yourPlayerId.value && boardActionMode.value != null) return false;
   return true;
@@ -1857,8 +1860,8 @@ const cellStateByKey = computed(() => {
         isWalkable(tile) &&
         !player &&
         !enemy,
-      gmMovable: props.role === "gm" && gmEnemyMoveTargetKeys.value.has(c.key),
-      gmSpawnable: props.role === "gm" && gmSpawnableKeys.value.has(c.key),
+      gmMovable: canUseGmTools.value && gmEnemyMoveTargetKeys.value.has(c.key),
+      gmSpawnable: canUseGmTools.value && gmSpawnableKeys.value.has(c.key),
       patternPrimary: patternPrimaryKeys.value.has(ck),
       patternSecondary: patternSecondaryKeys.value.has(ck),
       combatTargetPrimary: combatPrimary,
@@ -1879,7 +1882,7 @@ const cellStateByKey = computed(() => {
       player,
       enemyAnchor,
       enemyHp:
-        enemyAnchor && s && props.role === "gm"
+        enemyAnchor && s && canUseGmTools.value
           ? (() => {
               const group = swarmGroupForEnemy(s, enemyAnchor.id, swarmGroups);
               if (
@@ -3392,7 +3395,7 @@ function handleCombatCellClick(x: number, y: number): boolean {
 
 function onBoardPlayerClick(x: number, y: number, playerId: string, characterSheetId?: string) {
   if (tryGmDamageEffectToken({ kind: "player", id: playerId })) return;
-  if (props.role === "gm" && boardActionMode.value === "gmEnemyAttack") {
+  if (canUseGmTools.value && boardActionMode.value === "gmEnemyAttack") {
     if (handleGmEnemyAttackCellClick(x, y)) return;
   }
   if (routesTokenClickToCellTargeting(boardActionMode.value, boardTargetingContext())) {
@@ -3651,7 +3654,7 @@ function tryPatternCellClick(x: number, y: number): boolean {
 
 function onCellClick(x: number, y: number) {
   if (tryPatternCellClick(x, y)) return;
-  if (props.role === "gm") onGmCellClick(x, y);
+  if (canUseGmTools.value) onGmCellClick(x, y);
   else onPlayerCellClick(x, y);
 }
 
@@ -3715,7 +3718,7 @@ function buildContextMenuItems(x: number, y: number): BoardContextMenuItem[] {
   const tile = s ? tileAt(s.tiles, x, y) : undefined;
   const bulk = gmBulkSelection.value;
   const useBulk =
-    props.role === "gm" &&
+    canUseGmTools.value &&
     !!bulk &&
     !!occ &&
     isCellInBulkSelection(x, y, occ);
@@ -3753,25 +3756,25 @@ function buildContextMenuItems(x: number, y: number): BoardContextMenuItem[] {
 
   const canRemoveAttractor =
     !!attractor &&
-    (props.role === "gm" ||
+    (canUseGmTools.value ||
       (props.role === "player" && yourPlayerId.value === attractor.ownerId));
   if (player || enemy) {
     items.push({ id: "add-effect", label: "Add effect" });
   }
-  if (props.role === "gm") {
+  if (canUseGmTools.value) {
     items.push({ id: "change-tile-terrain", label: "Change terrain type" });
     items.push({ id: "add-tile-effect", label: "Add tile effect" });
     if (hasTileEffects(tile)) {
       items.push({ id: "clear-tile-effects", label: "Clear tile effects", danger: true });
     }
   }
-  if (props.role === "gm" && hasEffectStacks(player ?? enemy)) {
+  if (canUseGmTools.value && hasEffectStacks(player ?? enemy)) {
     items.push({ id: "clear-effects", label: "Clear effects", danger: true });
   }
-  if (props.role === "gm" && enemy) {
+  if (canUseGmTools.value && enemy) {
     items.push({ id: "remove-enemy", label: "Remove enemy", danger: true });
   }
-  if (player && (props.role === "gm" || player.id === yourPlayerId.value)) {
+  if (player && (canUseGmTools.value || player.id === yourPlayerId.value)) {
     items.push({ id: "remove-player", label: "Remove token", danger: true });
   }
   if (canRemoveAttractor) {
@@ -3805,7 +3808,7 @@ function onBoardContextMenu(e: MouseEvent) {
   const player = occ?.playerByKey.get(key);
   const enemy = occ?.enemyByKey.get(key);
   const inBulk =
-    props.role === "gm" &&
+    canUseGmTools.value &&
     !!gmBulkSelection.value &&
     !!occ &&
     isCellInBulkSelection(x, y, occ);
@@ -3999,7 +4002,7 @@ function onKeydown(e: KeyboardEvent) {
   }
 
   if (e.key === "e" && e.ctrlKey && !e.metaKey && !e.altKey) {
-    if (props.role === "gm" && tryEndGmTokenTurn()) {
+    if (canUseGmTools.value && tryEndGmTokenTurn()) {
       e.preventDefault();
       return;
     }
@@ -4061,7 +4064,7 @@ function onKeydown(e: KeyboardEvent) {
     return;
   }
 
-  if (props.role === "gm") {
+  if (canUseGmTools.value) {
     if (e.key === "Escape") {
       if (gmActiveTool.value || gmBulkSelection.value) {
         clearActiveTool();
@@ -4213,7 +4216,7 @@ onUnmounted(() => {
             <span class="tooltip-heading">Towers</span>
             <div v-for="tower in tooltipData.towers" :key="tower.id" class="tooltip-unit">
               <span class="tooltip-row">
-                {{ enemyLabel(tower) }}<template v-if="props.role === 'gm'"> · HP {{ formatHp(tower.hp, getEnemyMaxHp(tower)) }}</template>
+                {{ enemyLabel(tower) }}<template v-if="canUseGmTools"> · HP {{ formatHp(tower.hp, getEnemyMaxHp(tower)) }}</template>
               </span>
             </div>
           </div>
@@ -4221,7 +4224,7 @@ onUnmounted(() => {
             <span class="tooltip-heading">Enemies</span>
             <div v-for="enemy in tooltipData.enemies" :key="enemy.id" class="tooltip-unit">
               <span class="tooltip-row">
-                {{ enemy.displayName }}<template v-if="props.role === 'gm'"> · HP {{ formatHp(enemy.displayHp, enemy.displayMaxHp) }}</template>
+                {{ enemy.displayName }}<template v-if="canUseGmTools"> · HP {{ formatHp(enemy.displayHp, enemy.displayMaxHp) }}</template>
               </span>
               <span
                 v-for="effect in effectEntries(enemy.effects)"

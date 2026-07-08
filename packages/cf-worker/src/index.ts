@@ -13,7 +13,7 @@ import {
 } from "./character-sheets.js";
 import { constantTimeEqual, createAuthToken } from "@gaem/shared";
 
-import { verifyAuth } from "./auth.js";
+import { verifyAuth, authHasGmCapabilities } from "./auth.js";
 import {
   createPlayerProfile,
   deletePlayerProfile,
@@ -99,7 +99,7 @@ export default {
     if (profileMatch) {
       const auth = await verifyAuth(request, env);
       if (auth instanceof Response) return auth;
-      if (auth.role !== "gm") {
+      if (!(await authHasGmCapabilities(auth, env))) {
         return Response.json({ error: "Forbidden" }, { status: 403 });
       }
       const profileId = profileMatch[1];
@@ -110,13 +110,27 @@ export default {
           return Response.json({ error: "Not found" }, { status: 404 });
         }
         const body = (await request.json().catch(() => null)) as
-          | { name?: unknown }
+          | { name?: unknown; gmPermissions?: unknown }
           | null;
-        const name = typeof body?.name === "string" ? body.name.trim() : "";
-        if (!name) {
-          return Response.json({ error: "Name is required" }, { status: 400 });
+        const hasName = typeof body?.name === "string";
+        const hasGmPermissions = typeof body?.gmPermissions === "boolean";
+        if (!hasName && !hasGmPermissions) {
+          return Response.json({ error: "Nothing to update" }, { status: 400 });
         }
-        profile.name = name;
+        if (hasName) {
+          const name = body!.name as string;
+          const trimmed = name.trim();
+          if (!trimmed) {
+            return Response.json({ error: "Name is required" }, { status: 400 });
+          }
+          profile.name = trimmed;
+        }
+        if (hasGmPermissions) {
+          if (auth.role !== "gm") {
+            return Response.json({ error: "Forbidden" }, { status: 403 });
+          }
+          profile.gmPermissions = body!.gmPermissions as boolean;
+        }
         profile.updatedAt = new Date().toISOString();
         await savePlayerProfile(env, profile);
         return Response.json({ profile });

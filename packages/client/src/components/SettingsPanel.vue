@@ -8,7 +8,7 @@ import ManagePlayersModal from "./ManagePlayersModal.vue";
 
 const { showHealthBars, showConnectionsInConsole } = usePlayerSettings();
 const { theme, themes } = useTheme();
-const { isGm } = useSession();
+const { hasGmCapabilities } = useSession();
 
 const managePlayersOpen = ref(false);
 </script>
@@ -73,7 +73,7 @@ const managePlayersOpen = ref(false);
         </button>
       </div>
 
-      <template v-if="isGm">
+      <template v-if="hasGmCapabilities">
         <h3 class="settings-section-heading">Game master</h3>
         <button type="button" class="manage-players-btn" @click="managePlayersOpen = true">
           Manage players

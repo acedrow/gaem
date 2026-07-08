@@ -6,7 +6,7 @@ import { useCombatActions } from "../composables/useCombatActions.js";
 import { useSession } from "../composables/useSession.js";
 import PanelShell from "./PanelShell.vue";
 
-const { isGm } = useSession();
+const { hasGmCapabilities } = useSession();
 const { pendingActions, applyAssisted } = useCombatActions();
 
 const damageDraft = ref<Record<string, string>>({});
@@ -14,7 +14,7 @@ const rejectId = ref<string | null>(null);
 const dismissed = ref(false);
 
 const gmPending = computed(() =>
-  isGm.value ? pendingActions.value : [],
+  hasGmCapabilities.value ? pendingActions.value : [],
 );
 
 watch(
@@ -60,7 +60,7 @@ function applyPending(pendingId: string, reject = false) {
 </script>
 
 <template>
-  <template v-if="isGm && gmPending.length">
+  <template v-if="hasGmCapabilities && gmPending.length">
     <button
       v-if="dismissed"
       type="button"

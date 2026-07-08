@@ -3,6 +3,7 @@ import type { CharacterSheet, PlayerProfile } from "@gaem/shared";
 import { computed, ref, watch } from "vue";
 
 import { useApi } from "../composables/useApi.js";
+import { useSession } from "../composables/useSession.js";
 import ModalDialog from "./ModalDialog.vue";
 
 type PlayerProfileOption = PlayerProfile & { isActive?: boolean };
@@ -11,6 +12,7 @@ const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ close: [] }>();
 
 const { apiFetch } = useApi();
+const { isGm } = useSession();
 
 const profiles = ref<PlayerProfileOption[]>([]);
 const sheets = ref<CharacterSheet[]>([]);
@@ -139,6 +141,24 @@ async function removePlayer(profile: PlayerProfileOption) {
   }
 }
 
+async function toggleGmPermissions(profile: PlayerProfileOption) {
+  savingId.value = profile.id;
+  error.value = null;
+  try {
+    const res = await apiFetch(`/api/player-profiles/${profile.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gmPermissions: !profile.gmPermissions }),
+    });
+    if (!res.ok) throw new Error("update failed");
+    await load();
+  } catch {
+    error.value = "Unable to update GM permissions";
+  } finally {
+    savingId.value = null;
+  }
+}
+
 async function linkSheet(profileId: string, event: Event) {
   const select = event.target as HTMLSelectElement;
   const sheetId = select.value;
@@ -182,6 +202,7 @@ function playerName(id: string): string {
         <tr>
           <th>Player</th>
           <th>Character sheets</th>
+          <th v-if="isGm" class="gm-perms-col">GM permissions</th>
           <th class="actions-col">Actions</th>
         </tr>
       </thead>
@@ -224,6 +245,22 @@ function playerName(id: string): string {
                 {{ sheet.name }} — {{ playerName(sheet.player) }}
               </option>
             </select>
+          </td>
+
+          <td v-if="isGm" class="gm-perms-cell">
+            <label class="gm-perms-toggle">
+              <button
+                type="button"
+                role="switch"
+                class="toggle"
+                :class="{ on: profile.gmPermissions }"
+                :aria-checked="profile.gmPermissions === true"
+                :disabled="savingId === profile.id"
+                @click="toggleGmPermissions(profile)"
+              >
+                <span class="toggle-thumb" />
+              </button>
+            </label>
           </td>
 
           <td class="actions-cell">
@@ -314,6 +351,58 @@ function playerName(id: string): string {
   text-transform: uppercase;
   color: var(--color-muted);
   font-weight: 600;
+}
+
+.gm-perms-col {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.gm-perms-cell {
+  vertical-align: middle;
+}
+
+.gm-perms-toggle {
+  display: inline-flex;
+  align-items: center;
+}
+
+.toggle {
+  position: relative;
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 1.25rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  background: var(--color-surface-raised);
+  padding: 0;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.toggle.on {
+  background: var(--color-success-dark);
+  border-color: var(--color-success-bright);
+}
+
+.toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: calc(1.25rem - 4px);
+  height: calc(1.25rem - 4px);
+  border-radius: 50%;
+  background: var(--color-text);
+  transition: transform 0.15s;
+}
+
+.toggle.on .toggle-thumb {
+  transform: translateX(1rem);
 }
 
 .actions-col {

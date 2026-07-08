@@ -183,6 +183,7 @@ export type PlayerProfile = {
   name: string;
   createdAt: string;
   updatedAt: string;
+  gmPermissions?: boolean;
   data: Record<string, unknown>;
 };
 

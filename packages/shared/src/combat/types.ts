@@ -140,7 +140,16 @@ export type BorrowingFollowUpReaction = {
   maxDamage: number;
 };
 
-export type PendingClassReaction = HarpeTrapPullReaction | BorrowingFollowUpReaction;
+export type OffhandPistolPushReaction = {
+  kind: "offhand_pistol_push";
+  playerId: string;
+  enemyIds: string[];
+};
+
+export type PendingClassReaction =
+  | HarpeTrapPullReaction
+  | BorrowingFollowUpReaction
+  | OffhandPistolPushReaction;
 
 export type ClassActiveKind =
   | "weapon_trap"

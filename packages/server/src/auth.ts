@@ -1,5 +1,8 @@
 import type { GaemRole } from "@gaem/shared";
+import { hasGmCapabilities } from "@gaem/shared";
 import type { Request, Response } from "express";
+
+import { profileGmPermissions } from "./player-profiles.js";
 
 declare module "express-serve-static-core" {
   interface Request {
@@ -27,6 +30,13 @@ export function parseAuth(req: Request, res: Response): AuthContext | null {
     return null;
   }
   return { role, playerKey };
+}
+
+export function authHasGmCapabilities(auth: AuthContext): boolean {
+  return hasGmCapabilities({
+    role: auth.role,
+    gmPermissions: auth.role === "player" ? profileGmPermissions(auth.playerKey) : undefined,
+  });
 }
 
 export function requireAuth(

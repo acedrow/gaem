@@ -3,9 +3,15 @@ import { computed, ref } from "vue";
 
 const STORAGE_KEY = "gaem-session";
 
+type StoredPlayerProfile = {
+  id: string;
+  name: string;
+  gmPermissions?: boolean;
+};
+
 type StoredSession = {
   role: GaemRole;
-  playerProfile: { id: string; name: string } | null;
+  playerProfile: StoredPlayerProfile | null;
   token: string;
 };
 
@@ -24,9 +30,7 @@ function loadStored(): StoredSession | null {
 
 const stored = loadStored();
 const role = ref<GaemRole | null>(stored?.role ?? null);
-const playerProfile = ref<{ id: string; name: string } | null>(
-  stored?.playerProfile ?? null
-);
+const playerProfile = ref<StoredPlayerProfile | null>(stored?.playerProfile ?? null);
 const token = ref<string | null>(stored?.token ?? null);
 
 function persist() {
@@ -47,11 +51,20 @@ function persist() {
 export function useSession() {
   const isActive = computed(() => role.value !== null);
   const isGm = computed(() => role.value === "gm");
+  const hasGmCapabilities = computed(
+    () => role.value === "gm" || playerProfile.value?.gmPermissions === true,
+  );
 
   function startSession(r: GaemRole, profile: PlayerProfile | null, authToken: string) {
     role.value = r;
     playerProfile.value =
-      r === "player" && profile ? { id: profile.id, name: profile.name } : null;
+      r === "player" && profile
+        ? {
+            id: profile.id,
+            name: profile.name,
+            gmPermissions: profile.gmPermissions === true,
+          }
+        : null;
     token.value = authToken;
     persist();
   }
@@ -81,6 +94,7 @@ export function useSession() {
     token,
     isActive,
     isGm,
+    hasGmCapabilities,
     startSession,
     clearSession,
     apiHeaders,

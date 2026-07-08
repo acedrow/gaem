@@ -1,4 +1,6 @@
-import type { GameState, GaemRole, Player } from "../types.js";
+import type { AuthCapabilities } from "../auth-capabilities.js";
+import { hasGmCapabilities } from "../auth-capabilities.js";
+import type { GameState, Player } from "../types.js";
 import { isOrthogonallyAdjacent } from "../patterns.js";
 import type { AttractorTile } from "./types.js";
 import { applyPullToward, isAttractorVoidTile } from "./pull.js";
@@ -102,11 +104,11 @@ export function validateRemoveAttractor(
   state: GameState,
   x: number,
   y: number,
-  ctx: { role: GaemRole; playerId: string | null },
+  ctx: AuthCapabilities & { playerId: string | null },
 ): string | null {
   const attractor = getAttractorAt(state, x, y);
   if (!attractor) return "No attractor here";
-  if (ctx.role === "gm") return null;
+  if (hasGmCapabilities(ctx)) return null;
   if (ctx.playerId && ctx.playerId === attractor.ownerId) return null;
   return "Not your attractor";
 }

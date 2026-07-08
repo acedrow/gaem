@@ -6,7 +6,8 @@ import type {
   GmEnemyAction,
   PlayerAction,
 } from "./types.js";
-import type { GaemRole, ClientMessage, Enemy, GameState, Player, TerrainType } from "../types.js";
+import type { ClientMessage, Enemy, GameState, Player, TerrainType } from "../types.js";
+import { hasGmCapabilities, type AuthCapabilities } from "../auth-capabilities.js";
 import {
   canGmMoveEnemies,
   canPlayerMove,
@@ -158,8 +159,7 @@ import { applyTransferenceHeal } from "./transference.js";
 import { computePathCostWithFlying, resolveFlyingMask, spendAegisFlying } from "./aegis.js";
 import { spendMovement } from "./actions.js";
 
-export type CombatMessageContext = {
-  role: GaemRole;
+export type CombatMessageContext = AuthCapabilities & {
   playerId: string | null;
 };
 
@@ -1295,8 +1295,8 @@ export function applySetTileTerrain(
   return `Set (${x}, ${y}) terrain to ${terrain}`;
 }
 
-export function validateAssistedOutcome(_state: GameState, _outcome: AssistedOutcome, role: GaemRole): string | null {
-  if (role !== "gm") return "Only GM can apply assisted outcomes";
+export function validateAssistedOutcome(_state: GameState, _outcome: AssistedOutcome, ctx: AuthCapabilities): string | null {
+  if (!hasGmCapabilities(ctx)) return "Only GM can apply assisted outcomes";
   return null;
 }
 
@@ -1410,7 +1410,7 @@ export function validateSetAttackPreview(
 ): string | null {
   if (preview == null) return null;
   if (preview.mode === "gmEnemyAttack") {
-    if (ctx.role !== "gm") return "Only GM can preview enemy attacks";
+    if (!hasGmCapabilities(ctx)) return "Only GM can preview enemy attacks";
     if (!preview.enemyId || preview.attackIndex == null) return "Invalid enemy attack preview";
     return null;
   }
@@ -1452,25 +1452,25 @@ export function handleCombatMessage(
       return { handled: true, message: applyPlayerAction(state, ctx.playerId, parsed.action) };
     }
     case "gmEnemyAction": {
-      if (ctx.role !== "gm") return { handled: true, error: "Only GM can do that" };
+      if (!hasGmCapabilities(ctx)) return { handled: true, error: "Only GM can do that" };
       const err = validateGmEnemyAction(state, parsed.action);
       if (err) return { handled: true, error: err };
       return { handled: true, message: applyGmEnemyAction(state, parsed.action) };
     }
     case "applyAssistedOutcome": {
-      const err = validateAssistedOutcome(state, parsed.outcome, ctx.role);
+      const err = validateAssistedOutcome(state, parsed.outcome, ctx);
       if (err) return { handled: true, error: err };
       const msg = applyAssistedOutcome(state, parsed.outcome);
       return { handled: true, message: msg ?? "Applied" };
     }
     case "setEnemyHp": {
-      if (ctx.role !== "gm") return { handled: true, error: "Only GM can do that" };
+      if (!hasGmCapabilities(ctx)) return { handled: true, error: "Only GM can do that" };
       const err = validateSetEnemyHp(state, parsed.enemyId, parsed.hp);
       if (err) return { handled: true, error: err };
       return { handled: true, message: applySetEnemyHp(state, parsed.enemyId, parsed.hp) };
     }
     case "gmApplyDamage": {
-      if (ctx.role !== "gm") return { handled: true, error: "Only GM can do that" };
+      if (!hasGmCapabilities(ctx)) return { handled: true, error: "Only GM can do that" };
       const err = validateGmApplyDamage(state, parsed.target, parsed.amount);
       if (err) return { handled: true, error: err };
       return { handled: true, message: applyGmApplyDamage(state, parsed.target, parsed.amount) };
@@ -1481,25 +1481,25 @@ export function handleCombatMessage(
       return { handled: true, message: applyEffectTarget(state, parsed.target, parsed.effects) };
     }
     case "clearEffects": {
-      if (ctx.role !== "gm") return { handled: true, error: "Only GM can do that" };
+      if (!hasGmCapabilities(ctx)) return { handled: true, error: "Only GM can do that" };
       const err = validateClearEffects(state, parsed.target);
       if (err) return { handled: true, error: err };
       return { handled: true, message: applyClearEffects(state, parsed.target) };
     }
     case "applyTileEffect": {
-      if (ctx.role !== "gm") return { handled: true, error: "Only GM can do that" };
+      if (!hasGmCapabilities(ctx)) return { handled: true, error: "Only GM can do that" };
       const err = validateApplyTileEffect(state, parsed.x, parsed.y, parsed.effects);
       if (err) return { handled: true, error: err };
       return { handled: true, message: applyApplyTileEffect(state, parsed.x, parsed.y, parsed.effects) };
     }
     case "clearTileEffects": {
-      if (ctx.role !== "gm") return { handled: true, error: "Only GM can do that" };
+      if (!hasGmCapabilities(ctx)) return { handled: true, error: "Only GM can do that" };
       const err = validateClearTileEffects(state, parsed.x, parsed.y);
       if (err) return { handled: true, error: err };
       return { handled: true, message: applyClearTileEffects(state, parsed.x, parsed.y) };
     }
     case "setTileTerrain": {
-      if (ctx.role !== "gm") return { handled: true, error: "Only GM can do that" };
+      if (!hasGmCapabilities(ctx)) return { handled: true, error: "Only GM can do that" };
       const err = validateSetTileTerrain(state, parsed.x, parsed.y, parsed.terrain);
       if (err) return { handled: true, error: err };
       return {

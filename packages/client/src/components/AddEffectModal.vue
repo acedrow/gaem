@@ -17,7 +17,7 @@ const emit = defineEmits<{
 }>();
 
 const { send } = useGameState();
-const { isGm } = useSession();
+const { hasGmCapabilities } = useSession();
 
 const selectedId = ref(UNIT_EFFECTS[0]?.id ?? "");
 const stacks = ref(1);
@@ -51,7 +51,7 @@ function clearEffects() {
     :open="open"
     :effects="UNIT_EFFECTS"
     :apply-enabled="applyTargets.length > 0"
-    :show-clear="isGm"
+    :show-clear="hasGmCapabilities"
     clear-label="Clear effects"
     :clear-disabled="!applyTargets.length"
     @apply="apply"

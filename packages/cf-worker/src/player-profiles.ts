@@ -86,6 +86,7 @@ export async function createPlayerProfile(
     name,
     createdAt: now,
     updatedAt: now,
+    gmPermissions: false,
     data: {},
   };
   await env.PLAYER_KV.put(key(profile.id), JSON.stringify(profile));

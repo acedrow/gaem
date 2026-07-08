@@ -6,7 +6,7 @@ import { computed } from "vue";
 import { useGameState } from "../composables/useGameState.js";
 import { useSession } from "../composables/useSession.js";
 
-const { role } = useSession();
+const { hasGmCapabilities } = useSession();
 const { gameState, send } = useGameState();
 
 const round = computed(() => gameState.value?.round ?? null);
@@ -50,7 +50,7 @@ function sendGmAction(action: PhaseAction) {
       <p v-else class="round-heading muted">—</p>
     </header>
 
-    <div v-if="role === 'gm'" class="gm-controls">
+    <div v-if="hasGmCapabilities" class="gm-controls">
       <div class="gm-controls-main">
         <label class="sandbox-toggle">
           <span class="sandbox-label">Sandbox mode</span>

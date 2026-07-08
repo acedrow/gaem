@@ -27,7 +27,7 @@ import RightPanel from "./RightPanel.vue";
 import SideNav from "./SideNav.vue";
 
 const router = useRouter();
-const { role, playerProfile, clearSession } = useSession();
+const { role, playerProfile, hasGmCapabilities, clearSession } = useSession();
 const { selectedSheetId, sheetsExpanded, selectSheet } = useCharacterSheetSelection();
 const { boardSelection, selectBoardPlayer, clearBoardSelection, selectSheetFromNav } = useBoardSelection();
 const { dataCategory, dataFocus, dataFocusReturnCategory, dataExpanded, clearDataCategory, selectDataCategory } =
@@ -100,10 +100,10 @@ const phaseAction = computed((): { label: string; action: PhaseAction } | null =
   const s = gameState.value;
   if (!s || !role.value || isSandboxMode(s)) return null;
 
-  if (s.roundPhase === "deployment" && role.value === "gm") {
+  if (s.roundPhase === "deployment" && hasGmCapabilities.value) {
     return { label: "End deployment", action: "endDeployment" };
   }
-  if (s.roundPhase === "startRoundEffects" && role.value === "gm") {
+  if (s.roundPhase === "startRoundEffects" && hasGmCapabilities.value) {
     return { label: "Do effects", action: "doEffects" };
   }
   if (
@@ -125,13 +125,13 @@ const phaseAction = computed((): { label: string; action: PhaseAction } | null =
   ) {
     return { label: "End turn", action: "endPlayerTurn" };
   }
-  if (s.roundPhase === "gmTurn" && role.value === "gm") {
+  if (s.roundPhase === "gmTurn" && hasGmCapabilities.value) {
     if (remainingPlayerIds(s).length > 0) {
       return { label: "End turn", action: "endGmTurn" };
     }
     return { label: "Countdown tags", action: "countdownTags" };
   }
-  if (s.roundPhase === "countdownTags" && role.value === "gm") {
+  if (s.roundPhase === "countdownTags" && hasGmCapabilities.value) {
     return { label: "End round", action: "endRound" };
   }
   return null;
@@ -288,7 +288,7 @@ function onOverworldClick() {
         <p v-else-if="activeMainTab === 'taccom' && roundStatus" class="round-status">
           Round {{ roundStatus.round }} · {{ roundStatus.phase }} · {{ roundStatus.turn }}
         </p>
-        <GmCombatHeaderControls v-if="activeMainTab === 'taccom' && role === 'gm'" />
+        <GmCombatHeaderControls v-if="activeMainTab === 'taccom' && hasGmCapabilities" />
         <button
           v-if="activeMainTab === 'taccom' && phaseAction"
           class="phase-action-btn"
@@ -299,7 +299,12 @@ function onOverworldClick() {
         </button>
       </header>
       <div v-if="role && activeMainTab === 'taccom'" class="board-area">
-        <GameBoard :role="role" :player-profile="playerProfile" :overlay-el="boardOverlaysEl" />
+        <GameBoard
+          :role="role"
+          :gm-capabilities="hasGmCapabilities"
+          :player-profile="playerProfile"
+          :overlay-el="boardOverlaysEl"
+        />
         <div ref="boardOverlaysEl" class="board-overlays">
           <ReversalPrompt />
           <ClassReactionPrompt />

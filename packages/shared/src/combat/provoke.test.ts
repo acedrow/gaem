@@ -9,6 +9,7 @@ import {
   resolveProvokeTriggers,
 } from "./provoke.js";
 import { applyMovePath, applyPlayerAction } from "./messages.js";
+import { applyResolveClassReaction } from "./class-abilities.js";
 import { SETHIAN_WEAPON_NAME } from "./attack.js";
 import { applyPullToward } from "./pull.js";
 import { addEnemy } from "../game.js";
@@ -225,7 +226,55 @@ describe("provoke", () => {
     expect(result.totalDamage).toBe(6);
     expect((player.hp ?? 0)).toBeLessThan(10);
     expect(result.kopisDetail).toContain("Offhand Pistol");
+    expect(result.kopisDetail).toContain("Push:1 available");
     expect((enemy.hp ?? 0)).toBeLessThan(20);
+    expect(state.combat!.pendingClassReaction?.kind).toBe("offhand_pistol_push");
+  });
+
+  it("Offhand Pistol push uses full push rules when accepted", () => {
+    const state = makeGameState();
+    addTestPlayer(state, "p1", {
+      x: 2,
+      y: 2,
+      class: KOPIS_CLASS_NAME,
+      actionBudget: true,
+    });
+    const enemy = addTestEnemy(state, "e1", 3, 2, { name: "Gorgenaut", scale: 1, hp: 20 });
+    combatPlayerTurn(state, "p1");
+    state.combat!.pendingClassReaction = {
+      kind: "offhand_pistol_push",
+      playerId: "p1",
+      enemyIds: ["e1"],
+    };
+
+    const msg = applyResolveClassReaction(state, "p1", {
+      action: "resolveClassReaction",
+      accept: true,
+    });
+    expect(enemy.x).toBe(4);
+    expect(enemy.y).toBe(2);
+    expect(msg).toContain("pushed");
+    expect(state.combat!.pendingClassReaction).toBeNull();
+  });
+
+  it("Offhand Pistol push can be skipped", () => {
+    const state = makeGameState();
+    addTestPlayer(state, "p1", { x: 2, y: 2, class: KOPIS_CLASS_NAME, actionBudget: true });
+    const enemy = addTestEnemy(state, "e1", 3, 2, { name: "Gorgenaut", scale: 1, hp: 20 });
+    combatPlayerTurn(state, "p1");
+    state.combat!.pendingClassReaction = {
+      kind: "offhand_pistol_push",
+      playerId: "p1",
+      enemyIds: ["e1"],
+    };
+
+    const msg = applyResolveClassReaction(state, "p1", {
+      action: "resolveClassReaction",
+      accept: false,
+    });
+    expect(enemy.x).toBe(3);
+    expect(msg).toContain("skipped");
+    expect(state.combat!.pendingClassReaction).toBeNull();
   });
 
   it("applyMovePath provokes in player turn and sandbox", () => {

@@ -22,6 +22,7 @@ import { maxWeaponDamage, rollDice } from "./damage.js";
 import { applyPullToward } from "./pull.js";
 import { applyAttractorEntryPulls, placeAttractor } from "./attractor.js";
 import { applyVoidTileDefeat } from "./void-tile.js";
+import { applyOffhandPistolPush } from "./provoke.js";
 
 export const HARPE_CLASS = "HARPE";
 export const KOPIS_CLASS = "KOPIS";
@@ -153,6 +154,10 @@ export function validateResolveClassReaction(
   }
   if (reaction.kind === "borrowing_follow_up") {
     if (action.accept === undefined) return "Choose follow-up";
+    return null;
+  }
+  if (reaction.kind === "offhand_pistol_push") {
+    if (action.accept === undefined) return "Choose push";
     return null;
   }
   return "Unknown reaction";
@@ -311,6 +316,23 @@ export function applyResolveClassReaction(
     }
     state.combat!.pendingClassReaction = null;
     return "Borrowing follow-up skipped";
+  }
+  if (reaction.kind === "offhand_pistol_push") {
+    const player = state.players.find((p) => p.id === reaction.playerId)!;
+    state.combat!.pendingClassReaction = null;
+    if (!action.accept) return "Offhand Pistol push skipped";
+    const pushMsg = applyOffhandPistolPush(state, player, reaction.enemyIds);
+    const defeatMsgs: string[] = [];
+    for (const id of reaction.enemyIds) {
+      const enemy = state.enemies.find((e) => e.id === id);
+      if (enemy && (enemy.hp ?? 1) <= 0) {
+        const tokenMsg = handleEnemyDefeated(state, enemy, player.id);
+        if (tokenMsg) defeatMsgs.push(tokenMsg);
+      }
+    }
+    let msg = pushMsg ? `Offhand Pistol push — ${pushMsg}` : "Offhand Pistol push — no movement";
+    if (defeatMsgs.length) msg += `; ${defeatMsgs.join("; ")}`;
+    return msg;
   }
   const enemy = state.enemies.find((e) => e.id === reaction.enemyId)!;
   const owner = state.players.find((p) => p.id === reaction.trapOwnerId)!;

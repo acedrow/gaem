@@ -35,7 +35,7 @@ const props = defineProps<{
   showBack?: boolean;
 }>();
 
-const { isGm } = useSession();
+const { hasGmCapabilities } = useSession();
 const { enemyPortraitUrl } = useApi();
 const { portraitBackgroundFor, colors: enemyPortraitColors } = useEnemyPortraitColors();
 const { showGmCombatUi } = useCombatActions();
@@ -107,7 +107,7 @@ const currentHp = computed(() => {
   }
   return getEffectiveEnemyHp(enemy, s);
 });
-const showHpBar = computed(() => isGm.value && !!activeEnemy.value);
+const showHpBar = computed(() => hasGmCapabilities.value && !!activeEnemy.value);
 
 const enemyScale = computed(() => {
   if (activeEnemy.value) return getEnemyScale(activeEnemy.value);
@@ -124,7 +124,7 @@ const bossBudget = computed(() => {
 });
 
 const showUseAttack = computed(
-  () => isGm.value && showGmCombatUi.value && !!activeEnemy.value && !isTowerEnemy(activeEnemy.value!),
+  () => hasGmCapabilities.value && showGmCombatUi.value && !!activeEnemy.value && !isTowerEnemy(activeEnemy.value!),
 );
 
 const isInSwarm = computed(() => (swarmGroup.value?.size ?? 0) > 1);
@@ -145,7 +145,7 @@ const spawnEnemyName = computed(
   () => listing.value?.name ?? activeEnemy.value?.name ?? props.enemyName ?? null,
 );
 
-const showSpawnUnit = computed(() => isGm.value && !!spawnEnemyName.value);
+const showSpawnUnit = computed(() => hasGmCapabilities.value && !!spawnEnemyName.value);
 
 const spawnSelected = computed(
   () => spawnEnemyName.value != null && selectedSpawnEnemyName.value === spawnEnemyName.value,
@@ -213,14 +213,14 @@ function spawnUnit() {
     <div
       v-if="!notFound && portraitUrl"
       class="enemy-portrait-frame"
-      :class="{ 'enemy-portrait-frame--gm': isGm }"
+      :class="{ 'enemy-portrait-frame--gm': hasGmCapabilities }"
       :style="portraitFrameStyle"
     >
       <img :src="portraitUrl" :alt="displayName" class="enemy-portrait" />
     </div>
 
     <div v-if="!notFound" class="panel-body">
-      <template v-if="isGm">
+      <template v-if="hasGmCapabilities">
         <HpBar
           v-if="showHpBar"
           :current-hp="currentHp"
@@ -272,7 +272,7 @@ function spawnUnit() {
       </template>
 
       <div v-if="listing" class="stats">
-        <span v-if="isGm && !showHpBar" class="stat">HP: {{ listing.hp }}</span>
+        <span v-if="hasGmCapabilities && !showHpBar" class="stat">HP: {{ listing.hp }}</span>
         <span v-if="listing.crown != null" class="stat">Crown: {{ listing.crown }}</span>
         <span v-if="listing.scale != null || activeEnemy" class="stat">Scale: {{ enemyScale }}</span>
         <span v-if="listing.speed != null || activeEnemy" class="stat">Speed: {{ enemySpeedLabel ?? listing.speed }}</span>
@@ -282,7 +282,7 @@ function spawnUnit() {
           v-if="activeEnemy?.exhausted && !isTowerEnemy(activeEnemy)"
           class="stat exhausted"
         >Exhausted</span>
-        <span v-if="isGm && listing.agnosiaHp != null" class="stat">Agnosia HP: {{ listing.agnosiaHp }}</span>
+        <span v-if="hasGmCapabilities && listing.agnosiaHp != null" class="stat">Agnosia HP: {{ listing.agnosiaHp }}</span>
       </div>
 
       <div v-if="listing?.tags?.length" class="tags">
