@@ -102,6 +102,8 @@ export function useCombatModeHints(opts: {
 
   const armorHint = computed(() => {
     if (mode.value === "armorPlaceTower") return "Click a tile within Range:2 to place your tower";
+    if (mode.value === "armorPush") return "Choose Push:1–3, then click an adjacent creature";
+    if (mode.value === "armorTeleport") return "Click an adjacent enemy, then choose a landing space";
     return null;
   });
 
@@ -124,7 +126,7 @@ export function useCombatModeHints(opts: {
 
   const assistedLaunchHint = computed(() => {
     if (mode.value !== "assistedLaunch") return null;
-    if (assistedLaunchStep.value === "selectAnchor") return "Select a wall or ally to launch from";
+    if (assistedLaunchStep.value === "selectAnchor") return "Select impassable terrain, an obstacle, or an ally to launch from";
     return "Click the highlighted landing tile to launch";
   });
 

@@ -19,3 +19,11 @@ Enemies can only be affected by an attractor's pull **once per enemy turn** (ent
 ### Void attractors at low HP
 
 When a Sharur player at **10 HP or fewer** uses Back Up to spawn a new attractor, that attractor is a **Void Attractor** (in addition to Emergency Auto Defenses converting existing attractors when HP first drops to 10).
+
+---
+
+## KUSHIEL Assisted Launch
+
+### Launch anchors
+
+Assisted Launch can trigger when you start your turn adjacent to **Impassable terrain**, **Obstacle terrain**, or an allied unit (not only map-edge “walls” as in RAW). Map boundaries count as Impassable for this purpose.

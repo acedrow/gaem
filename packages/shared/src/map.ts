@@ -73,6 +73,11 @@ export function isWalkable(tile: MapTile | undefined): boolean {
   return computeWalkable(tile);
 }
 
+export function isImpassableOrObstacleTile(tile: MapTile | undefined): boolean {
+  if (!tile) return false;
+  return tile.terrain.includes("impassable") || tile.terrain.includes("obstacle");
+}
+
 export function parseGameMap(raw: unknown): GameMap {
   if (!raw || typeof raw !== "object") {
     throw new Error("Map must be an object");

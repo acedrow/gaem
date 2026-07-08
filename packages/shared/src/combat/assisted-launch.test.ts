@@ -19,6 +19,46 @@ function playerTurn(state: ReturnType<typeof makeGameState>, playerId: string) {
 }
 
 describe("assisted launch", () => {
+  it("launches away from obstacle terrain", () => {
+    const tiles = makeTiles(6, 6);
+    tiles.find((t) => t.x === 2 && t.y === 0)!.terrain = ["obstacle"];
+    const state = makeGameState({ width: 6, height: 6, tiles });
+    addTestPlayer(state, "p1", { x: 2, y: 1, armor: KUSHIEL_ARMOR_NAME });
+    playerTurn(state, "p1");
+
+    const anchors = assistedLaunchAnchors(state, "p1");
+    expect(anchors).toHaveLength(1);
+    expect(anchors[0]!.kind).toBe("obstacle");
+
+    const result = computeAssistedLaunch(state, "p1", 2, 0)!;
+    expect(result.landing.y).toBeGreaterThan(1);
+  });
+
+  it("launches from map edge as impassable anchor", () => {
+    const state = makeGameState({ width: 6, height: 6 });
+    addTestPlayer(state, "p1", { x: 0, y: 2, armor: KUSHIEL_ARMOR_NAME });
+    playerTurn(state, "p1");
+
+    const anchors = assistedLaunchAnchors(state, "p1");
+    expect(anchors).toHaveLength(1);
+    expect(anchors[0]!.kind).toBe("edge");
+    expect(anchors[0]!.x).toBe(-1);
+    expect(anchors[0]!.y).toBe(2);
+
+    const result = computeAssistedLaunch(state, "p1", -1, 2)!;
+    expect(result.landing.x).toBeGreaterThan(0);
+  });
+
+  it("does not treat void terrain as a launch anchor", () => {
+    const tiles = makeTiles(6, 6);
+    tiles.find((t) => t.x === 2 && t.y === 0)!.terrain = ["void"];
+    const state = makeGameState({ width: 6, height: 6, tiles });
+    addTestPlayer(state, "p1", { x: 2, y: 1, armor: KUSHIEL_ARMOR_NAME });
+    playerTurn(state, "p1");
+
+    expect(assistedLaunchAnchors(state, "p1")).toHaveLength(0);
+  });
+
   it("slides away from wall until adjacent to obstacle", () => {
     const blocked = new Set([coordKey(2, 0), coordKey(2, 5)]);
     const state = makeGameState({ width: 6, height: 6, tiles: makeTiles(6, 6, blocked) });
@@ -27,7 +67,7 @@ describe("assisted launch", () => {
 
     const anchors = assistedLaunchAnchors(state, "p1");
     expect(anchors).toHaveLength(1);
-    expect(anchors[0]!.kind).toBe("wall");
+    expect(anchors[0]!.kind).toBe("impassable");
 
     const result = computeAssistedLaunch(state, "p1", 2, 0)!;
     expect(result.path).toEqual([

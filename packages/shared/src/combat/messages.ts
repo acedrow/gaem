@@ -6,7 +6,7 @@ import type {
   GmEnemyAction,
   PlayerAction,
 } from "./types.js";
-import type { GaemRole, ClientMessage, GameState, Player, TerrainType } from "../types.js";
+import type { GaemRole, ClientMessage, Enemy, GameState, Player, TerrainType } from "../types.js";
 import {
   canGmMoveEnemies,
   canPlayerMove,
@@ -140,6 +140,7 @@ import {
   recordPassedEnemiesOnPath,
   EXPANDED_AGGRESSION_GEAR,
 } from "./provoke.js";
+import { applyPushFromOrigin, applyRecoilFromTarget } from "./push.js";
 import {
   applyClassActive,
   applyClassPassive,
@@ -400,6 +401,16 @@ export function validatePlayerAction(
       }
       if (structured.kind === "push_recoil") {
         if (!action.targetEnemyId && !action.targetPlayerId) return "Select target";
+        const push = action.push ?? 1;
+        const maxPush = structured.push ?? 3;
+        if (!Number.isInteger(push) || push < 1 || push > maxPush) return "Invalid push distance";
+        const target = action.targetEnemyId
+          ? state.enemies.find((e) => e.id === action.targetEnemyId)
+          : state.players.find((p) => p.id === action.targetPlayerId);
+        if (!target) return "Unknown target";
+        if (!isOrthogonallyAdjacent({ x: player.x, y: player.y }, { x: target.x, y: target.y })) {
+          return "Target must be adjacent";
+        }
       }
       if (structured.kind === "place_tower") {
         if (action.x === undefined || action.y === undefined) return "Select placement tile";
@@ -685,20 +696,41 @@ export function applyPlayerAction(
         if (provokeMsg) msg = `${provokeMsg}; ${msg}`;
         return msg;
       }
-      maybeSpendActionTier(state, player, "support");
       if (structured.kind === "push_recoil") {
-        const push = action.push ?? structured.push ?? 1;
-        addPendingAction(
-          state,
-          createPendingAction("classActive", `${armor.name} armor action`, {
-            actorPlayerId: playerId,
-            detail: `Push:${push} with equal Recoil`,
-            targetEnemyIds: action.targetEnemyId ? [action.targetEnemyId] : undefined,
-            targetPlayerIds: action.targetPlayerId ? [action.targetPlayerId] : undefined,
-          }),
-        );
-        return `${playerLabel(player)} used ${armor.name} armor action (pending GM)`;
+        const push = action.push ?? 1;
+        const target = action.targetEnemyId
+          ? state.enemies.find((e) => e.id === action.targetEnemyId)
+          : state.players.find((p) => p.id === action.targetPlayerId);
+        if (!target) return "Unknown target";
+        const targetX = target.x;
+        const targetY = target.y;
+        const parts: string[] = [];
+        if (action.targetEnemyId) {
+          const enemy = target as Enemy;
+          parts.push(
+            applyPushFromOrigin(state, enemy, player.x, player.y, push, {
+              kind: "enemy",
+              excludePlayerId: playerId,
+            }),
+          );
+          if ((enemy.hp ?? 1) <= 0) {
+            const tokenMsg = handleEnemyDefeated(state, enemy, playerId);
+            if (tokenMsg) parts.push(tokenMsg);
+          }
+        } else {
+          parts.push(
+            applyPushFromOrigin(state, target as Player, player.x, player.y, push, {
+              kind: "player",
+              excludePlayerId: playerId,
+            }),
+          );
+        }
+        parts.push(applyRecoilFromTarget(state, player, targetX, targetY, push));
+        maybeSpendActionTier(state, player, "support");
+        const detail = parts.filter(Boolean).join("; ");
+        return `${playerLabel(player)} used Hasaphet's Palm — ${detail}`;
       }
+      maybeSpendActionTier(state, player, "support");
       if (structured.kind === "place_tower" && action.x != null && action.y != null) {
         const result = applyPlaceTower(state, player, action.x, action.y);
         if ("error" in result) return result.error;

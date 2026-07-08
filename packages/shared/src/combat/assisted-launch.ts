@@ -3,7 +3,7 @@ import { isOrthogonallyAdjacent } from "../patterns.js";
 import type { GameState, Player } from "../types.js";
 import { buildBoardOccupancy, canPlayerMove, isPlayerDowned } from "../game.js";
 import { playerLabel } from "../console.js";
-import { coordKey, isInBounds, isWalkable, tileAt } from "../map.js";
+import { coordKey, isImpassableOrObstacleTile, isInBounds, isWalkable, tileAt } from "../map.js";
 import { isSpecialTerrainTile } from "./provoke.js";
 
 export const KUSHIEL_ARMOR_NAME = "KUSHIEL";
@@ -11,7 +11,7 @@ export const KUSHIEL_ARMOR_NAME = "KUSHIEL";
 export type AssistedLaunchAnchor = {
   x: number;
   y: number;
-  kind: "wall" | "ally";
+  kind: "impassable" | "obstacle" | "edge" | "ally";
   allyId?: string;
 };
 
@@ -42,7 +42,7 @@ function isLaunchCollisionTile(
 ): boolean {
   if (!isInBounds(x, y, state.width, state.height)) return true;
   const tile = tileAt(state.tiles, x, y);
-  if (!tile || !isWalkable(tile)) return true;
+  if (!tile || isImpassableOrObstacleTile(tile) || !isWalkable(tile)) return true;
   if (isSpecialTerrainTile(tile)) return true;
   const key = coordKey(x, y);
   const ally = occ.playerByKey.get(key);
@@ -102,7 +102,12 @@ export function assistedLaunchAnchors(state: GameState, playerId: string): Assis
   ]) {
     const x = startX + dx;
     const y = startY + dy;
-    if (!isInBounds(x, y, state.width, state.height)) continue;
+    if (!isInBounds(x, y, state.width, state.height)) {
+      if (computeAssistedLaunch(state, playerId, x, y, occ)) {
+        anchors.push({ x, y, kind: "edge" });
+      }
+      continue;
+    }
     const ally = occ.playerByKey.get(coordKey(x, y));
     if (ally && ally.id !== playerId && !isPlayerDowned(ally)) {
       if (computeAssistedLaunch(state, playerId, x, y, occ)) {
@@ -111,9 +116,13 @@ export function assistedLaunchAnchors(state: GameState, playerId: string): Assis
       continue;
     }
     const tile = tileAt(state.tiles, x, y);
-    if (!isWalkable(tile)) {
+    if (isImpassableOrObstacleTile(tile)) {
       if (computeAssistedLaunch(state, playerId, x, y, occ)) {
-        anchors.push({ x, y, kind: "wall" });
+        anchors.push({
+          x,
+          y,
+          kind: tile!.terrain.includes("obstacle") ? "obstacle" : "impassable",
+        });
       }
     }
   }

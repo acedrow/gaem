@@ -6,6 +6,7 @@ import { getWeaponAttackSpec, isSabaothWeaponName } from "@gaem/shared";
 import { useCombatActions } from "../composables/useCombatActions.js";
 import { useCombatModeActions } from "../composables/useCombatModeActions.js";
 import { useCombatModeHints } from "../composables/useCombatModeHints.js";
+import { useBoardActionMode } from "../composables/useBoardActionMode.js";
 import { useGameState } from "../composables/useGameState.js";
 import ActionBudgetChips from "./ActionBudgetChips.vue";
 import EpeusBagModal from "./EpeusBagModal.vue";
@@ -65,6 +66,8 @@ const {
   onDualBombComplete,
   clearMode,
 } = useCombatModeActions();
+
+const { armorPush } = useBoardActionMode();
 
 const { boardHintRows } = useCombatModeHints({
   player: activePlayer,
@@ -248,6 +251,19 @@ function weaponSwap() {
         @update:dual-bomb-indices="onDualBombIndices"
         @dual-complete="onDualBombComplete"
       />
+    </div>
+    <div v-if="mode === 'armorPush'" class="hint-row">
+      <span class="hint">Push:</span>
+      <button
+        v-for="n in 3"
+        :key="n"
+        type="button"
+        class="action-btn"
+        :class="{ active: armorPush === n }"
+        @click="armorPush = n as 1 | 2 | 3"
+      >
+        {{ n }}
+      </button>
     </div>
     <div v-for="row in boardHintRows" :key="row.key" class="hint-row">
       <span class="hint">{{ row.text }}</span>

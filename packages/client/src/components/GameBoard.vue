@@ -23,6 +23,7 @@ import {
   isRangeTargetAttack,
   isRangedPatternAttack,
   isWalkable,
+  isInBounds,
   manhattanDistance,
   movementStepCost,
   playerAllowsDiagonalMovement,
@@ -736,6 +737,23 @@ const armorPlaceTowerKeys = computed(() => {
   return yadathanPlacementKeys(s, me, structured.range);
 });
 
+const armorPushTargetKeys = computed(() => {
+  if (boardActionMode.value !== "armorPush") return new Set<string>();
+  const me = yourPlayer.value;
+  const s = gameState.value;
+  if (!me || !s) return new Set<string>();
+  const keys = new Set<string>();
+  for (const e of s.enemies) {
+    if (Math.abs(e.x - me.x) + Math.abs(e.y - me.y) === 1) keys.add(coordKey(e.x, e.y));
+  }
+  for (const p of s.players) {
+    if (p.id !== me.id && Math.abs(p.x - me.x) + Math.abs(p.y - me.y) === 1) {
+      keys.add(coordKey(p.x, p.y));
+    }
+  }
+  return keys;
+});
+
 const classAbilityPrimaryKeys = computed(() => {
   const keys = new Set<string>();
   const m = boardActionMode.value;
@@ -913,8 +931,20 @@ const assistedLaunchAnchorKeys = computed(() => {
   }
   const id = yourPlayerId.value;
   const s = gameState.value;
+  const me = yourPlayer.value;
   if (!id || !s) return new Set<string>();
-  return coordsToKeySet(assistedLaunchAnchors(s, id).map((a) => ({ x: a.x, y: a.y })));
+  const anchors = assistedLaunchAnchors(s, id);
+  const coords: { x: number; y: number }[] = [];
+  for (const anchor of anchors) {
+    if (isInBounds(anchor.x, anchor.y, s.width, s.height)) {
+      coords.push({ x: anchor.x, y: anchor.y });
+    }
+  }
+  const edgeAnchors = anchors.filter((a) => a.kind === "edge");
+  if (edgeAnchors.length === 1 && me) {
+    coords.push({ x: me.turnStartX ?? me.x, y: me.turnStartY ?? me.y });
+  }
+  return coordsToKeySet(coords);
 });
 
 const assistedLaunchPathKeys = computed(() => {
@@ -1722,6 +1752,7 @@ const cellStateByKey = computed(() => {
       redirectPatternPrimaryKeys.value.has(ck) ||
       warhookPrimaryKeys.value.has(ck) ||
       classAbilityPrimaryKeys.value.has(ck) ||
+      armorPushTargetKeys.value.has(ck) ||
       towerTeleportPrimaryKeys.value.has(ck) ||
       assistedLaunchAnchorKeys.value.has(ck) ||
       assistedLaunchLandingKeys.value.has(ck) ||
@@ -3233,7 +3264,18 @@ function handleCombatCellClick(x: number, y: number): boolean {
     const key = coordKey(x, y);
     if (assistedLaunchStep.value === "selectAnchor") {
       if (!assistedLaunchAnchorKeys.value.has(key)) return true;
-      assistedLaunchAnchor.value = { x, y };
+      const anchors = assistedLaunchAnchors(s, id);
+      let picked = anchors.find((a) => a.x === x && a.y === y);
+      if (!picked) {
+        const startX = me.turnStartX ?? me.x;
+        const startY = me.turnStartY ?? me.y;
+        if (x === startX && y === startY) {
+          const edgeAnchors = anchors.filter((a) => a.kind === "edge");
+          if (edgeAnchors.length === 1) picked = edgeAnchors[0];
+        }
+      }
+      if (!picked) return true;
+      assistedLaunchAnchor.value = { x: picked.x, y: picked.y };
       assistedLaunchStep.value = "confirm";
       return true;
     }
