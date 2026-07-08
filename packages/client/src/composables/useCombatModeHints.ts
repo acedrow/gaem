@@ -44,7 +44,7 @@ export function useCombatModeHints(opts: {
       const max = rangeTargetMax(spec);
       const count = rangeAttackTargetIds.value.length;
       if (max <= 1) return "Click an enemy in range to attack";
-      return `Select up to ${max} enemies (${count}/${max}). Click an enemy to toggle, empty tile to confirm.`;
+      return `Select up to ${max} enemies (${count}/${max}). Click an enemy to toggle, then Attack or click empty tile.`;
     }
     if (usesAnchoredPatternPlacement(spec)) {
       return "Hover to preview, click to place the pattern, press R to rotate, then click the pattern to attack";
@@ -62,7 +62,7 @@ export function useCombatModeHints(opts: {
     const max = rangeTargetMax(spec);
     const count = rangeAttackTargetIds.value.length;
     if (max <= 1) return "Click an enemy in range to attack";
-    return `Select up to ${max} enemies (${count}/${max}). Click an enemy to toggle, empty tile to confirm.`;
+    return `Select up to ${max} enemies (${count}/${max}). Click an enemy to toggle, then Attack or click empty tile.`;
   });
 
   const rangedPatternAttackHint = computed(() => {

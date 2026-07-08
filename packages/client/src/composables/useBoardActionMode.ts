@@ -71,6 +71,7 @@ const redirectSourceEnemyId = ref<string | null>(null);
 const redirectAttackIndex = ref<number | null>(null);
 const redirectStep = ref<RedirectStep>("selectSource");
 const gmEnemyAttack = ref<{ enemyId: string; attackIndex: number; damage?: number; swarm?: boolean } | null>(null);
+const rangeAttackConfirmHandler = ref<(() => void) | null>(null);
 
 function resetEquipmentCoverState() {
   equipmentCoverTiles.value = [];
@@ -161,6 +162,18 @@ export function useBoardActionMode() {
     gmEnemyAttack.value = { enemyId, attackIndex, damage, swarm: true };
   }
 
+  function registerRangeAttackConfirm(handler: () => void) {
+    rangeAttackConfirmHandler.value = handler;
+  }
+
+  function unregisterRangeAttackConfirm() {
+    rangeAttackConfirmHandler.value = null;
+  }
+
+  function confirmRangeAttack() {
+    rangeAttackConfirmHandler.value?.();
+  }
+
   return {
     mode,
     attackDirection,
@@ -197,6 +210,9 @@ export function useBoardActionMode() {
     clearMode,
     startGmEnemyAttack,
     startGmSwarmAttack,
+    registerRangeAttackConfirm,
+    unregisterRangeAttackConfirm,
+    confirmRangeAttack,
     rotateAttackDirection,
     appendMoveStep,
     resetMovePath,

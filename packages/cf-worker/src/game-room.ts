@@ -242,10 +242,7 @@ export class GameRoom {
     if (parsed.type === "moveEnemy" || parsed.type === "addEnemy" || parsed.type === "removeEnemy") {
       if (parsed.type === "removeEnemy") {
         const enemy = this.gameState.enemies.find((e) => e.id === parsed.enemyId);
-        if (!enemy) {
-          this.sendError(ws, "Unknown enemy");
-          return;
-        }
+        if (!enemy) return;
         if (att?.role !== "gm" && (enemy.hp ?? 0) > 0) {
           this.sendError(ws, "Only the game master can manage enemies");
           return;

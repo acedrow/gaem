@@ -477,10 +477,7 @@ wss.on("connection", (ws: WebSocket) => {
     if (parsed.type === "moveEnemy" || parsed.type === "addEnemy" || parsed.type === "removeEnemy") {
       if (parsed.type === "removeEnemy") {
         const enemy = gameState.enemies.find((e) => e.id === parsed.enemyId);
-        if (!enemy) {
-          sendError(ws, "Unknown enemy");
-          return;
-        }
+        if (!enemy) return;
         if (role !== "gm" && (enemy.hp ?? 0) > 0) {
           sendError(ws, "Only the game master can manage enemies");
           return;

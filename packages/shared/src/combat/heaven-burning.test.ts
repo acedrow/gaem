@@ -58,6 +58,16 @@ describe("Heaven Burning Sword", () => {
     );
   });
 
+  it("weaponActive resolves Unfolding directly without GM pending", () => {
+    const { state, player } = heavenBurningSetup();
+
+    expect(validatePlayerAction(state, "p1", { action: "weaponActive" })).toBeNull();
+    applyPlayerAction(state, "p1", { action: "weaponActive" });
+    expect(getHeavenBurningLevel(player)).toBe(2);
+    expect(player.actionBudget?.aux).toBe(false);
+    expect(state.combat!.pendingActions).toHaveLength(0);
+  });
+
   it("resets to level 1 after attacking", () => {
     const { state, player } = heavenBurningSetup();
     addTestEnemy(state, "e1", 8, 5, { name: "Gorgenaut", hp: 30 });

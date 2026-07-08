@@ -440,6 +440,9 @@ export function validatePlayerAction(
       return validateResolveClassReaction(state, playerId, action);
     }
     case "weaponActive": {
+      if (isHeavenBurningWeaponName(player.weapon)) {
+        return validatePlayerAction(state, playerId, { action: "heavenBurningUnfold" });
+      }
       const blocked = actionTierBlocked(player, "main", state);
       if (blocked) return blocked;
       if (isSabaothWeaponName(player.weapon) && action.omnistrike) {
@@ -789,6 +792,9 @@ export function applyPlayerAction(
       return applyResolveClassReaction(state, playerId, action);
     }
     case "weaponActive": {
+      if (isHeavenBurningWeaponName(player.weapon)) {
+        return applyPlayerAction(state, playerId, { action: "heavenBurningUnfold" });
+      }
       maybeSpendActionTier(state, player, "main");
       if (isSabaothWeaponName(player.weapon) && action.omnistrike) {
         const result = applyOmnistrike(state, player, action.omnistrike);

@@ -237,6 +237,8 @@ const {
   gmEnemyAttack,
   clearMode: clearBoardActionMode,
   rotateAttackDirection,
+  registerRangeAttackConfirm,
+  unregisterRangeAttackConfirm,
 } = useBoardActionMode();
 const { sendPlayerAction, sendMovePath, pendingReaction, reversalExtraAllyIds } = useCombatActions();
 
@@ -356,6 +358,8 @@ watch(gameState, (s) => {
 });
 
 function finalizeDefeatedEnemy(enemyId: string) {
+  const s = gameState.value;
+  if (!s?.enemies.some((e) => e.id === enemyId)) return;
   send({ type: "removeEnemy", enemyId });
 }
 
@@ -2509,6 +2513,18 @@ function onBreakerCancel() {
   pendingAttackAction.value = null;
   breakerPromptOpen.value = false;
 }
+
+function submitRangeAttackFromSelection() {
+  if (rangeAttackTargetIds.value.length === 0) return;
+  submitAttackAction({
+    action: "attack",
+    direction: attackDirection.value,
+    targetEnemyIds: [...rangeAttackTargetIds.value],
+  });
+}
+
+registerRangeAttackConfirm(submitRangeAttackFromSelection);
+onUnmounted(unregisterRangeAttackConfirm);
 
 function handleAttackCellClick(x: number, y: number, targetEnemyId?: string): boolean {
   const me = yourPlayer.value;

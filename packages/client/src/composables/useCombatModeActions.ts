@@ -1,5 +1,12 @@
 import type { StructuredArmorAction } from "@gaem/shared";
-import { isSabaothWeaponName, isWarhookWeaponName } from "@gaem/shared";
+import {
+  isHeavenBurningWeaponName,
+  isRangeTargetAttack,
+  isSabaothWeaponName,
+  isWarhookWeaponName,
+  rangeTargetMax,
+  resolveCombatAttackSpec,
+} from "@gaem/shared";
 import { computed, ref, type Ref } from "vue";
 
 import { useBoardActionMode, type BoardActionMode } from "./useBoardActionMode.js";
@@ -36,8 +43,11 @@ export function useCombatModeActions(opts?: {
     assistedLaunchStep,
     assistedLaunchAnchor,
     kataptyTargetIds,
+    rangeAttackTargetIds,
+    forceProjectionStep,
     setMode,
     clearMode,
+    confirmRangeAttack,
   } = useBoardActionMode();
 
   const playerClass = opts?.playerClass ?? computed(() => activePlayer.value?.class);
@@ -153,6 +163,10 @@ export function useCombatModeActions(opts?: {
       toggleMode("warhook");
       return;
     }
+    if (isHeavenBurningWeaponName(name)) {
+      sendPlayerAction({ action: "heavenBurningUnfold" });
+      return;
+    }
     sendPlayerAction({ action: "weaponActive" });
   }
 
@@ -164,6 +178,26 @@ export function useCombatModeActions(opts?: {
     if (kataptyTargetIds.value.length !== 3) return;
     sendPlayerAction({ action: "kataptyEndTurn", targetEnemyIds: [...kataptyTargetIds.value] });
     clearMode();
+  }
+
+  const canConfirmRangeAttack = computed(() => {
+    const attackMode =
+      mode.value === "attack" ||
+      (mode.value === "equipmentForceProjection" && forceProjectionStep.value === "attack");
+    if (!attackMode) return false;
+    const p = activePlayer.value;
+    const weapon = p?.weapon;
+    if (!p || !weapon) return false;
+    const spec = resolveCombatAttackSpec(p, weapon);
+    if (!spec || !isRangeTargetAttack(spec)) return false;
+    const max = rangeTargetMax(spec);
+    const count = rangeAttackTargetIds.value.length;
+    return count > 0 && count < max;
+  });
+
+  function submitRangeAttack() {
+    if (!canConfirmRangeAttack.value) return;
+    confirmRangeAttack();
   }
 
   function onDualBombIndices(indices: [number | null, number | null]) {
@@ -206,6 +240,8 @@ export function useCombatModeActions(opts?: {
     useWeaponActive,
     toggleWeaponAttack,
     confirmKatapty,
+    canConfirmRangeAttack,
+    submitRangeAttack,
     onDualBombIndices,
     onDualBombComplete,
     clearMode,

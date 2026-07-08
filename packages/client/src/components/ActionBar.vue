@@ -62,6 +62,8 @@ const {
   onHarpeRecallConfirm,
   useWeaponActive,
   confirmKatapty,
+  canConfirmRangeAttack,
+  submitRangeAttack,
   onDualBombIndices,
   onDualBombComplete,
   clearMode,
@@ -275,6 +277,14 @@ function weaponSwap() {
         @click="confirmKatapty"
       >
         Confirm Katapty
+      </button>
+      <button
+        v-if="row.key === 'attack' && canConfirmRangeAttack"
+        type="button"
+        class="action-btn"
+        @click="submitRangeAttack"
+      >
+        Attack
       </button>
     </div>
     <div v-if="boardObjectLegend.length" class="hint-row legend-row">
