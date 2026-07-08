@@ -301,6 +301,9 @@ const tileTerrainModalBulkCoords = ref<{ x: number; y: number }[] | undefined>(u
 const marqueeActive = ref(false);
 const marqueeStart = ref<{ x: number; y: number } | null>(null);
 const marqueeEnd = ref<{ x: number; y: number } | null>(null);
+// A marquee drag across cells emits a trailing click on the board container,
+// which would otherwise clear the selection we just made; suppress that click.
+let suppressViewportClickAfterMarquee = false;
 const viewportEl = ref<HTMLElement | null>(null);
 
 const boardWidthPx = computed(() => {
@@ -3736,7 +3739,10 @@ function onMarqueePointerDown(e: PointerEvent) {
     marqueeStart.value = null;
     marqueeEnd.value = null;
     if (!start || !end) return;
-    if (didDrag) finishMarqueeSelection(start, end);
+    if (didDrag) {
+      suppressViewportClickAfterMarquee = true;
+      finishMarqueeSelection(start, end);
+    }
   };
   window.addEventListener("pointermove", onMove);
   window.addEventListener("pointerup", onUp);
@@ -3782,6 +3788,7 @@ function onPaintbrushPointerDown(e: PointerEvent) {
 }
 
 function onViewportPointerDown(e: PointerEvent) {
+  suppressViewportClickAfterMarquee = false;
   onMarqueePointerDown(e);
   onPaintbrushPointerDown(e);
 }
@@ -3930,6 +3937,10 @@ function onCellUnhover() {
 
 function onViewportClick(e: MouseEvent) {
   closeContextMenu();
+  if (suppressViewportClickAfterMarquee) {
+    suppressViewportClickAfterMarquee = false;
+    return;
+  }
   if ((e.target as HTMLElement).closest(".cell")) return;
   clearBoardSelection();
   clearGmBulkSelection();
