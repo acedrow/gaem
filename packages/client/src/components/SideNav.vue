@@ -252,7 +252,6 @@ watch(sheetsVersion, () => {
         <span class="sheet-name">Patterns</span>
       </button>
       <button
-        v-if="role === 'gm'"
         class="sheet-item"
         :class="{ selected: dataCategory === 'paracletus' }"
         type="button"

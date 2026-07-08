@@ -5,8 +5,10 @@ import { useApi } from "../composables/useApi.js";
 import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useEnemySpawnSelection } from "../composables/useEnemySpawnSelection.js";
 import { useExpandableSet } from "../composables/useExpandableSet.js";
+import { useSession } from "../composables/useSession.js";
 import PanelShell from "./PanelShell.vue";
 
+const { isGm } = useSession();
 const { closeRightPanel } = useBoardSelection();
 const { selectedSpawnEnemyName, selectSpawnEnemy } = useEnemySpawnSelection();
 const { enemyPortraitUrl } = useApi();
@@ -17,7 +19,7 @@ const { isExpanded, toggle } = useExpandableSet();
 
 <template>
   <PanelShell title="Enemies — Paracletus" close-variant="ghost" @close="closeRightPanel">
-    <p v-if="selectedSpawnEnemyName" class="spawn-hint">
+    <p v-if="isGm && selectedSpawnEnemyName" class="spawn-hint">
       Click an empty walkable tile to spawn {{ selectedSpawnEnemyName }}.
     </p>
 
@@ -27,7 +29,7 @@ const { isExpanded, toggle } = useExpandableSet();
           v-for="enemy in enemies"
           :key="enemy.name"
           class="list-card"
-          :class="{ selected: selectedSpawnEnemyName === enemy.name }"
+          :class="{ selected: isGm && selectedSpawnEnemyName === enemy.name }"
         >
           <button
             type="button"
@@ -55,12 +57,12 @@ const { isExpanded, toggle } = useExpandableSet();
             <p v-if="enemy.summary" class="enemy-summary">{{ enemy.summary }}</p>
 
             <div class="stats">
-              <span class="stat">HP: {{ enemy.hp }}</span>
+              <span v-if="isGm" class="stat">HP: {{ enemy.hp }}</span>
               <span v-if="enemy.crown != null" class="stat">Crown: {{ enemy.crown }}</span>
               <span v-if="enemy.scale != null" class="stat">Scale: {{ enemy.scale }}</span>
               <span v-if="enemy.speed != null" class="stat">Speed: {{ enemy.speed }}</span>
               <span v-if="enemy.actions" class="stat">Actions: {{ enemy.actions }}</span>
-              <span v-if="enemy.agnosiaHp != null" class="stat">Agnosia HP: {{ enemy.agnosiaHp }}</span>
+              <span v-if="isGm && enemy.agnosiaHp != null" class="stat">Agnosia HP: {{ enemy.agnosiaHp }}</span>
             </div>
 
             <p v-if="enemy.title" class="enemy-title">{{ enemy.title }}</p>
@@ -85,6 +87,7 @@ const { isExpanded, toggle } = useExpandableSet();
             </p>
 
             <button
+              v-if="isGm"
               type="button"
               class="spawn-btn"
               :class="{ active: selectedSpawnEnemyName === enemy.name }"

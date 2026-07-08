@@ -5,7 +5,6 @@ import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
 import { useCharacterSheets } from "../composables/useCharacterSheets.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
-import { useSession } from "../composables/useSession.js";
 import {
   kindLabel,
   searchGameData,
@@ -16,7 +15,6 @@ const query = ref("");
 const debouncedQuery = ref("");
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-const { isGm } = useSession();
 const { clearBoardSelection } = useBoardSelection();
 const { selectDataFocus } = useInfoDataSelection();
 const { selectSheet } = useCharacterSheetSelection();
@@ -31,22 +29,13 @@ watch(query, (value) => {
 
 const results = computed(() =>
   searchGameData(debouncedQuery.value, {
-    includeEnemies: isGm.value,
     characterSheets: sheets.value,
   }),
 );
 
-const placeholder = computed(() =>
-  isGm.value
-    ? "Classes, armor, weapons, enemies, character sheets…"
-    : "Classes, armor, weapons, character sheets…",
-);
+const placeholder = "Classes, armor, weapons, enemies, character sheets…";
 
-const hint = computed(() =>
-  isGm.value
-    ? "Search classes, armor, weapons, enemies, and character sheets by name or keyword."
-    : "Search classes, armor, weapons, and character sheets by name or keyword.",
-);
+const hint = "Search classes, armor, weapons, enemies, and character sheets by name or keyword.";
 
 function onSelect(result: GameDataSearchResult) {
   if (result.kind === "characterSheet" && result.sheetId) {

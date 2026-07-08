@@ -269,31 +269,31 @@ function spawnUnit() {
         <p v-if="soloSwarmMember" class="swarm-member-hint">
           Move this member to rearrange the swarm or break it away from the group.
         </p>
-
-        <div v-if="listing" class="stats">
-          <span v-if="!showHpBar" class="stat">HP: {{ listing.hp }}</span>
-          <span v-if="listing.crown != null" class="stat">Crown: {{ listing.crown }}</span>
-          <span v-if="listing.scale != null || activeEnemy" class="stat">Scale: {{ enemyScale }}</span>
-          <span v-if="listing.speed != null || activeEnemy" class="stat">Speed: {{ enemySpeedLabel ?? listing.speed }}</span>
-          <span v-if="listing.actions" class="stat">Actions: {{ listing.actions }}</span>
-          <span v-if="bossBudget != null" class="stat">Boss budget: {{ bossBudget }}</span>
-          <span
-            v-if="activeEnemy?.exhausted && !isTowerEnemy(activeEnemy)"
-            class="stat exhausted"
-          >Exhausted</span>
-          <span v-if="listing.agnosiaHp != null" class="stat">Agnosia HP: {{ listing.agnosiaHp }}</span>
-        </div>
-
-        <div v-if="listing?.tags?.length" class="tags">
-          <span v-for="tag in listing.tags" :key="tag" class="tag">{{ tag }}</span>
-        </div>
       </template>
+
+      <div v-if="listing" class="stats">
+        <span v-if="isGm && !showHpBar" class="stat">HP: {{ listing.hp }}</span>
+        <span v-if="listing.crown != null" class="stat">Crown: {{ listing.crown }}</span>
+        <span v-if="listing.scale != null || activeEnemy" class="stat">Scale: {{ enemyScale }}</span>
+        <span v-if="listing.speed != null || activeEnemy" class="stat">Speed: {{ enemySpeedLabel ?? listing.speed }}</span>
+        <span v-if="listing.actions" class="stat">Actions: {{ listing.actions }}</span>
+        <span v-if="bossBudget != null" class="stat">Boss budget: {{ bossBudget }}</span>
+        <span
+          v-if="activeEnemy?.exhausted && !isTowerEnemy(activeEnemy)"
+          class="stat exhausted"
+        >Exhausted</span>
+        <span v-if="isGm && listing.agnosiaHp != null" class="stat">Agnosia HP: {{ listing.agnosiaHp }}</span>
+      </div>
+
+      <div v-if="listing?.tags?.length" class="tags">
+        <span v-for="tag in listing.tags" :key="tag" class="tag">{{ tag }}</span>
+      </div>
 
       <p v-if="listing?.codename" class="codename"><em>{{ listing.codename }}</em></p>
       <p v-if="listing?.description" class="item-description">{{ listing.description }}</p>
       <p v-else-if="!listing?.codename" class="muted">No description available.</p>
 
-      <template v-if="isGm && listing">
+      <template v-if="listing">
         <div v-for="(attack, i) in listing.attacks" :key="i" class="ability">
           <span class="ability-label">Attack {{ i + 1 }}</span>
           <p class="ability-text">{{ attack }}</p>
