@@ -7,7 +7,12 @@ import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprint
 import { applyLoadoutToPlayer, getClassMaxHp, getArmorSpeed } from "./player-data.js";
 import { coordKey, isFootprintInBounds, isInBounds, isWalkable, tileAt } from "./map.js";
 import { isOrthogonallyAdjacent } from "./patterns.js";
-import { isTowerEnemy, kataptyNeedsTargetPick, resolveYadathanEndOfTurn } from "./combat/yadathan.js";
+import {
+  getYadathanTowerDef,
+  isTowerEnemy,
+  kataptyNeedsTargetPick,
+  resolveYadathanEndOfTurn,
+} from "./combat/yadathan.js";
 import { enterTaccom, exitTaccom, resetTaccomEncounter } from "./combat/taccom-reset.js";
 import {
   buildSwarmGroups,
@@ -606,6 +611,10 @@ export function getPlayerMaxHp(player: Player): number {
 }
 
 export function getEnemyMaxHp(enemy: Enemy): number {
+  if (isTowerEnemy(enemy)) {
+    const def = getYadathanTowerDef(enemy.name ?? "");
+    if (def) return def.hp;
+  }
   return getEnemyMaxHpByName(enemy.name);
 }
 
