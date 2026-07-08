@@ -12,6 +12,8 @@ import {
   enemyFootprintTiles,
   fixedPatternTilesInBounds,
   findPlayerMovementPath,
+  formlessLandingTiles,
+  formlessTargetTileKeys,
   getEnemyMaxHp,
   getEnemyScale,
   getEnemyScaleByName,
@@ -756,6 +758,22 @@ const armorPushTargetKeys = computed(() => {
     }
   }
   return keys;
+});
+
+const armorTeleportTargetKeys = computed(() => {
+  if (boardActionMode.value !== "armorTeleport" || pendingTargetEnemyId.value) return new Set<string>();
+  const me = yourPlayer.value;
+  const s = gameState.value;
+  if (!me || !s) return new Set<string>();
+  return formlessTargetTileKeys(s, me.x, me.y);
+});
+
+const armorTeleportLandingKeys = computed(() => {
+  if (boardActionMode.value !== "armorTeleport" || !pendingTargetEnemyId.value) return new Set<string>();
+  const me = yourPlayer.value;
+  const s = gameState.value;
+  if (!me || !s) return new Set<string>();
+  return coordsToKeySet(formlessLandingTiles(s, me.id, pendingTargetEnemyId.value));
 });
 
 const classAbilityPrimaryKeys = computed(() => {
@@ -1757,6 +1775,7 @@ const cellStateByKey = computed(() => {
       warhookPrimaryKeys.value.has(ck) ||
       classAbilityPrimaryKeys.value.has(ck) ||
       armorPushTargetKeys.value.has(ck) ||
+      armorTeleportTargetKeys.value.has(ck) ||
       towerTeleportPrimaryKeys.value.has(ck) ||
       assistedLaunchAnchorKeys.value.has(ck) ||
       assistedLaunchLandingKeys.value.has(ck) ||
@@ -1774,6 +1793,7 @@ const cellStateByKey = computed(() => {
       equipmentCoverSecondaryKeys.value.has(ck) ||
       warhookSecondaryKeys.value.has(ck) ||
       armorPlaceTowerKeys.value.has(ck) ||
+      armorTeleportLandingKeys.value.has(ck) ||
       classAbilitySecondaryKeys.value.has(ck) ||
       towerTeleportSecondaryKeys.value.has(ck) ||
       assistedLaunchPathKeys.value.has(ck) ||
@@ -3175,25 +3195,26 @@ function handleCombatCellClick(x: number, y: number): boolean {
     return true;
   }
   if (m === "armorTeleport") {
-    if (!pendingTargetEnemyId.value && enemy && Math.abs(x - me.x) + Math.abs(y - me.y) === 1) {
+    const key = coordKey(x, y);
+    if (!pendingTargetEnemyId.value) {
+      if (!armorTeleportTargetKeys.value.has(key) || !enemy) return true;
       pendingTargetEnemyId.value = enemy.id;
       return true;
     }
-    if (pendingTargetEnemyId.value && !enemy && !player) {
-      const s = gameState.value;
-      const id = yourPlayerId.value;
-      if (!s || !id) return true;
-      gateProvoke(previewSprintProvokes(s, id, x, y), () => {
-        sendPlayerAction({
-          action: "armorAction",
-          targetEnemyId: pendingTargetEnemyId.value!,
-          landingX: x,
-          landingY: y,
-        });
-        clearBoardActionMode();
+    if (!armorTeleportLandingKeys.value.has(key)) return true;
+    const s = gameState.value;
+    const id = yourPlayerId.value;
+    if (!s || !id) return true;
+    gateProvoke(previewSprintProvokes(s, id, x, y), () => {
+      startTeleport(me.id, { x: me.x, y: me.y }, { x, y });
+      sendPlayerAction({
+        action: "armorAction",
+        targetEnemyId: pendingTargetEnemyId.value!,
+        landingX: x,
+        landingY: y,
       });
-      return true;
-    }
+      clearBoardActionMode();
+    });
     return true;
   }
   if (m === "armorPush") {

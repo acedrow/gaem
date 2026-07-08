@@ -1,12 +1,14 @@
 import type { GameState, Player } from "../types.js";
 import type { BoardCoord } from "../patterns.js";
-import { isMovementStepAdjacent } from "../patterns.js";
+import { isMovementStepAdjacent, isOrthogonallyAdjacent } from "../patterns.js";
 import { areActionLimitsEnforced, buildBoardOccupancy, canPlayerMove, isSandboxMode, type BoardOccupancy } from "../game.js";
 import { playerLabel } from "../console.js";
+import { enemyFootprintTiles, getEnemyScale } from "../enemy-data.js";
 import { coordKey, isInBounds, isWalkable, tileAt } from "../map.js";
 import { getArmorSpeed } from "../player-data.js";
 import { movementCostMultiplier } from "./effects.js";
 import { canUseActionTier, spendActionTierOrHaste, spendMovement } from "./actions.js";
+import { swarmGroupForEnemy } from "./swarm.js";
 import { createDefaultActionBudget, type ActionBudget } from "./types.js";
 
 export type MovementStep = { x: number; y: number; cost: number };
@@ -238,11 +240,78 @@ export function adjacentEnemies(
 ): string[] {
   const occ = occupancy ?? buildBoardOccupancy(state);
   const ids = new Set<string>();
-  for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
+  for (const [dx, dy] of ORTHOGONAL_DELTAS) {
     const enemy = occ.enemyByKey.get(coordKey(x + dx, y + dy));
     if (enemy) ids.add(enemy.id);
   }
   return [...ids];
+}
+
+function formlessTargetFootprintTiles(state: GameState, targetEnemyId: string): BoardCoord[] {
+  const enemy = state.enemies.find((e) => e.id === targetEnemyId);
+  if (!enemy) return [];
+  const group = swarmGroupForEnemy(state, targetEnemyId);
+  if (!group) return enemyFootprintTiles(enemy.x, enemy.y, getEnemyScale(enemy));
+  const seen = new Set<string>();
+  const tiles: BoardCoord[] = [];
+  for (const id of group.memberIds) {
+    const member = state.enemies.find((e) => e.id === id);
+    if (!member) continue;
+    for (const tile of enemyFootprintTiles(member.x, member.y, getEnemyScale(member))) {
+      const key = coordKey(tile.x, tile.y);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      tiles.push(tile);
+    }
+  }
+  return tiles;
+}
+
+export function formlessTargetTileKeys(
+  state: GameState,
+  playerX: number,
+  playerY: number,
+): Set<string> {
+  const keys = new Set<string>();
+  const player = { x: playerX, y: playerY };
+  for (const id of adjacentEnemies(state, playerX, playerY)) {
+    const enemy = state.enemies.find((e) => e.id === id);
+    if (!enemy) continue;
+    for (const tile of enemyFootprintTiles(enemy.x, enemy.y, getEnemyScale(enemy))) {
+      if (isOrthogonallyAdjacent(player, tile)) keys.add(coordKey(tile.x, tile.y));
+    }
+  }
+  return keys;
+}
+
+export function formlessLandingTiles(
+  state: GameState,
+  _playerId: string,
+  targetEnemyId: string,
+): { x: number; y: number }[] {
+  const footprint = formlessTargetFootprintTiles(state, targetEnemyId);
+  if (!footprint.length) return [];
+
+  const occ = buildBoardOccupancy(state);
+  const seen = new Set<string>();
+  const landings: { x: number; y: number }[] = [];
+
+  for (const ft of footprint) {
+    for (const [dx, dy] of ORTHOGONAL_DELTAS) {
+      const x = ft.x + dx;
+      const y = ft.y + dy;
+      const key = coordKey(x, y);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (!isInBounds(x, y, state.width, state.height)) continue;
+      if (!isWalkable(tileAt(state.tiles, x, y))) continue;
+      if (occ.playerByKey.has(key)) continue;
+      if (occ.enemyByKey.has(key)) continue;
+      landings.push({ x, y });
+    }
+  }
+
+  return landings;
 }
 
 export function adjacentPlayers(

@@ -22,9 +22,8 @@ import {
 import { getArmorByName, getArmorSpeed, getWeaponByName } from "../player-data.js";
 import type { StructuredArmorAction } from "./types.js";
 import { createDefaultActionBudget, type ActionTier } from "./types.js";
-import { getEnemyScale, enemyFootprintTiles } from "../enemy-data.js";
 import { buildBoardOccupancy } from "../game.js";
-import { coordKey, isInBounds, isTerrainType, isWalkable, setTileTerrain, tileAt } from "../map.js";
+import { coordKey, isInBounds, isTerrainType, setTileTerrain, tileAt } from "../map.js";
 import { isOrthogonallyAdjacent } from "../patterns.js";
 import { actionTierBlockedReason, applyCommitHaste, spendActionTierOrHaste, validateCommitHaste } from "./actions.js";
 import {
@@ -32,6 +31,7 @@ import {
   applySprintBegin,
   applySprintCancel,
   applySprintMove,
+  formlessLandingTiles,
   validateMovementPath,
   validateResetMovement,
   applyResetMovement,
@@ -387,17 +387,10 @@ export function validatePlayerAction(
         if (!adjacentEnemies(state, player.x, player.y).includes(enemy.id)) return "Enemy not adjacent";
         if (action.landingX === undefined || action.landingY === undefined) return "Select landing space";
         const landing = { x: action.landingX, y: action.landingY };
-        if (!isInBounds(landing.x, landing.y, state.width, state.height)) return "Out of bounds";
-        if (!isWalkable(tileAt(state.tiles, landing.x, landing.y))) return "Blocked";
-        const footprint = enemyFootprintTiles(enemy.x, enemy.y, getEnemyScale(enemy));
-        if (!footprint.some((tile) => isOrthogonallyAdjacent(tile, landing))) {
+        const validLandings = formlessLandingTiles(state, playerId, action.targetEnemyId);
+        if (!validLandings.some((tile) => tile.x === landing.x && tile.y === landing.y)) {
           return "Invalid landing space";
         }
-        const occ = buildBoardOccupancy(state);
-        const key = coordKey(landing.x, landing.y);
-        const occupant = occ.playerByKey.get(key);
-        if (occupant && occupant.id !== playerId) return "Tile occupied";
-        if (occ.enemyByKey.has(key)) return "Tile occupied";
       }
       if (structured.kind === "push_recoil") {
         if (!action.targetEnemyId && !action.targetPlayerId) return "Select target";
@@ -695,7 +688,7 @@ export function applyPlayerAction(
         player.x = landing.x;
         player.y = landing.y;
         maybeSpendActionTier(state, player, "support");
-        let msg = `${playerLabel(player)} used ${armor.name} armor action`;
+        let msg = `${playerLabel(player)} used Formless`;
         if (provokeMsg) msg = `${provokeMsg}; ${msg}`;
         return msg;
       }

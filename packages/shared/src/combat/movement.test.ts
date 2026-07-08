@@ -2,11 +2,23 @@ import { describe, expect, it } from "vitest";
 import {
   applyMovementPath,
   applyResetMovement,
+  formlessLandingTiles,
+  formlessTargetTileKeys,
   validateMovementPath,
   validateResetMovement,
 } from "./movement.js";
-import { addTestPlayer, makeGameState, makeTiles } from "../test/fixtures.js";
+import { applyPlayerAction, validatePlayerAction } from "./messages.js";
+import { createDefaultCombatState } from "./types.js";
+import { addTestEnemy, addTestPlayer, makeGameState, makeTiles } from "../test/fixtures.js";
 import { coordKey } from "../map.js";
+
+const SWARM_NAME = "Scorned Eyes";
+
+function combatPlayerTurn(state: ReturnType<typeof makeGameState>, playerId: string) {
+  state.roundPhase = "playerTurn";
+  state.turn = { role: "player", playerId };
+  state.combat = createDefaultCombatState(state.players.length);
+}
 
 describe("movement", () => {
   it("validateMovementPath rejects invalid paths", () => {
@@ -96,5 +108,67 @@ describe("movement", () => {
     const deployment = makeGameState();
     addTestPlayer(deployment, "p1", { x: 2, y: 2 });
     expect(validateResetMovement(deployment, "p1")).toBe("Wrong phase");
+  });
+});
+
+describe("Formless armor action", () => {
+  it("lists adjacent enemy tiles as targets and valid landing spaces", () => {
+    const state = makeGameState();
+    addTestPlayer(state, "p1", { x: 2, y: 2, armor: "MALAKBEL" });
+    addTestEnemy(state, "e1", 3, 2);
+
+    expect([...formlessTargetTileKeys(state, 2, 2)]).toEqual(["3,2"]);
+    expect(formlessLandingTiles(state, "p1", "e1")).toEqual(
+      expect.arrayContaining([
+        { x: 3, y: 1 },
+        { x: 3, y: 3 },
+        { x: 4, y: 2 },
+      ]),
+    );
+    expect(formlessLandingTiles(state, "p1", "e1")).toHaveLength(3);
+  });
+
+  it("allows landing adjacent to any swarm member", () => {
+    const state = makeGameState();
+    addTestPlayer(state, "p1", { x: 1, y: 2, armor: "MALAKBEL" });
+    addTestEnemy(state, "a", 2, 2, { name: SWARM_NAME });
+    addTestEnemy(state, "b", 3, 2, { name: SWARM_NAME });
+
+    const landings = formlessLandingTiles(state, "p1", "a");
+    expect(landings).toContainEqual({ x: 4, y: 2 });
+  });
+
+  it("teleports the player and spends support", () => {
+    const state = makeGameState();
+    const player = addTestPlayer(state, "p1", { x: 2, y: 2, armor: "MALAKBEL", actionBudget: true });
+    addTestEnemy(state, "e1", 3, 2);
+    combatPlayerTurn(state, "p1");
+
+    const msg = applyPlayerAction(state, "p1", {
+      action: "armorAction",
+      targetEnemyId: "e1",
+      landingX: 3,
+      landingY: 1,
+    });
+    expect(player.x).toBe(3);
+    expect(player.y).toBe(1);
+    expect(msg).toContain("Formless");
+    expect(player.actionBudget?.support).toBe(false);
+  });
+
+  it("rejects landing spaces not adjacent to the target", () => {
+    const state = makeGameState();
+    addTestPlayer(state, "p1", { x: 2, y: 2, armor: "MALAKBEL", actionBudget: true });
+    addTestEnemy(state, "e1", 3, 2);
+    combatPlayerTurn(state, "p1");
+
+    expect(
+      validatePlayerAction(state, "p1", {
+        action: "armorAction",
+        targetEnemyId: "e1",
+        landingX: 5,
+        landingY: 2,
+      }),
+    ).toBe("Invalid landing space");
   });
 });
