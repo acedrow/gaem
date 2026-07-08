@@ -878,12 +878,23 @@ const lineOfSightObserver = computed((): { x: number; y: number } | null => {
   return enemy ? { x: enemy.x, y: enemy.y } : null;
 });
 
+const lineOfSightViewer = computed((): Player | Enemy | null => {
+  const sel = boardSelection.value;
+  const s = gameState.value;
+  if (!sel || !s) return null;
+  if (sel.kind === "player") {
+    return s.players.find((p) => p.id === sel.id) ?? null;
+  }
+  return s.enemies.find((e) => e.id === sel.id) ?? null;
+});
+
 const outOfLineOfSightKeys = computed(() => {
   if (!showLineOfSightIndicator.value) return new Set<string>();
   const observer = lineOfSightObserver.value;
+  const viewer = lineOfSightViewer.value;
   const s = gameState.value;
   if (!observer || !s) return new Set<string>();
-  return outOfLineOfSightTileKeys(s, observer.x, observer.y);
+  return outOfLineOfSightTileKeys(s, observer.x, observer.y, viewer ? { viewer } : undefined);
 });
 
 const sharurAttractorPlacementPreview = computed(() => {

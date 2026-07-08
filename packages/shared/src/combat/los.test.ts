@@ -17,6 +17,16 @@ function setElevation(state: ReturnType<typeof makeGameState>, x: number, y: num
   tileAt(state.tiles, x, y)!.elevation = elevation;
 }
 
+function makePitState(): ReturnType<typeof makeGameState> {
+  const state = makeGameState();
+  for (let y = 2; y <= 4; y++) {
+    for (let x = 2; x <= 4; x++) {
+      setElevation(state, x, y, -3);
+    }
+  }
+  return state;
+}
+
 describe("hasLineOfSight", () => {
   it("allows diagonal LOS through open ground", () => {
     const state = makeGameState();
@@ -55,6 +65,26 @@ describe("hasLineOfSight", () => {
     setElevation(state, 3, 2, 2);
     setElevation(state, 4, 2, 0);
     expect(hasLineOfSight(state, 2, 2, 4, 2)).toBe(true);
+  });
+
+  it("allows rim-adjacent viewer to see into a deep pit", () => {
+    const state = makePitState();
+    expect(hasLineOfSight(state, 2, 1, 3, 3)).toBe(true);
+  });
+
+  it("blocks distant viewer from seeing into a deep pit", () => {
+    const state = makePitState();
+    expect(hasLineOfSight(state, 0, 1, 3, 3)).toBe(false);
+  });
+
+  it("blocks diagonal view over pit rim from outside", () => {
+    const state = makePitState();
+    expect(hasLineOfSight(state, 0, 0, 3, 3)).toBe(false);
+  });
+
+  it("allows viewer in pit to see target on rim above", () => {
+    const state = makePitState();
+    expect(hasLineOfSight(state, 3, 3, 3, 1)).toBe(true);
   });
 });
 

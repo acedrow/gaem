@@ -20,6 +20,24 @@ function elevationBlocksLos(
   return blockerElev > viewerElev && blockerElev > targetElev;
 }
 
+function elevationBlocksLosDepression(
+  tileX: number,
+  tileY: number,
+  tileElev: number,
+  fromX: number,
+  fromY: number,
+  viewerElev: number,
+  toX: number,
+  toY: number,
+  targetElev: number,
+): boolean {
+  const totalDist = Math.hypot(toX - fromX, toY - fromY);
+  if (totalDist === 0) return false;
+  const t = Math.hypot(tileX - fromX, tileY - fromY) / totalDist;
+  const sightPlane = viewerElev + (targetElev - viewerElev) * t;
+  return tileElev > sightPlane && tileElev >= viewerElev;
+}
+
 export function tilesOnLine(
   a: { x: number; y: number },
   b: { x: number; y: number },
@@ -109,7 +127,25 @@ export function hasLineOfSight(
     }
     if (!seeking) {
       const elev = tileElevation(state, tile.x, tile.y);
-      if (elevationBlocksLos(elev, viewerElev, targetElev)) return false;
+      if (targetElev < viewerElev) {
+        if (
+          elevationBlocksLosDepression(
+            tile.x,
+            tile.y,
+            elev,
+            fromX,
+            fromY,
+            viewerElev,
+            toX,
+            toY,
+            targetElev,
+          )
+        ) {
+          return false;
+        }
+      } else if (elevationBlocksLos(elev, viewerElev, targetElev)) {
+        return false;
+      }
     }
   }
   return true;
