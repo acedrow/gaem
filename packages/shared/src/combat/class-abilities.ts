@@ -321,7 +321,13 @@ export function applyResolveClassReaction(
     const player = state.players.find((p) => p.id === reaction.playerId)!;
     state.combat!.pendingClassReaction = null;
     if (!action.accept) return "Offhand Pistol push skipped";
-    const pushMsg = applyOffhandPistolPush(state, player, reaction.enemyIds);
+    const pushMsg = applyOffhandPistolPush(
+      state,
+      reaction.originX,
+      reaction.originY,
+      reaction.enemyIds,
+      player.id,
+    );
     const defeatMsgs: string[] = [];
     for (const id of reaction.enemyIds) {
       const enemy = state.enemies.find((e) => e.id === id);

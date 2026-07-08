@@ -23,6 +23,17 @@ describe("applyPushFromOrigin", () => {
     expect(msg).toContain("pushed");
   });
 
+  it("pushes a scale:2 enemy without treating its own footprint as blocking", () => {
+    const state = makeGameState({ width: 10, height: 10 });
+    addTestPlayer(state, "p1", { x: 1, y: 2 });
+    addTestEnemy(state, "e1", 3, 2, { name: "Gorgenaut", hp: 50 });
+    const enemy = state.enemies[0]!;
+    const msg = applyPushFromOrigin(state, enemy, 1, 2, 1, { kind: "enemy" });
+    expect(enemy.x).toBe(4);
+    expect(enemy.y).toBe(2);
+    expect(msg).toContain("pushed");
+  });
+
   it("deals collision damage when blocked by a wall", () => {
     const state = makeGameState({
       width: 5,

@@ -630,13 +630,13 @@ export function applyPlayerAction(
       const player = state.players.find((p) => p.id === playerId)!;
       const flying = action.flying ?? false;
       const triggers = previewSprintProvokes(state, playerId, action.x, action.y, { flying });
+      const base = applySprintMove(state, playerId, action.x, action.y, { flying });
+      const hookMsgs = applyPostMovementHooks(state, player, "player").messages;
+      recordPassedEnemiesOnPath(state, player, [{ x: action.x, y: action.y }]);
       let provokeMsg = "";
       if (triggers.length) {
         provokeMsg = applyProvokeAndFormat(state, { kind: "player", player }, triggers);
       }
-      const base = applySprintMove(state, playerId, action.x, action.y, { flying });
-      const hookMsgs = applyPostMovementHooks(state, player, "player").messages;
-      recordPassedEnemiesOnPath(state, player, [{ x: action.x, y: action.y }]);
       let msg = base;
       if (hookMsgs.length) msg = `${hookMsgs.join("; ")}; ${msg}`;
       if (provokeMsg) msg = `${provokeMsg}; ${msg}`;

@@ -380,16 +380,19 @@ export function previewSprintProvokes(
 
 export function applyOffhandPistolPush(
   state: GameState,
-  player: Player,
+  originX: number,
+  originY: number,
   enemyIds: string[],
+  excludePlayerId?: string,
 ): string {
   const parts: string[] = [];
   for (const id of enemyIds) {
     const enemy = state.enemies.find((e) => e.id === id);
     if (!enemy || !isEnemyAlive(enemy)) continue;
-    const pushMsg = applyPushFromOrigin(state, enemy, player.x, player.y, 1, {
+    const pushMsg = applyPushFromOrigin(state, enemy, originX, originY, 1, {
       kind: "enemy",
-      excludePlayerId: player.id,
+      excludePlayerId,
+      excludeEnemyId: enemy.id,
     });
     if (pushMsg) parts.push(pushMsg);
   }
@@ -427,6 +430,8 @@ export function applyKopisRetaliation(
       kind: "offhand_pistol_push",
       playerId: player.id,
       enemyIds: pushEligible,
+      originX: player.x,
+      originY: player.y,
     };
   }
   return `Offhand Pistol → ${parts.join(", ")}`;

@@ -153,13 +153,14 @@ function tryMoveEnemyOneStep(
   const scale = getEnemyScale(enemy);
   const nextX = enemy.x + dx;
   const nextY = enemy.y + dy;
-  if (isEnemyDestinationFree(state, occ, nextX, nextY, scale, excludeEnemyId, excludePlayerId)) {
+  const selfId = enemy.id;
+  if (isEnemyDestinationFree(state, occ, nextX, nextY, scale, selfId, excludePlayerId)) {
     applyMovedEnemy(state, enemy, nextX, nextY);
     return { moved: true };
   }
   for (const tile of enemyFootprintTiles(nextX, nextY, scale)) {
-    const blockedBy = occupantAt(occ, tile.x, tile.y, excludePlayerId, excludeEnemyId);
-    if (blockedBy) return { moved: false, blockedBy };
+    const blockedBy = occupantAt(occ, tile.x, tile.y, excludePlayerId, selfId);
+    if (blockedBy && blockedBy.unit.id !== excludeEnemyId) return { moved: false, blockedBy };
   }
   return { moved: false };
 }

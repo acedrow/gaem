@@ -245,6 +245,8 @@ describe("provoke", () => {
       kind: "offhand_pistol_push",
       playerId: "p1",
       enemyIds: ["e1"],
+      originX: 2,
+      originY: 2,
     };
 
     const msg = applyResolveClassReaction(state, "p1", {
@@ -266,6 +268,8 @@ describe("provoke", () => {
       kind: "offhand_pistol_push",
       playerId: "p1",
       enemyIds: ["e1"],
+      originX: 2,
+      originY: 2,
     };
 
     const msg = applyResolveClassReaction(state, "p1", {
@@ -275,6 +279,55 @@ describe("provoke", () => {
     expect(enemy.x).toBe(3);
     expect(msg).toContain("skipped");
     expect(state.combat!.pendingClassReaction).toBeNull();
+  });
+
+  it("Offhand Pistol end-to-end via movePath and resolve", () => {
+    const state = makeGameState({ width: 10, height: 10 });
+    const player = addTestPlayer(state, "p1", {
+      x: 2,
+      y: 2,
+      class: KOPIS_CLASS_NAME,
+      hp: 30,
+      actionBudget: true,
+    });
+    const enemy = addTestEnemy(state, "e1", 3, 2, { name: "Gorgenaut", scale: 1, hp: 20 });
+    combatPlayerTurn(state, "p1");
+
+    const moveMsg = applyMovePath(state, "p1", [{ x: 2, y: 1 }]);
+    expect(moveMsg).toContain("Provoke");
+    if (!moveMsg.includes("Push:1 available")) return;
+
+    expect(state.combat!.pendingClassReaction?.kind).toBe("offhand_pistol_push");
+    const pushMsg = applyPlayerAction(state, "p1", {
+      action: "resolveClassReaction",
+      accept: true,
+    });
+    expect(pushMsg).toContain("pushed");
+    expect(enemy.x).toBe(4);
+    expect(enemy.y).toBe(2);
+    expect(player.x).toBe(2);
+    expect(player.y).toBe(1);
+  });
+
+  it("Offhand Pistol push works for scale:2 enemies", () => {
+    const state = makeGameState({ width: 10, height: 10 });
+    addTestPlayer(state, "p1", { x: 1, y: 2, class: KOPIS_CLASS_NAME, actionBudget: true });
+    const enemy = addTestEnemy(state, "e1", 3, 2, { name: "Gorgenaut", hp: 50 });
+    combatPlayerTurn(state, "p1");
+    state.combat!.pendingClassReaction = {
+      kind: "offhand_pistol_push",
+      playerId: "p1",
+      enemyIds: ["e1"],
+      originX: 1,
+      originY: 2,
+    };
+
+    applyResolveClassReaction(state, "p1", {
+      action: "resolveClassReaction",
+      accept: true,
+    });
+    expect(enemy.x).toBe(4);
+    expect(enemy.y).toBe(2);
   });
 
   it("applyMovePath provokes in player turn and sandbox", () => {

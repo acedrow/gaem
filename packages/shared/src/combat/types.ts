@@ -144,6 +144,8 @@ export type OffhandPistolPushReaction = {
   kind: "offhand_pistol_push";
   playerId: string;
   enemyIds: string[];
+  originX: number;
+  originY: number;
 };
 
 export type PendingClassReaction =
