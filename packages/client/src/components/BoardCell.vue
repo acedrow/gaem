@@ -76,6 +76,7 @@ const props = defineProps<{
   enemyDefeated?: boolean;
   playerTeleporting?: boolean;
   enemyAnimating?: boolean;
+  paintbrushActive?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -144,6 +145,30 @@ function effectBadgeStyle(enemy: Enemy | undefined): Record<string, string> {
 const scaledEnemyEffects = computed(
   () => !!props.cell.enemyAnchor && getEnemyScale(props.cell.enemyAnchor) > 1 && effectEntries.value.length > 0,
 );
+
+function onPlayerPieceClick(e: MouseEvent) {
+  if (props.paintbrushActive) return;
+  e.stopPropagation();
+  emit("playerClick");
+}
+
+function onPlayerPiecePointerDown(e: PointerEvent) {
+  if (props.paintbrushActive) return;
+  e.stopPropagation();
+  emit("deployPointerDown", e);
+}
+
+function onEnemyPieceClick(e: MouseEvent) {
+  if (props.paintbrushActive) return;
+  e.stopPropagation();
+  emit("enemyClick");
+}
+
+function onEnemyPieceDblClick(e: MouseEvent) {
+  if (props.paintbrushActive) return;
+  e.stopPropagation();
+  emit("enemyDblclick");
+}
 
 const playerHp = computed(() => {
   const player = props.cell.player;
@@ -307,8 +332,8 @@ const terrainImageUrl = computed(() => {
             ? { background: `hsl(${cell.towerOwnerHue} 55% 38%)`, borderColor: `hsl(${cell.towerOwnerHue} 70% 55%)` }
             : undefined,
       ]"
-      @click.stop="emit('enemyClick')"
-      @dblclick.stop="emit('enemyDblclick')"
+      @click="onEnemyPieceClick"
+      @dblclick="onEnemyPieceDblClick"
     >
       <img
         v-if="cell.enemyPortraitUrl && cell.enemyAnchor.kind !== 'tower'"
@@ -347,8 +372,8 @@ const terrainImageUrl = computed(() => {
         'has-portrait': !!cell.playerPortraitUrl,
       }"
       :style="!cell.playerPortraitUrl && playerHue != null ? { background: `hsl(${playerHue} 70% 45%)` } : undefined"
-      @click.stop="emit('playerClick')"
-      @pointerdown.stop="emit('deployPointerDown', $event)"
+      @click="onPlayerPieceClick"
+      @pointerdown="onPlayerPiecePointerDown"
     >
       <img
         v-if="cell.playerPortraitUrl"
@@ -722,9 +747,13 @@ const terrainImageUrl = computed(() => {
   outline: 2px solid var(--color-on-accent);
 }
 
-.cell.bulk-tile-selected {
-  outline: 2px solid var(--color-accent-bright);
-  outline-offset: -2px;
+.cell.bulk-tile-selected::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 0 2px var(--color-accent-bright);
+  z-index: 3;
+  pointer-events: none;
 }
 
 .token-hp-bar {

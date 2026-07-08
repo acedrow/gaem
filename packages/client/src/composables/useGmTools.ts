@@ -38,7 +38,6 @@ const paintbrushAppearanceUploading = ref(false);
 
 export function clearActiveTool() {
   activeTool.value = null;
-  bulkSelection.value = null;
 }
 
 export function useGmTools() {
@@ -84,7 +83,6 @@ export function useGmTools() {
     }
     clearMode();
     clearSpawnEnemySelection();
-    bulkSelection.value = null;
     if (tool === "damageEffect") {
       effectId.value = GM_EFFECT_NONE;
     }

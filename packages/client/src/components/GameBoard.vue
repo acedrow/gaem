@@ -2523,6 +2523,10 @@ function boardTargetingContext() {
 }
 
 function onEnemyCellClick(x: number, y: number, enemyId: string) {
+  if (canUseGmTools.value && gmActiveTool.value === "paintbrush") {
+    applyPaintbrushToTile(x, y);
+    return;
+  }
   if (tryGmDamageEffectToken({ kind: "enemy", id: enemyId })) return;
   if (
     props.role === "player" &&
@@ -2539,6 +2543,7 @@ function onEnemyCellClick(x: number, y: number, enemyId: string) {
 }
 
 function onEnemyCellDblClick(_x: number, _y: number, enemyId: string) {
+  if (canUseGmTools.value && gmActiveTool.value === "paintbrush") return;
   if (enemyClickTimer) {
     clearTimeout(enemyClickTimer);
     enemyClickTimer = null;
@@ -3558,6 +3563,10 @@ function handleCombatCellClick(x: number, y: number): boolean {
 }
 
 function onBoardPlayerClick(x: number, y: number, playerId: string, characterSheetId?: string) {
+  if (canUseGmTools.value && gmActiveTool.value === "paintbrush") {
+    applyPaintbrushToTile(x, y);
+    return;
+  }
   if (tryGmDamageEffectToken({ kind: "player", id: playerId })) return;
   if (canUseGmTools.value && boardActionMode.value === "gmEnemyAttack") {
     if (handleGmEnemyAttackCellClick(x, y)) return;
@@ -3804,7 +3813,18 @@ function onGmCellClick(x: number, y: number) {
   const s = gameState.value;
   if (!s) return;
 
-  if (gmActiveTool.value === "paintbrush") return;
+  if (gmActiveTool.value === "paintbrush") {
+    applyPaintbrushToTile(x, y);
+    return;
+  }
+
+  if (gmActiveTool.value !== "select") {
+    const occ = occupancy.value;
+    const key = coordKey(x, y);
+    const hasOccupant =
+      !!occ && (!!occ.playerByKey.get(key) || !!occ.enemyByKey.get(key));
+    if (!hasOccupant) clearGmBulkSelection();
+  }
 
   if (gmActiveTool.value === "damageEffect") {
     const occ = occupancy.value;
@@ -3912,6 +3932,7 @@ function onViewportClick(e: MouseEvent) {
   closeContextMenu();
   if ((e.target as HTMLElement).closest(".cell")) return;
   clearBoardSelection();
+  clearGmBulkSelection();
 }
 
 function onBoardDisplayClick(e: MouseEvent) {
@@ -3919,6 +3940,7 @@ function onBoardDisplayClick(e: MouseEvent) {
   const target = e.target as HTMLElement;
   if (target.closest(".board-viewport, .reset-zoom-btn, .board-tooltip")) return;
   clearBoardSelection();
+  clearGmBulkSelection();
 }
 
 function removeEnemyById(enemyId: string) {
@@ -4308,7 +4330,11 @@ function onKeydown(e: KeyboardEvent) {
         clearBoardSelection();
         return;
       }
-      if (gmActiveTool.value || gmBulkSelection.value) {
+      if (gmBulkSelection.value) {
+        clearGmBulkSelection();
+        return;
+      }
+      if (gmActiveTool.value) {
         clearActiveTool();
         return;
       }
@@ -4426,6 +4452,7 @@ onUnmounted(() => {
                 :enemy-defeated="row.enemyDefeated"
                 :player-teleporting="row.playerTeleporting"
                 :enemy-animating="row.enemyAnimating"
+                :paintbrush-active="canUseGmTools && gmActiveTool === 'paintbrush'"
                 @click="onCellClick(row.x, row.y)"
                 @hover="onCellHover(row.x, row.y, row.key)"
                 @unhover="onCellUnhover"
