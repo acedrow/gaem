@@ -202,7 +202,9 @@ function onOverworldClick() {
   <div class="app-shell">
     <aside class="sidebar">
       <div class="sidebar-content">
-        <SideNav />
+        <div class="sidebar-nav">
+          <SideNav />
+        </div>
         <div class="sidebar-footer">
           <div class="session-info">
             <span class="role-tag">{{ role === "gm" ? "GM" : "Player" }}</span>
@@ -332,6 +334,7 @@ function onOverworldClick() {
   flex-direction: column;
   width: 12rem;
   flex-shrink: 0;
+  min-height: 0;
   border-right: 1px solid var(--color-border);
   background: var(--color-bg);
 }
@@ -344,8 +347,14 @@ function onOverworldClick() {
   overflow: hidden;
 }
 
+.sidebar-nav {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .sidebar-footer {
-  margin-top: auto;
+  flex-shrink: 0;
   border-top: 1px solid var(--color-border);
   padding: 0.75rem;
   display: flex;
