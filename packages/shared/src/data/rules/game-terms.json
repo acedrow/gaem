@@ -1,0 +1,32 @@
+[
+  {
+    "id": "Swarm",
+    "summary": "Adjacent same-name Swarm-trait enemies acting as one mass.",
+    "description": "Enemies with the Swarm trait may join adjacent enemies with the same name to form a Swarm. A Swarm has HP equal to its square count × 10, targets only adjacent squares, and ignores elevation. It moves by rearranging one component square per point of Speed. Attacks targeting any square hit the whole Swarm unless they have Breaker. Push and forced movement affect only the targeted square(s)."
+  },
+  {
+    "id": "Swarmed",
+    "summary": "Currently part of a Swarm.",
+    "description": "A minion or unit that has joined a Swarm and is treated as part of that single mass."
+  },
+  {
+    "id": "Provoke",
+    "summary": "Moving away from an adjacent unit triggers a 1D6 attack before movement.",
+    "description": "When adjacent units move away from one another, they trigger Provoke. The moving unit suffers a 1D6 attack against it before they move. Swarms only Provoke when their last square moves away from another unit."
+  },
+  {
+    "id": "Fortification",
+    "summary": "Tag for deployed structures and stationary battlefield assets.",
+    "description": "Fortifications are enemy units representing structures, engines, or other stationary battlefield assets. They follow their listed stats and special rules rather than standard demon movement."
+  },
+  {
+    "id": "Flying",
+    "summary": "Move over terrain unimpeded with +1 Elevation and no Provoke.",
+    "description": "Flying units move over all types of terrain unimpeded, are treated as having +1 Elevation, and do not Provoke."
+  },
+  {
+    "id": "Minion",
+    "summary": "Weaker enemy variety, often eligible for Swarms.",
+    "description": "Minions are lower-tier enemies. Many minions have the Swarm trait and can combine into Swarms with other same-name minions."
+  }
+]

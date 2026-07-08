@@ -1,4 +1,7 @@
-import { RULE_EFFECTS } from "./effects-data.js";
+import { findEffectByName, RULE_EFFECTS } from "./effects-data.js";
+import { getGameTermByName } from "./game-terms-data.js";
+import { findModifierByName, findPatternByName } from "./pattern-data.js";
+import { getTerrainTypeById } from "./terrain-data.js";
 
 export type AbilitySection = {
   title?: string;
@@ -13,6 +16,16 @@ export type StructuredAbility = {
 };
 
 export type AbilityText = string | StructuredAbility;
+
+export type RuleTermTooltip = {
+  title: string;
+  summary: string;
+  description: string;
+};
+
+export type RuleTextSegment =
+  | { kind: "text"; text: string }
+  | { kind: "term"; text: string; tooltip?: RuleTermTooltip };
 
 const EFFECT_IDS = RULE_EFFECTS.map((e) => e.id);
 
@@ -88,6 +101,15 @@ const LITERAL_TERMS = [
   "Swarm trait",
 ];
 
+const LITERAL_TERM_LOOKUP: Record<string, string> = {
+  "breaker tag": "Breaker",
+  "swarm trait": "Swarm",
+  "void terrain": "Void",
+  "advantageous terrain": "Advantageous",
+};
+
+type TermMatch = { start: number; end: number; text: string };
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")
@@ -124,6 +146,113 @@ function buildTermPatterns(): RegExp[] {
 
 const TERM_PATTERNS = buildTermPatterns();
 
+function findTermMatches(text: string): TermMatch[] {
+  const matches: TermMatch[] = [];
+
+  for (const pattern of TERM_PATTERNS) {
+    pattern.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(text)) !== null) {
+      matches.push({
+        start: match.index,
+        end: match.index + match[0].length,
+        text: match[0],
+      });
+    }
+  }
+
+  matches.sort((a, b) => a.start - b.start || b.end - b.start - (a.end - a.start));
+
+  const filtered: TermMatch[] = [];
+  for (const match of matches) {
+    const prev = filtered[filtered.length - 1];
+    if (!prev) {
+      filtered.push(match);
+      continue;
+    }
+    if (match.start >= prev.end) {
+      filtered.push(match);
+      continue;
+    }
+    if (match.start === prev.start && match.end > prev.end) {
+      filtered[filtered.length - 1] = match;
+    }
+  }
+
+  return filtered;
+}
+
+function lookupName(name: string): RuleTermTooltip | undefined {
+  const effect = findEffectByName(name);
+  if (effect) {
+    return { title: effect.id, summary: effect.summary, description: effect.description };
+  }
+
+  const terrain = getTerrainTypeById(name);
+  if (terrain) {
+    return { title: terrain.name, summary: terrain.summary, description: terrain.description };
+  }
+
+  const pattern = findPatternByName(name);
+  if (pattern) {
+    return { title: pattern.name, summary: pattern.description, description: pattern.description };
+  }
+
+  const modifier = findModifierByName(name);
+  if (modifier) {
+    return { title: modifier.name, summary: modifier.description, description: modifier.description };
+  }
+
+  const gameTerm = getGameTermByName(name);
+  if (gameTerm) {
+    return {
+      title: gameTerm.id,
+      summary: gameTerm.summary,
+      description: gameTerm.description,
+    };
+  }
+
+  return undefined;
+}
+
+export function resolveRuleTermTooltip(match: string): RuleTermTooltip | undefined {
+  const trimmed = match.trim();
+  const literalTarget = LITERAL_TERM_LOOKUP[trimmed.toLowerCase()];
+  if (literalTarget) return lookupName(literalTarget);
+
+  const stacked = trimmed.match(/^(.+?):(\d+(?:-\d+)?)$/);
+  const baseName = stacked?.[1] ?? trimmed;
+  return lookupName(baseName);
+}
+
+export function parseRuleText(text: string): RuleTextSegment[] {
+  if (!text) return [];
+
+  const matches = findTermMatches(text);
+  if (matches.length === 0) return [{ kind: "text", text }];
+
+  const segments: RuleTextSegment[] = [];
+  let cursor = 0;
+
+  for (const match of matches) {
+    if (match.start > cursor) {
+      segments.push({ kind: "text", text: text.slice(cursor, match.start) });
+    }
+    segments.push({
+      kind: "term",
+      text: match.text,
+      tooltip: resolveRuleTermTooltip(match.text),
+    });
+    cursor = match.end;
+  }
+
+  if (cursor < text.length) {
+    segments.push({ kind: "text", text: text.slice(cursor) });
+  }
+
+  return segments;
+}
+
 export function isStructuredAbility(value: AbilityText | undefined): value is StructuredAbility {
   return !!value && typeof value === "object" && "name" in value;
 }
@@ -149,20 +278,11 @@ export function abilityTextToPlain(value: AbilityText | undefined): string {
 }
 
 export function formatRuleText(text: string): string {
-  if (!text) return "";
-
-  const placeholders: string[] = [];
-  let html = escapeHtml(text);
-
-  for (const pattern of TERM_PATTERNS) {
-    html = html.replace(pattern, (match) => {
-      const key = `\x00${placeholders.length}\x00`;
-      placeholders.push(`<span class="rule-term">${match}</span>`);
-      return key;
-    });
-  }
-
-  // NUL bytes are intentional internal placeholder sentinels, never user input.
-  // eslint-disable-next-line no-control-regex
-  return html.replace(/\x00(\d+)\x00/g, (_, i) => placeholders[Number(i)]!);
+  return parseRuleText(text)
+    .map((segment) => {
+      if (segment.kind === "text") return escapeHtml(segment.text);
+      const classes = segment.tooltip ? "rule-term rule-term--defined" : "rule-term";
+      return `<span class="${classes}">${escapeHtml(segment.text)}</span>`;
+    })
+    .join("");
 }

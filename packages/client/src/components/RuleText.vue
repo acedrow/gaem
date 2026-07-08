@@ -1,12 +1,23 @@
 <script setup lang="ts">
-import { formatRuleText } from "@gaem/shared";
+import { parseRuleText } from "@gaem/shared";
 import { computed } from "vue";
+
+import RuleTerm from "./RuleTerm.vue";
 
 const props = defineProps<{ text: string }>();
 
-const html = computed(() => formatRuleText(props.text));
+const segments = computed(() => parseRuleText(props.text));
 </script>
 
 <template>
-  <span class="rule-text" v-html="html" />
+  <span class="rule-text">
+    <template v-for="(segment, index) in segments" :key="index">
+      <RuleTerm
+        v-if="segment.kind === 'term'"
+        :text="segment.text"
+        :tooltip="segment.tooltip"
+      />
+      <template v-else>{{ segment.text }}</template>
+    </template>
+  </span>
 </template>

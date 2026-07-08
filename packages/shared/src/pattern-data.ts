@@ -65,6 +65,20 @@ export function getModifierById(id: string): PatternModifier | undefined {
   return modifierById.get(id);
 }
 
+export function findPatternByName(name: string): TargetingPattern | undefined {
+  const lower = name.toLowerCase();
+  return TARGETING_PATTERNS.find(
+    (pattern) => pattern.id.toLowerCase() === lower || pattern.name.toLowerCase() === lower,
+  );
+}
+
+export function findModifierByName(name: string): PatternModifier | undefined {
+  const lower = name.toLowerCase();
+  return PATTERN_MODIFIERS.find(
+    (modifier) => modifier.id.toLowerCase() === lower || modifier.name.toLowerCase() === lower,
+  );
+}
+
 export function clampPatternSize(pattern: TargetingPattern, size: number): number {
   return Math.max(pattern.size.min, Math.min(pattern.size.max, size));
 }

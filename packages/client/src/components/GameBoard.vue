@@ -100,7 +100,6 @@ import {
   computeAssistedLaunch,
   tilesInAttractorZone,
   hasTileEffects,
-  getEffectSummary,
   formatTileEffectTooltipLabel,
   terrainTypeDisplayName,
   type ProvokeTrigger,
@@ -1984,9 +1983,7 @@ function effectEntries(stacks?: EffectStacks) {
 }
 
 function effectTooltipLabel(id: string, stacks: number): string {
-  const summary = getEffectSummary(id);
-  const base = summary ? `${id}: ${stacks} — ${summary}` : `${id}: ${stacks}`;
-  return base;
+  return `${id}: ${stacks}`;
 }
 
 function terrainTooltipLabel(terrain: string[]): string {

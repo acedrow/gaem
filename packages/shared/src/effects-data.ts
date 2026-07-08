@@ -55,6 +55,13 @@ export function getEffectById(id: string): RuleEffect | undefined {
   return effectById.get(id);
 }
 
+export function findEffectByName(name: string): RuleEffect | undefined {
+  const exact = effectById.get(name);
+  if (exact) return exact;
+  const lower = name.toLowerCase();
+  return RULE_EFFECTS.find((effect) => effect.id.toLowerCase() === lower);
+}
+
 export function getEffectSummary(effectId: string): string | undefined {
   return effectById.get(effectId)?.summary;
 }
