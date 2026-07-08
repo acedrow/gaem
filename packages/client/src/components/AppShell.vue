@@ -60,7 +60,6 @@ onMounted(() => {
     activeMainTab,
     sheetsExpanded,
     dataExpanded,
-    gameState,
   });
   if (activeMainTab.value === "baseUpgrades") {
     openResourcesPanel();

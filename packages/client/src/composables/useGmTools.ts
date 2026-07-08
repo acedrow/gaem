@@ -260,17 +260,24 @@ export function useGmTools() {
       paintbrushEffectId.value && paintbrushEffectStacks.value !== 0
         ? [`${paintbrushEffectId.value}:${paintbrushEffectStacks.value}`]
         : [];
-    send({
-      type: "gmPaintTile",
-      x,
-      y,
-      elevation: paintbrushElevation.value,
-      terrain: paintbrushTerrain.value,
-      tileEffects,
-      tileName: paintbrushTileName.value,
-      baseColor: paintbrushBaseColor.value,
-      appearanceKey: paintbrushAppearanceKey.value,
-    });
+    const sel = bulkSelection.value;
+    const targets =
+      sel?.kind === "tiles" && sel.coords.some((c) => c.x === x && c.y === y)
+        ? sel.coords
+        : [{ x, y }];
+    for (const target of targets) {
+      send({
+        type: "gmPaintTile",
+        x: target.x,
+        y: target.y,
+        elevation: paintbrushElevation.value,
+        terrain: paintbrushTerrain.value,
+        tileEffects,
+        tileName: paintbrushTileName.value,
+        baseColor: paintbrushBaseColor.value,
+        appearanceKey: paintbrushAppearanceKey.value,
+      });
+    }
   }
 
   return {

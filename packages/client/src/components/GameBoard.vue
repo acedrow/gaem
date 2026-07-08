@@ -364,22 +364,6 @@ const {
   overlayInsetPx,
 );
 
-watch(gameState, (s) => {
-  if (!s) return;
-  const selection = boardSelection.value;
-  if (selection?.kind === "enemy") {
-    const ids = selection.swarmMemberIds ?? [selection.id];
-    if (!ids.some((id) => s.enemies.some((e) => e.id === id))) {
-      clearBoardSelection();
-    }
-  } else if (
-    selection?.kind === "player" &&
-    !s.players.some((p) => p.id === selection.id)
-  ) {
-    clearBoardSelection();
-  }
-});
-
 function finalizeDefeatedEnemy(enemyId: string) {
   const s = gameState.value;
   if (!s?.enemies.some((e) => e.id === enemyId)) return;
@@ -3768,7 +3752,14 @@ function onPaintbrushPointerDown(e: PointerEvent) {
     applyPaintbrushToTile(cell.x, cell.y);
   }
 
-  paintCell(startCell);
+  const sel = gmBulkSelection.value;
+  if (sel?.kind === "tiles" && isTileBulkSelected(startCell.x, startCell.y)) {
+    for (const coord of sel.coords) visited.add(coordKey(coord.x, coord.y));
+    lastCell = startCell;
+    applyPaintbrushToTile(startCell.x, startCell.y);
+  } else {
+    paintCell(startCell);
+  }
 
   const onMove = (ev: PointerEvent) => {
     const cell = cellFromClientPoint(ev.clientX, ev.clientY);
@@ -4369,7 +4360,9 @@ function onKeydown(e: KeyboardEvent) {
         const anchor = arrowTarget(e.key, enemy);
         if (anchor) {
           e.preventDefault();
-          tryMoveSelectedEnemyToDest(anchor.x, anchor.y);
+          if (!swarmGroupForEnemy(s, selected)) {
+            tryMoveSelectedEnemyToDest(anchor.x, anchor.y);
+          }
         }
       }
     }

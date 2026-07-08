@@ -1,5 +1,6 @@
-import { computed, ref } from "vue";
+import type { GameState } from "@gaem/shared";
 import { swarmGroupForEnemy } from "@gaem/shared";
+import { computed, ref, watch } from "vue";
 
 import { readPersistedUi } from "./uiPersist.js";
 import { useCharacterSheetSelection } from "./useCharacterSheetSelection.js";
@@ -14,9 +15,59 @@ export type BoardSelection =
 const persisted = readPersistedUi();
 const boardSelection = ref<BoardSelection | null>(persisted.boardSelection);
 
+function reconcileEnemyBoardSelection(s: GameState) {
+  const sel = boardSelection.value;
+  if (sel?.kind !== "enemy") return;
+
+  const trackedIds = sel.swarmMemberIds ?? [sel.id];
+  if (!trackedIds.some((id) => s.enemies.some((e) => e.id === id))) {
+    boardSelection.value = null;
+    return;
+  }
+
+  const anchorId = sel.soloSwarmMember
+    ? sel.id
+    : (trackedIds.find((id) => s.enemies.some((e) => e.id === id)) ?? sel.id);
+  const group = swarmGroupForEnemy(s, anchorId);
+  if (!group || group.size < 2) return;
+
+  const hasAll =
+    !sel.soloSwarmMember &&
+    sel.id === group.canonicalId &&
+    group.memberIds.length === trackedIds.length &&
+    group.memberIds.every((id) => trackedIds.includes(id));
+  if (hasAll) return;
+
+  boardSelection.value = {
+    kind: "enemy",
+    id: group.canonicalId,
+    swarmMemberIds: group.memberIds,
+  };
+}
+
+let selectionWatchStarted = false;
+
 export function useBoardSelection() {
   const { selectSheet, cancelGearPick, gearPick } = useCharacterSheetSelection();
   const { gameState } = useGameState();
+
+  if (!selectionWatchStarted) {
+    selectionWatchStarted = true;
+    watch(
+      gameState,
+      (s) => {
+        if (!s) return;
+        const sel = boardSelection.value;
+        if (!sel) return;
+        if (sel.kind === "player" && !s.players.some((p) => p.id === sel.id)) {
+          boardSelection.value = null;
+          return;
+        }
+        if (sel.kind === "enemy") reconcileEnemyBoardSelection(s);
+      },
+      { immediate: true },
+    );
+  }
   const { clearDataCategory, dataCategory, dataFocus } = useInfoDataSelection();
 
   const selectedEnemyId = computed(() =>

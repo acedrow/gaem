@@ -218,9 +218,7 @@ export function applyPersistedUiState(refs: UiPersistRefs, persisted: PersistedU
   refs.dataExpanded.value = persisted.dataExpanded;
 }
 
-export function initUiPersistence(opts: UiPersistRefs & {
-  gameState: Ref<{ players: { id: string }[]; enemies: { id: string }[] } | null>;
-}) {
+export function initUiPersistence(opts: UiPersistRefs) {
   const {
     boardSelection,
     selectedSheetId,
@@ -231,7 +229,6 @@ export function initUiPersistence(opts: UiPersistRefs & {
     activeMainTab,
     sheetsExpanded,
     dataExpanded,
-    gameState,
   } = opts;
 
   const refs: UiPersistRefs = {
@@ -253,20 +250,6 @@ export function initUiPersistence(opts: UiPersistRefs & {
       applyPersistedUiState(refs);
     },
     { deep: true },
-  );
-
-  watch(
-    gameState,
-    (s) => {
-      const sel = boardSelection.value;
-      if (!s || !sel) return;
-      if (sel.kind === "player" && !s.players.some((p) => p.id === sel.id)) {
-        boardSelection.value = null;
-      } else if (sel.kind === "enemy" && !s.enemies.some((e) => e.id === sel.id)) {
-        boardSelection.value = null;
-      }
-    },
-    { immediate: true },
   );
 
   watch(

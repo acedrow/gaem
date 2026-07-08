@@ -9,7 +9,6 @@ import {
   nextPatternDirection,
   parseEnemyAttackString,
   swarmGroupForEnemy,
-  unexhaustedEnemies,
 } from "@gaem/shared";
 import { computed, ref, watch } from "vue";
 
@@ -92,12 +91,6 @@ const targetingSwarmAttack = computed(
   () => targetingAttack.value && !!gmEnemyAttack.value?.swarm,
 );
 
-const queue = computed(() => {
-  const s = gameState.value;
-  if (!s) return [];
-  return unexhaustedEnemies(s).filter((e) => !isTowerEnemy(e));
-});
-
 watch(selectedEnemyId, () => {
   attackIndex.value = 0;
   attackDirection.value = "n";
@@ -149,61 +142,53 @@ function exhaustEnemy() {
 </script>
 
 <template>
-  <div v-if="showGmCombatUi" class="action-bar gm-bar">
-    <div v-if="!activeEnemy" class="hint-row">
-      <span class="hint">Select an enemy on the board to move or attack</span>
-      <span v-if="queue.length" class="queue-inline">
-        Active: {{ queue.map((e) => e.name ?? e.id).join(", ") }}
-      </span>
+  <div v-if="showGmCombatUi && activeEnemy" class="action-bar gm-bar">
+    <div class="budget-row">
+      <span class="chip enemy-name">{{ activeEnemy.name ?? activeEnemy.id }}</span>
+      <span v-if="activeEnemy.exhausted && !activeIsTower" class="chip spent">Exhausted</span>
+      <span v-else-if="!activeIsTower" class="chip speed">Speed {{ speedLabel }}</span>
     </div>
-    <template v-else>
-      <div class="budget-row">
-        <span class="chip enemy-name">{{ activeEnemy.name ?? activeEnemy.id }}</span>
-        <span v-if="activeEnemy.exhausted && !activeIsTower" class="chip spent">Exhausted</span>
-        <span v-else-if="!activeIsTower" class="chip speed">Speed {{ speedLabel }}</span>
-      </div>
-      <div v-if="showSwarmAttack" class="actions-row">
-        <input
-          v-model="damageOverride"
-          type="number"
-          min="0"
-          class="damage-input"
-          placeholder="Dmg"
-        />
-        <button type="button" class="action-btn primary" @click="runSwarmAttack">
-          {{ targetingSwarmAttack ? "Targeting…" : "Swarm attack" }}
-        </button>
-        <button type="button" class="action-btn" @click="exhaustEnemy">Exhaust</button>
-      </div>
-      <div v-else-if="listing?.attacks?.length && !activeIsTower" class="actions-row">
-        <select v-model="attackIndex" class="select">
-          <option v-for="(attack, i) in listing.attacks" :key="`${attack}-${i}`" :value="i">
-            Attack {{ i + 1 }}
-          </option>
-        </select>
-        <button
-          v-if="selectedAttack?.patternId"
-          type="button"
-          class="action-btn"
-          @click="rotateDirection"
-        >
-          Aim {{ attackDirection.toUpperCase() }}
-        </button>
-        <input
-          v-model="damageOverride"
-          type="number"
-          min="0"
-          class="damage-input"
-          placeholder="Dmg"
-        />
-        <button type="button" class="action-btn" @click="runAttack">
-          {{ isDirectAttack ? (targetingAttack ? "Targeting…" : "Target") : "Attack" }}
-        </button>
-        <button type="button" class="action-btn" @click="exhaustEnemy">Exhaust</button>
-      </div>
-      <p v-if="targetingSwarmAttack" class="attack-hint">Click a highlighted player, then choose strike count</p>
-      <p v-else-if="targetingAttack" class="attack-hint">Click a highlighted player to attack</p>
-    </template>
+    <div v-if="showSwarmAttack" class="actions-row">
+      <input
+        v-model="damageOverride"
+        type="number"
+        min="0"
+        class="damage-input"
+        placeholder="Dmg"
+      />
+      <button type="button" class="action-btn primary" @click="runSwarmAttack">
+        {{ targetingSwarmAttack ? "Targeting…" : "Swarm attack" }}
+      </button>
+      <button type="button" class="action-btn" @click="exhaustEnemy">Exhaust</button>
+    </div>
+    <div v-else-if="listing?.attacks?.length && !activeIsTower" class="actions-row">
+      <select v-model="attackIndex" class="select">
+        <option v-for="(attack, i) in listing.attacks" :key="`${attack}-${i}`" :value="i">
+          Attack {{ i + 1 }}
+        </option>
+      </select>
+      <button
+        v-if="selectedAttack?.patternId"
+        type="button"
+        class="action-btn"
+        @click="rotateDirection"
+      >
+        Aim {{ attackDirection.toUpperCase() }}
+      </button>
+      <input
+        v-model="damageOverride"
+        type="number"
+        min="0"
+        class="damage-input"
+        placeholder="Dmg"
+      />
+      <button type="button" class="action-btn" @click="runAttack">
+        {{ isDirectAttack ? (targetingAttack ? "Targeting…" : "Target") : "Attack" }}
+      </button>
+      <button type="button" class="action-btn" @click="exhaustEnemy">Exhaust</button>
+    </div>
+    <p v-if="targetingSwarmAttack" class="attack-hint">Click a highlighted player, then choose strike count</p>
+    <p v-else-if="targetingAttack" class="attack-hint">Click a highlighted player to attack</p>
   </div>
 </template>
 
@@ -219,8 +204,7 @@ function exhaustEnemy() {
 }
 
 .budget-row,
-.actions-row,
-.hint-row {
+.actions-row {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
@@ -264,20 +248,10 @@ function exhaustEnemy() {
   width: 3.5rem;
 }
 
-.hint {
-  font-size: 0.72rem;
-  color: var(--color-muted);
-}
-
 .attack-hint {
   margin: 0;
   font-size: 0.72rem;
   color: var(--color-muted);
 }
 
-.queue-inline {
-  font-size: 0.72rem;
-  color: var(--color-muted);
-  margin-left: auto;
-}
 </style>
