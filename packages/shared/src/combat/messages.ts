@@ -746,11 +746,6 @@ export function applyPlayerAction(
       }
       if (isWarhookWeaponName(player.weapon) && action.warhook) {
         const wh = action.warhook;
-        const triggers = previewSprintProvokes(state, playerId, wh.landingX, wh.landingY);
-        let provokeMsg = "";
-        if (triggers.length) {
-          provokeMsg = applyProvokeAndFormat(state, { kind: "player", player }, triggers);
-        }
         const result = applyWarhook(state, player, wh);
         recordPassedEnemiesOnPath(state, player, [{ x: wh.landingX, y: wh.landingY }]);
         const hitEnemies = result.targets
@@ -763,7 +758,6 @@ export function applyPlayerAction(
           .join(", ");
         let msg = `${playerLabel(player)} used ${result.message} (${result.detail} dmg) → ${names || "no targets"}`;
         if (defeated) msg += `; defeated ${defeated}`;
-        if (provokeMsg) msg = `${provokeMsg}; ${msg}`;
         return msg;
       }
       const weapon = getWeaponByName(player.weapon ?? "");

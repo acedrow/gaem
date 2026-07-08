@@ -3,7 +3,7 @@ import { isOrthogonallyAdjacent } from "../patterns.js";
 import type { Enemy, GameState, MapTile, Player } from "../types.js";
 import { enemyLabel, playerLabel } from "../console.js";
 import { enemyFootprintTiles, enemyOccupiesTile, getEnemyMaxHpByName, getEnemyScale } from "../enemy-data.js";
-import { coordKey, tileAt } from "../map.js";
+import { tileAt } from "../map.js";
 import { rollDice } from "./damage.js";
 import { applyDamageToEnemy, applyDamageToPlayer, manhattanDistance } from "./attack.js";
 import { playerArmorGearName } from "./attractor.js";
@@ -191,7 +191,7 @@ function collectPlayerStepProvokes(
   const threatRange = getProvokeThreatRange(state, player);
   const murielPassed = isMurielArmor(player.armor) ? passedEnemyIds(state, player.id) : null;
   const triggers: ProvokeTrigger[] = [];
-  const visitedSwarmTiles = new Set<string>();
+  const visitedSwarmGroups = new Set<string>();
 
   for (const enemy of state.enemies) {
     if (isTowerEnemy(enemy) || !isEnemyAlive(enemy)) continue;
@@ -199,28 +199,26 @@ function collectPlayerStepProvokes(
 
     const group = swarmGroupForEnemy(state, enemy.id);
     if (group && enemyHasSwarmTrait(enemy) && getEnemyScale(enemy) <= 1) {
+      if (visitedSwarmGroups.has(group.canonicalId)) continue;
+      visitedSwarmGroups.add(group.canonicalId);
+
       const positions = swarmMemberPositions(state, group.memberIds);
-      for (const pos of positions) {
-        const tileKey = coordKey(pos.x, pos.y);
-        if (visitedSwarmTiles.has(tileKey)) continue;
-        const wasAdj = isOrthogonallyAdjacent(from, pos);
-        const wasInRange = threatRange > 1
-          ? minDistanceToTiles(from, [pos]) <= threatRange
-          : wasAdj;
-        if (!wasInRange) continue;
-        const stillInRange = threatRange > 1
-          ? minDistanceToTiles(to, [pos]) <= threatRange
-          : isOrthogonallyAdjacent(to, pos);
-        if (!stillInRange) {
-          visitedSwarmTiles.add(tileKey);
-          const member = state.enemies.find((e) => e.id === pos.id);
-          triggers.push({
-            sourceId: pos.id,
-            sourceKind: "enemy",
-            label: member ? enemyLabel(member) : enemyLabel(enemy),
-            dice: 1,
-          });
-        }
+      const memberTiles = positions.map((p) => ({ x: p.x, y: p.y }));
+      const wasInRange = threatRange > 1
+        ? minDistanceToTiles(from, memberTiles) <= threatRange
+        : countSwarmTilesAdjacentToPos(positions, from) > 0;
+      if (!wasInRange) continue;
+      const stillInRange = threatRange > 1
+        ? minDistanceToTiles(to, memberTiles) <= threatRange
+        : countSwarmTilesAdjacentToPos(positions, to) > 0;
+      if (!stillInRange) {
+        const member = state.enemies.find((e) => e.id === group.canonicalId);
+        triggers.push({
+          sourceId: group.canonicalId,
+          sourceKind: "enemy",
+          label: member ? enemyLabel(member) : enemyLabel(enemy),
+          dice: 1,
+        });
       }
       continue;
     }
