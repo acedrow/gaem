@@ -40,8 +40,8 @@ Requires Node 22 (`nvm use`).
 
 ```bash
 npm install
-npm run dev          # shared watch + local server (3001) + client (Vite)
-npm run dev:cf       # shared + client watch, sync maps, wrangler dev (hot reload)
+npm run dev          # shared watch + local server (3001) + client (Vite :5173)
+npm run dev:cf       # shared watch + Vite dev (:5173, HMR) + wrangler dev (:8787)
 npm run deploy:cf    # build and deploy to Cloudflare (main branch via CI)
 ```
 
@@ -53,4 +53,9 @@ npm run lint
 npm run test
 ```
 
-In dev, the client talks to `http://localhost:3001`. In production, the Worker serves the SPA and handles all API/WS routes on the same origin.
+Open the app at `http://localhost:5173` (the Vite dev server) in both dev flows:
+
+- `npm run dev` — the client talks directly to the local Express server on `http://localhost:3001`.
+- `npm run dev:cf` — the client uses same-origin paths; Vite proxies `/api` and `/ws` to the wrangler Worker on `:8787`, matching production. Client edits hot-reload via Vite HMR; worker/shared edits reload via wrangler.
+
+In production, the Worker serves the SPA and handles all API/WS routes on the same origin.

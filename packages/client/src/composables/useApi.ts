@@ -10,7 +10,9 @@ export function useApi() {
   const { apiHeaders, clearSession } = useSession();
 
   const apiBase = computed(() =>
-    import.meta.env.DEV ? `http://${location.hostname}:3001` : "",
+    import.meta.env.DEV && !import.meta.env.VITE_CF_DEV
+      ? `http://${location.hostname}:3001`
+      : "",
   );
 
   async function apiFetch(path: string, init: RequestInit = {}) {

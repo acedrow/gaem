@@ -11,7 +11,9 @@ compatibility_date = "2025-04-01"
 [build]
 command = "bash scripts/cf-wrangler-build.sh"
 cwd = "../.."
-watch_dir = ["packages/cf-worker/src", "packages/client/src", "packages/shared/src"]
+# Client isn't built here in dev (Vite serves it with HMR); wrangler natively
+# hot-reloads the worker + aliased shared source, so we don't watch client/src.
+watch_dir = ["packages/cf-worker/src", "packages/shared/src"]
 
 [assets]
 directory = "../client/dist"

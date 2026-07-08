@@ -26,7 +26,7 @@ npm run test           # shared + client vitest suites
 npm run lint           # eslint across all packages
 npm run lint:fix       # eslint with autofix
 npm run dev            # local stack (client :5173, server :3001)
-npm run dev:cf         # wrangler dev with built client
+npm run dev:cf         # Vite dev (:5173, HMR) + wrangler dev (:8787); open :5173
 npm run deploy:cf      # production deploy
 ```
 
@@ -86,6 +86,7 @@ These rules exist because these mistakes have been made before:
 - **REST** — player profiles, character sheets, portraits, dice rolls. Auth via `X-Gaem-Role` and `X-Gaem-Player-Key` (see `useSession` / `useApi`).
 - **Maps** — `packages/maps/*.json`, synced to KV for cf-worker deploy.
 - **Static game data** — JSON under `packages/shared/src/data/` (enemies, player gear, patterns). Code imports from `src/data/` only.
+- **Dev backend wiring** — the client reads `import.meta.env.DEV` and `VITE_CF_DEV` to pick a backend (`useApi.apiBase`, `useGameSocket.gameWsUrl`): plain `npm run dev` targets Express on `:3001`; `npm run dev:cf` sets `VITE_CF_DEV=1` so the client uses same-origin paths and Vite (`vite.config.ts` proxy) forwards `/api` + `/ws` to the wrangler Worker on `:8787`. In `dev:cf`, the client is served by Vite (HMR) — **not** rebuilt by wrangler: `scripts/cf-wrangler-build.sh` is a deliberate no-op under `WRANGLER_COMMAND=dev`, and `wrangler.toml` `watch_dir` excludes `client/src`. Don't reintroduce a full client `vite build` into the dev build path (it kills HMR). Open `http://localhost:5173` for both dev flows.
 
 ## Rules
 

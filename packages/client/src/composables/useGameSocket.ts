@@ -8,7 +8,7 @@ import { useSession } from "./useSession.js";
 
 export const gameWsUrl =
   import.meta.env.VITE_WS_URL ??
-  (import.meta.env.DEV
+  (import.meta.env.DEV && !import.meta.env.VITE_CF_DEV
     ? `ws://${location.hostname}:3001/ws`
     : `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`);
 
