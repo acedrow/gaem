@@ -1,8 +1,13 @@
 <script setup lang="ts">
-import { UNIT_EFFECTS } from "@gaem/shared";
+import { TERRAIN_TYPES, TILE_EFFECTS, UNIT_EFFECTS, terrainTypeDisplayName } from "@gaem/shared";
 import { computed } from "vue";
 
-import { useGmTools, type GmSelectTargetKind, GM_EFFECT_NONE } from "../composables/useGmTools.js";
+import {
+  useGmTools,
+  type GmSelectTargetKind,
+  GM_EFFECT_NONE,
+  GM_TILE_EFFECT_NONE,
+} from "../composables/useGmTools.js";
 import EffectIcon from "./EffectIcon.vue";
 import NumberStepper from "./NumberStepper.vue";
 
@@ -14,6 +19,11 @@ const {
   damageAmount,
   effectId,
   effectStacks,
+  paintbrushElevation,
+  paintbrushTerrain,
+  paintbrushEffectId,
+  paintbrushEffectStacks,
+  resetPaintbrushSettings,
 } = useGmTools();
 
 const targetKinds: { id: GmSelectTargetKind; label: string }[] = [
@@ -78,6 +88,36 @@ const bulkLabel = computed(() => {
         <span class="control-label">Stacks</span>
         <NumberStepper v-model="effectStacks" :min="-99" :max="99" />
       </div>
+    </template>
+
+    <template v-else-if="activeTool === 'paintbrush'">
+      <div class="control-group">
+        <span class="control-label">Elevation</span>
+        <NumberStepper v-model="paintbrushElevation" :min="-3" :max="3" />
+      </div>
+      <div class="control-group">
+        <span class="control-label">Terrain</span>
+        <select v-model="paintbrushTerrain" class="effect-select terrain-select">
+          <option v-for="terrain in TERRAIN_TYPES" :key="terrain" :value="terrain">
+            {{ terrainTypeDisplayName(terrain) }}
+          </option>
+        </select>
+      </div>
+      <div class="control-group effect-group">
+        <span class="control-label">Effect</span>
+        <select v-model="paintbrushEffectId" class="effect-select">
+          <option :value="GM_TILE_EFFECT_NONE">None</option>
+          <option v-for="effect in TILE_EFFECTS" :key="effect.id" :value="effect.id">
+            {{ effect.id }}
+          </option>
+        </select>
+        <EffectIcon v-if="paintbrushEffectId" :effect-id="paintbrushEffectId" :size="16" />
+      </div>
+      <div v-if="paintbrushEffectId" class="control-group">
+        <span class="control-label">Stacks</span>
+        <NumberStepper v-model="paintbrushEffectStacks" :min="-99" :max="99" />
+      </div>
+      <button type="button" class="reset-btn" @click="resetPaintbrushSettings">Reset</button>
     </template>
   </div>
 </template>
@@ -151,5 +191,26 @@ const bulkLabel = computed(() => {
   font-family: inherit;
   padding: 0.15rem 0.35rem;
   max-width: 8rem;
+}
+
+.terrain-select {
+  max-width: 9rem;
+}
+
+.reset-btn {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 0.2rem 0.55rem;
+  cursor: pointer;
+}
+
+.reset-btn:hover {
+  color: var(--color-text);
+  background: var(--color-surface-raised);
 }
 </style>

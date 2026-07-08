@@ -221,6 +221,15 @@ export function clearTileEffects(tile: MapTile): void {
   delete tile.tileEffects;
 }
 
+export function replaceTileEffects(tile: MapTile, tokens: string[]): void {
+  if (tokens.length === 0) {
+    delete tile.tileEffects;
+    return;
+  }
+  tile.tileEffects = {};
+  applyTileEffectStacks(tile, tokens);
+}
+
 export function hasTileEffects(tile: MapTile | undefined): boolean {
   if (!tile?.tileEffects) return false;
   return Object.values(tile.tileEffects).some((stacks) => stacks > 0);

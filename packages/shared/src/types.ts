@@ -285,6 +285,14 @@ export type ClientMessage =
     }
   | { type: "clearTileEffects"; x: number; y: number }
   | { type: "setTileTerrain"; x: number; y: number; terrain: TerrainType }
+  | {
+      type: "gmPaintTile";
+      x: number;
+      y: number;
+      elevation: number;
+      terrain: TerrainType;
+      tileEffects: string[];
+    }
   | { type: "removeAttractor"; x: number; y: number }
   | { type: "phaseAction"; action: PhaseAction }
   | { type: "setSandboxMode"; sandboxMode: boolean }

@@ -26,6 +26,7 @@ import {
   isRangedPatternAttack,
   isWalkable,
   isInBounds,
+  isOrthogonallyAdjacent,
   manhattanDistance,
   movementStepCost,
   stepMoveCost,
@@ -206,6 +207,7 @@ const {
   isEnemyBulkSelected,
   isCellInBulkSelection,
   applyDamageEffectToToken,
+  applyPaintbrushToTile,
 } = useGmTools();
 const {
   selectedPatternId,
@@ -3715,6 +3717,50 @@ function onMarqueePointerDown(e: PointerEvent) {
   window.addEventListener("pointerup", onUp);
 }
 
+function onPaintbrushPointerDown(e: PointerEvent) {
+  if (!canUseGmTools.value || gmActiveTool.value !== "paintbrush") return;
+  if (e.button !== 0) return;
+  const target = e.target as HTMLElement;
+  if (target.closest(".reset-zoom-btn")) return;
+  const startCell = cellFromClientPoint(e.clientX, e.clientY);
+  if (!startCell) return;
+  e.preventDefault();
+
+  const visited = new Set<string>();
+  let lastCell: { x: number; y: number } | null = null;
+
+  function paintCell(cell: { x: number; y: number }) {
+    const key = coordKey(cell.x, cell.y);
+    if (visited.has(key)) return;
+    visited.add(key);
+    lastCell = cell;
+    applyPaintbrushToTile(cell.x, cell.y);
+  }
+
+  paintCell(startCell);
+
+  const onMove = (ev: PointerEvent) => {
+    const cell = cellFromClientPoint(ev.clientX, ev.clientY);
+    if (!cell || !lastCell) return;
+    if (visited.has(coordKey(cell.x, cell.y))) return;
+    if (!isOrthogonallyAdjacent(lastCell, cell)) return;
+    paintCell(cell);
+  };
+
+  const onUp = () => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+  };
+
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+}
+
+function onViewportPointerDown(e: PointerEvent) {
+  onMarqueePointerDown(e);
+  onPaintbrushPointerDown(e);
+}
+
 const marqueeOverlayStyle = computed(() => {
   if (!marqueeActive.value || !marqueeStart.value || !marqueeEnd.value || !viewportEl.value) return null;
   const rect = viewportEl.value.getBoundingClientRect();
@@ -3741,6 +3787,8 @@ function tryGmDamageEffectToken(target: { kind: "player" | "enemy"; id: string }
 function onGmCellClick(x: number, y: number) {
   const s = gameState.value;
   if (!s) return;
+
+  if (gmActiveTool.value === "paintbrush") return;
 
   if (gmActiveTool.value === "damageEffect") {
     const occ = occupancy.value;
@@ -4309,7 +4357,8 @@ onUnmounted(() => {
       <div
         ref="viewportEl"
         class="board-viewport"
-        @pointerdown="onMarqueePointerDown"
+        :class="{ 'paintbrush-active': gmActiveTool === 'paintbrush' }"
+        @pointerdown="onViewportPointerDown"
         @click="onViewportClick"
         @contextmenu="onBoardContextMenu"
         @wheel.prevent="onWheel"
@@ -4607,6 +4656,10 @@ onUnmounted(() => {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+
+.board-viewport.paintbrush-active {
+  cursor: crosshair;
 }
 
 .marquee-overlay {

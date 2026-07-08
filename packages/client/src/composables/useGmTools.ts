@@ -1,11 +1,11 @@
-import { coordKey } from "@gaem/shared";
+import { coordKey, type TerrainType } from "@gaem/shared";
 import { computed, ref } from "vue";
 
 import { useBoardActionMode } from "./useBoardActionMode.js";
 import { useEnemySpawnSelection } from "./useEnemySpawnSelection.js";
 import { useGameState } from "./useGameState.js";
 
-export type GmTool = "select" | "damageEffect" | "forceMove";
+export type GmTool = "select" | "damageEffect" | "forceMove" | "paintbrush";
 export type GmSelectTargetKind = "tiles" | "enemies" | "players";
 
 export type GmBulkSelection =
@@ -14,6 +14,7 @@ export type GmBulkSelection =
   | { kind: "enemies"; ids: string[] };
 
 export const GM_EFFECT_NONE = "";
+export const GM_TILE_EFFECT_NONE = "";
 
 const activeTool = ref<GmTool | null>(null);
 const selectTargetKind = ref<GmSelectTargetKind>("enemies");
@@ -21,6 +22,10 @@ const bulkSelection = ref<GmBulkSelection | null>(null);
 const damageAmount = ref(0);
 const effectId = ref(GM_EFFECT_NONE);
 const effectStacks = ref(1);
+const paintbrushElevation = ref(0);
+const paintbrushTerrain = ref<TerrainType>("standard");
+const paintbrushEffectId = ref(GM_TILE_EFFECT_NONE);
+const paintbrushEffectStacks = ref(1);
 
 export function clearActiveTool() {
   activeTool.value = null;
@@ -110,6 +115,28 @@ export function useGmTools() {
     }
   }
 
+  function resetPaintbrushSettings() {
+    paintbrushElevation.value = 0;
+    paintbrushTerrain.value = "standard";
+    paintbrushEffectId.value = GM_TILE_EFFECT_NONE;
+    paintbrushEffectStacks.value = 1;
+  }
+
+  function applyPaintbrushToTile(x: number, y: number) {
+    const tileEffects =
+      paintbrushEffectId.value && paintbrushEffectStacks.value !== 0
+        ? [`${paintbrushEffectId.value}:${paintbrushEffectStacks.value}`]
+        : [];
+    send({
+      type: "gmPaintTile",
+      x,
+      y,
+      elevation: paintbrushElevation.value,
+      terrain: paintbrushTerrain.value,
+      tileEffects,
+    });
+  }
+
   return {
     activeTool,
     selectTargetKind,
@@ -118,6 +145,10 @@ export function useGmTools() {
     damageAmount,
     effectId,
     effectStacks,
+    paintbrushElevation,
+    paintbrushTerrain,
+    paintbrushEffectId,
+    paintbrushEffectStacks,
     setActiveTool,
     setBulkSelection,
     clearBulkSelection,
@@ -126,5 +157,7 @@ export function useGmTools() {
     isEnemyBulkSelected,
     isCellInBulkSelection,
     applyDamageEffectToToken,
+    resetPaintbrushSettings,
+    applyPaintbrushToTile,
   };
 }

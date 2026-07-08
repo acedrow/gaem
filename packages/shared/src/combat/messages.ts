@@ -88,7 +88,7 @@ import {
   validateHylicRejectionField,
   validateRedirectionCircuits,
 } from "./equipment.js";
-import { applyEffectStacks, applyTileEffectStacks, clearEffectStacks, clearTileEffects, hasTileEffects, parseEffectToken, tickUnitEndOfTurn } from "./effects.js";
+import { applyEffectStacks, applyTileEffectStacks, clearEffectStacks, clearTileEffects, hasTileEffects, parseEffectToken, replaceTileEffects, tickUnitEndOfTurn } from "./effects.js";
 import { isKnownEffectId } from "../effects-data.js";
 import { createPendingAction, addPendingAction, applyAssistedOutcome } from "./pending.js";
 import { setActiveEnemy } from "./enemy.js";
@@ -1314,6 +1314,49 @@ export function applySetTileTerrain(
   return `Set (${x}, ${y}) terrain to ${terrain}`;
 }
 
+function validatePaintTileEffectTokens(effects: string[]): string | null {
+  for (const token of effects) {
+    const parsed = parseEffectToken(token);
+    if (!parsed) return `Invalid effect token: ${token}`;
+    if (parsed.stacks === 0) return `Invalid effect stacks: ${token}`;
+    if (!isKnownEffectId(parsed.id)) return `Unknown effect: ${parsed.id}`;
+  }
+  return null;
+}
+
+export function validateGmPaintTile(
+  state: GameState,
+  x: number,
+  y: number,
+  elevation: number,
+  terrain: string,
+  tileEffects: string[],
+): string | null {
+  if (!isInBounds(x, y, state.width, state.height)) return "Out of bounds";
+  const tile = tileAt(state.tiles, x, y);
+  if (!tile) return "No tile here";
+  if (!Number.isInteger(elevation) || elevation < -3 || elevation > 3) {
+    return "Elevation must be an integer from -3 to 3";
+  }
+  if (!isTerrainType(terrain)) return `Invalid terrain type: ${terrain}`;
+  return validatePaintTileEffectTokens(tileEffects);
+}
+
+export function applyGmPaintTile(
+  state: GameState,
+  x: number,
+  y: number,
+  elevation: number,
+  terrain: TerrainType,
+  tileEffects: string[],
+): string {
+  const tile = tileAt(state.tiles, x, y)!;
+  tile.elevation = elevation;
+  setTileTerrain(tile, terrain);
+  replaceTileEffects(tile, tileEffects);
+  return `Painted (${x}, ${y})`;
+}
+
 export function validateAssistedOutcome(_state: GameState, _outcome: AssistedOutcome, ctx: AuthCapabilities): string | null {
   if (!hasGmCapabilities(ctx)) return "Only GM can apply assisted outcomes";
   return null;
@@ -1524,6 +1567,29 @@ export function handleCombatMessage(
       return {
         handled: true,
         message: applySetTileTerrain(state, parsed.x, parsed.y, parsed.terrain),
+      };
+    }
+    case "gmPaintTile": {
+      if (!hasGmCapabilities(ctx)) return { handled: true, error: "Only GM can do that" };
+      const err = validateGmPaintTile(
+        state,
+        parsed.x,
+        parsed.y,
+        parsed.elevation,
+        parsed.terrain,
+        parsed.tileEffects,
+      );
+      if (err) return { handled: true, error: err };
+      return {
+        handled: true,
+        message: applyGmPaintTile(
+          state,
+          parsed.x,
+          parsed.y,
+          parsed.elevation,
+          parsed.terrain,
+          parsed.tileEffects,
+        ),
       };
     }
     case "removeAttractor": {
