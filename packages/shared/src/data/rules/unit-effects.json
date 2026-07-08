@@ -77,6 +77,13 @@
     "icon": "M6.5 3 H9.5 V6.5 H13 V9.5 H9.5 V13 H6.5 V9.5 H3 V6.5 H6.5 Z"
   },
   {
+    "id": "Mag Dump",
+    "summary": "Marked by Mag Dump. When defeated by the marking player, drops a Kopis token.",
+    "description": "This enemy has been marked by a KOPIS player's Mag Dump ability. When the marking player defeats this enemy, it drops a token on this tile. Stepping on that token grants the marking player one immediate free weapon attack.",
+    "stacking": "max",
+    "icon": "M8 2 V14 M2 8 H14 M8 8 A2.5 2.5 0 1 0 8 8"
+  },
+  {
     "id": "Lingering",
     "summary": "Tile hazard: units moving onto it take the attack's effects and damage.",
     "description": "Lingering attacks create Lingering tiles on any square they did not target a unit or affect the battlefield already. When a unit moves onto a Lingering tile, it recieves the same effects and damage of the initial attack. Remove 1 stack at the end of the attacking unit's turn and remove all damage squares after Lingering expires.",

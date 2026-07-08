@@ -23,7 +23,13 @@ import { applyPullToward } from "./pull.js";
 import { applyAttractorEntryPulls, placeAttractor } from "./attractor.js";
 import { applyVoidTileDefeat } from "./void-tile.js";
 import { applyOffhandPistolPush } from "./provoke.js";
+import {
+  applyKopisMark,
+  ensureKopisCombatFields,
+  handleEnemyDefeated,
+} from "./kopis.js";
 
+export { handleEnemyDefeated, syncKopisMarkEffects } from "./kopis.js";
 export const HARPE_CLASS = "HARPE";
 export const KOPIS_CLASS = "KOPIS";
 export const SHARUR_CLASS = "SHARUR";
@@ -34,10 +40,8 @@ export const EPEUS_CLASS = "EPEUS";
 function ensureCombat(state: GameState): boolean {
   if (!state.combat) return false;
   if (!state.combat.thrownTraps) state.combat.thrownTraps = [];
-  if (!state.combat.boardTokens) state.combat.boardTokens = [];
   if (!state.combat.attractors) state.combat.attractors = [];
-  if (!state.combat.kopisMarks) state.combat.kopisMarks = {};
-  return true;
+  return ensureKopisCombatFields(state);
 }
 
 function getThrownTrap(state: GameState, ownerId: string): ThrownTrap | undefined {
@@ -192,8 +196,8 @@ export function applyClassActive(
 
   if (player.class === KOPIS_CLASS) {
     const enemyId = action.targetEnemyIds![0]!;
-    state.combat!.kopisMarks![player.id] = enemyId;
     const enemy = state.enemies.find((e) => e.id === enemyId)!;
+    applyKopisMark(state, player.id, enemyId);
     return `${playerLabel(player)} Mag Dump → marked ${enemyLabel(enemy)}`;
   }
 
@@ -352,27 +356,6 @@ export function applyResolveClassReaction(
   recallHarpeWeapon(state, owner);
   state.combat!.pendingClassReaction = null;
   return `Weapon Trap pull: ${pullMsg}`;
-}
-
-export function handleEnemyDefeated(
-  state: GameState,
-  enemy: Enemy,
-  killerPlayerId?: string,
-): string | null {
-  if (!ensureCombat(state)) return null;
-  if (!killerPlayerId) return null;
-  const markEnemyId = state.combat!.kopisMarks?.[killerPlayerId];
-  if (!markEnemyId || markEnemyId !== enemy.id) return null;
-  delete state.combat!.kopisMarks![killerPlayerId];
-  const tokenId = `kopis-${killerPlayerId}-${enemy.x}-${enemy.y}-${Date.now()}`;
-  state.combat!.boardTokens!.push({
-    id: tokenId,
-    ownerId: killerPlayerId,
-    x: enemy.x,
-    y: enemy.y,
-    kind: "kopis",
-  });
-  return `Kopis token dropped at (${enemy.x}, ${enemy.y})`;
 }
 
 export type MovementHookResult = {

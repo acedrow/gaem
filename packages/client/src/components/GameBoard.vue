@@ -109,6 +109,7 @@ import {
   tilesInAttractorZone,
   hasTileEffects,
   formatTileEffectTooltipLabel,
+  getEffectSummary,
   terrainTypeDisplayName,
   type ProvokeTrigger,
   computeAttackPreviewHighlights,
@@ -869,12 +870,15 @@ const attractorPreviewZoneOnlyKeys = computed(() => {
   return keys;
 });
 
-const boardTokenKeys = computed(() => {
-  const keys = new Set<string>();
+const boardTokensByKey = computed(() => {
+  const map = new Map<string, { id: string; ownerId: string; kind: "kopis" }[]>();
   for (const t of gameState.value?.combat?.boardTokens ?? []) {
-    keys.add(coordKey(t.x, t.y));
+    const key = coordKey(t.x, t.y);
+    const list = map.get(key) ?? [];
+    list.push(t);
+    map.set(key, list);
   }
-  return keys;
+  return map;
 });
 
 const trapLineKeys = computed(() => {
@@ -1935,7 +1939,10 @@ const cellStateByKey = computed(() => {
         return bg;
       })(),
       hasSeed,
-      kopisToken: boardTokenKeys.value.has(coordKey(c.x, c.y)),
+      kopisToken: (boardTokensByKey.value.get(coordKey(c.x, c.y)) ?? []).length > 0,
+      kopisTokenMine: (boardTokensByKey.value.get(coordKey(c.x, c.y)) ?? []).some(
+        (t) => t.ownerId === yourPlayerId.value,
+      ),
       kopisMarked: enemyAnchor ? kopisMarkedEnemyIds.value.has(enemyAnchor.id) : false,
       trapLine: trapLineKeys.value.has(coordKey(c.x, c.y)),
       trapWeapon: trapWeaponKeys.value.has(coordKey(c.x, c.y)),
@@ -2039,6 +2046,7 @@ const tooltipData = computed(() => {
       }
       return entries;
     })(),
+    boardTokens: boardTokensByKey.value.get(key) ?? [],
   };
 });
 
@@ -2245,7 +2253,15 @@ function effectEntries(stacks?: EffectStacks) {
 }
 
 function effectTooltipLabel(id: string, stacks: number): string {
-  return `${id}: ${stacks}`;
+  const summary = getEffectSummary(id);
+  return summary ? `${id}: ${stacks} — ${summary}` : `${id}: ${stacks}`;
+}
+
+function boardTokenTooltipLabel(token: { ownerId: string; kind: "kopis" }): string {
+  const owner = gameState.value?.players.find((p) => p.id === token.ownerId);
+  const ownerName = owner ? playerLabel(owner) : token.ownerId;
+  const yours = token.ownerId === yourPlayerId.value;
+  return `Kopis token · ${ownerName}${yours ? " (yours — step here for a free weapon attack)" : ""}`;
 }
 
 function terrainTooltipLabel(terrain: string[]): string {
@@ -4243,6 +4259,16 @@ onUnmounted(() => {
               class="tooltip-row"
             >
               {{ attractorTooltipLabel(attractor) }}
+            </span>
+          </div>
+          <div v-if="tooltipData.boardTokens.length" class="tooltip-section">
+            <span class="tooltip-heading">Tokens</span>
+            <span
+              v-for="token in tooltipData.boardTokens"
+              :key="token.id"
+              class="tooltip-row"
+            >
+              {{ boardTokenTooltipLabel(token) }}
             </span>
           </div>
           <div v-if="tooltipData.objects.length" class="tooltip-section">

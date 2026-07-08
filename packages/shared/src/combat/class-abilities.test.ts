@@ -19,6 +19,7 @@ describe("class-abilities", () => {
     });
     expect(msg).toContain("Mag Dump");
     expect(state.combat!.kopisMarks!.p1).toBe("e1");
+    expect(state.enemies.find((e) => e.id === "e1")?.effects?.["Mag Dump"]).toBe(1);
   });
 
   it("drops Kopis token when marked enemy defeated", () => {

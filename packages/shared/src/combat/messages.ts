@@ -812,7 +812,15 @@ export function applyPlayerAction(
           .map((e) => enemyLabel(e!))
           .join(", ");
         let msg = `${playerLabel(player)} used ${result.message} → ${names || "no targets"}`;
+        const defeatMsgs: string[] = [];
+        for (const e of hitEnemies) {
+          if ((e!.hp ?? 0) <= 0) {
+            const tokenMsg = handleEnemyDefeated(state, e!, playerId);
+            if (tokenMsg) defeatMsgs.push(tokenMsg);
+          }
+        }
         if (defeated) msg += `; defeated ${defeated}`;
+        if (defeatMsgs.length) msg += `; ${defeatMsgs.join("; ")}`;
         return msg;
       }
       if (isWarhookWeaponName(player.weapon) && action.warhook) {
@@ -828,7 +836,15 @@ export function applyPlayerAction(
           .map((e) => enemyLabel(e!))
           .join(", ");
         let msg = `${playerLabel(player)} used ${result.message} (${result.detail} dmg) → ${names || "no targets"}`;
+        const defeatMsgs: string[] = [];
+        for (const e of hitEnemies) {
+          if ((e!.hp ?? 0) <= 0) {
+            const tokenMsg = handleEnemyDefeated(state, e!, playerId);
+            if (tokenMsg) defeatMsgs.push(tokenMsg);
+          }
+        }
         if (defeated) msg += `; defeated ${defeated}`;
+        if (defeatMsgs.length) msg += `; ${defeatMsgs.join("; ")}`;
         return msg;
       }
       const weapon = getWeaponByName(player.weapon ?? "");

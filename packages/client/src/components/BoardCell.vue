@@ -38,6 +38,7 @@ export type CellRenderState = {
   enemyPortraitBg?: string | null;
   hasSeed?: boolean;
   kopisToken?: boolean;
+  kopisTokenMine?: boolean;
   kopisMarked?: boolean;
   trapLine?: boolean;
   trapWeapon?: boolean;
@@ -231,7 +232,12 @@ const terrainImageUrl = computed(() => {
   >
     <span v-if="cell.trapLine && !cell.trapWeapon" class="board-overlay trap-line" aria-hidden="true" />
     <span v-if="cell.trapWeapon" class="board-overlay trap-weapon" title="Thrown weapon" />
-    <span v-if="cell.kopisToken" class="board-overlay kopis-token" title="Kopis token" />
+    <span
+      v-if="cell.kopisToken"
+      class="board-overlay kopis-token"
+      :class="{ mine: cell.kopisTokenMine }"
+      title="Kopis token"
+    />
     <span v-if="cell.attractorZone" class="board-overlay attractor-zone" aria-hidden="true" />
     <span
       v-if="cell.attractorCenter"
@@ -839,13 +845,23 @@ const terrainImageUrl = computed(() => {
 }
 
 .kopis-token {
-  bottom: 3px;
-  right: 3px;
-  width: 9px;
-  height: 9px;
+  bottom: 2px;
+  right: 2px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
-  background: var(--color-accent-bright);
-  border: 1px solid var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+  border: 1.5px solid var(--color-accent);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+  z-index: 5;
+}
+
+.kopis-token.mine {
+  background: color-mix(in srgb, var(--color-accent-bright) 45%, transparent);
+  border-color: var(--color-accent-bright);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 0 5px color-mix(in srgb, var(--color-accent-bright) 55%, transparent);
 }
 
 .attractor-zone {
