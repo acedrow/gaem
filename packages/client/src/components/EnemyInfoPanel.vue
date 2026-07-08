@@ -350,7 +350,7 @@ function spawnUnit() {
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  width: 100%;
+  width: 50%;
   aspect-ratio: 1;
   margin: 0 auto 1rem;
   overflow: hidden;
