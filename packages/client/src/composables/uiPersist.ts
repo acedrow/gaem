@@ -35,6 +35,7 @@ export type PersistedViewport = {
 export type PersistedUi = {
   boardSelection: BoardSelection | null;
   selectedSheetId: string | null;
+  selectedMapId: string | null;
   dataCategory: DataCategory | null;
   dataFocus: DataFocus | null;
   dataFocusReturnCategory: DataCategory | null;
@@ -42,12 +43,14 @@ export type PersistedUi = {
   activeMainTab: MainSectionTab;
   sheetsExpanded: boolean;
   dataExpanded: boolean;
+  mapsExpanded: boolean;
   viewport: PersistedViewport | null;
 };
 
 const DEFAULT_UI: PersistedUi = {
   boardSelection: null,
   selectedSheetId: null,
+  selectedMapId: null,
   dataCategory: null,
   dataFocus: null,
   dataFocusReturnCategory: null,
@@ -55,6 +58,7 @@ const DEFAULT_UI: PersistedUi = {
   activeMainTab: "taccom",
   sheetsExpanded: false,
   dataExpanded: false,
+  mapsExpanded: false,
   viewport: null,
 };
 
@@ -97,6 +101,8 @@ function parsePersistedUi(raw: string): PersistedUi {
       boardSelection: isBoardSelection(parsed.boardSelection) ? parsed.boardSelection : null,
       selectedSheetId:
         typeof parsed.selectedSheetId === "string" ? parsed.selectedSheetId : null,
+      selectedMapId:
+        typeof parsed.selectedMapId === "string" ? parsed.selectedMapId : null,
       dataCategory:
         parsed.dataCategory && DATA_CATEGORIES.has(parsed.dataCategory)
           ? parsed.dataCategory
@@ -117,6 +123,7 @@ function parsePersistedUi(raw: string): PersistedUi {
           : DEFAULT_UI.activeMainTab,
       sheetsExpanded: parsed.sheetsExpanded === true,
       dataExpanded: parsed.dataExpanded === true,
+      mapsExpanded: parsed.mapsExpanded === true,
       viewport: isViewport(parsed.viewport) ? parsed.viewport : null,
     };
   } catch {
@@ -197,6 +204,7 @@ function schedulePersist(snapshot: () => Partial<PersistedUi>) {
 export type UiPersistRefs = {
   boardSelection: Ref<BoardSelection | null>;
   selectedSheetId: Ref<string | null>;
+  selectedMapId: Ref<string | null>;
   dataCategory: Ref<DataCategory | null>;
   dataFocus: Ref<DataFocus | null>;
   dataFocusReturnCategory: Ref<DataCategory | null>;
@@ -204,11 +212,13 @@ export type UiPersistRefs = {
   activeMainTab: Ref<MainSectionTab>;
   sheetsExpanded: Ref<boolean>;
   dataExpanded: Ref<boolean>;
+  mapsExpanded: Ref<boolean>;
 };
 
 export function applyPersistedUiState(refs: UiPersistRefs, persisted: PersistedUi = readPersistedUi()) {
   refs.boardSelection.value = persisted.boardSelection;
   refs.selectedSheetId.value = persisted.selectedSheetId;
+  refs.selectedMapId.value = persisted.selectedMapId;
   refs.dataCategory.value = persisted.dataCategory;
   refs.dataFocus.value = persisted.dataFocus;
   refs.dataFocusReturnCategory.value = persisted.dataFocusReturnCategory;
@@ -216,12 +226,14 @@ export function applyPersistedUiState(refs: UiPersistRefs, persisted: PersistedU
   refs.activeMainTab.value = persisted.activeMainTab;
   refs.sheetsExpanded.value = persisted.sheetsExpanded;
   refs.dataExpanded.value = persisted.dataExpanded;
+  refs.mapsExpanded.value = persisted.mapsExpanded;
 }
 
 export function initUiPersistence(opts: UiPersistRefs) {
   const {
     boardSelection,
     selectedSheetId,
+    selectedMapId,
     dataCategory,
     dataFocus,
     dataFocusReturnCategory,
@@ -229,11 +241,13 @@ export function initUiPersistence(opts: UiPersistRefs) {
     activeMainTab,
     sheetsExpanded,
     dataExpanded,
+    mapsExpanded,
   } = opts;
 
   const refs: UiPersistRefs = {
     boardSelection,
     selectedSheetId,
+    selectedMapId,
     dataCategory,
     dataFocus,
     dataFocusReturnCategory,
@@ -241,6 +255,7 @@ export function initUiPersistence(opts: UiPersistRefs) {
     activeMainTab,
     sheetsExpanded,
     dataExpanded,
+    mapsExpanded,
   };
 
   watch(
@@ -256,6 +271,7 @@ export function initUiPersistence(opts: UiPersistRefs) {
     [
       boardSelection,
       selectedSheetId,
+      selectedMapId,
       dataCategory,
       dataFocus,
       dataFocusReturnCategory,
@@ -263,11 +279,13 @@ export function initUiPersistence(opts: UiPersistRefs) {
       activeMainTab,
       sheetsExpanded,
       dataExpanded,
+      mapsExpanded,
     ],
     () => {
       schedulePersist(() => ({
         boardSelection: boardSelection.value,
         selectedSheetId: selectedSheetId.value,
+        selectedMapId: selectedMapId.value,
         dataCategory: dataCategory.value,
         dataFocus: dataFocus.value,
         dataFocusReturnCategory: dataFocusReturnCategory.value,
@@ -275,6 +293,7 @@ export function initUiPersistence(opts: UiPersistRefs) {
         activeMainTab: activeMainTab.value,
         sheetsExpanded: sheetsExpanded.value,
         dataExpanded: dataExpanded.value,
+        mapsExpanded: mapsExpanded.value,
       }));
     },
     { deep: true },

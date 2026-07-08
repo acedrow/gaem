@@ -89,6 +89,13 @@ export type GameMap = {
   tilePresets?: Record<string, TilePaintPreset>;
 };
 
+export type GameMapSummary = {
+  id: string;
+  name: string;
+  width: number;
+  height: number;
+};
+
 export type Player = {
   id: string;
   x: number;

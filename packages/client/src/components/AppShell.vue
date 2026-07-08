@@ -8,6 +8,7 @@ import { useBoardActionMode } from "../composables/useBoardActionMode.js";
 import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
 import { activeTab } from "../composables/useGameConsole.js";
+import { useMapSelection } from "../composables/useMapSelection.js";
 import { useGameConnection } from "../composables/useGameConnection.js";
 import { gameWsUrl, useGameSocket } from "../composables/useGameSocket.js";
 import { useGameState } from "../composables/useGameState.js";
@@ -29,6 +30,7 @@ import SideNav from "./SideNav.vue";
 const router = useRouter();
 const { role, playerProfile, hasGmCapabilities, clearSession } = useSession();
 const { selectedSheetId, sheetsExpanded, selectSheet } = useCharacterSheetSelection();
+const { selectedMapId, mapsExpanded } = useMapSelection();
 const { boardSelection, selectBoardPlayer, clearBoardSelection, selectSheetFromNav } = useBoardSelection();
 const { dataCategory, dataFocus, dataFocusReturnCategory, dataExpanded, clearDataCategory, selectDataCategory } =
   useInfoDataSelection();
@@ -53,6 +55,7 @@ onMounted(() => {
   initUiPersistence({
     boardSelection,
     selectedSheetId,
+    selectedMapId,
     dataCategory,
     dataFocus,
     dataFocusReturnCategory,
@@ -60,6 +63,7 @@ onMounted(() => {
     activeMainTab,
     sheetsExpanded,
     dataExpanded,
+    mapsExpanded,
   });
   if (activeMainTab.value === "baseUpgrades") {
     openResourcesPanel();

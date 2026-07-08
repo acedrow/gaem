@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   buildTileIndex,
   computeWalkable,
+  createBlankGameMap,
   createInitialStateFromMap,
   isFootprintInBounds,
   isInBounds,
   isWalkable,
   parseGameMap,
   tileAt,
+  toMapSummary,
 } from "./map.js";
 import type { GameMap, MapTile } from "./types.js";
 import { makeTiles } from "./test/fixtures.js";
@@ -71,6 +73,20 @@ describe("map", () => {
     expect(state.enemies).toHaveLength(1);
     expect(state.enemies[0]!.hp).toBe(1);
     expect(state.enemies[0]!.movementRemaining).toBeDefined();
+  });
+
+  it("createBlankGameMap and toMapSummary", () => {
+    const map = createBlankGameMap("test-map", "Test Map", 4, 3);
+    expect(map.tiles).toHaveLength(12);
+    expect(map.tiles.every((t) => t.terrain[0] === "standard")).toBe(true);
+    expect(parseGameMap(map).id).toBe("test-map");
+    expect(toMapSummary(map)).toEqual({
+      id: "test-map",
+      name: "Test Map",
+      width: 4,
+      height: 3,
+    });
+    expect(toMapSummary({ ...map, name: undefined }).name).toBe("test-map");
   });
 
   it("parseGameMap reads optional tile cosmetics and presets", () => {

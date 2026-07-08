@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { CharacterSheet, PlayerProfile } from "@gaem/shared";
-import { YADATHAN_ARMOR_NAME } from "@gaem/shared";
+import type { CharacterSheet, GameMapSummary, PlayerProfile } from "@gaem/shared";
+import { BOARD_HEIGHT, BOARD_WIDTH, YADATHAN_ARMOR_NAME } from "@gaem/shared";
 import { computed, ref, watch } from "vue";
 
 import { useApi } from "../composables/useApi.js";
@@ -9,6 +9,7 @@ import { useCharacterSheetSelection } from "../composables/useCharacterSheetSele
 import { activeTab } from "../composables/useGameConsole.js";
 import type { DataCategory } from "../composables/useInfoDataSelection.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
+import { useMapSelection } from "../composables/useMapSelection.js";
 import { useSession } from "../composables/useSession.js";
 import CharacterSheetFormFields from "./CharacterSheetFormFields.vue";
 import GmToolsToolbar from "./GmToolsToolbar.vue";
@@ -16,20 +17,29 @@ import ModalDialog from "./ModalDialog.vue";
 
 type PlayerProfileOption = PlayerProfile & { isActive?: boolean };
 
-const { apiFetch, fetchPlayerProfiles } = useApi();
+const { apiFetch, fetchPlayerProfiles, fetchMaps, createMap } = useApi();
 const { role, playerProfile, hasGmCapabilities } = useSession();
 const { selectedSheetId, sheetsExpanded, sheetsVersion, selectSheet } =
   useCharacterSheetSelection();
+const { selectedMapId, mapsExpanded, mapsVersion, selectMap, notifyMapsChanged } =
+  useMapSelection();
 const { clearBoardSelection, selectSheetFromNav } = useBoardSelection();
 const { dataCategory, dataExpanded, selectDataCategory } = useInfoDataSelection();
 
 const sheets = ref<CharacterSheet[]>([]);
+const maps = ref<GameMapSummary[]>([]);
+const mapSearch = ref("");
 const profiles = ref<PlayerProfileOption[]>([]);
 const loading = ref(false);
+const mapsLoading = ref(false);
 const loadError = ref<string | null>(null);
+const mapsLoadError = ref<string | null>(null);
 const showCreate = ref(false);
+const showCreateMap = ref(false);
 const creating = ref(false);
+const creatingMap = ref(false);
 const createError = ref<string | null>(null);
+const createMapError = ref<string | null>(null);
 
 const createForm = ref({
   player: "",
@@ -38,6 +48,26 @@ const createForm = ref({
   armor: "",
   weapon: "",
   yadathanTower: "",
+});
+
+const createMapForm = ref({
+  id: "",
+  name: "",
+  width: BOARD_WIDTH,
+  height: BOARD_HEIGHT,
+});
+
+const createMapFormValid = computed(() => {
+  const f = createMapForm.value;
+  return f.id.trim().length > 0 && f.name.trim().length > 0 && f.width > 0 && f.height > 0;
+});
+
+const filteredMaps = computed(() => {
+  const q = mapSearch.value.trim().toLowerCase();
+  if (!q) return maps.value;
+  return maps.value.filter(
+    (map) => map.name.toLowerCase().includes(q) || map.id.toLowerCase().includes(q),
+  );
 });
 
 const createFormValid = computed(() => {
@@ -83,6 +113,22 @@ async function loadSheets() {
   }
 }
 
+async function loadMaps() {
+  mapsLoading.value = true;
+  mapsLoadError.value = null;
+  try {
+    maps.value = await fetchMaps();
+  } catch {
+    mapsLoadError.value = "Unable to load maps";
+  } finally {
+    mapsLoading.value = false;
+  }
+}
+
+function toggleMaps() {
+  mapsExpanded.value = !mapsExpanded.value;
+}
+
 function toggleSheets() {
   sheetsExpanded.value = !sheetsExpanded.value;
 }
@@ -98,8 +144,46 @@ function onSelectSheet(sheetId: string) {
 function onSelectData(category: DataCategory) {
   clearBoardSelection();
   selectSheet(null);
+  selectMap(null);
   selectDataCategory(category);
   activeTab.value = "info";
+}
+
+function onSelectMap(mapId: string) {
+  selectMap(mapId);
+}
+
+function openCreateMap() {
+  createMapForm.value = {
+    id: "",
+    name: "",
+    width: BOARD_WIDTH,
+    height: BOARD_HEIGHT,
+  };
+  createMapError.value = null;
+  showCreateMap.value = true;
+}
+
+async function submitCreateMap() {
+  creatingMap.value = true;
+  createMapError.value = null;
+  try {
+    const f = createMapForm.value;
+    const map = await createMap({
+      id: f.id.trim(),
+      name: f.name.trim(),
+      width: f.width,
+      height: f.height,
+    });
+    showCreateMap.value = false;
+    await loadMaps();
+    notifyMapsChanged();
+    selectMap(map.id);
+  } catch (e) {
+    createMapError.value = e instanceof Error ? e.message : "Unable to create map";
+  } finally {
+    creatingMap.value = false;
+  }
 }
 
 function openCreate() {
@@ -139,6 +223,14 @@ async function createSheet() {
   }
 }
 
+watch(mapsExpanded, (expanded) => {
+  if (expanded && maps.value.length === 0 && !mapsLoading.value) loadMaps();
+}, { immediate: true });
+
+watch(mapsVersion, () => {
+  if (mapsExpanded.value) loadMaps();
+});
+
 watch(sheetsExpanded, (expanded) => {
   if (expanded && sheets.value.length === 0 && !loading.value) loadSheets();
 }, { immediate: true });
@@ -151,6 +243,41 @@ watch(sheetsVersion, () => {
 <template>
   <nav class="side-nav">
     <GmToolsToolbar v-if="hasGmCapabilities" />
+
+    <template v-if="hasGmCapabilities">
+      <button class="nav-link nav-toggle" :class="{ expanded: mapsExpanded }" type="button" @click="toggleMaps">
+        Maps
+        <span class="chevron" aria-hidden="true">{{ mapsExpanded ? "▾" : "▸" }}</span>
+      </button>
+
+      <div v-if="mapsExpanded" class="sheet-sublist">
+        <input
+          v-model="mapSearch"
+          class="nav-search-input"
+          type="search"
+          placeholder="Search maps…"
+          aria-label="Search maps"
+        />
+        <button class="new-sheet-btn" type="button" @click="openCreateMap">+ New map</button>
+        <p v-if="mapsLoading" class="sublist-muted">Loading…</p>
+        <p v-else-if="mapsLoadError" class="sublist-error">{{ mapsLoadError }}</p>
+        <template v-else>
+          <button
+            v-for="map in filteredMaps"
+            :key="map.id"
+            class="sheet-item"
+            :class="{ selected: selectedMapId === map.id }"
+            type="button"
+            @click="onSelectMap(map.id)"
+          >
+            <span class="sheet-name">{{ map.name }}</span>
+            <span class="sheet-meta">{{ map.id }} · {{ map.width }}×{{ map.height }}</span>
+          </button>
+          <p v-if="maps.length === 0" class="sublist-muted">No maps yet.</p>
+          <p v-else-if="filteredMaps.length === 0" class="sublist-muted">No matches.</p>
+        </template>
+      </div>
+    </template>
 
     <button class="nav-link nav-toggle" :class="{ expanded: sheetsExpanded }" type="button" @click="toggleSheets">
       Character Sheets
@@ -278,6 +405,36 @@ watch(sheetsVersion, () => {
 
       <p v-if="createError" class="sublist-error">{{ createError }}</p>
     </ModalDialog>
+
+    <ModalDialog
+      :open="showCreateMap"
+      title="New map"
+      :ok-label="creatingMap ? 'Creating…' : 'Create'"
+      :ok-disabled="creatingMap || !createMapFormValid"
+      @close="showCreateMap = false"
+      @confirm="submitCreateMap"
+    >
+      <div class="create-map-fields">
+        <label class="field">
+          <span class="field-label">Id</span>
+          <input v-model="createMapForm.id" class="field-input" type="text" placeholder="my-map" />
+        </label>
+        <label class="field">
+          <span class="field-label">Name</span>
+          <input v-model="createMapForm.name" class="field-input" type="text" placeholder="My Map" />
+        </label>
+        <label class="field">
+          <span class="field-label">Width</span>
+          <input v-model.number="createMapForm.width" class="field-input" type="number" min="1" />
+        </label>
+        <label class="field">
+          <span class="field-label">Height</span>
+          <input v-model.number="createMapForm.height" class="field-input" type="number" min="1" />
+        </label>
+      </div>
+
+      <p v-if="createMapError" class="sublist-error">{{ createMapError }}</p>
+    </ModalDialog>
   </nav>
 </template>
 
@@ -401,5 +558,50 @@ watch(sheetsVersion, () => {
 .new-sheet-btn:hover {
   color: var(--color-text);
   border-color: var(--color-accent);
+}
+
+.nav-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 0.25rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.8rem;
+}
+
+.nav-search-input::placeholder {
+  color: var(--color-muted-subtle);
+}
+
+.create-map-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.field-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-muted);
+}
+
+.field-input {
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.85rem;
 }
 </style>

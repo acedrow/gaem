@@ -31,6 +31,11 @@ import {
   handleListTilePresets,
   handlePutTilePreset,
 } from "./tile-presets.js";
+import {
+  handleCreateMap,
+  handleGetMap,
+  handleListMaps,
+} from "./maps-api.js";
 
 export { GameRoom };
 
@@ -38,6 +43,8 @@ const SHEET_ID_RE = /^\/api\/character-sheets\/([^/]+)$/;
 const PORTRAIT_RE = /^\/api\/character-sheets\/([^/]+)\/portrait$/;
 const PROFILE_ID_RE = /^\/api\/player-profiles\/([^/]+)$/;
 const TILE_APPEARANCE_RE = /^\/api\/tile-appearances\/([^/]+\/[^/]+)$/;
+const MAPS_RE = /^\/api\/maps$/;
+const MAP_ID_RE = /^\/api\/maps\/([^/]+)$/;
 const TILE_PRESETS_RE = /^\/api\/maps\/([^/]+)\/tile-presets$/;
 const TILE_PRESET_RE = /^\/api\/maps\/([^/]+)\/tile-presets\/([^/]+)$/;
 
@@ -193,6 +200,24 @@ export default {
       const auth = await verifyAuth(request, env);
       if (auth instanceof Response) return auth;
       return handleGetTileAppearance(env, tileAppearanceMatch[1]);
+    }
+
+    if (url.pathname.match(MAPS_RE)) {
+      const auth = await verifyAuth(request, env);
+      if (auth instanceof Response) return auth;
+      if (request.method === "GET") {
+        return handleListMaps(env, auth);
+      }
+      if (request.method === "POST") {
+        return handleCreateMap(env, auth, request);
+      }
+    }
+
+    const mapIdMatch = url.pathname.match(MAP_ID_RE);
+    if (mapIdMatch && request.method === "GET") {
+      const auth = await verifyAuth(request, env);
+      if (auth instanceof Response) return auth;
+      return handleGetMap(env, auth, mapIdMatch[1]);
     }
 
     const tilePresetsMatch = url.pathname.match(TILE_PRESETS_RE);

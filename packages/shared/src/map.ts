@@ -1,4 +1,5 @@
-import type { Enemy, GameMap, GameState, MapTile, TerrainType } from "./types.js";
+import type { Enemy, GameMap, GameMapSummary, GameState, MapTile, TerrainType } from "./types.js";
+import { BOARD_HEIGHT, BOARD_WIDTH } from "./constants.js";
 import { TERRAIN_TYPES } from "./types.js";
 import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles, refreshEnemyMovement } from "./enemy-data.js";
 import {
@@ -286,6 +287,30 @@ function parseMapEnemies(raw: unknown, width: number, height: number): Enemy[] |
   }
 
   return enemies;
+}
+
+export function toMapSummary(map: GameMap): GameMapSummary {
+  return {
+    id: map.id,
+    name: map.name ?? map.id,
+    width: map.width,
+    height: map.height,
+  };
+}
+
+export function createBlankGameMap(
+  id: string,
+  name: string,
+  width = BOARD_WIDTH,
+  height = BOARD_HEIGHT,
+): GameMap {
+  const tiles: MapTile[] = [];
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      tiles.push({ x, y, terrain: ["standard"], elevation: 0 });
+    }
+  }
+  return { id, name, width, height, tiles };
 }
 
 export function createInitialStateFromMap(map: GameMap): GameState {

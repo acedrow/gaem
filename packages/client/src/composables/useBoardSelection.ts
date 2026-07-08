@@ -3,6 +3,7 @@ import { swarmGroupForEnemy } from "@gaem/shared";
 import { computed, ref, watch } from "vue";
 
 import { readPersistedUi } from "./uiPersist.js";
+import { selectedMapId } from "./useMapSelection.js";
 import { useCharacterSheetSelection } from "./useCharacterSheetSelection.js";
 import { activeTab } from "./useGameConsole.js";
 import { useGameState } from "./useGameState.js";
@@ -13,7 +14,7 @@ export type BoardSelection =
   | { kind: "enemy"; id: string; swarmMemberIds?: string[]; soloSwarmMember?: boolean };
 
 const persisted = readPersistedUi();
-const boardSelection = ref<BoardSelection | null>(persisted.boardSelection);
+export const boardSelection = ref<BoardSelection | null>(persisted.boardSelection);
 
 function reconcileEnemyBoardSelection(s: GameState) {
   const sel = boardSelection.value;
@@ -94,6 +95,7 @@ export function useBoardSelection() {
     }
     if (boardSelection.value) clearBoardSelection();
     else if (dataCategory.value || dataFocus.value) clearDataCategory();
+    else if (selectedMapId.value) selectedMapId.value = null;
     else selectSheet(null);
   }
 
@@ -149,6 +151,7 @@ export function useBoardSelection() {
   }
 
   function selectSheetFromNav(sheetId: string) {
+    selectedMapId.value = null;
     clearDataCategory();
     selectSheet(sheetId);
     const player = gameState.value?.players.find((p) => p.characterSheetId === sheetId);

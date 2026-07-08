@@ -1,10 +1,7 @@
 import "dotenv/config";
 
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import type {
   ClientMessage,
@@ -79,6 +76,14 @@ import {
   putTilePresetHandler,
   seedTilePresetsFromMap,
 } from "./tile-presets.js";
+import {
+  createMapHandler,
+  getMapHandler,
+  listMapsHandler,
+  mapsDirPath,
+  savedMaps,
+  seedMapsFromDisk,
+} from "./maps.js";
 import {
   createProfileHandler,
   deleteProfileHandler,
@@ -337,6 +342,24 @@ app.get("/api/tile-appearances/:segment/:file", (req, res) => {
   const auth = parseAuth(req, res);
   if (!auth) return;
   getTileAppearanceHandler(`${req.params.segment}/${req.params.file}`, res);
+});
+
+app.get("/api/maps", (req, res) => {
+  const auth = parseAuth(req, res);
+  if (!auth) return;
+  listMapsHandler(auth, res);
+});
+
+app.post("/api/maps", (req, res) => {
+  const auth = parseAuth(req, res);
+  if (!auth) return;
+  createMapHandler(auth, req, res);
+});
+
+app.get("/api/maps/:mapId", (req, res) => {
+  const auth = parseAuth(req, res);
+  if (!auth) return;
+  getMapHandler(auth, req.params.mapId, res);
 });
 
 const httpServer = createServer(app);
@@ -900,12 +923,11 @@ wss.on("connection", (ws: WebSocket) => {
 });
 
 async function loadMap(): Promise<void> {
-  const mapsDir = join(
-    fileURLToPath(new URL(".", import.meta.url)),
-    "../../maps"
-  );
-  const raw = await readFile(join(mapsDir, `${DEFAULT_MAP_ID}.json`), "utf8");
-  const map = parseGameMap(JSON.parse(raw));
+  await seedMapsFromDisk(mapsDirPath());
+  const map = savedMaps.get(DEFAULT_MAP_ID);
+  if (!map) {
+    throw new Error(`Map not found: ${DEFAULT_MAP_ID}`);
+  }
   loadedMap = map;
   seedTilePresetsFromMap(map.id, map.tilePresets);
   gameState = normalizeGameState(createInitialStateFromMap(map), map);

@@ -6,6 +6,7 @@ import { useCharacterSheetSelection } from "../composables/useCharacterSheetSele
 import { activeTab } from "../composables/useGameConsole.js";
 import { useGameState } from "../composables/useGameState.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
+import { selectedMapId } from "../composables/useMapSelection.js";
 import AssistedActionPanel from "./AssistedActionPanel.vue";
 import CharacterSheetPanel from "./CharacterSheetPanel.vue";
 import EnemyInfoPanel from "./EnemyInfoPanel.vue";
@@ -14,6 +15,7 @@ import EffectsPanel from "./EffectsPanel.vue";
 import TerrainTypesPanel from "./TerrainTypesPanel.vue";
 import GameDataDetailPanel from "./GameDataDetailPanel.vue";
 import InfoSearchPanel from "./InfoSearchPanel.vue";
+import MapPanel from "./MapPanel.vue";
 import PlayerBoardPanel from "./PlayerBoardPanel.vue";
 import PlayerDataPanel from "./PlayerDataPanel.vue";
 import ParacletusEnemiesPanel from "./ParacletusEnemiesPanel.vue";
@@ -159,6 +161,11 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
             v-else-if="dataCategory === 'armor' || dataCategory === 'classes' || dataCategory === 'weapons' || dataCategory === 'equipment' || dataCategory === 'gear'"
             :key="dataCategory"
             :category="dataCategory"
+          />
+          <MapPanel
+            v-else-if="selectedMapId"
+            :key="selectedMapId"
+            :map-id="selectedMapId"
           />
           <CharacterSheetPanel
             v-else-if="activeSheetId"

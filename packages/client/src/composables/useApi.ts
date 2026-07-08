@@ -1,4 +1,4 @@
-import type { EnemyListing, PlayerProfile, TilePaintPreset } from "@gaem/shared";
+import type { EnemyListing, GameMap, GameMapSummary, PlayerProfile, TilePaintPreset } from "@gaem/shared";
 import { getEnemyListingByName, getEnemyPortraitUrl } from "@gaem/shared";
 import { computed } from "vue";
 
@@ -119,6 +119,41 @@ export function useApi() {
     return data.presets ?? {};
   }
 
+  async function fetchMaps(): Promise<GameMapSummary[]> {
+    const res = await apiFetch("/api/maps");
+    if (!res.ok) return [];
+    const data = (await res.json()) as { maps?: GameMapSummary[] };
+    return data.maps ?? [];
+  }
+
+  async function fetchMap(id: string): Promise<GameMap | null> {
+    const res = await apiFetch(`/api/maps/${encodeURIComponent(id)}`);
+    if (!res.ok) return null;
+    const data = (await res.json()) as { map?: GameMap };
+    return data.map ?? null;
+  }
+
+  async function createMap(body: {
+    id: string;
+    name: string;
+    width?: number;
+    height?: number;
+  }): Promise<GameMapSummary> {
+    const res = await apiFetch("/api/maps", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = (await res.json().catch(() => null)) as { map?: GameMapSummary; error?: string } | null;
+    if (!res.ok) {
+      throw new Error(data?.error ?? "Failed to create map");
+    }
+    if (!data?.map) {
+      throw new Error("Failed to create map");
+    }
+    return data.map;
+  }
+
   return {
     apiBase,
     apiFetch,
@@ -132,5 +167,8 @@ export function useApi() {
     fetchTilePresets,
     saveTilePreset,
     deleteTilePreset,
+    fetchMaps,
+    fetchMap,
+    createMap,
   };
 }
