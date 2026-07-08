@@ -4,6 +4,7 @@ import { playerLabel } from "./console.js";
 import { createDefaultActionBudget, createDefaultCombatState } from "./combat/types.js";
 import { tickRoundCountdowns, tickUnitEndOfTurn, tickUnitStartOfTurn } from "./combat/effects.js";
 import { clearAegisFlyingUsed, ensureAssistedAscensionAegis } from "./combat/aegis.js";
+import { initializeUnitElevation, syncUnitElevationOnTile } from "./combat/elevation.js";
 import { resetEnemyExhaustion, resetGmTurnActions } from "./combat/enemy.js";
 import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles, ensureEnemyMovement, refreshEnemyMovement, spendEnemyMovement } from "./enemy-data.js";
 import { applyLoadoutToPlayer, getClassMaxHp, getArmorSpeed } from "./player-data.js";
@@ -731,6 +732,7 @@ export function applyMove(
   if (!player) return;
   player.x = toX;
   player.y = toY;
+  syncUnitElevationOnTile(state, player, toX, toY);
 }
 
 export function validateEnemyMove(
@@ -791,6 +793,7 @@ export function applyEnemyMove(
     if (!isSandboxMode(state)) spendEnemyMovement(enemy, 1);
     enemy.x = toX;
     enemy.y = toY;
+    syncUnitElevationOnTile(state, enemy, toX, toY);
     reconcileSwarmHp(state, prevGroups);
     movedEnemyIds.push(enemyId);
   }
@@ -837,7 +840,9 @@ export function addEnemy(state: GameState, enemy: Enemy): string | null {
     scale,
     hp: normalizeHp(enemy.hp, maxHp),
   });
-  refreshEnemyMovement(state.enemies[state.enemies.length - 1]!);
+  const added = state.enemies[state.enemies.length - 1]!;
+  initializeUnitElevation(state, added);
+  refreshEnemyMovement(added);
   reconcileSwarmHp(state, prevGroups);
   return null;
 }
@@ -897,6 +902,7 @@ export function addPlayer(
   } else if (armor) {
     entry.speed = getArmorSpeed(armor);
   }
+  initializeUnitElevation(state, entry);
   state.players.push(entry);
   return true;
 }

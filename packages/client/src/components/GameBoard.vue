@@ -28,8 +28,9 @@ import {
   isInBounds,
   manhattanDistance,
   movementStepCost,
-  isFlyingStepReachable,
   stepMoveCost,
+  terrainStepCost,
+  isFlyingStepReachable,
   aegisFlyingRemaining,
   playerAllowsDiagonalMovement,
   playerAttackDirectionsAt,
@@ -96,6 +97,7 @@ import {
   weaponHasBreakerTag,
   attackTargetsSwarm,
   collectAttackTiles,
+  elevationBonusTileCandidates,
   enemyDirectAttackTargetPlayerIds,
   parseEnemyAttackString,
   swarmChipEligibleTargets,
@@ -223,6 +225,7 @@ const {
   attackDirection,
   attackAimed,
   attackAnchor,
+  elevBonusTile,
   rangeAttackTargetIds,
   pendingTargetEnemyId,
   pendingTargetPlayerId,
@@ -1106,6 +1109,18 @@ const combatAttackInvalidKeys = computed(() => {
   return preview.tooCloseKeys;
 });
 
+const elevationBonusCandidateKeys = computed(() => {
+  if (!isWeaponAttackMode.value || !attackAimed.value) return new Set<string>();
+  const ctx = attackContext.value;
+  const s = gameState.value;
+  if (!ctx || !s) return new Set<string>();
+  if (isRangeTargetAttack(ctx.spec) || usesAnchoredPatternPlacement(ctx.spec)) {
+    return new Set<string>();
+  }
+  const baseTiles = collectAttackTiles(s, ctx.origin, ctx.spec, attackDirection.value);
+  return coordsToKeySet(elevationBonusTileCandidates(s, ctx.origin, baseTiles, ctx.me));
+});
+
 const isWeaponAttackMode = computed(() => {
   const m = boardActionMode.value;
   if (m === "attack") return true;
@@ -1866,6 +1881,7 @@ const cellStateByKey = computed(() => {
       assistedLaunchAnchorKeys.value.has(ck) ||
       assistedLaunchLandingKeys.value.has(ck) ||
       combatAttackSelectedKeys.value.has(ck) ||
+      (elevBonusTile.value != null && coordKey(elevBonusTile.value.x, elevBonusTile.value.y) === ck) ||
       (remoteSelected?.has(ck) ?? false) ||
       reversalLineKeys.value.damage.has(ck) ||
       gmEnemyAttackTargetKeys.value.has(ck) ||
@@ -1886,6 +1902,8 @@ const cellStateByKey = computed(() => {
       assistedLaunchLineKeys.value.has(ck) ||
       kataptyPickKeys.value.has(ck) ||
       rezTargetKeys.value.has(ck) ||
+      (elevationBonusCandidateKeys.value.has(ck) &&
+        !(elevBonusTile.value && coordKey(elevBonusTile.value.x, elevBonusTile.value.y) === ck)) ||
       (remoteSecondary?.has(ck) ?? false);
 
     map.set(c.key, {
@@ -2070,10 +2088,27 @@ const tooltipData = computed(() => {
       displayMaxHp: getEffectiveEnemyMaxHp(anchor, s),
     };
   })();
+  const moveCost = (() => {
+    const sel = boardSelection.value;
+    if (!sel) return null;
+    if (sel.kind === "player") {
+      const player = s.players.find((p) => p.id === sel.id);
+      if (!player) return null;
+      if (!isMovementStepAdjacent(player, cell, playerAllowsDiagonalMovement(player))) return null;
+      return movementStepCost(s, player, cell.x, cell.y);
+    }
+    const enemy = s.enemies.find((e) => e.id === sel.id);
+    if (!enemy) return null;
+    if (!isMovementStepAdjacent(enemy, cell, false)) return null;
+    return terrainStepCost(s, enemy.x, enemy.y, cell.x, cell.y, {
+      seeking: (enemy.effects?.Seeking ?? 0) > 0,
+    });
+  })();
   return {
     x: cell.x,
     y: cell.y,
     tile,
+    moveCost,
     players: occ.playerByKey.has(key) ? [occ.playerByKey.get(key)!] : [],
     enemies: enemyEntry ? [enemyEntry] : [],
     towers: anchor && isTowerEnemy(anchor) ? [anchor] : [],
@@ -2570,7 +2605,14 @@ function attackTilesForAction(action: Extract<PlayerAction, { action: "attack" }
     action.anchorX != null && action.anchorY != null
       ? patternOriginFromAnchor({ x: action.anchorX, y: action.anchorY }, ctx.spec.anchorTile, direction)
       : base;
-  return collectAttackTiles(s, origin, ctx.spec, direction);
+  return collectAttackTiles(
+    s,
+    origin,
+    ctx.spec,
+    direction,
+    action.elevationBonusTile ?? elevBonusTile.value ?? undefined,
+    ctx.me,
+  );
 }
 
 function submitAttackAction(action: Extract<PlayerAction, { action: "attack" }>) {
@@ -2660,7 +2702,20 @@ function handleAttackCellClick(x: number, y: number, targetEnemyId?: string): bo
   const attackAction = {
     action: "attack" as const,
     direction: attackDirection.value,
+    ...(elevBonusTile.value
+      ? {
+          elevationBonusTile: {
+            x: elevBonusTile.value.x,
+            y: elevBonusTile.value.y,
+          },
+        }
+      : {}),
   };
+
+  if (elevationBonusCandidateKeys.value.has(key)) {
+    elevBonusTile.value = { x, y };
+    return true;
+  }
 
   function dirsAt(tx: number, ty: number): PatternDirection[] {
     if (origin.x === me.x && origin.y === me.y) {
@@ -2763,6 +2818,7 @@ function handleAttackCellClick(x: number, y: number, targetEnemyId?: string): bo
       : dirs[0];
     attackDirection.value = nextDir;
     attackAimed.value = true;
+    elevBonusTile.value = null;
     return true;
   }
 
@@ -2777,8 +2833,9 @@ function handleAttackCellClick(x: number, y: number, targetEnemyId?: string): bo
   const nextDir = attackAimed.value
     ? (dirs.find((d) => d !== attackDirection.value) ?? dirs[0])
     : dirs[0];
-  attackDirection.value = nextDir;
+  attackDirection.value = nextDir!;
   attackAimed.value = true;
+  elevBonusTile.value = null;
   return true;
 }
 
@@ -4258,6 +4315,9 @@ onUnmounted(() => {
             <span class="tooltip-row">({{ tooltipData.x }}, {{ tooltipData.y }})</span>
             <span class="tooltip-row">Terrain: {{ terrainTooltipLabel(tooltipData.tile.terrain) }}</span>
             <span class="tooltip-row">Elevation: {{ tooltipData.tile.elevation }}</span>
+            <span v-if="tooltipData.moveCost != null" class="tooltip-row">
+              Move cost: {{ tooltipData.moveCost }}
+            </span>
           </div>
           <div v-if="tooltipData.players.length" class="tooltip-section">
             <span class="tooltip-heading">Players</span>

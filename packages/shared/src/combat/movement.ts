@@ -17,6 +17,7 @@ import {
 import { canUseActionTier, spendActionTierOrHaste, spendMovement } from "./actions.js";
 import { swarmGroupForEnemy } from "./swarm.js";
 import { createDefaultActionBudget, type ActionBudget } from "./types.js";
+import { isUnitFalling, syncUnitElevationOnTile } from "./elevation.js";
 
 export type MovementStep = { x: number; y: number; cost: number };
 
@@ -55,14 +56,27 @@ function terrainMoveCost(
   fromY: number,
   toX: number,
   toY: number,
+  seeking = false,
 ): number {
   const fromTile = tileAt(state.tiles, fromX, fromY);
   const toTile = tileAt(state.tiles, toX, toY);
   if (!fromTile || !toTile) return 1;
   let cost = 1;
   if (toTile.terrain.includes("uneasy")) cost += 1;
-  if (toTile.elevation > fromTile.elevation) cost += toTile.elevation - fromTile.elevation;
+  // RAW: +1 Speed to enter higher elevation (flat), stacks with Uneasy
+  if (toTile.elevation > fromTile.elevation && !seeking) cost += 1;
   return cost;
+}
+
+export function terrainStepCost(
+  state: GameState,
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number,
+  opts?: { seeking?: boolean },
+): number {
+  return terrainMoveCost(state, fromX, fromY, toX, toY, opts?.seeking === true);
 }
 
 export function computePathCost(
@@ -79,7 +93,8 @@ export function computePathCost(
   const allowDiagonal = playerAllowsDiagonalMovement(player);
   for (const step of path) {
     if (!isMovementStepAdjacent({ x: cx, y: cy }, step, allowDiagonal)) return null;
-    const base = terrainMoveCost(state, cx, cy, step.x, step.y);
+    const seeking = (player.effects?.Seeking ?? 0) > 0;
+    const base = terrainMoveCost(state, cx, cy, step.x, step.y, seeking);
     const cost = base * mult;
     total += cost;
     steps.push({ x: step.x, y: step.y, cost });
@@ -100,7 +115,8 @@ export function movementStepCost(
   toX: number,
   toY: number,
 ): number {
-  return terrainMoveCost(state, player.x, player.y, toX, toY) * movementCostMultiplier(player.effects);
+  const seeking = (player.effects?.Seeking ?? 0) > 0;
+  return terrainMoveCost(state, player.x, player.y, toX, toY, seeking) * movementCostMultiplier(player.effects);
 }
 
 export function clearSprintBudget(budget: ActionBudget | undefined): void {
@@ -173,6 +189,7 @@ export function validateMovementPath(
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return "Unknown player";
   if ((player.effects?.Pin ?? 0) > 0) return "Pinned — cannot move";
+  if (isUnitFalling(player)) return "Falling — cannot spend Speed to move";
   if (!player.actionBudget) {
     const speed = player.speed ?? getArmorSpeed(player.armor);
     if (speed) player.actionBudget = createDefaultActionBudget(speed);
@@ -257,6 +274,7 @@ export function applyMovementPath(
   const dest = path[path.length - 1]!;
   player.x = dest.x;
   player.y = dest.y;
+  syncUnitElevationOnTile(state, player, dest.x, dest.y);
   return null;
 }
 

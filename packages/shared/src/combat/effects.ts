@@ -3,6 +3,7 @@ import type { EffectStacks, GameState, MapTile, Player, Enemy } from "../types.j
 import { buildBoardOccupancy, clampHp, getEnemyMaxHp, getPlayerMaxHp, isSandboxMode } from "../game.js";
 import { coordKey, tileAt } from "../map.js";
 import { clampAssistedAscensionAegis, hasAssistedAscensionGear } from "./aegis.js";
+import { tickFallingStartOfTurn } from "./elevation.js";
 
 export { tickRoundCountdowns } from "./countdown.js";
 
@@ -83,6 +84,8 @@ export function tickUnitStartOfTurn(
 ): string[] {
   const messages: string[] = [];
   if (isSandboxMode(state)) return messages;
+
+  messages.push(...tickFallingStartOfTurn(state, unit, kind));
 
   const blazing = unit.effects?.Blazing ?? 0;
   if (blazing > 0) {

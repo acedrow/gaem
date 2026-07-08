@@ -7,6 +7,7 @@ import { enemyLabel, playerLabel } from "../console.js";
 import { applyDamageToEnemy, applyDamageToPlayer } from "./attack.js";
 import { applyVoidTileDefeat, enemyFullyOnVoid, isVoidTile } from "./void-tile.js";
 import { isTowerEnemy } from "./yadathan.js";
+import { syncUnitElevationOnTile } from "./elevation.js";
 
 export type PushUnitKind = "player" | "enemy";
 
@@ -99,6 +100,7 @@ function isPushableUnit(unit: Player | Enemy, kind: PushUnitKind): boolean {
 function applyMovedPlayer(state: GameState, player: Player, x: number, y: number): string | null {
   player.x = x;
   player.y = y;
+  syncUnitElevationOnTile(state, player, x, y);
   return applyVoidTileDefeat(state, player, "player");
 }
 
@@ -115,6 +117,7 @@ function applyMovedEnemy(state: GameState, enemy: Enemy, x: number, y: number): 
     enemy.y = anchor.y;
     reconcileSwarmHp(state, prevGroups);
   }
+  syncUnitElevationOnTile(state, enemy, enemy.x, enemy.y);
   if (enemyFullyOnVoid(state, enemy)) {
     enemy.hp = 0;
     return "void defeat";

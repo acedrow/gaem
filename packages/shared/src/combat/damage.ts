@@ -12,6 +12,7 @@ export type ResolveDamageOpts = {
   damageSpec?: string;
   hitTile?: { x: number; y: number };
   state?: GameState;
+  piercing?: boolean;
 };
 
 function coverReduction(target: DamageTarget, state: GameState | undefined, hitTile?: { x: number; y: number }): number {
@@ -39,8 +40,10 @@ export function resolveDamageAgainstTarget(
   damage = applyBleedBonus(damage, target.effects);
   const armor = target.effects?.Armor ?? 0;
   if (armor > 0) damage -= armor;
-  const cover = coverReduction(target, opts?.state, opts?.hitTile);
-  if (cover > 0) damage -= cover;
+  if (!opts?.piercing) {
+    const cover = coverReduction(target, opts?.state, opts?.hitTile);
+    if (cover > 0) damage -= cover;
+  }
   return Math.max(0, damage);
 }
 

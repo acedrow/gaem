@@ -16,6 +16,7 @@ import {
 import { handleEnemyDefeated } from "./kopis.js";
 import { isTowerEnemy } from "./yadathan.js";
 import { createDefaultCombatState } from "./types.js";
+import { enemyHasFlyingTag } from "./elevation.js";
 
 export const MURIEL_ARMOR_NAME = "MURIEL";
 export const JEHOEL_ARMOR_NAME = "JEHOEL";
@@ -196,6 +197,7 @@ function collectPlayerStepProvokes(
 
   for (const enemy of state.enemies) {
     if (isTowerEnemy(enemy) || !isEnemyAlive(enemy)) continue;
+    if (enemyHasFlyingTag(enemy)) continue;
     if (murielPassed?.has(enemy.id)) continue;
 
     const group = swarmGroupForEnemy(state, enemy.id);
@@ -245,9 +247,10 @@ function collectEnemyStepProvokes(
   to: BoardCoord,
   opts: ProvokeOpts & { soloSwarmMember?: boolean },
 ): ProvokeTrigger[] {
-  if (opts.forced || opts.skipProvoke) return [];
+  if (opts.forced || opts.skipProvoke || opts.flying) return [];
   const enemy = state.enemies.find((e) => e.id === enemyId);
   if (!enemy || isTowerEnemy(enemy)) return [];
+  if (enemyHasFlyingTag(enemy)) return [];
 
   const group = !opts.soloSwarmMember ? swarmGroupForEnemy(state, enemyId) : null;
   if (group && group.memberIds.length >= 2) {

@@ -53,6 +53,8 @@ export type Enemy = {
   agnosiaTriggered?: boolean;
   kind?: "enemy" | "tower";
   ownerPlayerId?: string;
+  elevation?: number;
+  falling?: { peak: number };
 };
 
 export type TerrainObject = {
@@ -98,6 +100,8 @@ export type Player = {
   turnStartY?: number;
   effects?: EffectStacks;
   counters?: Record<string, number>;
+  elevation?: number;
+  falling?: { peak: number };
 };
 
 export const ROUND_PHASES = [

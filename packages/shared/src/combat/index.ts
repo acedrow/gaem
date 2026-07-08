@@ -21,4 +21,5 @@ export * from "./void-tile.js";
 export * from "./transference.js";
 export * from "./assisted-launch.js";
 export * from "./aegis.js";
+export * from "./elevation.js";
 export * from "./equipment.js";

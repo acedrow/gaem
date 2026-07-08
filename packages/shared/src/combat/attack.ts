@@ -15,6 +15,9 @@ import type { WeaponAttackSpec } from "./types.js";
 import type { AttackRangeSpan } from "./types.js";
 import { applyEffectStacks } from "./effects.js";
 import { trackCountdownKinds } from "./countdown.js";
+import { effectiveElevation, tileElevation } from "./elevation.js";
+
+export { tileElevation } from "./elevation.js";
 
 function applyUnitEffectStacks(state: GameState, unit: Player | Enemy, effects: string[]): void {
   if (!effects.length) return;
@@ -264,6 +267,7 @@ export function collectAttackTiles(
   spec: WeaponAttackSpec,
   direction: PatternDirection,
   elevationBonusTile?: { x: number; y: number },
+  attacker?: Player | Enemy,
 ): { x: number; y: number }[] {
   let tiles: { x: number; y: number }[];
   if (spec.tiles?.length) {
@@ -295,13 +299,9 @@ export function collectAttackTiles(
   if (!elevationBonusTile) return tiles;
   const bonusKey = coordKey(elevationBonusTile.x, elevationBonusTile.y);
   if (tiles.some((t) => coordKey(t.x, t.y) === bonusKey)) return tiles;
-  const candidates = elevationBonusTileCandidates(state, origin, tiles);
+  const candidates = elevationBonusTileCandidates(state, origin, tiles, attacker);
   if (!candidates.some((c) => coordKey(c.x, c.y) === bonusKey)) return tiles;
   return [...tiles, elevationBonusTile];
-}
-
-export function tileElevation(state: GameState, x: number, y: number): number {
-  return tileAt(state.tiles, x, y)?.elevation ?? 0;
 }
 
 export function elevationRangeBonus(attackerElev: number, targetElev: number): number {
@@ -313,9 +313,14 @@ export function effectiveRangeLimit(
   origin: { x: number; y: number },
   baseRange: number,
   target: { x: number; y: number },
+  opts?: { attacker?: Player | Enemy; targetUnit?: Player | Enemy },
 ): number {
-  const attackerElev = tileElevation(state, origin.x, origin.y);
-  const targetElev = tileElevation(state, target.x, target.y);
+  const attackerElev = opts?.attacker
+    ? effectiveElevation(state, opts.attacker)
+    : tileElevation(state, origin.x, origin.y);
+  const targetElev = opts?.targetUnit
+    ? effectiveElevation(state, opts.targetUnit)
+    : tileElevation(state, target.x, target.y);
   return baseRange + elevationRangeBonus(attackerElev, targetElev);
 }
 
@@ -323,12 +328,17 @@ export function elevationBonusTileCandidates(
   state: GameState,
   origin: { x: number; y: number },
   patternTiles: { x: number; y: number }[],
+  attacker?: Player | Enemy,
 ): { x: number; y: number }[] {
-  const originElev = tileElevation(state, origin.x, origin.y);
+  const originElev = attacker
+    ? effectiveElevation(state, attacker)
+    : tileElevation(state, origin.x, origin.y);
   const hitEnemies = enemiesInTiles(state, patternTiles);
-  const hasLowerEnemy = hitEnemies.some(
-    (t) => tileElevation(state, t.x, t.y) < originElev,
-  );
+  const hasLowerEnemy = hitEnemies.some((t) => {
+    const enemy = state.enemies.find((e) => e.id === t.enemyId);
+    const elev = enemy ? effectiveElevation(state, enemy) : tileElevation(state, t.x, t.y);
+    return elev < originElev;
+  });
   if (!hasLowerEnemy) return [];
 
   const patternKeys = new Set(patternTiles.map((t) => coordKey(t.x, t.y)));
@@ -398,14 +408,24 @@ export function applyDamageToEnemy(
   enemy: Enemy,
   damage: number,
   state?: GameState,
-  opts?: { recordDamage?: boolean; damageSpec?: string; hitTile?: { x: number; y: number } },
+  opts?: {
+    recordDamage?: boolean;
+    damageSpec?: string;
+    hitTile?: { x: number; y: number };
+    piercing?: boolean;
+  },
 ): number {
   const maxHp = state ? getEffectiveEnemyMaxHp(enemy, state) : getEnemyMaxHp(enemy);
   const before = enemy.hp ?? maxHp;
   const adjusted = resolveDamageAgainstTarget(
     damage,
     { effects: enemy.effects, x: enemy.x, y: enemy.y },
-    { damageSpec: opts?.damageSpec, hitTile: opts?.hitTile, state },
+    {
+      damageSpec: opts?.damageSpec,
+      hitTile: opts?.hitTile,
+      state,
+      piercing: opts?.piercing,
+    },
   );
   consumeBrokenStack(enemy);
   const newHp = clampHp(before - adjusted, maxHp);
@@ -502,14 +522,24 @@ export function applyDamageToPlayer(
   player: Player,
   damage: number,
   state?: GameState,
-  opts?: { recordDamage?: boolean; damageSpec?: string; hitTile?: { x: number; y: number } },
+  opts?: {
+    recordDamage?: boolean;
+    damageSpec?: string;
+    hitTile?: { x: number; y: number };
+    piercing?: boolean;
+  },
 ): number {
   const maxHp = getPlayerMaxHp(player);
   const before = player.hp ?? maxHp;
   const adjusted = resolveDamageAgainstTarget(
     damage,
     { effects: player.effects, x: player.x, y: player.y },
-    { damageSpec: opts?.damageSpec, hitTile: opts?.hitTile, state },
+    {
+      damageSpec: opts?.damageSpec,
+      hitTile: opts?.hitTile,
+      state,
+      piercing: opts?.piercing,
+    },
   );
   consumeBrokenStack(player);
   player.hp = clampHp(before - adjusted, maxHp);

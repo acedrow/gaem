@@ -309,7 +309,10 @@ export function validatePlayerAction(
         for (const targetId of targetIds) {
           const enemy = state.enemies.find((e) => e.id === targetId);
           if (!enemy) return "Unknown target";
-          const limit = effectiveRangeLimit(state, player, rangeTargetDistance(spec), enemy);
+          const limit = effectiveRangeLimit(state, player, rangeTargetDistance(spec), enemy, {
+            attacker: player,
+            targetUnit: enemy,
+          });
           if (manhattanDistance(player, enemy) > limit) return "Target out of range";
         }
       } else if (usesAnchoredPatternPlacement(spec)) {
@@ -327,7 +330,7 @@ export function validatePlayerAction(
       } else if (action.elevationBonusTile) {
         const attackOrigin = { x: player.x, y: player.y };
         const baseTiles = collectAttackTiles(state, attackOrigin, spec, action.direction);
-        const candidates = elevationBonusTileCandidates(state, attackOrigin, baseTiles);
+        const candidates = elevationBonusTileCandidates(state, attackOrigin, baseTiles, player);
         const key = `${action.elevationBonusTile.x},${action.elevationBonusTile.y}`;
         if (!candidates.some((c) => `${c.x},${c.y}` === key)) return "Invalid elevation bonus tile";
       }

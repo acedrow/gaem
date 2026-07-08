@@ -1,9 +1,11 @@
-import type { GameState } from "../types.js";
+import type { Enemy, GameState, Player } from "../types.js";
 import { tileAt } from "../map.js";
-
-function tileElevation(state: GameState, x: number, y: number): number {
-  return tileAt(state.tiles, x, y)?.elevation ?? 0;
-}
+import {
+  effectiveElevation,
+  tileElevation,
+  unitHasSeeking,
+  unitPiercingStacks,
+} from "./elevation.js";
 
 function terrainBlocksLos(tile: ReturnType<typeof tileAt>): boolean {
   if (!tile) return true;
@@ -67,22 +69,48 @@ export function tilesBetween(
   return line.slice(1, -1);
 }
 
+export type LineOfSightOpts = {
+  piercing?: number;
+  seeking?: boolean;
+  viewer?: Player | Enemy;
+  target?: Player | Enemy;
+};
+
 export function hasLineOfSight(
   state: GameState,
   fromX: number,
   fromY: number,
   toX: number,
   toY: number,
+  opts?: LineOfSightOpts,
 ): boolean {
   if (fromX === toX && fromY === toY) return true;
 
-  const viewerElev = tileElevation(state, fromX, fromY);
-  const targetElev = tileElevation(state, toX, toY);
+  const viewerElev = opts?.viewer
+    ? effectiveElevation(state, opts.viewer)
+    : tileElevation(state, fromX, fromY);
+  const targetElev = opts?.target
+    ? effectiveElevation(state, opts.target)
+    : tileElevation(state, toX, toY);
+  const seeking = opts?.seeking === true || (opts?.viewer != null && unitHasSeeking(opts.viewer));
+  let piercingLeft = Math.max(
+    0,
+    opts?.piercing ?? (opts?.viewer != null ? unitPiercingStacks(opts.viewer) : 0),
+  );
 
   for (const tile of tilesBetween(fromX, fromY, toX, toY)) {
-    if (terrainBlocksLos(tileAt(state.tiles, tile.x, tile.y))) return false;
-    const elev = tileElevation(state, tile.x, tile.y);
-    if (elevationBlocksLos(elev, viewerElev, targetElev)) return false;
+    const mapTile = tileAt(state.tiles, tile.x, tile.y);
+    if (terrainBlocksLos(mapTile)) {
+      if (piercingLeft > 0) {
+        piercingLeft -= 1;
+      } else {
+        return false;
+      }
+    }
+    if (!seeking) {
+      const elev = tileElevation(state, tile.x, tile.y);
+      if (elevationBlocksLos(elev, viewerElev, targetElev)) return false;
+    }
   }
   return true;
 }
@@ -109,7 +137,7 @@ export function visibleTileKeys(
   state: GameState,
   ox: number,
   oy: number,
-  opts?: { maxRange?: number },
+  opts?: { maxRange?: number } & LineOfSightOpts,
 ): Set<string> {
   const keys = new Set<string>();
   const candidates =
@@ -119,7 +147,7 @@ export function visibleTileKeys(
 
   for (const tile of candidates) {
     if (tile.x === ox && tile.y === oy) continue;
-    if (hasLineOfSight(state, ox, oy, tile.x, tile.y)) {
+    if (hasLineOfSight(state, ox, oy, tile.x, tile.y, opts)) {
       keys.add(`${tile.x},${tile.y}`);
     }
   }
@@ -129,13 +157,22 @@ export function visibleTileKeys(
 export function visibleEnemyIds(
   state: GameState,
   playerId: string,
-  opts?: { maxRange?: number },
+  opts?: { maxRange?: number } & LineOfSightOpts,
 ): string[] {
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return [];
-  const visible = visibleTileKeys(state, player.x, player.y, opts);
   return state.enemies
-    .filter((e) => visible.has(`${e.x},${e.y}`))
+    .filter((e) => {
+      if (opts?.maxRange != null) {
+        const dist = Math.abs(e.x - player.x) + Math.abs(e.y - player.y);
+        if (dist > opts.maxRange) return false;
+      }
+      return hasLineOfSight(state, player.x, player.y, e.x, e.y, {
+        ...opts,
+        viewer: player,
+        target: e,
+      });
+    })
     .map((e) => e.id);
 }
 
@@ -143,8 +180,9 @@ export function outOfLineOfSightTileKeys(
   state: GameState,
   ox: number,
   oy: number,
+  opts?: LineOfSightOpts,
 ): Set<string> {
-  const visible = visibleTileKeys(state, ox, oy);
+  const visible = visibleTileKeys(state, ox, oy, opts);
   const keys = new Set<string>();
   for (const tile of state.tiles) {
     if (tile.x === ox && tile.y === oy) continue;

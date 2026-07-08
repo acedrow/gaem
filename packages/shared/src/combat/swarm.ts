@@ -17,6 +17,7 @@ import {
 import { coordKey, isWalkable, tileAt } from "../map.js";
 import { getWeaponByName } from "../player-data.js";
 import { isOrthogonallyAdjacent } from "../patterns.js";
+import { syncUnitElevationOnTile } from "./elevation.js";
 
 export type SwarmGroup = {
   canonicalId: string;
@@ -479,6 +480,7 @@ export function applySwarmMemberForcedMove(
   const staysInSwarm = memberStaysInSwarmAfterMove(state, memberId, prevMemberIds, destX, destY);
   member.x = destX;
   member.y = destY;
+  syncUnitElevationOnTile(state, member, destX, destY);
   reconcileSwarmHp(state, prevGroups);
   if (!staysInSwarm) {
     member.hp = getEnemyMaxHp(member);

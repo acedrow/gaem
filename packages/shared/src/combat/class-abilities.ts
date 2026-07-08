@@ -28,6 +28,7 @@ import {
   ensureKopisCombatFields,
   handleEnemyDefeated,
 } from "./kopis.js";
+import { unitHasSeeking, unitPiercingStacks } from "./elevation.js";
 
 export { handleEnemyDefeated, syncKopisMarkEffects } from "./kopis.js";
 export const HARPE_CLASS = "HARPE";
@@ -76,7 +77,15 @@ export function validateClassActive(
     const dist = Math.abs(action.x - player.x) + Math.abs(action.y - player.y);
     if (dist < 1 || dist > 6) return "Range 1–6";
     if (!player.weapon) return "No weapon equipped";
-    if (!hasLineOfSight(state, player.x, player.y, action.x, action.y)) return "No line of sight";
+    if (
+      !hasLineOfSight(state, player.x, player.y, action.x, action.y, {
+        viewer: player,
+        piercing: unitPiercingStacks(player),
+        seeking: unitHasSeeking(player),
+      })
+    ) {
+      return "No line of sight";
+    }
     if (!isWalkable(tileAt(state.tiles, action.x, action.y))) return "Blocked";
     return null;
   }
@@ -86,7 +95,16 @@ export function validateClassActive(
     if (!enemyId) return "Select enemy";
     const enemy = state.enemies.find((e) => e.id === enemyId);
     if (!enemy) return "Unknown enemy";
-    if (!hasLineOfSight(state, player.x, player.y, enemy.x, enemy.y)) return "No line of sight";
+    if (
+      !hasLineOfSight(state, player.x, player.y, enemy.x, enemy.y, {
+        viewer: player,
+        target: enemy,
+        piercing: unitPiercingStacks(player),
+        seeking: unitHasSeeking(player),
+      })
+    ) {
+      return "No line of sight";
+    }
     return null;
   }
 
@@ -417,7 +435,11 @@ function checkHarpeTrapCrossing(
   for (const trap of state.combat?.thrownTraps ?? []) {
     const owner = state.players.find((p) => p.id === trap.ownerId);
     if (!owner) continue;
-    if (!hasLineOfSight(state, owner.x, owner.y, trap.x, trap.y)) continue;
+    if (!hasLineOfSight(state, owner.x, owner.y, trap.x, trap.y, {
+      viewer: owner,
+      piercing: unitPiercingStacks(owner),
+      seeking: unitHasSeeking(owner),
+    })) continue;
     const lineTiles = tilesOnCardinalLine(trap.originX, trap.originY, trap.x, trap.y);
     const crossed = lineTiles.some((t) => t.x === stepX && t.y === stepY);
     if (!crossed) continue;

@@ -128,9 +128,8 @@ export function flyingStepCost(
   if (!fromTile || !toTile) return movementCostMultiplier(player.effects);
   const effectiveFromElev = fromTile.elevation + 1;
   let cost = 1;
-  if (toTile.elevation > effectiveFromElev) {
-    cost += toTile.elevation - effectiveFromElev;
-  }
+  // RAW: flat +1 to enter higher elevation; Flying treats origin as +1 elev
+  if (toTile.elevation > effectiveFromElev) cost += 1;
   return cost * movementCostMultiplier(player.effects);
 }
 
@@ -147,7 +146,11 @@ export function stepMoveCost(
   if (!fromTile || !toTile) return movementCostMultiplier(player.effects);
   let cost = 1;
   if (toTile.terrain.includes("uneasy")) cost += 1;
-  if (toTile.elevation > fromTile.elevation) cost += toTile.elevation - fromTile.elevation;
+  // RAW: +1 Speed to enter higher elevation (flat)
+  if (toTile.elevation > fromTile.elevation) {
+    const seeking = (player.effects?.Seeking ?? 0) > 0;
+    if (!seeking) cost += 1;
+  }
   return cost * movementCostMultiplier(player.effects);
 }
 
