@@ -47,6 +47,25 @@ describe("movement", () => {
     expect(validateMovementPath(state, "p1", [{ x: 3, y: 2 }])).toBe("Pinned — cannot move");
   });
 
+  it("allows Malakbel to move diagonally", () => {
+    const state = makeGameState({
+      roundPhase: "playerTurn",
+      turn: { role: "player", playerId: "p1" },
+    });
+    addTestPlayer(state, "p1", { x: 2, y: 2, speed: 5, armor: "MALAKBEL" });
+    expect(validateMovementPath(state, "p1", [{ x: 3, y: 3 }])).toBeNull();
+    expect(validateMovementPath(state, "p1", [{ x: 4, y: 2 }])).toBe("Path must be adjacent steps");
+  });
+
+  it("rejects diagonal movement for other armor", () => {
+    const state = makeGameState({
+      roundPhase: "playerTurn",
+      turn: { role: "player", playerId: "p1" },
+    });
+    addTestPlayer(state, "p1", { x: 2, y: 2, speed: 5, armor: "KUSHIEL" });
+    expect(validateMovementPath(state, "p1", [{ x: 3, y: 3 }])).toBe("Path must be adjacent steps");
+  });
+
   it("applyMovementPath updates position and spends budget", () => {
     const state = makeGameState({
       roundPhase: "playerTurn",

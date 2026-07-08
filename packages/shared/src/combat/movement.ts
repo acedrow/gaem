@@ -1,6 +1,6 @@
 import type { GameState, Player } from "../types.js";
 import type { BoardCoord } from "../patterns.js";
-import { isOrthogonallyAdjacent } from "../patterns.js";
+import { isMovementStepAdjacent } from "../patterns.js";
 import { areActionLimitsEnforced, buildBoardOccupancy, canPlayerMove, isSandboxMode, type BoardOccupancy } from "../game.js";
 import { playerLabel } from "../console.js";
 import { coordKey, isInBounds, isWalkable, tileAt } from "../map.js";
@@ -10,6 +10,35 @@ import { canUseActionTier, spendActionTierOrHaste, spendMovement } from "./actio
 import { createDefaultActionBudget, type ActionBudget } from "./types.js";
 
 export type MovementStep = { x: number; y: number; cost: number };
+
+export const MALAKBEL_ARMOR_NAME = "MALAKBEL";
+
+const ORTHOGONAL_DELTAS: [number, number][] = [
+  [0, -1],
+  [1, 0],
+  [0, 1],
+  [-1, 0],
+];
+const DIAGONAL_DELTAS: [number, number][] = [
+  [1, 1],
+  [1, -1],
+  [-1, 1],
+  [-1, -1],
+];
+
+export function isMalakbelArmorName(name: string | undefined | null): boolean {
+  return name === MALAKBEL_ARMOR_NAME;
+}
+
+export function playerAllowsDiagonalMovement(player: Pick<Player, "armor">): boolean {
+  return isMalakbelArmorName(player.armor);
+}
+
+function movementStepDeltas(player: Player): [number, number][] {
+  return playerAllowsDiagonalMovement(player)
+    ? [...ORTHOGONAL_DELTAS, ...DIAGONAL_DELTAS]
+    : ORTHOGONAL_DELTAS;
+}
 
 function terrainMoveCost(
   state: GameState,
@@ -38,8 +67,9 @@ export function computePathCost(
   const mult = movementCostMultiplier(player.effects);
   const steps: MovementStep[] = [];
   let total = 0;
+  const allowDiagonal = playerAllowsDiagonalMovement(player);
   for (const step of path) {
-    if (!isOrthogonallyAdjacent({ x: cx, y: cy }, step)) return null;
+    if (!isMovementStepAdjacent({ x: cx, y: cy }, step, allowDiagonal)) return null;
     const base = terrainMoveCost(state, cx, cy, step.x, step.y);
     const cost = base * mult;
     total += cost;
@@ -87,12 +117,7 @@ export function findPlayerMovementPath(
 
   while (queue.length > 0) {
     const { x, y, path } = queue.shift()!;
-    for (const [dx, dy] of [
-      [0, -1],
-      [1, 0],
-      [0, 1],
-      [-1, 0],
-    ]) {
+    for (const [dx, dy] of movementStepDeltas(player)) {
       const nx = x + dx;
       const ny = y + dy;
       const key = coordKey(nx, ny);
@@ -120,7 +145,9 @@ export function normalizeMovementPath(
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return null;
   const dest = path[0]!;
-  if (isOrthogonallyAdjacent({ x: player.x, y: player.y }, dest)) return path;
+  if (isMovementStepAdjacent({ x: player.x, y: player.y }, dest, playerAllowsDiagonalMovement(player))) {
+    return path;
+  }
   return findPlayerMovementPath(state, playerId, dest);
 }
 
@@ -148,10 +175,13 @@ export function validateMovementPath(
   let cx = player.x;
   let cy = player.y;
 
+  const allowDiagonal = playerAllowsDiagonalMovement(player);
   for (let i = 0; i < path.length; i++) {
     const step = path[i]!;
     if (!isInBounds(step.x, step.y, state.width, state.height)) return "Out of bounds";
-    if (!isOrthogonallyAdjacent({ x: cx, y: cy }, step)) return "Path must be adjacent steps";
+    if (!isMovementStepAdjacent({ x: cx, y: cy }, step, allowDiagonal)) {
+      return "Path must be adjacent steps";
+    }
     if (!isWalkable(tileAt(state.tiles, step.x, step.y))) return "Blocked";
     const key = coordKey(step.x, step.y);
     const isLast = i === path.length - 1;

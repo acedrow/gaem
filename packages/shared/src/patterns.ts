@@ -423,6 +423,19 @@ export function isOrthogonallyAdjacent(a: BoardCoord, b: BoardCoord): boolean {
   return Math.abs(a.x - b.x) + Math.abs(a.y - b.y) === 1;
 }
 
+export function isDiagonallyAdjacent(a: BoardCoord, b: BoardCoord): boolean {
+  return Math.abs(a.x - b.x) === 1 && Math.abs(a.y - b.y) === 1;
+}
+
+export function isMovementStepAdjacent(
+  from: BoardCoord,
+  to: BoardCoord,
+  allowDiagonal: boolean,
+): boolean {
+  if (isOrthogonallyAdjacent(from, to)) return true;
+  return allowDiagonal && isDiagonallyAdjacent(from, to);
+}
+
 export function drawableExpansionOptions(
   drawn: BoardCoord[],
   size: number,

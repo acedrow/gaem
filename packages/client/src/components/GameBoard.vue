@@ -16,6 +16,7 @@ import {
   getEnemyScale,
   getEnemyScaleByName,
   getPlayerMaxHp,
+  isMovementStepAdjacent,
   isPlayerDowned,
   isSandboxMode,
   isHealAttackSpec,
@@ -24,6 +25,7 @@ import {
   isWalkable,
   manhattanDistance,
   movementStepCost,
+  playerAllowsDiagonalMovement,
   playerAttackDirectionsAt,
   evaluateAnchoredPatternPlacement,
   evaluateOmnistrikePlacement,
@@ -1534,7 +1536,8 @@ const cellStateByKey = computed(() => {
     const hasSeed = objects.some((o) => o.kind === "seed");
 
     const adjacent =
-      me != null && Math.abs(c.x - me.x) + Math.abs(c.y - me.y) === 1;
+      me != null &&
+      isMovementStepAdjacent({ x: me.x, y: me.y }, c, playerAllowsDiagonalMovement(me));
     const stepBase =
       playerCanMove &&
       !isDeployment &&
