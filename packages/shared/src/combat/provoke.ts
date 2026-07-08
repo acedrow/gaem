@@ -33,6 +33,7 @@ export type ProvokeOpts = {
   forced?: boolean;
   skipProvoke?: boolean;
   flying?: boolean;
+  flyingMask?: boolean[];
 };
 
 export type ProvokeResult = {
@@ -306,9 +307,11 @@ export function collectPathProvokeTriggers(
   let cy = player.y;
   const passed = isMurielArmor(player.armor) ? new Set(passedEnemyIds(state, playerId)) : null;
 
-  for (const step of path) {
+  for (let i = 0; i < path.length; i++) {
+    const step = path[i]!;
     const from = { x: cx, y: cy };
-    const stepOpts = { ...opts };
+    const stepFlying = opts.flyingMask?.[i] ?? opts.flying ?? false;
+    const stepOpts = { ...opts, flying: stepFlying };
     if (passed) {
       const triggers = collectPlayerStepProvokes(state, player, from, step, stepOpts);
       for (const t of triggers) {
@@ -366,12 +369,13 @@ export function previewSprintProvokes(
 ): ProvokeTrigger[] {
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return [];
+  const flying = opts.flying ?? false;
   return collectPlayerStepProvokes(
     state,
     player,
     { x: player.x, y: player.y },
     { x: toX, y: toY },
-    opts,
+    { ...opts, flying },
   );
 }
 

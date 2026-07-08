@@ -2,6 +2,7 @@ import type { Enemy, GameMap, GameState, GaemRole, PhaseAction, Player, TerrainO
 import { playerLabel } from "./console.js";
 import { createDefaultActionBudget, createDefaultCombatState } from "./combat/types.js";
 import { tickRoundCountdowns, tickUnitEndOfTurn, tickUnitStartOfTurn } from "./combat/effects.js";
+import { clearAegisFlyingUsed, ensureAssistedAscensionAegis } from "./combat/aegis.js";
 import { resetEnemyExhaustion, resetGmTurnActions } from "./combat/enemy.js";
 import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles, ensureEnemyMovement, refreshEnemyMovement, spendEnemyMovement } from "./enemy-data.js";
 import { applyLoadoutToPlayer, getClassMaxHp, getArmorSpeed } from "./player-data.js";
@@ -243,6 +244,8 @@ function beginPlayerTurn(state: GameState, playerId: string): string {
       delete player.counters.assistedLaunchUsed;
       if (Object.keys(player.counters).length === 0) delete player.counters;
     }
+    clearAegisFlyingUsed(player);
+    ensureAssistedAscensionAegis(player);
   }
   let msg = `${playerLabel(player!)} took their turn`;
   if (startMsgs.length) msg += `. ${startMsgs.join("; ")}`;

@@ -79,7 +79,15 @@ export function useCombatModeActions(opts?: {
   function pickMode(next: BoardActionMode) {
     if (mode.value === next) clearMode();
     else if (next === "attack") setMode("attack");
-    else setMode(next);
+    else {
+      if (next === "sprint" && mode.value === "aegis") clearMode();
+      if (next === "aegis" && mode.value === "sprint") clearMode();
+      setMode(next);
+    }
+  }
+
+  function pickAegisMode() {
+    pickMode("aegis");
   }
 
   function toggleMode(next: BoardActionMode) {
@@ -227,6 +235,7 @@ export function useCombatModeActions(opts?: {
     epeusBagInitialSlot,
     harpeRecallOpen,
     pickMode,
+    pickAegisMode,
     toggleMode,
     pickArmorMode,
     pickTowerTeleportMode,

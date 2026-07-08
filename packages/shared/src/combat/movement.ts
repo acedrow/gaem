@@ -7,6 +7,13 @@ import { enemyFootprintTiles, getEnemyScale } from "../enemy-data.js";
 import { coordKey, isInBounds, isWalkable, tileAt } from "../map.js";
 import { getArmorSpeed } from "../player-data.js";
 import { movementCostMultiplier } from "./effects.js";
+import {
+  clearAegisFlyingUsed,
+  computePathCostWithFlying,
+  spendAegisFlying,
+  stepMoveCost,
+  validateFlyingMask,
+} from "./aegis.js";
 import { canUseActionTier, spendActionTierOrHaste, spendMovement } from "./actions.js";
 import { swarmGroupForEnemy } from "./swarm.js";
 import { createDefaultActionBudget, type ActionBudget } from "./types.js";
@@ -157,7 +164,11 @@ export function validateMovementPath(
   state: GameState,
   playerId: string,
   path: BoardCoord[],
-  opts?: { allowOccupiedDestination?: boolean; skipMovementBudget?: boolean },
+  opts?: {
+    allowOccupiedDestination?: boolean;
+    skipMovementBudget?: boolean;
+    flyingMask?: boolean[] | null;
+  },
 ): string | null {
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return "Unknown player";
@@ -169,9 +180,17 @@ export function validateMovementPath(
 
   if (path.length === 0) return "Empty path";
 
-  const resolved = normalizeMovementPath(state, playerId, path);
-  if (!resolved) return "No path to destination";
+  const flyingMask = opts?.flyingMask ?? null;
+  let resolved = path;
+  if (!flyingMask?.some(Boolean)) {
+    const normalized = normalizeMovementPath(state, playerId, path);
+    if (!normalized) return "No path to destination";
+    resolved = normalized;
+  }
   path = resolved;
+
+  const flyingErr = validateFlyingMask(state, player, path, flyingMask);
+  if (flyingErr) return flyingErr;
 
   const occupancy = buildBoardOccupancy(state);
   let cx = player.x;
@@ -180,11 +199,12 @@ export function validateMovementPath(
   const allowDiagonal = playerAllowsDiagonalMovement(player);
   for (let i = 0; i < path.length; i++) {
     const step = path[i]!;
+    const flying = flyingMask?.[i] ?? false;
     if (!isInBounds(step.x, step.y, state.width, state.height)) return "Out of bounds";
     if (!isMovementStepAdjacent({ x: cx, y: cy }, step, allowDiagonal)) {
       return "Path must be adjacent steps";
     }
-    if (!isWalkable(tileAt(state.tiles, step.x, step.y))) return "Blocked";
+    if (!flying && !isWalkable(tileAt(state.tiles, step.x, step.y))) return "Blocked";
     const key = coordKey(step.x, step.y);
     const isLast = i === path.length - 1;
     if (occupancy.playerByKey.has(key)) return "Tile occupied";
@@ -195,7 +215,7 @@ export function validateMovementPath(
     cy = step.y;
   }
 
-  const computed = computePathCost(state, player, path);
+  const computed = computePathCostWithFlying(state, player, path, flyingMask);
   if (!computed) return "Invalid path";
 
   if (!isSandboxMode(state) && !opts?.skipMovementBudget) {
@@ -209,22 +229,30 @@ export function applyMovementPath(
   state: GameState,
   playerId: string,
   path: BoardCoord[],
-  opts?: { spendBudget?: boolean },
+  opts?: { spendBudget?: boolean; flyingMask?: boolean[] | null },
 ): string | null {
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return "Unknown player";
-  const resolved = normalizeMovementPath(state, playerId, path);
-  if (!resolved) return "No path to destination";
+  const flyingMask = opts?.flyingMask ?? null;
+  let resolved = path;
+  if (!flyingMask?.some(Boolean)) {
+    const normalized = normalizeMovementPath(state, playerId, path);
+    if (!normalized) return "No path to destination";
+    resolved = normalized;
+  }
   path = resolved;
-  const err = validateMovementPath(state, playerId, path);
+  const err = validateMovementPath(state, playerId, path, { flyingMask });
   if (err) return err;
-  const computed = computePathCost(state, player, path)!;
+  const computed = computePathCostWithFlying(state, player, path, flyingMask)!;
   if (
     !isSandboxMode(state) &&
     opts?.spendBudget !== false &&
     player.actionBudget
   ) {
     if (!spendMovement(player.actionBudget, computed.total)) return "Not enough movement";
+  }
+  if (flyingMask) {
+    spendAegisFlying(player, flyingMask.filter(Boolean).length);
   }
   const dest = path[path.length - 1]!;
   player.x = dest.x;
@@ -363,6 +391,7 @@ export function applyResetMovement(state: GameState, playerId: string): string {
     delete player.counters.assistedLaunchUsed;
     if (Object.keys(player.counters).length === 0) delete player.counters;
   }
+  clearAegisFlyingUsed(player);
   return `${playerLabel(player)} reset movement`;
 }
 
@@ -398,6 +427,7 @@ export function validateSprintMove(
   playerId: string,
   x: number,
   y: number,
+  opts?: { flying?: boolean },
 ): string | null {
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return "Unknown player";
@@ -406,16 +436,29 @@ export function validateSprintMove(
   if ((player.effects?.Pin ?? 0) > 0) return "Pinned — cannot move";
   const remaining = player.actionBudget?.sprintRemaining ?? 0;
   if (remaining <= 0) return "No sprint movement remaining";
-  const err = validateMovementPath(state, playerId, [{ x, y }], { skipMovementBudget: true });
+  const flying = opts?.flying ?? false;
+  const flyingMask = flying ? [true] : null;
+  const err = validateMovementPath(state, playerId, [{ x, y }], {
+    skipMovementBudget: true,
+    flyingMask,
+  });
   if (err) return err;
-  const cost = movementStepCost(state, player, x, y);
+  const cost = stepMoveCost(state, player, { x: player.x, y: player.y }, { x, y }, flying);
   if (cost > remaining) return "Not enough sprint movement";
   return null;
 }
 
-export function applySprintMove(state: GameState, playerId: string, x: number, y: number): string {
+export function applySprintMove(
+  state: GameState,
+  playerId: string,
+  x: number,
+  y: number,
+  opts?: { flying?: boolean },
+): string {
   const player = state.players.find((p) => p.id === playerId)!;
-  const cost = movementStepCost(state, player, x, y);
+  const flying = opts?.flying ?? false;
+  const cost = stepMoveCost(state, player, { x: player.x, y: player.y }, { x, y }, flying);
+  if (flying) spendAegisFlying(player, 1);
   player.x = x;
   player.y = y;
   const budget = player.actionBudget!;

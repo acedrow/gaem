@@ -212,7 +212,7 @@ export type PlayerAction =
     }
   | { action: "shove"; targetEnemyId?: string; targetPlayerId?: string }
   | { action: "sprint" }
-  | { action: "sprintMove"; x: number; y: number }
+  | { action: "sprintMove"; x: number; y: number; flying?: boolean }
   | { action: "sprintCancel" }
   | { action: "weaponSwap" }
   | { action: "selectWeaponVariant"; index: number }

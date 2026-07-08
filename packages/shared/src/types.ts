@@ -226,7 +226,7 @@ export type ClientMessage =
       token?: string;
     }
   | { type: "move"; x: number; y: number }
-  | { type: "movePath"; path: { x: number; y: number }[] }
+  | { type: "movePath"; path: { x: number; y: number }[]; flying?: boolean | boolean[] }
   | { type: "resetMovement" }
   | { type: "moveEnemy"; enemyId: string; x: number; y: number; soloSwarmMember?: boolean }
   | { type: "addEnemy"; x: number; y: number; name?: string }

@@ -27,6 +27,9 @@ const {
   canTowerTeleport,
   showAssistedLaunch,
   canAssistedLaunch,
+  showAegis,
+  canUseAegis,
+  aegisLabel,
   activePlayer,
   effectPills,
   resetMovement,
@@ -34,7 +37,7 @@ const {
 
 const { mode, setMode, clearMode } = useBoardActionMode();
 
-const { pickTowerTeleportMode, pickAssistedLaunchMode } = useCombatModeActions({
+const { pickTowerTeleportMode, pickAssistedLaunchMode, pickAegisMode } = useCombatModeActions({
   playerId: () => props.playerId,
 });
 
@@ -63,7 +66,14 @@ function onResetMovement() {
 
 function pickSprintMode() {
   if (mode.value === "sprint") clearMode();
-  else setMode("sprint");
+  else {
+    if (mode.value === "aegis") clearMode();
+    setMode("sprint");
+  }
+}
+
+function pickAegisToggle() {
+  pickAegisMode();
 }
 
 function pickRezMode() {
@@ -106,6 +116,20 @@ function pickShoveMode() {
           Sprint
           <template #tooltip>
             <AbilityBlock tier-label="Aux action" content="Sprint — Move up to half your Speed." />
+          </template>
+        </SheetActionButton>
+        <SheetActionButton
+          v-if="showAegis"
+          :active="mode === 'aegis'"
+          :disabled="mode !== 'aegis' && !canUseAegis"
+          @click="pickAegisToggle"
+        >
+          Aegis {{ aegisLabel }}
+          <template #tooltip>
+            <AbilityBlock
+              tier-label="Movement"
+              content="Fly over terrain for up to your Aegis stacks this turn. Does not Provoke."
+            />
           </template>
         </SheetActionButton>
         <SheetActionButton

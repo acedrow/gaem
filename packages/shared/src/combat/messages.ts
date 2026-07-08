@@ -32,6 +32,7 @@ import {
   applySprintCancel,
   applySprintMove,
   formlessLandingTiles,
+  normalizeMovementPath,
   validateMovementPath,
   validateResetMovement,
   applyResetMovement,
@@ -154,10 +155,7 @@ import {
 } from "./class-abilities.js";
 import { playerArmorGearName, validateRemoveAttractor, applyRemoveAttractor, applyAttractorEndOfTurnPulls, clearAttractorPullForEnemy } from "./attractor.js";
 import { applyTransferenceHeal } from "./transference.js";
-import {
-  computePathCost,
-  normalizeMovementPath,
-} from "./movement.js";
+import { computePathCostWithFlying, resolveFlyingMask, spendAegisFlying } from "./aegis.js";
 import { spendMovement } from "./actions.js";
 
 export type CombatMessageContext = {
@@ -178,19 +176,23 @@ export function validateMovePath(
   state: GameState,
   playerId: string,
   path: { x: number; y: number }[],
+  flying?: boolean | boolean[],
 ): string | null {
   if (!canPlayerMove(state, playerId)) return "Not your turn";
+  const flyingMask = resolveFlyingMask(path.length, flying);
+  if (flying !== undefined && !flyingMask) return "Invalid flying path";
   if (state.roundPhase === "deployment") {
     if (path.length !== 1) return "Deployment: single step only";
-    return validateMovementPath(state, playerId, path);
+    return validateMovementPath(state, playerId, path, { flyingMask });
   }
-  return validateMovementPath(state, playerId, path);
+  return validateMovementPath(state, playerId, path, { flyingMask });
 }
 
 export function applyMovePath(
   state: GameState,
   playerId: string,
   path: { x: number; y: number }[],
+  flying?: boolean | boolean[],
 ): string {
   if (state.roundPhase === "deployment") {
     const player = state.players.find((p) => p.id === playerId);
@@ -205,15 +207,24 @@ export function applyMovePath(
   }
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return "Unknown player";
-  const resolved = normalizeMovementPath(state, playerId, path);
-  if (!resolved) return "No path to destination";
-  const err = validateMovementPath(state, playerId, resolved);
+  const flyingMask = resolveFlyingMask(path.length, flying);
+  let resolved = path;
+  if (!flyingMask?.some(Boolean)) {
+    const normalized = normalizeMovementPath(state, playerId, path);
+    if (!normalized) return "No path to destination";
+    resolved = normalized;
+  }
+  const err = validateMovementPath(state, playerId, resolved, { flyingMask });
   if (err) return err;
-  const computed = computePathCost(state, player, resolved)!;
+  const computed = computePathCostWithFlying(state, player, resolved, flyingMask)!;
   if (!isSandboxMode(state) && player.actionBudget) {
     if (!spendMovement(player.actionBudget, computed.total)) return "Not enough movement";
   }
-  const triggers = collectPathProvokeTriggers(state, playerId, resolved);
+  if (flyingMask) {
+    spendAegisFlying(player, flyingMask.filter(Boolean).length);
+  }
+  const provokeOpts = flyingMask ? { flyingMask } : {};
+  const triggers = collectPathProvokeTriggers(state, playerId, resolved, provokeOpts);
   const stepMessages: string[] = [];
   const traveled: { x: number; y: number }[] = [];
   for (const step of resolved) {
@@ -339,7 +350,7 @@ export function validatePlayerAction(
       return validateSprintBegin(state, playerId);
     }
     case "sprintMove": {
-      return validateSprintMove(state, playerId, action.x, action.y);
+      return validateSprintMove(state, playerId, action.x, action.y, { flying: action.flying });
     }
     case "sprintCancel": {
       return validateSprintCancel(state, playerId);
@@ -617,12 +628,13 @@ export function applyPlayerAction(
     }
     case "sprintMove": {
       const player = state.players.find((p) => p.id === playerId)!;
-      const triggers = previewSprintProvokes(state, playerId, action.x, action.y);
+      const flying = action.flying ?? false;
+      const triggers = previewSprintProvokes(state, playerId, action.x, action.y, { flying });
       let provokeMsg = "";
       if (triggers.length) {
         provokeMsg = applyProvokeAndFormat(state, { kind: "player", player }, triggers);
       }
-      const base = applySprintMove(state, playerId, action.x, action.y);
+      const base = applySprintMove(state, playerId, action.x, action.y, { flying });
       const hookMsgs = applyPostMovementHooks(state, player, "player").messages;
       recordPassedEnemiesOnPath(state, player, [{ x: action.x, y: action.y }]);
       let msg = base;
@@ -1420,9 +1432,12 @@ export function handleCombatMessage(
   switch (parsed.type) {
     case "movePath": {
       if (!ctx.playerId) return { handled: true, error: "Only players can move" };
-      const err = validateMovePath(state, ctx.playerId, parsed.path);
+      const err = validateMovePath(state, ctx.playerId, parsed.path, parsed.flying);
       if (err) return { handled: true, error: err };
-      return { handled: true, message: applyMovePath(state, ctx.playerId, parsed.path) };
+      return {
+        handled: true,
+        message: applyMovePath(state, ctx.playerId, parsed.path, parsed.flying),
+      };
     }
     case "resetMovement": {
       if (!ctx.playerId) return { handled: true, error: "Only players can reset movement" };

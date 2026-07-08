@@ -24,6 +24,9 @@ import {
   previewPlayerAttack,
   classGrantsSecondWeapon,
   classGrantsDualGear,
+  aegisFlyingRemaining,
+  playerAegisStacks,
+  hasAssistedAscensionGear,
 } from "@gaem/shared";
 import { computed, ref } from "vue";
 
@@ -280,6 +283,29 @@ export function useCombatActions(playerId?: () => string | null) {
     );
   });
 
+  const showAegis = computed(() => {
+    const p = activePlayer.value;
+    if (!p) return false;
+    return playerAegisStacks(p) > 0 || hasAssistedAscensionGear(p);
+  });
+
+  const aegisFlyingLeft = computed(() => {
+    const p = activePlayer.value;
+    if (!p) return 0;
+    return aegisFlyingRemaining(p);
+  });
+
+  const aegisStacks = computed(() => playerAegisStacks(activePlayer.value ?? ({} as Player)));
+
+  const canUseAegis = computed(() => {
+    const p = activePlayer.value;
+    if (!p || !showAegis.value) return false;
+    if ((p.effects?.Pin ?? 0) > 0) return false;
+    return aegisFlyingLeft.value > 0;
+  });
+
+  const aegisLabel = computed(() => `${aegisFlyingLeft.value}/${aegisStacks.value}`);
+
   function commitHaste(tier: ActionTier) {
     sendPlayerAction({ action: "commitHaste", tier });
   }
@@ -292,8 +318,8 @@ export function useCombatActions(playerId?: () => string | null) {
     send({ type: "resetMovement" });
   }
 
-  function sendMovePath(path: { x: number; y: number }[]) {
-    send({ type: "movePath", path });
+  function sendMovePath(path: { x: number; y: number }[], flying?: boolean) {
+    send({ type: "movePath", path, ...(flying ? { flying: true } : {}) });
   }
 
   function applyAssisted(outcome: import("@gaem/shared").AssistedOutcome) {
@@ -365,6 +391,11 @@ export function useCombatActions(playerId?: () => string | null) {
     reversalExtraAllyIds,
     hasSpentActionTier,
     canResetMovement,
+    showAegis,
+    aegisFlyingLeft,
+    aegisStacks,
+    canUseAegis,
+    aegisLabel,
     sendPlayerAction,
     commitHaste,
     resetMovement,

@@ -11,6 +11,7 @@ export const BOARD_CELL_TARGETING_MODES = [
   "warhook",
   "shove",
   "sprint",
+  "aegis",
   "armorTeleport",
   "armorPush",
   "armorPlaceTower",

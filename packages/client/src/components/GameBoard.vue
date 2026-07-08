@@ -28,6 +28,9 @@ import {
   isInBounds,
   manhattanDistance,
   movementStepCost,
+  isFlyingStepReachable,
+  stepMoveCost,
+  aegisFlyingRemaining,
   playerAllowsDiagonalMovement,
   playerAttackDirectionsAt,
   evaluateAnchoredPatternPlacement,
@@ -1697,6 +1700,15 @@ watch(
   },
 );
 
+watch(
+  () => (yourPlayer.value ? aegisFlyingRemaining(yourPlayer.value) : 0),
+  (remaining, prev) => {
+    if (boardActionMode.value === "aegis" && prev > 0 && remaining <= 0) {
+      clearBoardActionMode();
+    }
+  },
+);
+
 const cellStateByKey = computed(() => {
   const map = new Map<string, CellRenderState>();
   const s = gameState.value;
@@ -1713,8 +1725,9 @@ const cellStateByKey = computed(() => {
   const sandbox = isSandboxMode(s);
   const inMoveMode = boardActionMode.value === "move";
   const inSprintMode = boardActionMode.value === "sprint";
+  const inAegisMode = boardActionMode.value === "aegis";
   const inCombatActionMode =
-    boardActionMode.value != null && !inMoveMode && !inSprintMode;
+    boardActionMode.value != null && !inMoveMode && !inSprintMode && !inAegisMode;
   const onPlayerTurn =
     s.roundPhase === "playerTurn" &&
     s.turn?.role === "player" &&
@@ -1722,10 +1735,11 @@ const cellStateByKey = computed(() => {
   const showStepMoveHighlights =
     activePlayerSelected.value &&
     !inCombatActionMode &&
-    (sandbox || onPlayerTurn || inMoveMode || inSprintMode);
+    (sandbox || onPlayerTurn || inMoveMode || inSprintMode || inAegisMode);
   const me = yourPlayer.value;
   const movementRemaining = me?.actionBudget?.movementRemaining ?? 0;
   const sprintRemaining = me?.actionBudget?.sprintRemaining ?? 0;
+  const aegisRemaining = me ? aegisFlyingRemaining(me) : 0;
   const remotePreview = remoteAttackPreviewHighlights.value;
   const remotePrimary = remotePreview ? new Set(remotePreview.primary) : null;
   const remoteSecondary = remotePreview ? new Set(remotePreview.secondary) : null;
@@ -1755,12 +1769,33 @@ const cellStateByKey = computed(() => {
       !enemy &&
       adjacent &&
       showStepMoveHighlights;
+    const aegisStepBase =
+      playerCanMove &&
+      !isDeployment &&
+      !player &&
+      !enemy &&
+      adjacent &&
+      showStepMoveHighlights &&
+      inAegisMode &&
+      me != null &&
+      isFlyingStepReachable(s, me, { x: me.x, y: me.y }, c);
     const stepCost = me && stepBase ? movementStepCost(s, me, c.x, c.y) : Infinity;
+    const aegisStepCost =
+      me && aegisStepBase
+        ? stepMoveCost(s, me, { x: me.x, y: me.y }, c, true)
+        : Infinity;
     const showRegularStep =
       stepBase &&
       !inSprintMode &&
+      !inAegisMode &&
       (sandbox || (stepCost <= movementRemaining && movementRemaining > 0));
     const showSprintStep = stepBase && inSprintMode && stepCost <= sprintRemaining && sprintRemaining > 0;
+    const showAegisStep =
+      aegisStepBase &&
+      aegisStepCost <= movementRemaining &&
+      movementRemaining > 0 &&
+      aegisRemaining > 0 &&
+      (sandbox || onPlayerTurn);
 
     const combatPrimary =
       combatAttackPrimaryKeys.value.has(ck) ||
@@ -1814,6 +1849,7 @@ const cellStateByKey = computed(() => {
         (sandbox) &&
         inMoveMode,
       moveSecondary: showRegularStep || showSprintStep,
+      moveAegis: showAegisStep,
       deployable:
         isDeployment &&
         props.role === "player" &&
@@ -2404,7 +2440,8 @@ function tryMove(x: number, y: number) {
   const deploying = gameState.value.roundPhase === "deployment";
   if (!deploying && !activePlayerSelected.value) return;
   const cell = cellStateByKey.value.get(boardCellKey(x, y));
-  if (!deploying && !cell?.movable && !cell?.deployable && !cell?.moveSecondary) return;
+  const flying = boardActionMode.value === "aegis";
+  if (!deploying && !cell?.movable && !cell?.deployable && !cell?.moveSecondary && !cell?.moveAegis) return;
   if (deploying && !cell?.deployable) return;
   const s = gameState.value;
   const id = yourPlayerId.value;
@@ -2413,7 +2450,8 @@ function tryMove(x: number, y: number) {
     send({ type: "move", x, y });
     return;
   }
-  gateProvoke(previewPathProvokes(s, id, path), () => sendMovePath(path));
+  const provokeOpts = flying ? { flying: true } : {};
+  gateProvoke(previewPathProvokes(s, id, path, provokeOpts), () => sendMovePath(path, flying));
 }
 
 function canDragDeploy(player: Player): boolean {
@@ -3118,6 +3156,16 @@ function handleCombatCellClick(x: number, y: number): boolean {
   const player = occ.playerByKey.get(key);
   const me = yourPlayer.value;
 
+  if (m === "aegis") {
+    if (!activePlayerSelected.value) return true;
+    if (!cellStateByKey.value.get(boardCellKey(x, y))?.moveAegis) return true;
+    const s = gameState.value;
+    const id = yourPlayerId.value;
+    if (!s || !id) return true;
+    const path = [{ x, y }];
+    gateProvoke(previewPathProvokes(s, id, path, { flying: true }), () => sendMovePath(path, true));
+    return true;
+  }
   if (m === "move") {
     if (!activePlayerSelected.value) return true;
     const s = gameState.value;

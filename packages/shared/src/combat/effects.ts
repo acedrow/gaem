@@ -2,6 +2,7 @@ import { getEffectStacking } from "../effects-data.js";
 import type { EffectStacks, GameState, MapTile, Player, Enemy } from "../types.js";
 import { buildBoardOccupancy, clampHp, getEnemyMaxHp, getPlayerMaxHp, isSandboxMode } from "../game.js";
 import { coordKey, tileAt } from "../map.js";
+import { clampAssistedAscensionAegis, hasAssistedAscensionGear } from "./aegis.js";
 
 export { tickRoundCountdowns } from "./countdown.js";
 
@@ -35,6 +36,7 @@ export function applyEffectStacks(
     else target.effects[parsed.id] = next;
   }
   if (Object.keys(target.effects).length === 0) delete target.effects;
+  if (!("name" in target)) clampAssistedAscensionAegis(target as Player);
 }
 
 export function clearEffectStacks(target: { effects?: EffectStacks }): void {
@@ -50,6 +52,7 @@ export function removeEffectStacks(target: { effects?: EffectStacks }, tokens: s
     if (next <= 0) delete target.effects[parsed.id];
     else target.effects[parsed.id] = next;
   }
+  if (!("name" in target)) clampAssistedAscensionAegis(target as Player);
 }
 
 function dealDirectTickDamage(unit: Player | Enemy, amount: number, maxHp: number): void {
@@ -157,6 +160,9 @@ export function tickUnitEndOfTurn(state: GameState, unit: Player | Enemy): strin
   for (const id of Object.keys(unit.effects)) {
     if (!END_OF_TURN_EFFECTS.has(id)) continue;
     const before = unit.effects[id] ?? 0;
+    if (id === "Aegis" && !("name" in unit) && hasAssistedAscensionGear(unit as Player) && before <= 1) {
+      continue;
+    }
     if (id === "Healing") {
       if (before > 0 && unit.hp !== undefined) {
         const maxHp =
@@ -173,6 +179,7 @@ export function tickUnitEndOfTurn(state: GameState, unit: Player | Enemy): strin
       unit.effects[id] = next;
       if (before !== next) messages.push(`${id} ${before} → ${next}`);
     }
+    if (id === "Aegis" && !("name" in unit)) clampAssistedAscensionAegis(unit as Player);
   }
   if (Object.keys(unit.effects).length === 0) delete unit.effects;
   return messages;

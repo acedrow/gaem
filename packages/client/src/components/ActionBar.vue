@@ -31,6 +31,9 @@ const {
   canInteractSeed,
   showAssistedLaunch,
   canAssistedLaunch,
+  showAegis,
+  canUseAegis,
+  aegisLabel,
   activePlayer,
   sendPlayerAction,
   canUseClassActive,
@@ -52,6 +55,7 @@ const {
   epeusBagOpen,
   harpeRecallOpen,
   pickMode,
+  pickAegisMode,
   pickArmorMode,
   pickTowerTeleportMode,
   pickAssistedLaunchMode,
@@ -153,6 +157,16 @@ function weaponSwap() {
         @click="pickMode('sprint')"
       >
         Sprint
+      </button>
+      <button
+        v-if="showAegis"
+        type="button"
+        class="action-btn"
+        :class="{ active: mode === 'aegis' }"
+        :disabled="mode !== 'aegis' && !canUseAegis"
+        @click="pickAegisMode"
+      >
+        Aegis {{ aegisLabel }}
       </button>
       <button
         v-if="showAssistedLaunch"

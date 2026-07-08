@@ -11,6 +11,7 @@ export type BoardActionMode =
   | "warhook"
   | "shove"
   | "sprint"
+  | "aegis"
   | "armorTeleport"
   | "armorPush"
   | "armorPlaceTower"

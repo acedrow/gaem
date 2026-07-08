@@ -14,6 +14,7 @@ export type CellRenderState = {
   terrainClass: string | null;
   movable: boolean;
   moveSecondary: boolean;
+  moveAegis: boolean;
   deployable: boolean;
   gmMovable: boolean;
   gmSpawnable: boolean;
@@ -208,6 +209,7 @@ const terrainImageUrl = computed(() => {
       [cell.terrainClass ?? '']: !!cell.terrainClass,
       movable: cell.movable,
       'move-secondary': cell.moveSecondary,
+      'move-aegis': cell.moveAegis,
       deployable: cell.deployable,
       'gm-movable': cell.gmMovable,
       'gm-spawnable': cell.gmSpawnable,
@@ -421,6 +423,12 @@ const terrainImageUrl = computed(() => {
   cursor: pointer;
   outline: 1px dashed var(--color-purple-outline-strong);
   background: var(--color-purple-faint-bg);
+}
+
+.cell.move-aegis {
+  cursor: pointer;
+  outline: 1px dashed var(--color-accent-muted);
+  background: color-mix(in srgb, var(--color-accent-muted) 12%, transparent);
 }
 
 .cell.deployable {
