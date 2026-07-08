@@ -787,6 +787,40 @@ const classAbilitySecondaryKeys = computed(() => {
 
 const sharurAttractorInvalidKeys = computed(() => new Set<string>());
 
+const sharurAttractorPlacementPreview = computed(() => {
+  if (boardActionMode.value !== "sharurAttractor") return null;
+  const cell = previewHoverCell.value;
+  const me = yourPlayer.value;
+  if (!cell || !me) return null;
+  const key = coordKey(cell.x, cell.y);
+  if (!classAbilitySecondaryKeys.value.has(key) || sharurAttractorInvalidKeys.value.has(key)) return null;
+  return {
+    id: "preview",
+    ownerId: me.id,
+    x: cell.x,
+    y: cell.y,
+    void: me.hp <= 10,
+  };
+});
+
+const attractorPreviewCenterKeys = computed(() => {
+  const preview = sharurAttractorPlacementPreview.value;
+  if (!preview) return new Map<string, { void: boolean }>();
+  return new Map([[coordKey(preview.x, preview.y), { void: preview.void }]]);
+});
+
+const attractorPreviewZoneOnlyKeys = computed(() => {
+  const preview = sharurAttractorPlacementPreview.value;
+  if (!preview) return new Set<string>();
+  const centerKey = coordKey(preview.x, preview.y);
+  const keys = new Set<string>();
+  for (const tile of tilesInAttractorZone(preview)) {
+    const key = coordKey(tile.x, tile.y);
+    if (key !== centerKey) keys.add(key);
+  }
+  return keys;
+});
+
 const boardTokenKeys = computed(() => {
   const keys = new Set<string>();
   for (const t of gameState.value?.combat?.boardTokens ?? []) {
@@ -1675,6 +1709,9 @@ const cellStateByKey = computed(() => {
       attractorZone: attractorZoneOnlyKeys.value.has(coordKey(c.x, c.y)),
       attractorCenter: attractorCenterKeys.value.has(coordKey(c.x, c.y)),
       attractorVoid: attractorCenterKeys.value.get(coordKey(c.x, c.y))?.void ?? false,
+      attractorPreviewZone: attractorPreviewZoneOnlyKeys.value.has(coordKey(c.x, c.y)),
+      attractorPreviewCenter: attractorPreviewCenterKeys.value.has(coordKey(c.x, c.y)),
+      attractorPreviewVoid: attractorPreviewCenterKeys.value.get(coordKey(c.x, c.y))?.void ?? false,
       towerOwnerHue:
         enemyAnchor?.kind === "tower" && enemyAnchor.ownerPlayerId
           ? hueFromId(enemyAnchor.ownerPlayerId)

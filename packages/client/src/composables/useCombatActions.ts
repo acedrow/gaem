@@ -7,12 +7,15 @@ import {
   getArmorByName,
   getArmorSpeed,
   getClassActiveTier,
+  getHeavenBurningLevel,
   getSabaothChargesRemaining,
   getWeaponAttackSpec,
   getPlayerTower,
   getSeedAt,
   hasSabaothBombSelected,
   hasteStacks,
+  HEAVEN_BURNING_MAX_LEVEL,
+  isHeavenBurningWeaponName,
   isSabaothWeaponName,
   isYadathanArmorName,
   isKushielArmorName,
@@ -134,10 +137,23 @@ export function useCombatActions(playerId?: () => string | null) {
   const canUseWeaponActive = computed(() => {
     const p = activePlayer.value;
     if (!p?.weapon || !canMain.value) return false;
+    if (isHeavenBurningWeaponName(p.weapon)) return false;
     if (isSabaothWeaponName(p.weapon)) {
       return (sabaothChargesRemaining.value ?? 0) > 0;
     }
     return true;
+  });
+
+  const heavenBurningLevel = computed(() => {
+    const p = activePlayer.value;
+    if (!p || !isHeavenBurningWeaponName(p.weapon)) return null;
+    return getHeavenBurningLevel(p);
+  });
+
+  const canUseHeavenBurningUnfold = computed(() => {
+    const p = activePlayer.value;
+    if (!p || !canAux.value || !isHeavenBurningWeaponName(p.weapon)) return false;
+    return (heavenBurningLevel.value ?? 1) < HEAVEN_BURNING_MAX_LEVEL;
   });
 
   const hasWeaponAttack = computed(() => {
@@ -326,6 +342,8 @@ export function useCombatActions(playerId?: () => string | null) {
     sprintRemaining,
     hasWeaponAttack,
     canUseWeaponActive,
+    heavenBurningLevel,
+    canUseHeavenBurningUnfold,
     sabaothChargesRemaining,
     armorStructured,
     canTowerTeleport,

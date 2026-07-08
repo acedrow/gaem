@@ -12,6 +12,7 @@ import {
   manhattanDistance,
   parseEnemyAttackString,
   resolveAttackWeapon,
+  resetHeavenBurningLevelAfterAttack,
   resolveCombatAttackSpec,
   resolveRangeAttackTargetIds,
   type ParsedEnemyAttack,
@@ -428,6 +429,7 @@ export function applyForceProjection(
     .map((e) => enemyLabel(e!))
     .join(", ");
   const message = `${playerLabel(player)} Force Projection (${result.detail} dmg) → ${names || "no targets"}`;
+  resetHeavenBurningLevelAfterAttack(player, weapon);
   return { message, result, hitEnemyIds };
 }
 

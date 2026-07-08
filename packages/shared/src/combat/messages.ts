@@ -59,8 +59,13 @@ import {
   resolveCombatAttackSpec,
   resolveRangeAttackTargetIds,
   ensureSabaothCharges,
+  ensureHeavenBurningLevel,
+  getHeavenBurningLevel,
   hasSabaothBombSelected,
+  HEAVEN_BURNING_MAX_LEVEL,
+  isHeavenBurningWeaponName,
   isSabaothWeaponName,
+  resetHeavenBurningLevelAfterAttack,
   validateOmnistrikeAction,
   validateWarhookAction,
 } from "./attack.js";
@@ -346,6 +351,16 @@ export function validatePlayerAction(
       if (!player.weapon2) return "No carried weapon";
       return null;
     }
+    case "heavenBurningUnfold": {
+      const blocked = actionTierBlocked(player, "aux", state);
+      if (blocked) return blocked;
+      if (!isHeavenBurningWeaponName(player.weapon)) return "Heaven Burning Sword not equipped";
+      ensureHeavenBurningLevel(player);
+      if ((getHeavenBurningLevel(player) ?? 0) >= HEAVEN_BURNING_MAX_LEVEL) {
+        return "Sword already at max level";
+      }
+      return null;
+    }
     case "rez": {
       const blocked = actionTierBlocked(player, "main", state);
       if (blocked) return blocked;
@@ -548,6 +563,7 @@ export function applyPlayerAction(
       }
       if (defeated) msg += `; defeated ${defeated}`;
       if (defeatMsgs.length) msg += `; ${defeatMsgs.join("; ")}`;
+      resetHeavenBurningLevelAfterAttack(player, weapon);
       return msg;
     }
     case "shove": {
@@ -619,6 +635,13 @@ export function applyPlayerAction(
       let msg = `${playerLabel(player)} swapped to ${player.weapon}`;
       if (freeSwap) msg += " (Gear Check!)";
       return msg;
+    }
+    case "heavenBurningUnfold": {
+      maybeSpendActionTier(state, player, "aux");
+      ensureHeavenBurningLevel(player);
+      const level = getHeavenBurningLevel(player)!;
+      player.counters!.heavenBurningLevel = Math.min(level + 1, HEAVEN_BURNING_MAX_LEVEL);
+      return `${playerLabel(player)} charged Heaven Burning Sword to Level ${player.counters!.heavenBurningLevel}`;
     }
     case "selectWeaponVariant": {
       const weapon = getWeaponByName(player.weapon ?? "");

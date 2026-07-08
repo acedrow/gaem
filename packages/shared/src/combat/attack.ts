@@ -78,6 +78,10 @@ export function enemiesInRange(
 export const SABAOTH_WEAPON_NAME = "Sabaoth-Class Obliteration Charges";
 export const SABAOTH_MAX_CHARGES = 5;
 
+export const HEAVEN_BURNING_SWORD_NAME = "Heaven Burning Sword";
+export const HEAVEN_BURNING_MIN_LEVEL = 1;
+export const HEAVEN_BURNING_MAX_LEVEL = 3;
+
 export function isSabaothWeaponName(name: string | undefined | null): boolean {
   return name === SABAOTH_WEAPON_NAME;
 }
@@ -115,6 +119,50 @@ export function getSabaothChargesRemaining(player: Player): number | null {
   return player.counters?.sabaothCharges ?? SABAOTH_MAX_CHARGES;
 }
 
+export function isHeavenBurningWeaponName(name: string | undefined | null): boolean {
+  return name === HEAVEN_BURNING_SWORD_NAME;
+}
+
+export function playerHasHeavenBurningWeapon(player: Pick<Player, "weapon" | "weapon2">): boolean {
+  return (
+    isHeavenBurningWeaponName(player.weapon) || isHeavenBurningWeaponName(player.weapon2)
+  );
+}
+
+export function initHeavenBurningLevel(player: Player): void {
+  if (!player.counters) player.counters = {};
+  if (!playerHasHeavenBurningWeapon(player)) {
+    delete player.counters.heavenBurningLevel;
+    return;
+  }
+  player.counters.heavenBurningLevel = HEAVEN_BURNING_MIN_LEVEL;
+}
+
+export function ensureHeavenBurningLevel(player: Player): void {
+  if (!isHeavenBurningWeaponName(player.weapon)) return;
+  if (!player.counters) player.counters = {};
+  const level = player.counters.heavenBurningLevel ?? HEAVEN_BURNING_MIN_LEVEL;
+  player.counters.heavenBurningLevel = Math.max(
+    HEAVEN_BURNING_MIN_LEVEL,
+    Math.min(HEAVEN_BURNING_MAX_LEVEL, level),
+  );
+}
+
+export function getHeavenBurningLevel(player: Player): number | null {
+  if (!isHeavenBurningWeaponName(player.weapon)) return null;
+  ensureHeavenBurningLevel(player);
+  return player.counters!.heavenBurningLevel!;
+}
+
+export function resetHeavenBurningLevelAfterAttack(
+  player: Player,
+  weaponName: string | undefined,
+): void {
+  if (!isHeavenBurningWeaponName(weaponName)) return;
+  if (!player.counters) player.counters = {};
+  player.counters.heavenBurningLevel = HEAVEN_BURNING_MIN_LEVEL;
+}
+
 export function getWeaponAttackSpec(weaponName: string | undefined): WeaponAttackSpec | null {
   if (!weaponName) return null;
   const weapon = getWeaponByName(weaponName);
@@ -135,8 +183,19 @@ export function resolveCombatAttackSpec(
 ): WeaponAttackSpec | null {
   const spec = getWeaponAttackSpec(weaponName);
   if (!spec) return null;
-  if (spec.tiles?.length || spec.rangeTargets || spec.rangeSpan || (spec.patternId && spec.size != null)) {
-    return spec;
+  if (spec.levels?.length) {
+    const levelIndex = Math.max(
+      0,
+      Math.min((player?.counters?.heavenBurningLevel ?? 1) - 1, spec.levels.length - 1),
+    );
+    const level = spec.levels[levelIndex] ?? spec.levels[0];
+    if (level) {
+      return {
+        ...spec,
+        damage: level.damage,
+        tiles: level.tiles,
+      };
+    }
   }
   if (spec.bombs?.length) {
     const bombIndex = player?.counters?.sabaothBomb;
@@ -153,14 +212,8 @@ export function resolveCombatAttackSpec(
       heal: bomb.heal,
     };
   }
-  const levelIndex = Math.max(0, Math.min((player?.counters?.heavenBurningLevel ?? 1) - 1, (spec.levels?.length ?? 1) - 1));
-  const level = spec.levels?.[levelIndex] ?? spec.levels?.[0];
-  if (level) {
-    return {
-      ...spec,
-      damage: level.damage,
-      tiles: level.tiles,
-    };
+  if (spec.tiles?.length || spec.rangeTargets || spec.rangeSpan || (spec.patternId && spec.size != null)) {
+    return spec;
   }
   return spec;
 }

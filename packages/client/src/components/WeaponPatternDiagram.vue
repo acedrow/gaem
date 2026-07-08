@@ -8,6 +8,7 @@ import RuleText from "./RuleText.vue";
 const props = defineProps<{
   attack: WeaponAttackSpec;
   bombIndex?: number;
+  combatLevelIndex?: number;
   selectable?: boolean;
   dualSelect?: boolean;
   dualBombIndices?: [number | null, number | null];
@@ -24,6 +25,14 @@ const emit = defineEmits<{
 const levelIndex = ref(0);
 const localBombIndex = ref(0);
 const hoverBombIndex = ref<number | null>(null);
+
+watch(
+  () => props.combatLevelIndex,
+  (index) => {
+    if (index != null) levelIndex.value = index;
+  },
+  { immediate: true },
+);
 
 watch(
   () => props.bombIndex,

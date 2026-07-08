@@ -187,6 +187,7 @@ export type PlayerAction =
   | { action: "sprintCancel" }
   | { action: "weaponSwap" }
   | { action: "selectWeaponVariant"; index: number }
+  | { action: "heavenBurningUnfold" }
   | { action: "rez"; targetPlayerId: string }
   | {
       action: "armorAction";

@@ -1,7 +1,7 @@
 import type { GameState, Player } from "../types.js";
 import { getPlayerMaxHp } from "../game.js";
 import { getArmorByName } from "../player-data.js";
-import { initSabaothCharges } from "./attack.js";
+import { initHeavenBurningLevel, initSabaothCharges } from "./attack.js";
 import { clearAnnihilationCorridorTileEffects, clearEquipmentTerrainSnapshots } from "./equipment.js";
 import { createDefaultCombatState } from "./types.js";
 import { isTowerEnemy } from "./yadathan.js";
@@ -23,6 +23,7 @@ export function resetUnitCombatState(player: Player): void {
   }
   player.counters = {};
   initSabaothCharges(player);
+  initHeavenBurningLevel(player);
 }
 
 export function resetAllPlayersForTaccom(state: GameState): void {

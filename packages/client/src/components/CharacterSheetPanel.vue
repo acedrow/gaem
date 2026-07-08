@@ -14,8 +14,11 @@ import {
   getGearByName,
   getWeaponByName,
   getClassMaxHp,
+  getHeavenBurningLevel,
   getSabaothChargesRemaining,
   hasSabaothBombSelected,
+  HEAVEN_BURNING_MAX_LEVEL,
+  isHeavenBurningWeaponName,
   isSabaothWeaponName,
   SABAOTH_MAX_CHARGES,
   YADATHAN_ARMOR_NAME,
@@ -116,6 +119,7 @@ const {
   canSupport,
   canAux,
   canUseWeaponActive,
+  canUseHeavenBurningUnfold,
   canUseClassActive,
   classActiveTier,
   hasFreeWeaponSwap,
@@ -230,7 +234,32 @@ const weaponChargesDisplay = computed(() => {
   if (remaining == null) return null;
   return `${"●".repeat(remaining)}${"○".repeat(SABAOTH_MAX_CHARGES - remaining)}`;
 });
+const showHeavenBurningLevel = computed(
+  () =>
+    combatUiUnlocked.value &&
+    isHeavenBurningWeaponName(equippedWeaponName.value) &&
+    !!boardPlayer.value,
+);
+const heavenBurningLevelRemaining = computed(() => {
+  const player = boardPlayer.value;
+  if (!player) return null;
+  return getHeavenBurningLevel(player);
+});
+const heavenBurningLevelDisplay = computed(() => {
+  const level = heavenBurningLevelRemaining.value;
+  if (level == null) return null;
+  return `${"●".repeat(level)}${"○".repeat(HEAVEN_BURNING_MAX_LEVEL - level)}`;
+});
+const heavenBurningAttackLevelIndex = computed(() => {
+  const level = heavenBurningLevelRemaining.value;
+  if (level == null) return undefined;
+  return level - 1;
+});
 const canConfirmWeaponVariant = computed(() => (weaponChargesRemaining.value ?? 0) > 0);
+
+function useHeavenBurningUnfold() {
+  sendPlayerAction({ action: "heavenBurningUnfold" });
+}
 
 function requestWeaponVariantChange(index: number) {
   if (index === weaponBombIndex.value) return;
@@ -799,12 +828,24 @@ onUnmounted(() => {
                     v-if="selectedWeapon.attack"
                     :attack="selectedWeapon.attack"
                     :bomb-index="weaponBombIndex"
+                    :combat-level-index="heavenBurningAttackLevelIndex"
                     :selectable="weaponBombSelectable"
                     @request-select="requestWeaponVariantChange"
                   />
                 </template>
               </SheetActionButton>
               <SheetActionButton
+                v-if="isHeavenBurningWeaponName(equippedWeaponName)"
+                :disabled="!canUseHeavenBurningUnfold"
+                @click="useHeavenBurningUnfold"
+              >
+                Unfold
+                <template #tooltip>
+                  <AbilityBlock tier-label="Aux action" :content="selectedWeapon.activeAbility" />
+                </template>
+              </SheetActionButton>
+              <SheetActionButton
+                v-else
                 :active="mode === 'omnistrike' || mode === 'warhook'"
                 :disabled="!canUseWeaponActive"
                 @click="useWeaponActive(equippedWeaponName)"
@@ -829,6 +870,9 @@ onUnmounted(() => {
             </template>
             <template v-if="showWeaponCharges && weaponChargesDisplay" #subline>
               Weapon charges {{ weaponChargesDisplay }}
+            </template>
+            <template v-else-if="showHeavenBurningLevel && heavenBurningLevelDisplay" #subline>
+              Sword level {{ heavenBurningLevelDisplay }}
             </template>
             <p v-if="rangeAttackHint" class="range-attack-hint">{{ rangeAttackHint }}</p>
             <p v-if="rangedPatternAttackHint" class="range-attack-hint">{{ rangedPatternAttackHint }}</p>

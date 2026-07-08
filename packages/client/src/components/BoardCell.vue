@@ -43,6 +43,9 @@ export type CellRenderState = {
   attractorZone?: boolean;
   attractorCenter?: boolean;
   attractorVoid?: boolean;
+  attractorPreviewZone?: boolean;
+  attractorPreviewCenter?: boolean;
+  attractorPreviewVoid?: boolean;
   towerOwnerHue?: number | null;
   tileEffects?: EffectStacks;
 };
@@ -233,6 +236,13 @@ const terrainImageUrl = computed(() => {
       class="board-overlay attractor-center"
       :class="{ 'attractor-void': cell.attractorVoid }"
       title="Attractor"
+    />
+    <span v-if="cell.attractorPreviewZone" class="board-overlay attractor-zone attractor-zone-preview" aria-hidden="true" />
+    <span
+      v-if="cell.attractorPreviewCenter"
+      class="board-overlay attractor-center attractor-center-preview"
+      :class="{ 'attractor-void': cell.attractorPreviewVoid }"
+      aria-hidden="true"
     />
     <span v-if="cell.hasSeed" class="seed-marker" title="Seed" />
     <span
@@ -835,6 +845,13 @@ const terrainImageUrl = computed(() => {
   background: color-mix(in srgb, var(--color-accent) 12%, transparent);
 }
 
+.attractor-zone-preview {
+  z-index: 1;
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+  outline: 1px dashed color-mix(in srgb, var(--color-accent) 55%, transparent);
+  outline-offset: -1px;
+}
+
 .attractor-center {
   top: 50%;
   left: 50%;
@@ -850,6 +867,12 @@ const terrainImageUrl = computed(() => {
   background: var(--color-danger);
   border-color: var(--color-danger-muted-border);
   box-shadow: 0 0 6px color-mix(in srgb, var(--color-danger) 50%, transparent);
+}
+
+.attractor-center-preview {
+  z-index: 2;
+  opacity: 0.9;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 35%, transparent);
 }
 
 .piece.enemy.kopis-marked::before {
