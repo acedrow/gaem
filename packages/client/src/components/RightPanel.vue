@@ -106,6 +106,7 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
       </div>
 
       <div class="tab-body">
+        <AssistedActionPanel v-if="activeTab === 'console'" />
         <GameConsolePanel v-if="activeTab === 'console'" />
         <div v-show="activeTab === 'info'" class="info-pane">
           <EnemyInfoPanel
@@ -168,7 +169,6 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
         </div>
         <TurnOrderPanel v-if="activeTab === 'turnOrder'" />
         <SettingsPanel v-if="activeTab === 'settings'" />
-        <AssistedActionPanel v-if="activeTab === 'console'" />
       </div>
   </aside>
 </template>

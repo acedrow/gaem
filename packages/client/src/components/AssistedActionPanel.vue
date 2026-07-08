@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { AssistedOutcome } from "@gaem/shared";
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 
 import { useCombatActions } from "../composables/useCombatActions.js";
 import { useSession } from "../composables/useSession.js";
@@ -11,9 +11,23 @@ const { pendingActions, applyAssisted } = useCombatActions();
 
 const damageDraft = ref<Record<string, string>>({});
 const rejectId = ref<string | null>(null);
+const dismissed = ref(false);
 
 const gmPending = computed(() =>
   isGm.value ? pendingActions.value : [],
+);
+
+watch(
+  () => gmPending.value.map((p) => p.id),
+  (ids, prev) => {
+    if (!ids.length) {
+      dismissed.value = false;
+      return;
+    }
+    if (prev && ids.some((id) => !prev.includes(id))) {
+      dismissed.value = false;
+    }
+  },
 );
 
 function applyPending(pendingId: string, reject = false) {
@@ -46,7 +60,21 @@ function applyPending(pendingId: string, reject = false) {
 </script>
 
 <template>
-  <PanelShell v-if="isGm && gmPending.length" title="Assisted inbox" subtitle="Confirm ability outcomes">
+  <template v-if="isGm && gmPending.length">
+    <button
+      v-if="dismissed"
+      type="button"
+      class="inbox-reopen"
+      @click="dismissed = false"
+    >
+      Assisted inbox · {{ gmPending.length }} pending
+    </button>
+    <PanelShell
+      v-else
+      title="Assisted inbox"
+      subtitle="Confirm ability outcomes"
+      @close="dismissed = true"
+    >
     <div class="inbox">
       <article v-for="item in gmPending" :key="item.id" class="inbox-item">
         <h4 class="item-title">{{ item.label }}</h4>
@@ -67,10 +95,29 @@ function applyPending(pendingId: string, reject = false) {
         </div>
       </article>
     </div>
-  </PanelShell>
+    </PanelShell>
+  </template>
 </template>
 
 <style scoped>
+.inbox-reopen {
+  flex-shrink: 0;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+  color: var(--color-accent);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.inbox-reopen:hover {
+  background: var(--color-border);
+}
+
 .inbox {
   display: flex;
   flex-direction: column;
