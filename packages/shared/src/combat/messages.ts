@@ -514,7 +514,10 @@ export function applyPlayerAction(
       let result;
       const weaponName = weapon;
       if (isRangeTargetAttack(spec)) {
-        const targetIds = dedupeSwarmTargetIds(state, resolveRangeAttackTargetIds(action));
+        const rangeTargetIds = resolveRangeAttackTargetIds(action);
+        const targetIds = action.useBreaker
+          ? rangeTargetIds
+          : dedupeSwarmTargetIds(state, rangeTargetIds);
         if (targetIds.length) {
           result = applyRangeAttackToEnemies(state, spec, targetIds, action.damageRoll, {
             useBreaker: action.useBreaker,

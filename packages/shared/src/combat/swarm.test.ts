@@ -13,6 +13,7 @@ import {
 } from "./swarm.js";
 import {
   applyBreakerAttackToSwarm,
+  applyRangeAttackToEnemies,
   previewSwarmEnemyAttack,
   SETHIAN_DAMAGE_CAP,
 } from "./attack.js";
@@ -110,6 +111,24 @@ describe("swarm", () => {
     expect(brokenIds).toContain("a");
     expect(state.enemies.find((e) => e.id === "a")?.hp).toBe(0);
     expect(state.enemies.find((e) => e.id === "b")).toBeDefined();
+  });
+
+  it("applyRangeAttackToEnemies with Breaker breaks each selected swarm member", () => {
+    const state = makeGameState();
+    addEnemy(state, { id: "a", x: 2, y: 2, name: SWARM_NAME, hp: 1 });
+    addEnemy(state, { id: "b", x: 3, y: 2, name: SWARM_NAME, hp: 1 });
+    addEnemy(state, { id: "c", x: 2, y: 3, name: SWARM_NAME, hp: 1 });
+    reconcileSwarmHp(state);
+
+    const spec = { damage: "10", rangeTargets: { range: 4, maxTargets: 3 } };
+    const { targets } = applyRangeAttackToEnemies(state, spec, ["a", "b", "c"], undefined, {
+      useBreaker: true,
+    });
+
+    expect(targets.map((t) => t.enemyId).sort()).toEqual(["a", "b", "c"]);
+    expect(state.enemies.find((e) => e.id === "a")?.hp).toBe(0);
+    expect(state.enemies.find((e) => e.id === "b")?.hp).toBe(0);
+    expect(state.enemies.find((e) => e.id === "c")?.hp).toBe(0);
   });
 
   it("previewSwarmEnemyAttack counts adjacent strikes", () => {

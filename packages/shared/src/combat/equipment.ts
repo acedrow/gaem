@@ -397,7 +397,10 @@ export function applyForceProjection(
   let result: ReturnType<typeof applyAttackToEnemies>;
 
   if (isRangeTargetAttack(spec)) {
-    const targetIds = dedupeSwarmTargetIds(state, resolveRangeAttackTargetIds(action));
+    const rangeTargetIds = resolveRangeAttackTargetIds(action);
+    const targetIds = action.useBreaker
+      ? rangeTargetIds
+      : dedupeSwarmTargetIds(state, rangeTargetIds);
     result = applyRangeAttackToEnemies(state, spec, targetIds, action.damageRoll, {
       useBreaker: action.useBreaker,
       weaponName: weapon,
