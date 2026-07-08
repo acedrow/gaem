@@ -8,7 +8,7 @@ import {
 import type { AuthContext } from "./auth.js";
 import { authHasGmCapabilities } from "./auth.js";
 import type { Env } from "./env.js";
-import { getMap, listMaps, putMap } from "./maps.js";
+import { getMap, listMaps, putMap, deleteMap } from "./maps.js";
 
 const MAP_ID_RE = /^[a-z0-9-]+$/;
 
@@ -80,4 +80,33 @@ export async function handleCreateMap(
   const map = createBlankGameMap(id, name, width, height);
   await putMap(env, map);
   return Response.json({ map: toMapSummary(map) }, { status: 201 });
+}
+
+export async function handleDeleteMap(
+  env: Env,
+  auth: AuthContext,
+  mapId: string,
+  activeMapId: string,
+): Promise<Response> {
+  if (!(await authHasGmCapabilities(auth, env))) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  try {
+    await getMap(env, mapId);
+  } catch {
+    return Response.json({ error: "Map not found" }, { status: 404 });
+  }
+
+  if (mapId === activeMapId) {
+    return Response.json({ error: "Cannot delete the active map" }, { status: 400 });
+  }
+
+  const maps = await listMaps(env);
+  if (maps.length <= 1) {
+    return Response.json({ error: "Cannot delete the last map" }, { status: 400 });
+  }
+
+  await deleteMap(env, mapId);
+  return new Response(null, { status: 204 });
 }

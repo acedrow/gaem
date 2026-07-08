@@ -29,3 +29,7 @@ export async function listMaps(env: Env): Promise<GameMapSummary[]> {
   }
   return summaries.sort((a, b) => a.name.localeCompare(b.name));
 }
+
+export async function deleteMap(env: Env, id: string): Promise<void> {
+  await env.MAP_KV.delete(mapKey(id));
+}

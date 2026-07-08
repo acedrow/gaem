@@ -10,7 +10,11 @@ import {
   parseGameMap,
   tileAt,
   toMapSummary,
+  validateActivateMap,
+  persistMapTileAt,
 } from "./map.js";
+import { applyGmPaintTile } from "./combat/messages.js";
+import { applyActivateMap } from "./game.js";
 import type { GameMap, MapTile } from "./types.js";
 import { makeTiles } from "./test/fixtures.js";
 
@@ -87,6 +91,73 @@ describe("map", () => {
       height: 3,
     });
     expect(toMapSummary({ ...map, name: undefined }).name).toBe("test-map");
+  });
+
+  it("validateActivateMap", () => {
+    const map = createBlankGameMap("arena", "Arena", 4, 3);
+    expect(validateActivateMap("arena", map)).toBeNull();
+    expect(validateActivateMap("arena", undefined)).toBe("Map not found");
+    expect(validateActivateMap("", map)).toBe("Map id is required");
+    expect(validateActivateMap("other", map)).toBe("Map not found");
+  });
+
+  it("applyActivateMap resets board and preserves campaign fields", () => {
+    const map = createBlankGameMap("arena", "Arena", 6, 6);
+    map.enemies = [{ id: "e1", x: 2, y: 2, name: "Stain Creep" }];
+    const state = createInitialStateFromMap(map);
+    state.players = [{
+      id: "p1",
+      x: 1,
+      y: 1,
+      characterSheetId: "s1",
+      class: "Test",
+      armor: "Test Armor",
+      weapon: "Test Weapon",
+      hp: 1,
+      maxHp: 1,
+    }];
+    state.round = 3;
+    state.roundPhase = "playerTurn";
+    state.partyResources = { hellsteel: 5, soulfire: 2, brimstone: 1 };
+    state.constructedBaseUpgrades = ["upgrade-a"];
+    state.sandboxMode = true;
+
+    const message = applyActivateMap(state, map);
+    expect(message).toBe('Activated map "Arena"');
+    expect(state.mapId).toBe("arena");
+    expect(state.width).toBe(6);
+    expect(state.players).toEqual([]);
+    expect(state.enemies).toHaveLength(1);
+    expect(state.roundPhase).toBe("deployment");
+    expect(state.partyResources).toEqual({ hellsteel: 5, soulfire: 2, brimstone: 1 });
+    expect(state.constructedBaseUpgrades).toEqual(["upgrade-a"]);
+    expect(state.sandboxMode).toBe(true);
+  });
+
+  it("persistMapTileFromState copies terrain and cosmetics but not effects", () => {
+    const map = createBlankGameMap("arena", "Arena", 3, 3);
+    map.tiles[0]!.tileEffects = { Stained: 1 };
+    const state = createInitialStateFromMap(map);
+    applyGmPaintTile(
+      state,
+      0,
+      0,
+      2,
+      "cover",
+      ["Fortified:1"],
+      "Rock",
+      "#112233",
+      "tile-appearances/x.png",
+    );
+    persistMapTileAt(state, map, 0, 0);
+    const saved = tileAt(map.tiles, 0, 0)!;
+    expect(saved.elevation).toBe(2);
+    expect(saved.terrain).toEqual(["cover"]);
+    expect(saved.name).toBe("Rock");
+    expect(saved.baseColor).toBe("#112233");
+    expect(saved.appearanceKey).toBe("tile-appearances/x.png");
+    expect(saved.tileEffects).toBeUndefined();
+    expect(tileAt(state.tiles, 0, 0)!.tileEffects).toEqual({ Fortified: 1 });
   });
 
   it("parseGameMap reads optional tile cosmetics and presets", () => {

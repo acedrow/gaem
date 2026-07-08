@@ -308,8 +308,7 @@ export type ClientMessage =
   | { type: "setTileTerrain"; x: number; y: number; terrain: TerrainType }
   | {
       type: "gmPaintTile";
-      x: number;
-      y: number;
+      coords: { x: number; y: number }[];
       elevation: number;
       terrain: TerrainType;
       tileEffects: string[];
@@ -322,4 +321,5 @@ export type ClientMessage =
   | { type: "setSandboxMode"; sandboxMode: boolean }
   | { type: "baseCampaignAction"; action: BaseCampaignAction }
   | { type: "spawnPlayerToken"; characterSheetId: string }
-  | { type: "removePlayerToken"; playerId: string };
+  | { type: "removePlayerToken"; playerId: string }
+  | { type: "activateMap"; mapId: string };

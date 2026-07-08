@@ -313,6 +313,19 @@ export function createBlankGameMap(
   return { id, name, width, height, tiles };
 }
 
+export function cloneMapTile(tile: MapTile): MapTile {
+  return {
+    x: tile.x,
+    y: tile.y,
+    elevation: tile.elevation,
+    terrain: [...tile.terrain],
+    ...(tile.walkable !== undefined ? { walkable: tile.walkable } : {}),
+    ...(tile.name ? { name: tile.name } : {}),
+    ...(tile.baseColor ? { baseColor: tile.baseColor } : {}),
+    ...(tile.appearanceKey ? { appearanceKey: tile.appearanceKey } : {}),
+  };
+}
+
 export function createInitialStateFromMap(map: GameMap): GameState {
   const enemies = (map.enemies ?? []).map((e) => {
     const enemy = {
@@ -329,7 +342,7 @@ export function createInitialStateFromMap(map: GameMap): GameState {
     mapName: map.name ?? map.id,
     width: map.width,
     height: map.height,
-    tiles: map.tiles,
+    tiles: map.tiles.map(cloneMapTile),
     players: [],
     enemies,
     round: 1,
@@ -341,4 +354,40 @@ export function createInitialStateFromMap(map: GameMap): GameState {
     partyResources: { hellsteel: 0, soulfire: 0, brimstone: 0 },
     constructedBaseUpgrades: [],
   };
+}
+
+export function validateActivateMap(mapId: string, map: GameMap | undefined): string | null {
+  if (!mapId.trim()) return "Map id is required";
+  if (!map) return "Map not found";
+  if (map.id !== mapId) return "Map not found";
+  return null;
+}
+
+export function persistMapTileFromState(map: GameMap, source: MapTile): void {
+  const mapTile = tileAt(map.tiles, source.x, source.y);
+  if (!mapTile) return;
+  mapTile.elevation = source.elevation;
+  mapTile.terrain = [...source.terrain];
+  delete mapTile.walkable;
+  if (source.name) mapTile.name = source.name;
+  else delete mapTile.name;
+  if (source.baseColor) mapTile.baseColor = source.baseColor;
+  else delete mapTile.baseColor;
+  if (source.appearanceKey) mapTile.appearanceKey = source.appearanceKey;
+  else delete mapTile.appearanceKey;
+  delete mapTile.tileEffects;
+}
+
+export function persistMapTileAt(state: GameState, map: GameMap, x: number, y: number): void {
+  const stateTile = tileAt(state.tiles, x, y);
+  if (!stateTile) return;
+  persistMapTileFromState(map, stateTile);
+}
+
+export function persistMapTilesAt(
+  state: GameState,
+  map: GameMap,
+  coords: { x: number; y: number }[],
+): void {
+  for (const { x, y } of coords) persistMapTileAt(state, map, x, y);
 }

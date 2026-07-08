@@ -271,7 +271,6 @@ watch(sheetsVersion, () => {
             @click="onSelectMap(map.id)"
           >
             <span class="sheet-name">{{ map.name }}</span>
-            <span class="sheet-meta">{{ map.id }} · {{ map.width }}×{{ map.height }}</span>
           </button>
           <p v-if="maps.length === 0" class="sublist-muted">No maps yet.</p>
           <p v-else-if="filteredMaps.length === 0" class="sublist-muted">No matches.</p>

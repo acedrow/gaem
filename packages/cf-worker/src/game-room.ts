@@ -5,6 +5,7 @@ import {
   applyGmForceMove,
   applyMove,
   applyPhaseAction,
+  applyActivateMap,
   applyBaseCampaignAction,
   applySetSandboxMode,
   canSetPlayerHp,
@@ -17,6 +18,8 @@ import {
   handleCombatMessage,
   logSyncPlayerLoadoutChanges,
   normalizeGameState,
+  persistMapTileAt,
+  persistMapTilesAt,
   playerLabel,
   removeEnemy,
   removePlayer,
@@ -29,13 +32,14 @@ import {
   validateMove,
   validatePhaseAction,
   validateBaseCampaignAction,
+  validateActivateMap,
   verifyAuthToken,
 } from "@gaem/shared";
 
 import type { Env } from "./env.js";
 import { appendConsole, loadConsoleEntries } from "./console-log.js";
 import { getCharacterSheet, listCharacterSheets, saveCharacterSheet } from "./character-sheets.js";
-import { getMap } from "./maps.js";
+import { getMap, putMap } from "./maps.js";
 import { getPlayerProfile, savePlayerProfile } from "./player-profiles.js";
 
 type Attachment = {
@@ -106,6 +110,11 @@ async function canSyncPlayerSheet(
 export class GameRoom {
   private gameState!: GameState;
   private readonly env: Env;
+  // Tile edits do an independent KV get+put; without serializing them, overlapping
+  // get-then-put cycles (e.g. rapid setTileTerrain calls) would clobber each
+  // other's writes. Chain them so each waits for the previous put to land before
+  // reading the map again.
+  private mapPersistChain: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly ctx: DurableObjectState,
@@ -175,6 +184,10 @@ export class GameRoom {
       return Response.json({
         constructedBaseUpgrades: this.gameState.constructedBaseUpgrades ?? [],
       });
+    }
+
+    if (url.pathname === "/internal/active-map-id") {
+      return Response.json({ mapId: this.gameState.mapId });
     }
 
     if (request.headers.get("Upgrade") !== "websocket") {
@@ -497,6 +510,29 @@ export class GameRoom {
       return;
     }
 
+    if (parsed.type === "activateMap") {
+      if (!this.attHasGmCapabilities(att)) {
+        this.sendError(ws, "Only the game master can do that");
+        return;
+      }
+      let map;
+      try {
+        map = await getMap(this.env, parsed.mapId);
+      } catch {
+        map = undefined;
+      }
+      const err = validateActivateMap(parsed.mapId, map);
+      if (err) {
+        this.sendError(ws, err);
+        return;
+      }
+      const message = applyActivateMap(this.gameState, map!);
+      const actor = await this.actorForSocket(ws);
+      await this.broadcastConsole(actor, message);
+      await this.broadcastState();
+      return;
+    }
+
     if (parsed.type === "setSandboxMode") {
       if (!this.attHasGmCapabilities(att)) {
         this.sendError(ws, "Only the game master can do that");
@@ -518,6 +554,12 @@ export class GameRoom {
       }
       if (parsed.type === "playerAction" && parsed.action.action === "weaponSwap") {
         await this.persistWeaponSwapToSheet(combatCtx.playerId);
+      }
+      if (parsed.type === "gmPaintTile") {
+        await this.persistActiveMapTiles(parsed.coords);
+      }
+      if (parsed.type === "setTileTerrain") {
+        await this.persistActiveMapTile(parsed.x, parsed.y);
       }
       const actor = await this.actorForSocket(ws);
       if (!combatResult.silent) {
@@ -680,6 +722,25 @@ export class GameRoom {
     if (syncCharacterSheetWeaponsFromPlayer(sheet, player)) {
       await saveCharacterSheet(this.env, sheet);
     }
+  }
+
+  private async persistActiveMapTile(x: number, y: number): Promise<void> {
+    return this.queueMapPersist((map) => persistMapTileAt(this.gameState, map, x, y));
+  }
+
+  private async persistActiveMapTiles(coords: { x: number; y: number }[]): Promise<void> {
+    return this.queueMapPersist((map) => persistMapTilesAt(this.gameState, map, coords));
+  }
+
+  private async queueMapPersist(mutate: (map: Awaited<ReturnType<typeof getMap>>) => void): Promise<void> {
+    const mapId = this.gameState.mapId;
+    const task = this.mapPersistChain.then(async () => {
+      const map = await getMap(this.env, mapId);
+      mutate(map);
+      await putMap(this.env, map);
+    });
+    this.mapPersistChain = task.catch(() => {});
+    await task;
   }
 
   private sendConsoleEntry(entry: ConsoleLogEntry): void {

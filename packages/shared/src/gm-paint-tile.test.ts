@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { applyGmPaintTile, validateGmPaintTile } from "./combat/messages.js";
+import { applyGmPaintTile, handleCombatMessage, validateGmPaintTile } from "./combat/messages.js";
 import { tileAt } from "./map.js";
 import { makeGameState, makeTiles } from "./test/fixtures.js";
 
@@ -77,5 +77,69 @@ describe("gmPaintTile", () => {
     expect(validateGmPaintTile(state, 0, 0, 0, "standard", [], "", "not-a-color", null)).toBe(
       "baseColor must be a #RGB or #RRGGBB hex color",
     );
+  });
+
+  it("paints every coordinate in a batched gmPaintTile message", () => {
+    const state = makeGameState({ width: 4, height: 4, tiles: makeTiles(4, 4) });
+    const result = handleCombatMessage(
+      state,
+      {
+        type: "gmPaintTile",
+        coords: [{ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 2 }],
+        elevation: 2,
+        terrain: "cover",
+        tileEffects: ["Stained:1"],
+        tileName: "",
+        baseColor: null,
+        appearanceKey: null,
+      },
+      { role: "gm", playerId: null },
+    );
+    expect(result).toEqual({ handled: true, message: "Painted 3 tiles" });
+    for (const { x, y } of [{ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 2 }]) {
+      const tile = tileAt(state.tiles, x, y)!;
+      expect(tile.elevation).toBe(2);
+      expect(tile.terrain).toEqual(["cover"]);
+      expect(tile.tileEffects).toEqual({ Stained: 1 });
+    }
+  });
+
+  it("applies none of a batch if any coordinate fails validation", () => {
+    const state = makeGameState({ width: 4, height: 4, tiles: makeTiles(4, 4) });
+    const result = handleCombatMessage(
+      state,
+      {
+        type: "gmPaintTile",
+        coords: [{ x: 0, y: 0 }, { x: 9, y: 9 }],
+        elevation: 1,
+        terrain: "cover",
+        tileEffects: [],
+        tileName: "",
+        baseColor: null,
+        appearanceKey: null,
+      },
+      { role: "gm", playerId: null },
+    );
+    expect(result).toEqual({ handled: true, error: "Out of bounds" });
+    expect(tileAt(state.tiles, 0, 0)!.terrain).toEqual(["standard"]);
+  });
+
+  it("rejects an empty coords list", () => {
+    const state = makeGameState({ width: 4, height: 4, tiles: makeTiles(4, 4) });
+    const result = handleCombatMessage(
+      state,
+      {
+        type: "gmPaintTile",
+        coords: [],
+        elevation: 0,
+        terrain: "standard",
+        tileEffects: [],
+        tileName: "",
+        baseColor: null,
+        appearanceKey: null,
+      },
+      { role: "gm", playerId: null },
+    );
+    expect(result).toEqual({ handled: true, error: "No tiles selected" });
   });
 });

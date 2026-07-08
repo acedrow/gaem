@@ -154,6 +154,15 @@ export function useApi() {
     return data.map;
   }
 
+  async function deleteMap(id: string): Promise<void> {
+    const res = await apiFetch(`/api/maps/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+    if (res.ok) return;
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? "Failed to delete map");
+  }
+
   return {
     apiBase,
     apiFetch,
@@ -170,5 +179,6 @@ export function useApi() {
     fetchMaps,
     fetchMap,
     createMap,
+    deleteMap,
   };
 }

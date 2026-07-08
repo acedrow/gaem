@@ -1605,32 +1605,39 @@ export function handleCombatMessage(
     }
     case "gmPaintTile": {
       if (!hasGmCapabilities(ctx)) return { handled: true, error: "Only GM can do that" };
-      const err = validateGmPaintTile(
-        state,
-        parsed.x,
-        parsed.y,
-        parsed.elevation,
-        parsed.terrain,
-        parsed.tileEffects,
-        parsed.tileName,
-        parsed.baseColor,
-        parsed.appearanceKey,
-      );
-      if (err) return { handled: true, error: err };
-      return {
-        handled: true,
-        message: applyGmPaintTile(
+      if (parsed.coords.length === 0) return { handled: true, error: "No tiles selected" };
+      for (const { x, y } of parsed.coords) {
+        const err = validateGmPaintTile(
           state,
-          parsed.x,
-          parsed.y,
+          x,
+          y,
           parsed.elevation,
           parsed.terrain,
           parsed.tileEffects,
           parsed.tileName,
           parsed.baseColor,
           parsed.appearanceKey,
-        ),
-      };
+        );
+        if (err) return { handled: true, error: err };
+      }
+      for (const { x, y } of parsed.coords) {
+        applyGmPaintTile(
+          state,
+          x,
+          y,
+          parsed.elevation,
+          parsed.terrain,
+          parsed.tileEffects,
+          parsed.tileName,
+          parsed.baseColor,
+          parsed.appearanceKey,
+        );
+      }
+      const message =
+        parsed.coords.length === 1
+          ? `Painted (${parsed.coords[0]!.x}, ${parsed.coords[0]!.y})`
+          : `Painted ${parsed.coords.length} tiles`;
+      return { handled: true, message };
     }
     case "removeAttractor": {
       const err = validateRemoveAttractor(state, parsed.x, parsed.y, ctx);

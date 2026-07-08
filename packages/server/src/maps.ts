@@ -94,6 +94,32 @@ export function createMapHandler(auth: AuthContext, req: Request, res: Response)
   res.status(201).json({ map: toMapSummary(map) });
 }
 
+export function deleteMapHandler(
+  auth: AuthContext,
+  mapId: string,
+  activeMapId: string,
+  res: Response,
+): void {
+  if (!authHasGmCapabilities(auth)) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  if (!savedMaps.has(mapId)) {
+    res.status(404).json({ error: "Map not found" });
+    return;
+  }
+  if (mapId === activeMapId) {
+    res.status(400).json({ error: "Cannot delete the active map" });
+    return;
+  }
+  if (savedMaps.size <= 1) {
+    res.status(400).json({ error: "Cannot delete the last map" });
+    return;
+  }
+  savedMaps.delete(mapId);
+  res.status(204).end();
+}
+
 export function mapsDirPath(): string {
   return join(fileURLToPath(new URL(".", import.meta.url)), "../../maps");
 }

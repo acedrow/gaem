@@ -261,23 +261,20 @@ export function useGmTools() {
         ? [`${paintbrushEffectId.value}:${paintbrushEffectStacks.value}`]
         : [];
     const sel = bulkSelection.value;
-    const targets =
+    const coords =
       sel?.kind === "tiles" && sel.coords.some((c) => c.x === x && c.y === y)
         ? sel.coords
         : [{ x, y }];
-    for (const target of targets) {
-      send({
-        type: "gmPaintTile",
-        x: target.x,
-        y: target.y,
-        elevation: paintbrushElevation.value,
-        terrain: paintbrushTerrain.value,
-        tileEffects,
-        tileName: paintbrushTileName.value,
-        baseColor: paintbrushBaseColor.value,
-        appearanceKey: paintbrushAppearanceKey.value,
-      });
-    }
+    send({
+      type: "gmPaintTile",
+      coords,
+      elevation: paintbrushElevation.value,
+      terrain: paintbrushTerrain.value,
+      tileEffects,
+      tileName: paintbrushTileName.value,
+      baseColor: paintbrushBaseColor.value,
+      appearanceKey: paintbrushAppearanceKey.value,
+    });
   }
 
   return {

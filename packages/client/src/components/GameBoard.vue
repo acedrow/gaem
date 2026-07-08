@@ -316,7 +316,7 @@ const hasGameState = computed(() => !!gameState.value);
 const boardWidth = computed(() => gameState.value?.width ?? 1);
 const boardHeight = computed(() => gameState.value?.height ?? 1);
 const boardKey = computed(() =>
-  gameState.value ? `${gameState.value.width}x${gameState.value.height}` : null,
+  gameState.value ? `${gameState.value.mapId}:${gameState.value.width}x${gameState.value.height}` : null,
 );
 const contentHeightPx = computed(() =>
   boardWidthPx.value * (boardHeight.value / boardWidth.value),
@@ -516,7 +516,7 @@ const cellsCacheKey = ref<string | null>(null);
 const cells = computed(() => {
   const s = gameState.value;
   if (!s) return [] as { x: number; y: number; key: string }[];
-  const key = `${s.width}x${s.height}`;
+  const key = `${s.mapId}:${s.width}x${s.height}`;
   if (cellsCacheKey.value === key && cellsCache.value.length > 0) {
     return cellsCache.value;
   }

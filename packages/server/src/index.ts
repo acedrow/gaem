@@ -17,6 +17,7 @@ import {
   applyGmForceMove,
   applyMove,
   applyPhaseAction,
+  applyActivateMap,
   applyBaseCampaignAction,
   applySetSandboxMode,
   canSetPlayerHp,
@@ -31,7 +32,6 @@ import {
   handleCombatMessage,
   logSyncPlayerLoadoutChanges,
   normalizeGameState,
-  parseGameMap,
   playerLabel,
   removeEnemy,
   removePlayer,
@@ -44,6 +44,9 @@ import {
   validateMove,
   validatePhaseAction,
   validateBaseCampaignAction,
+  persistMapTileAt,
+  persistMapTilesAt,
+  validateActivateMap,
   verifyAuthToken,
 } from "@gaem/shared";
 import express from "express";
@@ -78,6 +81,7 @@ import {
 } from "./tile-presets.js";
 import {
   createMapHandler,
+  deleteMapHandler,
   getMapHandler,
   listMapsHandler,
   mapsDirPath,
@@ -367,7 +371,12 @@ const httpServer = createServer(app);
 const wss = new WebSocketServer({ noServer: true });
 
 let gameState: GameState;
-let loadedMap: ReturnType<typeof parseGameMap>;
+
+app.delete("/api/maps/:mapId", (req, res) => {
+  const auth = parseAuth(req, res);
+  if (!auth) return;
+  deleteMapHandler(auth, req.params.mapId, gameState.mapId, res);
+});
 
 app.get("/api/maps/:mapId/tile-presets", (req, res) => {
   const auth = parseAuth(req, res);
@@ -376,7 +385,7 @@ app.get("/api/maps/:mapId/tile-presets", (req, res) => {
     res.status(404).json({ error: "Map not found" });
     return;
   }
-  listTilePresetsHandler(auth, gameState.mapId, loadedMap.tilePresets, res);
+  listTilePresetsHandler(auth, gameState.mapId, savedMaps.get(gameState.mapId)?.tilePresets, res);
 });
 
 app.put("/api/maps/:mapId/tile-presets/:name", (req, res) => {
@@ -814,6 +823,24 @@ wss.on("connection", (ws: WebSocket) => {
       return;
     }
 
+    if (parsed.type === "activateMap") {
+      if (!socketHasGmCapabilities(ws)) {
+        sendError(ws, "Only the game master can do that");
+        return;
+      }
+      const map = savedMaps.get(parsed.mapId);
+      const err = validateActivateMap(parsed.mapId, map);
+      if (err) {
+        sendError(ws, err);
+        return;
+      }
+      const message = applyActivateMap(gameState, map!);
+      seedTilePresetsFromMap(map!.id, map!.tilePresets);
+      broadcastConsole(actorForSocket(ws), message);
+      broadcastState();
+      return;
+    }
+
     if (parsed.type === "setSandboxMode") {
       if (!socketHasGmCapabilities(ws)) {
         sendError(ws, "Only the game master can do that");
@@ -835,6 +862,14 @@ wss.on("connection", (ws: WebSocket) => {
       }
       if (parsed.type === "playerAction" && parsed.action.action === "weaponSwap") {
         persistWeaponSwapToSheet(combatCtx.playerId);
+      }
+      if (parsed.type === "gmPaintTile") {
+        const map = savedMaps.get(gameState.mapId);
+        if (map) persistMapTilesAt(gameState, map, parsed.coords);
+      }
+      if (parsed.type === "setTileTerrain") {
+        const map = savedMaps.get(gameState.mapId);
+        if (map) persistMapTileAt(gameState, map, parsed.x, parsed.y);
       }
       if (!combatResult.silent) {
         broadcastConsole(actorForSocket(ws), combatResult.message);
@@ -928,7 +963,6 @@ async function loadMap(): Promise<void> {
   if (!map) {
     throw new Error(`Map not found: ${DEFAULT_MAP_ID}`);
   }
-  loadedMap = map;
   seedTilePresetsFromMap(map.id, map.tilePresets);
   gameState = normalizeGameState(createInitialStateFromMap(map), map);
 }

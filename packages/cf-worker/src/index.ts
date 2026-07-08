@@ -33,6 +33,7 @@ import {
 } from "./tile-presets.js";
 import {
   handleCreateMap,
+  handleDeleteMap,
   handleGetMap,
   handleListMaps,
 } from "./maps-api.js";
@@ -218,6 +219,16 @@ export default {
       const auth = await verifyAuth(request, env);
       if (auth instanceof Response) return auth;
       return handleGetMap(env, auth, mapIdMatch[1]);
+    }
+
+    if (mapIdMatch && request.method === "DELETE") {
+      const auth = await verifyAuth(request, env);
+      if (auth instanceof Response) return auth;
+      const roomId = env.GAME_ROOM.idFromName("default");
+      const stub = env.GAME_ROOM.get(roomId);
+      const activeRes = await stub.fetch("http://internal/internal/active-map-id");
+      const activeData = (await activeRes.json()) as { mapId: string };
+      return handleDeleteMap(env, auth, mapIdMatch[1], activeData.mapId);
     }
 
     const tilePresetsMatch = url.pathname.match(TILE_PRESETS_RE);

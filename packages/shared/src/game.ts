@@ -8,7 +8,7 @@ import { initializeUnitElevation, syncUnitElevationOnTile } from "./combat/eleva
 import { resetEnemyExhaustion, resetGmTurnActions } from "./combat/enemy.js";
 import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles, ensureEnemyMovement, refreshEnemyMovement, spendEnemyMovement } from "./enemy-data.js";
 import { applyLoadoutToPlayer, getClassMaxHp, getArmorSpeed } from "./player-data.js";
-import { coordKey, isFootprintInBounds, isInBounds, isWalkable, tileAt } from "./map.js";
+import { coordKey, createInitialStateFromMap, isFootprintInBounds, isInBounds, isWalkable, tileAt } from "./map.js";
 import { isOrthogonallyAdjacent } from "./patterns.js";
 import {
   getYadathanTowerDef,
@@ -1328,4 +1328,36 @@ export function normalizeGameState(state: GameState, map?: GameMap): GameState {
   normalizeEnemies(state.enemies);
   reconcileSwarmHp(state);
   return state;
+}
+
+export function applyActivateMap(state: GameState, map: GameMap): string {
+  const partyResources = state.partyResources;
+  const constructedBaseUpgrades = state.constructedBaseUpgrades;
+  const sandboxMode = state.sandboxMode;
+
+  const fresh = createInitialStateFromMap(map);
+  state.mapId = fresh.mapId;
+  state.mapName = fresh.mapName;
+  state.width = fresh.width;
+  state.height = fresh.height;
+  state.tiles = fresh.tiles;
+  state.players = fresh.players;
+  state.enemies = fresh.enemies;
+  state.round = fresh.round;
+  state.roundPhase = fresh.roundPhase;
+  state.turn = fresh.turn;
+  state.actedPlayerIds = fresh.actedPlayerIds;
+  state.turnLog = fresh.turnLog;
+  delete state.combat;
+  delete state.damageEvents;
+  delete state.silentHpEnemyIds;
+  delete state.terrainObjects;
+
+  if (partyResources) state.partyResources = partyResources;
+  if (constructedBaseUpgrades) state.constructedBaseUpgrades = constructedBaseUpgrades;
+  if (sandboxMode !== undefined) state.sandboxMode = sandboxMode;
+
+  normalizeGameState(state, map);
+  const label = map.name ?? map.id;
+  return `Activated map "${label}"`;
 }
