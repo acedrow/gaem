@@ -2,6 +2,10 @@ import type { EnemyListing, GameMap, GameMapSummary, PlayerProfile, TilePaintPre
 import { getEnemyListingByName, getEnemyPortraitUrl } from "@gaem/shared";
 import { computed } from "vue";
 
+import {
+  bundledTileAppearanceUrl,
+  isBundledTileAppearanceKey,
+} from "../lib/bundledTileAppearances.js";
 import { useSession } from "./useSession.js";
 
 type PlayerProfileOption = PlayerProfile & { isActive?: boolean };
@@ -70,6 +74,9 @@ export function useApi() {
   }
 
   async function fetchTileAppearanceUrl(key: string): Promise<string | null> {
+    if (isBundledTileAppearanceKey(key)) {
+      return bundledTileAppearanceUrl(key);
+    }
     const res = await apiFetch(tileAppearanceApiPath(key));
     if (!res.ok) return null;
     const blob = await res.blob();

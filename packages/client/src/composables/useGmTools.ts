@@ -1,6 +1,11 @@
 import { coordKey, type TerrainType, type TilePaintPreset } from "@gaem/shared";
 import { computed, ref, watch } from "vue";
 
+import {
+  BUNDLED_TILE_APPEARANCES,
+  bundledTileAppearanceUrl,
+  isBundledTileAppearanceKey,
+} from "../lib/bundledTileAppearances.js";
 import { useApi } from "./useApi.js";
 import { useBoardActionMode } from "./useBoardActionMode.js";
 import { useEnemySpawnSelection } from "./useEnemySpawnSelection.js";
@@ -147,10 +152,20 @@ export function useGmTools() {
   }
 
   function clearPaintbrushAppearancePreview() {
-    if (paintbrushAppearancePreviewUrl.value) {
-      URL.revokeObjectURL(paintbrushAppearancePreviewUrl.value);
-      paintbrushAppearancePreviewUrl.value = null;
+    const url = paintbrushAppearancePreviewUrl.value;
+    if (url?.startsWith("blob:")) URL.revokeObjectURL(url);
+    paintbrushAppearancePreviewUrl.value = null;
+  }
+
+  function setPaintbrushAppearancePreview(key: string) {
+    clearPaintbrushAppearancePreview();
+    if (isBundledTileAppearanceKey(key)) {
+      paintbrushAppearancePreviewUrl.value = bundledTileAppearanceUrl(key);
+      return;
     }
+    void fetchTileAppearanceUrl(key).then((url) => {
+      if (url) paintbrushAppearancePreviewUrl.value = url;
+    });
   }
 
   function resetPaintbrushSettings() {
@@ -186,12 +201,13 @@ export function useGmTools() {
     paintbrushTileName.value = preset.tileName;
     paintbrushBaseColor.value = preset.baseColor ?? null;
     paintbrushAppearanceKey.value = preset.appearanceKey ?? null;
-    clearPaintbrushAppearancePreview();
-    if (preset.appearanceKey) {
-      void fetchTileAppearanceUrl(preset.appearanceKey).then((url) => {
-        if (url) paintbrushAppearancePreviewUrl.value = url;
-      });
-    }
+    if (preset.appearanceKey) setPaintbrushAppearancePreview(preset.appearanceKey);
+    else clearPaintbrushAppearancePreview();
+  }
+
+  function selectBundledPaintbrushAppearance(key: string) {
+    paintbrushAppearanceKey.value = key;
+    setPaintbrushAppearancePreview(key);
   }
 
   function loadSelectedPreset() {
@@ -313,6 +329,8 @@ export function useGmTools() {
     deleteSelectedPreset,
     uploadPaintbrushAppearance,
     clearPaintbrushAppearance,
+    selectBundledPaintbrushAppearance,
+    bundledTileAppearances: BUNDLED_TILE_APPEARANCES,
     refreshPaintbrushPresets,
   };
 }

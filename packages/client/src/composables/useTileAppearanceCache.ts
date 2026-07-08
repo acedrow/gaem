@@ -36,7 +36,7 @@ export function useTileAppearanceCache(gameState: Ref<GameState | null>) {
     }
 
     for (const [key, url] of Object.entries(urls.value)) {
-      if (!needed.has(key)) URL.revokeObjectURL(url);
+      if (!needed.has(key) && url.startsWith("blob:")) URL.revokeObjectURL(url);
     }
     urls.value = next;
   }
@@ -44,7 +44,9 @@ export function useTileAppearanceCache(gameState: Ref<GameState | null>) {
   watch(appearanceKeys, () => void refresh(), { immediate: true });
 
   onUnmounted(() => {
-    for (const url of Object.values(urls.value)) URL.revokeObjectURL(url);
+    for (const url of Object.values(urls.value)) {
+      if (url.startsWith("blob:")) URL.revokeObjectURL(url);
+    }
   });
 
   function tileAppearanceUrlFor(key: string | undefined): string | null {

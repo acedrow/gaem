@@ -28,6 +28,9 @@ const {
   deleteSelectedPreset,
   uploadPaintbrushAppearance,
   clearPaintbrushAppearance,
+  selectBundledPaintbrushAppearance,
+  bundledTileAppearances,
+  paintbrushAppearanceKey,
 } = useGmTools();
 
 const colorModalOpen = ref(false);
@@ -91,10 +94,26 @@ function onAppearanceSelected(e: Event) {
         v-if="paintbrushAppearancePreviewUrl"
         :src="paintbrushAppearancePreviewUrl"
         alt=""
-        class="appearance-thumb"
+        class="appearance-thumb tile-image"
       />
+      <details v-if="bundledTileAppearances.length" class="appearance-gallery">
+        <summary class="gallery-toggle">Gallery</summary>
+        <div class="gallery-menu">
+          <button
+            v-for="item in bundledTileAppearances"
+            :key="item.key"
+            type="button"
+            class="gallery-item"
+            :class="{ selected: paintbrushAppearanceKey === item.key }"
+            @click="selectBundledPaintbrushAppearance(item.key)"
+          >
+            <img :src="item.url" alt="" class="gallery-thumb tile-image" />
+            <span class="gallery-name">{{ item.name }}</span>
+          </button>
+        </div>
+      </details>
       <label class="upload-btn" :class="{ uploading: paintbrushAppearanceUploading }">
-        {{ paintbrushAppearanceUploading ? "Uploading…" : "PNG" }}
+        {{ paintbrushAppearanceUploading ? "Uploading…" : "Upload" }}
         <input
           ref="appearanceInput"
           type="file"
@@ -225,6 +244,82 @@ function onAppearanceSelected(e: Event) {
   object-fit: cover;
   border-radius: 4px;
   border: 1px solid var(--color-border);
+}
+
+.appearance-gallery {
+  position: relative;
+}
+
+.gallery-toggle {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 0.2rem 0.45rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.gallery-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.gallery-menu {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 9rem;
+  max-height: 12rem;
+  overflow-y: auto;
+  padding: 0.35rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+}
+
+.gallery-item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 0.78rem;
+  font-family: inherit;
+  padding: 0.25rem 0.35rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.gallery-item:hover,
+.gallery-item.selected {
+  background: var(--color-surface-raised);
+  border-color: var(--color-border);
+}
+
+.gallery-thumb {
+  width: 1.4rem;
+  height: 1.4rem;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.gallery-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .upload-btn {

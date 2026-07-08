@@ -642,3 +642,7 @@ h3,
   color: var(--color-danger);
   font-size: 0.9rem;
 }
+
+.tile-image {
+  image-rendering: crisp-edges;
+}

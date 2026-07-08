@@ -292,20 +292,20 @@ const terrainImageUrl = computed(() => {
     <span v-if="cell.hasSeed" class="seed-marker" title="Seed" />
     <span
       v-if="cell.tileAppearanceUrl"
-      class="board-overlay tile-appearance-image"
+      class="board-overlay tile-appearance-image tile-image"
       :style="{ backgroundImage: `url(${cell.tileAppearanceUrl})` }"
       aria-hidden="true"
     />
     <span
       v-if="terrainImageUrl"
-      class="board-overlay terrain-tile-image"
+      class="board-overlay terrain-tile-image tile-image"
       :style="{ backgroundImage: `url(${terrainImageUrl})` }"
       aria-hidden="true"
     />
     <span
       v-for="overlay in tileEffectImageOverlays"
       :key="overlay.id"
-      class="board-overlay tile-effect-image"
+      class="board-overlay tile-effect-image tile-image"
       :style="{ backgroundImage: `url(${overlay.url})` }"
       :title="overlay.title"
     />

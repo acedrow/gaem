@@ -18,7 +18,7 @@ withDefaults(
 <template>
   <span
     v-if="terrainType === 'void' && TERRAIN_TILE_IMAGE_URLS.void"
-    class="terrain-preview terrain-preview--void"
+    class="terrain-preview terrain-preview--void tile-image"
     :style="{
       width: `${size}px`,
       height: `${size}px`,
