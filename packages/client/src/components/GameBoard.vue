@@ -138,6 +138,7 @@ import { useEnemySpawnSelection } from "../composables/useEnemySpawnSelection.js
 import { clearActiveTool, useGmTools } from "../composables/useGmTools.js";
 import { showToast } from "../composables/useToasts.js";
 import { usePortraitCache } from "../composables/usePortraitCache.js";
+import { useTileAppearanceCache } from "../composables/useTileAppearanceCache.js";
 import { useApi } from "../composables/useApi.js";
 import { useEnemyPortraitColors } from "../composables/useEnemyPortraitColors.js";
 import { useGameState } from "../composables/useGameState.js";
@@ -192,6 +193,7 @@ const { indicators: damageIndicators } = useDamageIndicators(gameState);
 const { sheets, loadSheets } = useCharacterSheets();
 const boardPlayers = computed(() => gameState.value?.players);
 const { portraitUrlFor } = usePortraitCache(sheets, boardPlayers);
+const { tileAppearanceUrlFor } = useTileAppearanceCache(gameState);
 const { enemyPortraitUrlForName } = useApi();
 const { portraitBackgroundFor } = useEnemyPortraitColors();
 const { dataCategory } = useInfoDataSelection();
@@ -2061,6 +2063,7 @@ const cellStateByKey = computed(() => {
           : null,
       tileEffects: tile?.tileEffects,
       outOfLineOfSight: outOfLineOfSightKeys.value.has(ck),
+      tileAppearanceUrl: tile?.appearanceKey ? tileAppearanceUrlFor(tile.appearanceKey) : null,
     });
   }
   return map;
@@ -4432,6 +4435,7 @@ onUnmounted(() => {
         <div v-if="tooltipData" class="board-tooltip popover-tooltip" :style="tooltipStyle ?? undefined">
           <div class="tooltip-section">
             <span class="tooltip-row">({{ tooltipData.x }}, {{ tooltipData.y }})</span>
+            <span v-if="tooltipData.tile.name" class="tooltip-row">{{ tooltipData.tile.name }}</span>
             <span class="tooltip-row">Terrain: {{ terrainTooltipLabel(tooltipData.tile.terrain) }}</span>
             <span class="tooltip-row">Elevation: {{ tooltipData.tile.elevation }}</span>
             <span v-if="tooltipData.moveCost != null" class="tooltip-row">

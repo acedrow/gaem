@@ -37,6 +37,19 @@ export type MapTile = {
   elevation: number;
   walkable?: boolean;
   tileEffects?: EffectStacks;
+  name?: string;
+  baseColor?: string;
+  appearanceKey?: string;
+};
+
+export type TilePaintPreset = {
+  elevation: number;
+  terrain: TerrainType;
+  tileEffectId: string;
+  tileEffectStacks: number;
+  tileName: string;
+  baseColor?: string;
+  appearanceKey?: string;
 };
 
 export type Enemy = {
@@ -73,6 +86,7 @@ export type GameMap = {
   height: number;
   tiles: MapTile[];
   enemies?: Enemy[];
+  tilePresets?: Record<string, TilePaintPreset>;
 };
 
 export type Player = {
@@ -292,6 +306,9 @@ export type ClientMessage =
       elevation: number;
       terrain: TerrainType;
       tileEffects: string[];
+      tileName: string;
+      baseColor: string | null;
+      appearanceKey: string | null;
     }
   | { type: "removeAttractor"; x: number; y: number }
   | { type: "phaseAction"; action: PhaseAction }

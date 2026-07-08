@@ -6,6 +6,7 @@ import {
   isFootprintInBounds,
   isInBounds,
   isWalkable,
+  parseGameMap,
   tileAt,
 } from "./map.js";
 import type { GameMap, MapTile } from "./types.js";
@@ -70,5 +71,38 @@ describe("map", () => {
     expect(state.enemies).toHaveLength(1);
     expect(state.enemies[0]!.hp).toBe(1);
     expect(state.enemies[0]!.movementRemaining).toBeDefined();
+  });
+
+  it("parseGameMap reads optional tile cosmetics and presets", () => {
+    const tiles = makeTiles(2, 2).map((tile, i) =>
+      i === 0
+        ? {
+            ...tile,
+            name: "Start",
+            baseColor: "#abc",
+            appearanceKey: "tile-appearances/test.png",
+          }
+        : tile,
+    );
+    const map = parseGameMap({
+      id: "test",
+      width: 2,
+      height: 2,
+      tiles,
+      tilePresets: {
+        Forest: {
+          elevation: 1,
+          terrain: "cover",
+          tileEffectId: "Stained",
+          tileEffectStacks: 2,
+          tileName: "Forest",
+          baseColor: "#112233",
+        },
+      },
+    });
+    expect(map.tiles[0]!.name).toBe("Start");
+    expect(map.tiles[0]!.baseColor).toBe("#abc");
+    expect(map.tiles[0]!.appearanceKey).toBe("tile-appearances/test.png");
+    expect(map.tilePresets?.Forest?.terrain).toBe("cover");
   });
 });

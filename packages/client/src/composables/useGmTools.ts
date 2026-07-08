@@ -1,6 +1,7 @@
-import { coordKey, type TerrainType } from "@gaem/shared";
-import { computed, ref } from "vue";
+import { coordKey, type TerrainType, type TilePaintPreset } from "@gaem/shared";
+import { computed, ref, watch } from "vue";
 
+import { useApi } from "./useApi.js";
 import { useBoardActionMode } from "./useBoardActionMode.js";
 import { useEnemySpawnSelection } from "./useEnemySpawnSelection.js";
 import { useGameState } from "./useGameState.js";
@@ -26,6 +27,14 @@ const paintbrushElevation = ref(0);
 const paintbrushTerrain = ref<TerrainType>("standard");
 const paintbrushEffectId = ref(GM_TILE_EFFECT_NONE);
 const paintbrushEffectStacks = ref(1);
+const paintbrushTileName = ref("");
+const paintbrushBaseColor = ref<string | null>(null);
+const paintbrushAppearanceKey = ref<string | null>(null);
+const paintbrushAppearancePreviewUrl = ref<string | null>(null);
+const paintbrushPresets = ref<Record<string, TilePaintPreset>>({});
+const paintbrushPresetLoadId = ref("");
+const paintbrushPresetError = ref("");
+const paintbrushAppearanceUploading = ref(false);
 
 export function clearActiveTool() {
   activeTool.value = null;
@@ -35,13 +44,37 @@ export function clearActiveTool() {
 export function useGmTools() {
   const { clearMode } = useBoardActionMode();
   const { clearSpawnEnemySelection } = useEnemySpawnSelection();
-  const { send } = useGameState();
+  const { send, gameState } = useGameState();
+  const {
+    fetchTilePresets,
+    saveTilePreset,
+    deleteTilePreset,
+    uploadTileAppearance,
+    fetchTileAppearanceUrl,
+  } = useApi();
 
   const bulkSelectionCount = computed(() => {
     const sel = bulkSelection.value;
     if (!sel) return 0;
     if (sel.kind === "tiles") return sel.coords.length;
     return sel.ids.length;
+  });
+
+  const paintbrushPresetNames = computed(() =>
+    Object.keys(paintbrushPresets.value).sort((a, b) => a.localeCompare(b)),
+  );
+
+  async function refreshPaintbrushPresets() {
+    const mapId = gameState.value?.mapId;
+    if (!mapId) {
+      paintbrushPresets.value = {};
+      return;
+    }
+    paintbrushPresets.value = await fetchTilePresets(mapId);
+  }
+
+  watch(activeTool, (tool) => {
+    if (tool === "paintbrush") void refreshPaintbrushPresets();
   });
 
   function setActiveTool(tool: GmTool) {
@@ -115,11 +148,113 @@ export function useGmTools() {
     }
   }
 
+  function clearPaintbrushAppearancePreview() {
+    if (paintbrushAppearancePreviewUrl.value) {
+      URL.revokeObjectURL(paintbrushAppearancePreviewUrl.value);
+      paintbrushAppearancePreviewUrl.value = null;
+    }
+  }
+
   function resetPaintbrushSettings() {
     paintbrushElevation.value = 0;
     paintbrushTerrain.value = "standard";
     paintbrushEffectId.value = GM_TILE_EFFECT_NONE;
     paintbrushEffectStacks.value = 1;
+    paintbrushTileName.value = "";
+    paintbrushBaseColor.value = null;
+    paintbrushAppearanceKey.value = null;
+    clearPaintbrushAppearancePreview();
+    paintbrushPresetLoadId.value = "";
+    paintbrushPresetError.value = "";
+  }
+
+  function buildPresetFromBrush(): TilePaintPreset {
+    return {
+      elevation: paintbrushElevation.value,
+      terrain: paintbrushTerrain.value,
+      tileEffectId: paintbrushEffectId.value,
+      tileEffectStacks: paintbrushEffectStacks.value,
+      tileName: paintbrushTileName.value.trim(),
+      ...(paintbrushBaseColor.value ? { baseColor: paintbrushBaseColor.value } : {}),
+      ...(paintbrushAppearanceKey.value ? { appearanceKey: paintbrushAppearanceKey.value } : {}),
+    };
+  }
+
+  function applyPresetToBrush(preset: TilePaintPreset) {
+    paintbrushElevation.value = preset.elevation;
+    paintbrushTerrain.value = preset.terrain;
+    paintbrushEffectId.value = preset.tileEffectId;
+    paintbrushEffectStacks.value = preset.tileEffectStacks;
+    paintbrushTileName.value = preset.tileName;
+    paintbrushBaseColor.value = preset.baseColor ?? null;
+    paintbrushAppearanceKey.value = preset.appearanceKey ?? null;
+    clearPaintbrushAppearancePreview();
+    if (preset.appearanceKey) {
+      void fetchTileAppearanceUrl(preset.appearanceKey).then((url) => {
+        if (url) paintbrushAppearancePreviewUrl.value = url;
+      });
+    }
+  }
+
+  function loadSelectedPreset() {
+    const name = paintbrushPresetLoadId.value;
+    if (!name) return;
+    const preset = paintbrushPresets.value[name];
+    if (preset) applyPresetToBrush(preset);
+  }
+
+  async function saveCurrentPreset() {
+    paintbrushPresetError.value = "";
+    const name = paintbrushTileName.value.trim();
+    if (!name) {
+      paintbrushPresetError.value = "Enter a tile name to save a preset";
+      return;
+    }
+    const mapId = gameState.value?.mapId;
+    if (!mapId) return;
+    const result = await saveTilePreset(mapId, name, buildPresetFromBrush());
+    if (!result.ok) {
+      paintbrushPresetError.value = result.error;
+      return;
+    }
+    paintbrushPresets.value = result.presets;
+    paintbrushPresetLoadId.value = name;
+  }
+
+  async function deleteSelectedPreset() {
+    paintbrushPresetError.value = "";
+    const name = paintbrushPresetLoadId.value;
+    if (!name) return;
+    const mapId = gameState.value?.mapId;
+    if (!mapId) return;
+    paintbrushPresets.value = await deleteTilePreset(mapId, name);
+    paintbrushPresetLoadId.value = "";
+  }
+
+  async function uploadPaintbrushAppearance(file: File) {
+    if (file.type !== "image/png") {
+      paintbrushPresetError.value = "Appearance must be a PNG file";
+      return;
+    }
+    paintbrushAppearanceUploading.value = true;
+    paintbrushPresetError.value = "";
+    try {
+      const key = await uploadTileAppearance(file);
+      if (!key) {
+        paintbrushPresetError.value = "Failed to upload appearance";
+        return;
+      }
+      paintbrushAppearanceKey.value = key;
+      clearPaintbrushAppearancePreview();
+      paintbrushAppearancePreviewUrl.value = URL.createObjectURL(file);
+    } finally {
+      paintbrushAppearanceUploading.value = false;
+    }
+  }
+
+  function clearPaintbrushAppearance() {
+    paintbrushAppearanceKey.value = null;
+    clearPaintbrushAppearancePreview();
   }
 
   function applyPaintbrushToTile(x: number, y: number) {
@@ -134,6 +269,9 @@ export function useGmTools() {
       elevation: paintbrushElevation.value,
       terrain: paintbrushTerrain.value,
       tileEffects,
+      tileName: paintbrushTileName.value,
+      baseColor: paintbrushBaseColor.value,
+      appearanceKey: paintbrushAppearanceKey.value,
     });
   }
 
@@ -149,6 +287,15 @@ export function useGmTools() {
     paintbrushTerrain,
     paintbrushEffectId,
     paintbrushEffectStacks,
+    paintbrushTileName,
+    paintbrushBaseColor,
+    paintbrushAppearanceKey,
+    paintbrushAppearancePreviewUrl,
+    paintbrushPresets,
+    paintbrushPresetLoadId,
+    paintbrushPresetNames,
+    paintbrushPresetError,
+    paintbrushAppearanceUploading,
     setActiveTool,
     setBulkSelection,
     clearBulkSelection,
@@ -159,5 +306,11 @@ export function useGmTools() {
     applyDamageEffectToToken,
     resetPaintbrushSettings,
     applyPaintbrushToTile,
+    loadSelectedPreset,
+    saveCurrentPreset,
+    deleteSelectedPreset,
+    uploadPaintbrushAppearance,
+    clearPaintbrushAppearance,
+    refreshPaintbrushPresets,
   };
 }

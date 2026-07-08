@@ -52,6 +52,7 @@ export type CellRenderState = {
   towerOwnerHue?: number | null;
   tileEffects?: EffectStacks;
   outOfLineOfSight?: boolean;
+  tileAppearanceUrl?: string | null;
 };
 
 const MAX_VISIBLE_EFFECTS = 4;
@@ -208,6 +209,7 @@ const terrainImageUrl = computed(() => {
     class="cell"
     :data-cell-x="x"
     :data-cell-y="y"
+    :style="cell.tile?.baseColor ? { background: cell.tile.baseColor } : undefined"
     :class="{
       [cell.terrainClass ?? '']: !!cell.terrainClass,
       movable: cell.movable,
@@ -256,6 +258,12 @@ const terrainImageUrl = computed(() => {
       aria-hidden="true"
     />
     <span v-if="cell.hasSeed" class="seed-marker" title="Seed" />
+    <span
+      v-if="cell.tileAppearanceUrl"
+      class="board-overlay tile-appearance-image"
+      :style="{ backgroundImage: `url(${cell.tileAppearanceUrl})` }"
+      aria-hidden="true"
+    />
     <span
       v-if="terrainImageUrl"
       class="board-overlay terrain-tile-image"
@@ -814,7 +822,15 @@ const terrainImageUrl = computed(() => {
   background-position: center;
   background-repeat: no-repeat;
   opacity: 0.9;
-  z-index: 1;
+  z-index: 2;
+}
+
+.tile-appearance-image {
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  z-index: 0;
 }
 
 .terrain-tile-image {
@@ -822,7 +838,7 @@ const terrainImageUrl = computed(() => {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  z-index: 0;
+  z-index: 1;
 }
 
 .board-overlay {

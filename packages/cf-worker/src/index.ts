@@ -22,12 +22,24 @@ import {
   savePlayerProfile,
 } from "./player-profiles.js";
 import { handleRandomIntegersGet, handleRollDicePost } from "./random-integers.js";
+import {
+  handleGetTileAppearance,
+  handlePutTileAppearance,
+} from "./tile-appearances.js";
+import {
+  handleDeleteTilePreset,
+  handleListTilePresets,
+  handlePutTilePreset,
+} from "./tile-presets.js";
 
 export { GameRoom };
 
 const SHEET_ID_RE = /^\/api\/character-sheets\/([^/]+)$/;
 const PORTRAIT_RE = /^\/api\/character-sheets\/([^/]+)\/portrait$/;
 const PROFILE_ID_RE = /^\/api\/player-profiles\/([^/]+)$/;
+const TILE_APPEARANCE_RE = /^\/api\/tile-appearances\/([^/]+\/[^/]+)$/;
+const TILE_PRESETS_RE = /^\/api\/maps\/([^/]+)\/tile-presets$/;
+const TILE_PRESET_RE = /^\/api\/maps\/([^/]+)\/tile-presets\/([^/]+)$/;
 
 export default {
   async fetch(
@@ -169,6 +181,40 @@ export default {
 
     const enemyPortraitRes = await handleGetEnemyPortrait(env, request);
     if (enemyPortraitRes) return enemyPortraitRes;
+
+    if (url.pathname === "/api/tile-appearances" && request.method === "PUT") {
+      const auth = await verifyAuth(request, env);
+      if (auth instanceof Response) return auth;
+      return handlePutTileAppearance(env, auth, request);
+    }
+
+    const tileAppearanceMatch = url.pathname.match(TILE_APPEARANCE_RE);
+    if (tileAppearanceMatch && request.method === "GET") {
+      const auth = await verifyAuth(request, env);
+      if (auth instanceof Response) return auth;
+      return handleGetTileAppearance(env, tileAppearanceMatch[1]);
+    }
+
+    const tilePresetsMatch = url.pathname.match(TILE_PRESETS_RE);
+    if (tilePresetsMatch && request.method === "GET") {
+      const auth = await verifyAuth(request, env);
+      if (auth instanceof Response) return auth;
+      return handleListTilePresets(env, auth, tilePresetsMatch[1]);
+    }
+
+    const tilePresetMatch = url.pathname.match(TILE_PRESET_RE);
+    if (tilePresetMatch) {
+      const auth = await verifyAuth(request, env);
+      if (auth instanceof Response) return auth;
+      const mapId = tilePresetMatch[1];
+      const presetName = decodeURIComponent(tilePresetMatch[2]);
+      if (request.method === "PUT") {
+        return handlePutTilePreset(env, auth, mapId, presetName, request);
+      }
+      if (request.method === "DELETE") {
+        return handleDeleteTilePreset(env, auth, mapId, presetName);
+      }
+    }
 
     if (url.pathname === "/api/character-sheets") {
       const auth = await verifyAuth(request, env);

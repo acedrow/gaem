@@ -1,4 +1,4 @@
-import type { EnemyListing, PlayerProfile } from "@gaem/shared";
+import type { EnemyListing, PlayerProfile, TilePaintPreset } from "@gaem/shared";
 import { getEnemyListingByName, getEnemyPortraitUrl } from "@gaem/shared";
 import { computed } from "vue";
 
@@ -54,5 +54,83 @@ export function useApi() {
     return enemyPortraitUrl(getEnemyListingByName(name));
   }
 
-  return { apiBase, apiFetch, fetchPlayerProfiles, fetchPortraitUrl, enemyPortraitUrl, enemyPortraitUrlForName };
+  function tileAppearanceApiPath(key: string): string {
+    return `/api/tile-appearances/${key}`;
+  }
+
+  async function uploadTileAppearance(file: File): Promise<string | null> {
+    const res = await apiFetch("/api/tile-appearances", {
+      method: "PUT",
+      headers: { "Content-Type": "image/png" },
+      body: file,
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { key?: string };
+    return typeof data.key === "string" ? data.key : null;
+  }
+
+  async function fetchTileAppearanceUrl(key: string): Promise<string | null> {
+    const res = await apiFetch(tileAppearanceApiPath(key));
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  }
+
+  async function fetchTilePresets(mapId: string): Promise<Record<string, TilePaintPreset>> {
+    const res = await apiFetch(`/api/maps/${encodeURIComponent(mapId)}/tile-presets`);
+    if (!res.ok) return {};
+    const data = (await res.json()) as { presets?: Record<string, TilePaintPreset> };
+    return data.presets ?? {};
+  }
+
+  async function saveTilePreset(
+    mapId: string,
+    name: string,
+    preset: TilePaintPreset,
+  ): Promise<{ ok: true; presets: Record<string, TilePaintPreset> } | { ok: false; error: string }> {
+    const res = await apiFetch(
+      `/api/maps/${encodeURIComponent(mapId)}/tile-presets/${encodeURIComponent(name)}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(preset),
+      },
+    );
+    const data = (await res.json().catch(() => ({}))) as {
+      presets?: Record<string, TilePaintPreset>;
+      error?: string;
+    };
+    if (!res.ok) {
+      return { ok: false, error: data.error ?? "Failed to save preset" };
+    }
+    return { ok: true, presets: data.presets ?? {} };
+  }
+
+  async function deleteTilePreset(
+    mapId: string,
+    name: string,
+  ): Promise<Record<string, TilePaintPreset>> {
+    const res = await apiFetch(
+      `/api/maps/${encodeURIComponent(mapId)}/tile-presets/${encodeURIComponent(name)}`,
+      { method: "DELETE" },
+    );
+    if (!res.ok) return {};
+    const data = (await res.json()) as { presets?: Record<string, TilePaintPreset> };
+    return data.presets ?? {};
+  }
+
+  return {
+    apiBase,
+    apiFetch,
+    fetchPlayerProfiles,
+    fetchPortraitUrl,
+    enemyPortraitUrl,
+    enemyPortraitUrlForName,
+    tileAppearanceApiPath,
+    uploadTileAppearance,
+    fetchTileAppearanceUrl,
+    fetchTilePresets,
+    saveTilePreset,
+    deleteTilePreset,
+  };
 }

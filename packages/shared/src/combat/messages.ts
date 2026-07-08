@@ -25,6 +25,11 @@ import type { StructuredArmorAction } from "./types.js";
 import { createDefaultActionBudget, type ActionTier } from "./types.js";
 import { buildBoardOccupancy } from "../game.js";
 import { coordKey, isInBounds, isTerrainType, setTileTerrain, tileAt } from "../map.js";
+import {
+  isValidTileBaseColor,
+  normalizeTileName,
+  TILE_NAME_MAX_LENGTH,
+} from "../tile-cosmetics.js";
 import { isOrthogonallyAdjacent } from "../patterns.js";
 import { actionTierBlockedReason, applyCommitHaste, spendActionTierOrHaste, validateCommitHaste } from "./actions.js";
 import {
@@ -1331,6 +1336,9 @@ export function validateGmPaintTile(
   elevation: number,
   terrain: string,
   tileEffects: string[],
+  tileName: string,
+  baseColor: string | null,
+  appearanceKey: string | null,
 ): string | null {
   if (!isInBounds(x, y, state.width, state.height)) return "Out of bounds";
   const tile = tileAt(state.tiles, x, y);
@@ -1339,7 +1347,19 @@ export function validateGmPaintTile(
     return "Elevation must be an integer from -3 to 3";
   }
   if (!isTerrainType(terrain)) return `Invalid terrain type: ${terrain}`;
-  return validatePaintTileEffectTokens(tileEffects);
+  const err = validatePaintTileEffectTokens(tileEffects);
+  if (err) return err;
+  if (typeof tileName !== "string") return "tileName must be a string";
+  if (normalizeTileName(tileName).length > TILE_NAME_MAX_LENGTH) {
+    return `tileName must be at most ${TILE_NAME_MAX_LENGTH} characters`;
+  }
+  if (baseColor !== null && !isValidTileBaseColor(baseColor)) {
+    return "baseColor must be a #RGB or #RRGGBB hex color";
+  }
+  if (appearanceKey !== null && (typeof appearanceKey !== "string" || !appearanceKey.trim())) {
+    return "appearanceKey must be a non-empty string";
+  }
+  return null;
 }
 
 export function applyGmPaintTile(
@@ -1349,11 +1369,25 @@ export function applyGmPaintTile(
   elevation: number,
   terrain: TerrainType,
   tileEffects: string[],
+  tileName: string,
+  baseColor: string | null,
+  appearanceKey: string | null,
 ): string {
   const tile = tileAt(state.tiles, x, y)!;
   tile.elevation = elevation;
   setTileTerrain(tile, terrain);
   replaceTileEffects(tile, tileEffects);
+
+  const normalizedName = normalizeTileName(tileName);
+  if (normalizedName) tile.name = normalizedName;
+  else delete tile.name;
+
+  if (baseColor) tile.baseColor = baseColor;
+  else delete tile.baseColor;
+
+  if (appearanceKey?.trim()) tile.appearanceKey = appearanceKey.trim();
+  else delete tile.appearanceKey;
+
   return `Painted (${x}, ${y})`;
 }
 
@@ -1578,6 +1612,9 @@ export function handleCombatMessage(
         parsed.elevation,
         parsed.terrain,
         parsed.tileEffects,
+        parsed.tileName,
+        parsed.baseColor,
+        parsed.appearanceKey,
       );
       if (err) return { handled: true, error: err };
       return {
@@ -1589,6 +1626,9 @@ export function handleCombatMessage(
           parsed.elevation,
           parsed.terrain,
           parsed.tileEffects,
+          parsed.tileName,
+          parsed.baseColor,
+          parsed.appearanceKey,
         ),
       };
     }

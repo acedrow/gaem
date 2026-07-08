@@ -1,6 +1,12 @@
 import type { Enemy, GameMap, GameState, MapTile, TerrainType } from "./types.js";
 import { TERRAIN_TYPES } from "./types.js";
 import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles, refreshEnemyMovement } from "./enemy-data.js";
+import {
+  isValidTileBaseColor,
+  normalizeTileName,
+  parseTilePresets,
+  TILE_NAME_MAX_LENGTH,
+} from "./tile-cosmetics.js";
 
 const BLOCKING_TERRAIN = new Set<TerrainType>(["impassable", "obstacle", "void"]);
 const TERRAIN_SET = new Set<string>(TERRAIN_TYPES);
@@ -161,6 +167,35 @@ export function parseGameMap(raw: unknown): GameMap {
       terrain,
       elevation: elevation as number,
     };
+
+    const tileName = t.name;
+    if (tileName !== undefined) {
+      if (typeof tileName !== "string") {
+        throw new Error(`Tile (${x}, ${y}) name must be a string`);
+      }
+      const normalized = normalizeTileName(tileName);
+      if (normalized.length > TILE_NAME_MAX_LENGTH) {
+        throw new Error(`Tile (${x}, ${y}) name must be at most ${TILE_NAME_MAX_LENGTH} characters`);
+      }
+      if (normalized) tile.name = normalized;
+    }
+
+    const baseColor = t.baseColor;
+    if (baseColor !== undefined) {
+      if (typeof baseColor !== "string" || !isValidTileBaseColor(baseColor)) {
+        throw new Error(`Tile (${x}, ${y}) baseColor must be a #RGB or #RRGGBB hex color`);
+      }
+      tile.baseColor = baseColor;
+    }
+
+    const appearanceKey = t.appearanceKey;
+    if (appearanceKey !== undefined) {
+      if (typeof appearanceKey !== "string" || !appearanceKey.trim()) {
+        throw new Error(`Tile (${x}, ${y}) appearanceKey must be a non-empty string`);
+      }
+      tile.appearanceKey = appearanceKey.trim();
+    }
+
     tile.walkable = computeWalkable(tile);
     tiles.push(tile);
   }
@@ -172,6 +207,8 @@ export function parseGameMap(raw: unknown): GameMap {
     throw new Error("Map name must be a non-empty string");
   }
 
+  const tilePresets = parseTilePresets(obj.tilePresets);
+
   return {
     id: id.trim(),
     name: typeof name === "string" ? name.trim() : undefined,
@@ -179,6 +216,7 @@ export function parseGameMap(raw: unknown): GameMap {
     height: h,
     tiles,
     enemies,
+    tilePresets,
   };
 }
 

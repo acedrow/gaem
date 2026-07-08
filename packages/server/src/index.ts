@@ -70,6 +70,16 @@ import {
 import { getEnemyPortraitHandler, loadEnemyPortraits } from "./enemy-portraits.js";
 import { parseAuth, authHasGmCapabilities } from "./auth.js";
 import {
+  getTileAppearanceHandler,
+  putTileAppearanceHandler,
+} from "./tile-appearances.js";
+import {
+  deleteTilePresetHandler,
+  listTilePresetsHandler,
+  putTilePresetHandler,
+  seedTilePresetsFromMap,
+} from "./tile-presets.js";
+import {
   createProfileHandler,
   deleteProfileHandler,
   hasProfile,
@@ -202,6 +212,11 @@ const portraitParser = express.raw({
   limit: "5mb",
 });
 
+const tileAppearanceParser = express.raw({
+  type: ["image/png"],
+  limit: "2mb",
+});
+
 function resolveSheetForJoin(
   playerKey: string,
   characterSheetId?: string
@@ -312,11 +327,54 @@ app.get("/api/enemy-portraits/paracletus/:slug", (req, res) => {
   getEnemyPortraitHandler(req, res);
 });
 
+app.put("/api/tile-appearances", tileAppearanceParser, (req, res) => {
+  const auth = parseAuth(req, res);
+  if (!auth) return;
+  putTileAppearanceHandler(auth, req, res);
+});
+
+app.get("/api/tile-appearances/:segment/:file", (req, res) => {
+  const auth = parseAuth(req, res);
+  if (!auth) return;
+  getTileAppearanceHandler(`${req.params.segment}/${req.params.file}`, res);
+});
+
 const httpServer = createServer(app);
 
 const wss = new WebSocketServer({ noServer: true });
 
 let gameState: GameState;
+let loadedMap: ReturnType<typeof parseGameMap>;
+
+app.get("/api/maps/:mapId/tile-presets", (req, res) => {
+  const auth = parseAuth(req, res);
+  if (!auth) return;
+  if (req.params.mapId !== gameState.mapId) {
+    res.status(404).json({ error: "Map not found" });
+    return;
+  }
+  listTilePresetsHandler(auth, gameState.mapId, loadedMap.tilePresets, res);
+});
+
+app.put("/api/maps/:mapId/tile-presets/:name", (req, res) => {
+  const auth = parseAuth(req, res);
+  if (!auth) return;
+  if (req.params.mapId !== gameState.mapId) {
+    res.status(404).json({ error: "Map not found" });
+    return;
+  }
+  putTilePresetHandler(auth, gameState.mapId, req.params.name, req.body, res);
+});
+
+app.delete("/api/maps/:mapId/tile-presets/:name", (req, res) => {
+  const auth = parseAuth(req, res);
+  if (!auth) return;
+  if (req.params.mapId !== gameState.mapId) {
+    res.status(404).json({ error: "Map not found" });
+    return;
+  }
+  deleteTilePresetHandler(auth, gameState.mapId, req.params.name, res);
+});
 
 /** socket -> selected characterSheetId when joined as player, else null */
 const socketSheet = new Map<WebSocket, string | null>();
@@ -848,6 +906,8 @@ async function loadMap(): Promise<void> {
   );
   const raw = await readFile(join(mapsDir, `${DEFAULT_MAP_ID}.json`), "utf8");
   const map = parseGameMap(JSON.parse(raw));
+  loadedMap = map;
+  seedTilePresetsFromMap(map.id, map.tilePresets);
   gameState = normalizeGameState(createInitialStateFromMap(map), map);
 }
 
