@@ -105,6 +105,8 @@ import {
   formatTileEffectTooltipLabel,
   terrainTypeDisplayName,
   type ProvokeTrigger,
+  computeAttackPreviewHighlights,
+  type AttackPreviewState,
 } from "@gaem/shared";
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 
@@ -1337,6 +1339,132 @@ const combatAttackSelectedKeys = computed(() => {
   return keys;
 });
 
+function shouldRenderRemoteAttackPreview(preview: AttackPreviewState): boolean {
+  if (preview.mode === "gmEnemyAttack") {
+    return !(props.role === "gm" && boardActionMode.value === "gmEnemyAttack");
+  }
+  if (preview.playerId === yourPlayerId.value && boardActionMode.value != null) return false;
+  return true;
+}
+
+const remoteAttackPreviewHighlights = computed(() => {
+  const s = gameState.value;
+  const preview = s?.combat?.attackPreview;
+  if (!s || !preview || !shouldRenderRemoteAttackPreview(preview)) return null;
+  return computeAttackPreviewHighlights(s, preview);
+});
+
+function buildLocalAttackPreview(): AttackPreviewState | null {
+  const m = boardActionMode.value;
+  if (m === "gmEnemyAttack") {
+    if (props.role !== "gm") return null;
+    const pending = gmEnemyAttack.value;
+    if (!pending) return null;
+    return {
+      mode: "gmEnemyAttack",
+      enemyId: pending.enemyId,
+      attackIndex: pending.attackIndex,
+      direction: attackDirection.value,
+    };
+  }
+
+  const playerId = yourPlayerId.value;
+  if (!playerId) return null;
+
+  if (m === "attack" || m === "varunastraBorrow" || m === "equipmentCorridor") {
+    if (m === "varunastraBorrow" && !borrowAllyId.value) return null;
+    return {
+      playerId,
+      mode: m,
+      direction: attackDirection.value,
+      aimed: attackAimed.value,
+      anchorX: attackAnchor.value?.x,
+      anchorY: attackAnchor.value?.y,
+      hoverX: previewHoverCell.value?.x,
+      hoverY: previewHoverCell.value?.y,
+      targetEnemyIds: rangeAttackTargetIds.value.length ? [...rangeAttackTargetIds.value] : undefined,
+      borrowAllyId: borrowAllyId.value ?? undefined,
+    };
+  }
+
+  if (
+    m === "equipmentForceProjection" &&
+    forceProjectionStep.value === "attack" &&
+    forceProjectionOrigin.value
+  ) {
+    return {
+      playerId,
+      mode: "equipmentForceProjection",
+      direction: attackDirection.value,
+      aimed: attackAimed.value,
+      anchorX: attackAnchor.value?.x,
+      anchorY: attackAnchor.value?.y,
+      hoverX: previewHoverCell.value?.x,
+      hoverY: previewHoverCell.value?.y,
+      targetEnemyIds: rangeAttackTargetIds.value.length ? [...rangeAttackTargetIds.value] : undefined,
+      forceProjectionX: forceProjectionOrigin.value.x,
+      forceProjectionY: forceProjectionOrigin.value.y,
+    };
+  }
+
+  if (m === "omnistrike") {
+    const step = omnistrikeStep.value;
+    if (step === "selectBombs") return null;
+    const [indexA, indexB] = omnistrikeBombs.value;
+    if (indexA == null || indexB == null) return null;
+    return {
+      playerId,
+      mode: "omnistrike",
+      direction: attackDirection.value,
+      omnistrikeStep: step,
+      omnistrikeBombIndices: [indexA, indexB],
+      omnistrikeAnchors: omnistrikeAnchors.value.map((anchor) =>
+        anchor ? { x: anchor.x, y: anchor.y } : null,
+      ),
+      hoverX: previewHoverCell.value?.x,
+      hoverY: previewHoverCell.value?.y,
+    };
+  }
+
+  return null;
+}
+
+let lastAttackPreviewJson = "";
+let attackPreviewSyncTimer: ReturnType<typeof setTimeout> | null = null;
+
+function syncAttackPreviewNow() {
+  const preview = buildLocalAttackPreview();
+  const json = JSON.stringify(preview);
+  if (json === lastAttackPreviewJson) return;
+  lastAttackPreviewJson = json;
+  send({ type: "setAttackPreview", preview });
+}
+
+function scheduleAttackPreviewSync() {
+  if (attackPreviewSyncTimer) clearTimeout(attackPreviewSyncTimer);
+  attackPreviewSyncTimer = setTimeout(syncAttackPreviewNow, 40);
+}
+
+watch(
+  [
+    boardActionMode,
+    attackDirection,
+    attackAimed,
+    attackAnchor,
+    rangeAttackTargetIds,
+    borrowAllyId,
+    forceProjectionStep,
+    forceProjectionOrigin,
+    omnistrikeStep,
+    omnistrikeBombs,
+    omnistrikeAnchors,
+    gmEnemyAttack,
+  ],
+  syncAttackPreviewNow,
+);
+
+watch(previewHoverCell, scheduleAttackPreviewSync);
+
 const patternRecoilKeys = computed(() => {
   if (!patternPreviewActive.value || !gameState.value) return new Set<string>();
   if (modifierValues.value.recoil <= 0) return new Set<string>();
@@ -1546,6 +1674,12 @@ const cellStateByKey = computed(() => {
   const me = yourPlayer.value;
   const movementRemaining = me?.actionBudget?.movementRemaining ?? 0;
   const sprintRemaining = me?.actionBudget?.sprintRemaining ?? 0;
+  const remotePreview = remoteAttackPreviewHighlights.value;
+  const remotePrimary = remotePreview ? new Set(remotePreview.primary) : null;
+  const remoteSecondary = remotePreview ? new Set(remotePreview.secondary) : null;
+  const remoteInvalid = remotePreview ? new Set(remotePreview.invalid) : null;
+  const remoteSelected = remotePreview ? new Set(remotePreview.selected) : null;
+  const remoteHeal = remotePreview?.heal ?? false;
 
   const portraitBgCache = new Map<string, string | null>();
 
@@ -1592,8 +1726,10 @@ const cellStateByKey = computed(() => {
       assistedLaunchAnchorKeys.value.has(ck) ||
       assistedLaunchLandingKeys.value.has(ck) ||
       combatAttackSelectedKeys.value.has(ck) ||
+      (remoteSelected?.has(ck) ?? false) ||
       reversalLineKeys.value.damage.has(ck) ||
       gmEnemyAttackTargetKeys.value.has(ck) ||
+      (remotePrimary?.has(ck) ?? false) ||
       (boardActionMode.value === "kataptyPick" && kataptySelectedCoordKeys.value.has(ck));
     const combatSecondary =
       combatAttackSecondaryKeys.value.has(ck) ||
@@ -1608,7 +1744,8 @@ const cellStateByKey = computed(() => {
       assistedLaunchPathKeys.value.has(ck) ||
       assistedLaunchLineKeys.value.has(ck) ||
       kataptyPickKeys.value.has(ck) ||
-      rezTargetKeys.value.has(ck);
+      rezTargetKeys.value.has(ck) ||
+      (remoteSecondary?.has(ck) ?? false);
 
     map.set(c.key, {
       terrainClass: terrainClass(tile),
@@ -1638,12 +1775,14 @@ const cellStateByKey = computed(() => {
       combatTargetHeal:
         reversalLineKeys.value.heal.has(ck) ||
         (boardActionMode.value === "rez" && rezTargetKeys.value.has(ck)) ||
-        (isHealAttackSpecActive.value && (combatPrimary || combatSecondary)),
+        (isHealAttackSpecActive.value && (combatPrimary || combatSecondary)) ||
+        (remoteHeal && ((remotePrimary?.has(ck) ?? false) || (remoteSecondary?.has(ck) ?? false))),
       combatTargetInvalid:
         combatAttackInvalidKeys.value.has(coordKey(c.x, c.y)) ||
         omnistrikeInvalidKeys.value.has(coordKey(c.x, c.y)) ||
         equipmentCorridorInvalidKeys.value.has(coordKey(c.x, c.y)) ||
-        sharurAttractorInvalidKeys.value.has(coordKey(c.x, c.y)),
+        sharurAttractorInvalidKeys.value.has(coordKey(c.x, c.y)) ||
+        (remoteInvalid?.has(ck) ?? false),
       patternRecoil: patternRecoilKeys.value.has(coordKey(c.x, c.y)),
       tile,
       player,
@@ -3847,6 +3986,7 @@ watch(viewportEl, (el, prev) => {
 
 onUnmounted(() => {
   if (previewHoverTimer) clearTimeout(previewHoverTimer);
+  if (attackPreviewSyncTimer) clearTimeout(attackPreviewSyncTimer);
   if (teleportFinishTimer) clearTimeout(teleportFinishTimer);
   if (enemyMoveFinishTimer) clearTimeout(enemyMoveFinishTimer);
   window.removeEventListener("keydown", onKeydown);

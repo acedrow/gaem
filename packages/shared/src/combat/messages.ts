@@ -1,11 +1,12 @@
-import type { GaemRole, ClientMessage, TerrainType } from "../types.js";
+import { clearAttackPreview } from "./attack-preview.js";
 import { isCampaignFeatureUnlocked } from "../base-upgrades-unlocks.js";
 import type {
   AssistedOutcome,
+  AttackPreviewState,
   GmEnemyAction,
   PlayerAction,
 } from "./types.js";
-import type { GameState, Player } from "../types.js";
+import type { GaemRole, ClientMessage, GameState, Player, TerrainType } from "../types.js";
 import {
   canGmMoveEnemies,
   canPlayerMove,
@@ -493,6 +494,7 @@ export function applyPlayerAction(
   playerId: string,
   action: PlayerAction,
 ): string {
+  clearAttackPreview(state, playerId);
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return "Unknown player";
 
@@ -914,6 +916,7 @@ export function validateGmEnemyAction(state: GameState, action: GmEnemyAction): 
 }
 
 export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): string {
+  if (action.action === "attack") clearAttackPreview(state);
   const enemy = state.enemies.find((e) => e.id === action.enemyId);
   if (!enemy) return "Unknown enemy";
 
@@ -1350,7 +1353,30 @@ export function previewAttackTargets(
 ): string[] {
   return enemiesInTiles(state, tiles).map((t) => t.enemyId);
 }
-export type CombatHandleResult = { handled: true; message: string } | { handled: false };
+export type CombatHandleResult =
+  | { handled: true; message: string; silent?: boolean }
+  | { handled: false };
+
+export function validateSetAttackPreview(
+  _state: GameState,
+  preview: AttackPreviewState | null,
+  ctx: CombatMessageContext,
+): string | null {
+  if (preview == null) return null;
+  if (preview.mode === "gmEnemyAttack") {
+    if (ctx.role !== "gm") return "Only GM can preview enemy attacks";
+    if (!preview.enemyId || preview.attackIndex == null) return "Invalid enemy attack preview";
+    return null;
+  }
+  if (!ctx.playerId) return "Only players can preview attacks";
+  if (preview.playerId !== ctx.playerId) return "Cannot preview for another player";
+  return null;
+}
+
+export function applySetAttackPreview(state: GameState, preview: AttackPreviewState | null) {
+  if (!state.combat) return;
+  state.combat.attackPreview = preview;
+}
 
 export function handleCombatMessage(
   state: GameState,
@@ -1451,6 +1477,12 @@ export function handleCombatMessage(
       const err = validateDeclineReversal(state, ctx.playerId);
       if (err) return { handled: true, error: err };
       return { handled: true, message: applyDeclineReversal(state, ctx.playerId) };
+    }
+    case "setAttackPreview": {
+      const err = validateSetAttackPreview(state, parsed.preview, ctx);
+      if (err) return { handled: true, error: err };
+      applySetAttackPreview(state, parsed.preview);
+      return { handled: true, message: "", silent: true };
     }
     default:
       return { handled: false };

@@ -696,7 +696,9 @@ wss.on("connection", (ws: WebSocket) => {
       if (parsed.type === "playerAction" && parsed.action.action === "weaponSwap") {
         persistWeaponSwapToSheet(combatCtx.playerId);
       }
-      broadcastConsole(actorForSocket(ws), combatResult.message);
+      if (!combatResult.silent) {
+        broadcastConsole(actorForSocket(ws), combatResult.message);
+      }
       broadcastState();
       return;
     }

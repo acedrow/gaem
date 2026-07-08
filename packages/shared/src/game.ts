@@ -267,6 +267,7 @@ function finishPlayerTurn(state: GameState, playerId: string, suffix = "ended th
   const yadathanMsgs = player ? resolveYadathanEndOfTurn(state, player) : [];
   const gearCheckMsgs = player ? grantVarunastraGearCheck(state, player) : [];
   const attractorEndMsgs = player ? applyAttractorEndOfTurnPulls(state, player, "player") : [];
+  if (state.combat) state.combat.attackPreview = null;
   state.roundPhase = "gmTurn";
   state.turn = { role: "gm" };
   let msg = `${playerLabel(player!)} ${suffix}`;

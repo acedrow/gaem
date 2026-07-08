@@ -6,6 +6,7 @@ export * from "./effects.js";
 export * from "./enemy.js";
 export * from "./pending.js";
 export * from "./damage.js";
+export * from "./attack-preview.js";
 export * from "./messages.js";
 export * from "./yadathan.js";
 export * from "./swarm.js";

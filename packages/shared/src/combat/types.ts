@@ -150,12 +150,41 @@ export type ClassActiveKind =
   | "synesis_conversion"
   | "bag_of_tricks";
 
+export type AttackPreviewMode =
+  | "attack"
+  | "varunastraBorrow"
+  | "equipmentCorridor"
+  | "equipmentForceProjection"
+  | "omnistrike"
+  | "gmEnemyAttack";
+
+export type AttackPreviewState = {
+  playerId?: string;
+  mode: AttackPreviewMode;
+  direction?: PatternDirection;
+  aimed?: boolean;
+  anchorX?: number;
+  anchorY?: number;
+  hoverX?: number;
+  hoverY?: number;
+  targetEnemyIds?: string[];
+  borrowAllyId?: string;
+  forceProjectionX?: number;
+  forceProjectionY?: number;
+  omnistrikeStep?: "placeFirst" | "placeSecond" | "confirm";
+  omnistrikeBombIndices?: [number, number];
+  omnistrikeAnchors?: [{ x: number; y: number } | null, { x: number; y: number } | null];
+  enemyId?: string;
+  attackIndex?: number;
+};
+
 export type CombatState = {
   playerCountAtStart: number;
   pendingActions: PendingAction[];
   pendingReaction: PendingReaction | null;
   pendingClassReaction: PendingClassReaction | null;
   activeEnemyId: string | null;
+  attackPreview?: AttackPreviewState | null;
   swarmChipResolvedIds?: string[];
   passedEnemyIdsByPlayer?: Record<string, string[]>;
   thrownTraps?: ThrownTrap[];

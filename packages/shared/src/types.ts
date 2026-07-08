@@ -2,6 +2,7 @@ import type {
   ActionBudget,
   ActionTier,
   AssistedOutcome,
+  AttackPreviewState,
   CombatState,
   EffectStacks,
   GmEnemyAction,
@@ -9,7 +10,13 @@ import type {
 } from "./combat/types.js";
 
 export type { ActionBudget, AssistedOutcome, CombatState, EffectStacks, GmEnemyAction, PlayerAction };
-export type { PendingAction, PendingReaction, WeaponAttackSpec, StructuredArmorAction } from "./combat/types.js";
+export type {
+  AttackPreviewState,
+  PendingAction,
+  PendingReaction,
+  WeaponAttackSpec,
+  StructuredArmorAction,
+} from "./combat/types.js";
 
 export const TERRAIN_TYPES = [
   "standard",
@@ -239,6 +246,7 @@ export type ClientMessage =
       yadathanTower?: string;
     }
   | { type: "playerAction"; action: PlayerAction }
+  | { type: "setAttackPreview"; preview: AttackPreviewState | null }
   | { type: "gmEnemyAction"; action: GmEnemyAction }
   | { type: "applyAssistedOutcome"; outcome: AssistedOutcome }
   | { type: "triggerReversal"; extraAllyIds?: string[] }

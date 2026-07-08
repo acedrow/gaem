@@ -465,7 +465,9 @@ export class GameRoom {
         await this.persistWeaponSwapToSheet(combatCtx.playerId);
       }
       const actor = await this.actorForSocket(ws);
-      await this.broadcastConsole(actor, combatResult.message);
+      if (!combatResult.silent) {
+        await this.broadcastConsole(actor, combatResult.message);
+      }
       await this.broadcastState();
       return;
     }
