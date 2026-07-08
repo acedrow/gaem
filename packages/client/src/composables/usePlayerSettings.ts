@@ -5,11 +5,13 @@ import { useSession } from "./useSession.js";
 type PlayerSettings = {
   showHealthBars: boolean;
   showConnectionsInConsole: boolean;
+  showLineOfSightIndicator: boolean;
 };
 
 const DEFAULT_SETTINGS: PlayerSettings = {
   showHealthBars: true,
   showConnectionsInConsole: true,
+  showLineOfSightIndicator: false,
 };
 
 function settingsKey(role: "gm" | "player" | null, playerId: string | null): string | null {
@@ -24,6 +26,7 @@ function parseSettings(raw: string): PlayerSettings {
     return {
       showHealthBars: parsed.showHealthBars !== false,
       showConnectionsInConsole: parsed.showConnectionsInConsole !== false,
+      showLineOfSightIndicator: parsed.showLineOfSightIndicator === true,
     };
   } catch {
     return { ...DEFAULT_SETTINGS };
@@ -54,6 +57,7 @@ let currentKey = settingsKey(role.value, playerProfile.value?.id ?? null);
 
 const showHealthBars = ref(readSettings(currentKey).showHealthBars);
 const showConnectionsInConsole = ref(readSettings(currentKey).showConnectionsInConsole);
+const showLineOfSightIndicator = ref(readSettings(currentKey).showLineOfSightIndicator);
 
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -63,11 +67,12 @@ function schedulePersist() {
     writeSettings(currentKey, {
       showHealthBars: showHealthBars.value,
       showConnectionsInConsole: showConnectionsInConsole.value,
+      showLineOfSightIndicator: showLineOfSightIndicator.value,
     });
   }, 150);
 }
 
-watch([showHealthBars, showConnectionsInConsole], schedulePersist);
+watch([showHealthBars, showConnectionsInConsole, showLineOfSightIndicator], schedulePersist);
 
 watch(
   [role, playerProfile],
@@ -78,6 +83,7 @@ watch(
     const next = readSettings(key);
     showHealthBars.value = next.showHealthBars;
     showConnectionsInConsole.value = next.showConnectionsInConsole;
+    showLineOfSightIndicator.value = next.showLineOfSightIndicator;
   },
   { deep: true },
 );
@@ -86,5 +92,6 @@ export function usePlayerSettings() {
   return {
     showHealthBars,
     showConnectionsInConsole,
+    showLineOfSightIndicator,
   };
 }

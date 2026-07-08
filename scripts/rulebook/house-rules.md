@@ -22,6 +22,12 @@ When a Sharur player at **10 HP or fewer** uses Back Up to spawn a new attractor
 
 ---
 
+## Line of Sight and Impassable terrain
+
+Impassable terrain does not block line of sight. Only Obstacle terrain blocks LOS (per RAW). Cover does not block LOS.
+
+---
+
 ## KUSHIEL Assisted Launch
 
 ### Launch anchors

@@ -7,6 +7,7 @@ import { TILE_EFFECT_IMAGE_URLS } from "../lib/tileEffectOverlays.js";
 import { TERRAIN_TILE_IMAGE_URLS } from "../lib/terrainTileImages.js";
 import EffectIcon from "./EffectIcon.vue";
 import HpBar from "./HpBar.vue";
+import NoLosIcon from "./NoLosIcon.vue";
 import TerrainTypeIcon from "./TerrainTypeIcon.vue";
 import TowerIcon from "./TowerIcon.vue";
 
@@ -50,6 +51,7 @@ export type CellRenderState = {
   attractorPreviewVoid?: boolean;
   towerOwnerHue?: number | null;
   tileEffects?: EffectStacks;
+  outOfLineOfSight?: boolean;
 };
 
 const MAX_VISIBLE_EFFECTS = 4;
@@ -225,6 +227,7 @@ const terrainImageUrl = computed(() => {
       'enemy-dying': enemyDying,
       'enemy-defeated': enemyDefeated,
       'bulk-tile-selected': isBulkTileSelected,
+      'out-of-los': cell.outOfLineOfSight,
     }"
     @click="emit('click')"
     @mouseenter="emit('hover')"
@@ -267,6 +270,8 @@ const terrainImageUrl = computed(() => {
       :title="overlay.title"
     />
     <span v-if="cell.combatTargetInvalid" class="combat-target-invalid-mark" aria-hidden="true" />
+    <span v-if="cell.outOfLineOfSight" class="board-overlay out-of-los-shadow" aria-hidden="true" />
+    <NoLosIcon v-if="cell.outOfLineOfSight" class="no-los-overlay" :size="20" />
     <span
       v-if="cell.enemyAnchor && !enemyAnimating"
       class="piece enemy"
@@ -910,5 +915,21 @@ const terrainImageUrl = computed(() => {
   text-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
   pointer-events: none;
   z-index: 6;
+}
+
+.out-of-los-shadow {
+  inset: 0;
+  z-index: 7;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.no-los-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 8;
+  pointer-events: none;
+  color: rgba(255, 255, 255, 0.5);
 }
 </style>

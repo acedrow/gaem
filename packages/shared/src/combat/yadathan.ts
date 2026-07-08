@@ -6,6 +6,7 @@ import { isOrthogonallyAdjacent } from "../patterns.js";
 import { getArmorByName } from "../player-data.js";
 import { applyDamageToEnemy, manhattanDistance, rangeAttackTileKeys } from "./attack.js";
 import { applyEffectStacks } from "./effects.js";
+import { tilesOnSegment } from "./los.js";
 
 export const YADATHAN_ARMOR_NAME = "YADATHAN";
 export const TOWER_KATAPTY = "Katapty";
@@ -335,37 +336,6 @@ export function applySeedInteract(state: GameState, player: Player): string | nu
   state.terrainObjects = (state.terrainObjects ?? []).filter((o) => o.id !== seed.id);
   player.hp = clampHp((player.hp ?? 0) + 5, getPlayerMaxHp(player));
   return "picked up Seed (+5 HP)";
-}
-
-export function tilesOnSegment(
-  a: { x: number; y: number },
-  b: { x: number; y: number },
-): { x: number; y: number }[] {
-  const tiles: { x: number; y: number }[] = [];
-  let x0 = a.x;
-  let y0 = a.y;
-  const x1 = b.x;
-  const y1 = b.y;
-  const dx = Math.abs(x1 - x0);
-  const dy = Math.abs(y1 - y0);
-  const sx = x0 < x1 ? 1 : -1;
-  const sy = y0 < y1 ? 1 : -1;
-  let err = dx - dy;
-
-  while (true) {
-    tiles.push({ x: x0, y: y0 });
-    if (x0 === x1 && y0 === y1) break;
-    const e2 = 2 * err;
-    if (e2 > -dy) {
-      err -= dy;
-      x0 += sx;
-    }
-    if (e2 < dx) {
-      err += dx;
-      y0 += sy;
-    }
-  }
-  return tiles;
 }
 
 export function yadathanReversalEligible(state: GameState, playerId: string): boolean {

@@ -75,8 +75,11 @@ import {
   getPlayerTower,
   getArmorByName,
   getWeaponAttackSpec,
+  hasLineOfSight,
+  outOfLineOfSightTileKeys,
   tilesOnCardinalLine,
   tilesOnSegment,
+  visibleEnemyIds,
   TOWER_IATROS,
   buildSwarmGroups,
   canSwarmMemberReachDest,
@@ -179,7 +182,7 @@ const activePlayerSelected = computed(() => {
   if (!selectedPlayerId.value) return true;
   return selectedPlayerId.value === id;
 });
-const { showHealthBars } = usePlayerSettings();
+const { showHealthBars, showLineOfSightIndicator } = usePlayerSettings();
 const showEnemyHealthBars = computed(() => showHealthBars.value && canUseGmTools.value);
 const { indicators: damageIndicators } = useDamageIndicators(gameState);
 const { sheets, loadSheets } = useCharacterSheets();
@@ -789,11 +792,17 @@ const classAbilityPrimaryKeys = computed(() => {
   const me = yourPlayer.value;
   const s = gameState.value;
   if (!me || !s) return keys;
-  if (m === "kopisMark" || m === "hephaestusSynesis") {
+  if (m === "kopisMark") {
+    const visible = new Set(visibleEnemyIds(s, me.id));
     for (const e of s.enemies) {
-      const dist = Math.abs(e.x - me.x) + Math.abs(e.y - me.y);
-      const inRange = m === "hephaestusSynesis" ? dist <= 1 : true;
-      if (inRange) keys.add(coordKey(e.x, e.y));
+      if (visible.has(e.id)) keys.add(coordKey(e.x, e.y));
+    }
+  }
+  if (m === "hephaestusSynesis") {
+    for (const e of s.enemies) {
+      if (Math.abs(e.x - me.x) + Math.abs(e.y - me.y) <= 1) {
+        keys.add(coordKey(e.x, e.y));
+      }
     }
   }
   if (m === "varunastraBorrow" && !borrowAllyId.value) {
@@ -835,6 +844,41 @@ const classAbilitySecondaryKeys = computed(() => {
 });
 
 const sharurAttractorInvalidKeys = computed(() => new Set<string>());
+
+const harpeTrapInvalidKeys = computed(() => {
+  const keys = new Set<string>();
+  const m = boardActionMode.value;
+  const me = yourPlayer.value;
+  const s = gameState.value;
+  if (m !== "harpeTrap" || !me || !s) return keys;
+  for (const key of classAbilitySecondaryKeys.value) {
+    const [x, y] = key.split(",").map(Number);
+    if (!hasLineOfSight(s, me.x, me.y, x!, y!) || !isWalkable(tileAt(s.tiles, x!, y!))) {
+      keys.add(key);
+    }
+  }
+  return keys;
+});
+
+const lineOfSightObserver = computed((): { x: number; y: number } | null => {
+  const sel = boardSelection.value;
+  const s = gameState.value;
+  if (!sel || !s) return null;
+  if (sel.kind === "player") {
+    const player = s.players.find((p) => p.id === sel.id);
+    return player ? { x: player.x, y: player.y } : null;
+  }
+  const enemy = s.enemies.find((e) => e.id === sel.id);
+  return enemy ? { x: enemy.x, y: enemy.y } : null;
+});
+
+const outOfLineOfSightKeys = computed(() => {
+  if (!showLineOfSightIndicator.value) return new Set<string>();
+  const observer = lineOfSightObserver.value;
+  const s = gameState.value;
+  if (!observer || !s) return new Set<string>();
+  return outOfLineOfSightTileKeys(s, observer.x, observer.y);
+});
 
 const sharurAttractorPlacementPreview = computed(() => {
   if (boardActionMode.value !== "sharurAttractor") return null;
@@ -1880,6 +1924,7 @@ const cellStateByKey = computed(() => {
         omnistrikeInvalidKeys.value.has(coordKey(c.x, c.y)) ||
         equipmentCorridorInvalidKeys.value.has(coordKey(c.x, c.y)) ||
         sharurAttractorInvalidKeys.value.has(coordKey(c.x, c.y)) ||
+        harpeTrapInvalidKeys.value.has(coordKey(c.x, c.y)) ||
         (remoteInvalid?.has(ck) ?? false),
       patternRecoil: patternRecoilKeys.value.has(coordKey(c.x, c.y)),
       tile,
@@ -1957,6 +2002,7 @@ const cellStateByKey = computed(() => {
           ? hueFromId(enemyAnchor.ownerPlayerId)
           : null,
       tileEffects: tile?.tileEffects,
+      outOfLineOfSight: outOfLineOfSightKeys.value.has(ck),
     });
   }
   return map;
@@ -3313,7 +3359,7 @@ function handleCombatCellClick(x: number, y: number): boolean {
   }
   if (m === "harpeTrap") {
     const key = coordKey(x, y);
-    if (!classAbilitySecondaryKeys.value.has(key)) return true;
+    if (!classAbilitySecondaryKeys.value.has(key) || harpeTrapInvalidKeys.value.has(key)) return true;
     sendPlayerAction({ action: "classActive", kind: "weapon_trap", x, y });
     clearBoardActionMode();
     return true;

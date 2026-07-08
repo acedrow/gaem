@@ -6,7 +6,7 @@ import { useSession } from "../composables/useSession.js";
 import { useTheme } from "../composables/useTheme.js";
 import ManagePlayersModal from "./ManagePlayersModal.vue";
 
-const { showHealthBars, showConnectionsInConsole } = usePlayerSettings();
+const { showHealthBars, showConnectionsInConsole, showLineOfSightIndicator } = usePlayerSettings();
 const { theme, themes } = useTheme();
 const { hasGmCapabilities } = useSession();
 
@@ -43,6 +43,20 @@ const managePlayersOpen = ref(false);
           :class="{ on: showConnectionsInConsole }"
           :aria-checked="showConnectionsInConsole"
           @click="showConnectionsInConsole = !showConnectionsInConsole"
+        >
+          <span class="toggle-thumb" />
+        </button>
+      </label>
+
+      <label class="setting-row">
+        <span class="setting-label">Show line of sight indicator</span>
+        <button
+          type="button"
+          role="switch"
+          class="toggle"
+          :class="{ on: showLineOfSightIndicator }"
+          :aria-checked="showLineOfSightIndicator"
+          @click="showLineOfSightIndicator = !showLineOfSightIndicator"
         >
           <span class="toggle-thumb" />
         </button>

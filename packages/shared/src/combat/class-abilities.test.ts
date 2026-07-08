@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { applyClassActive, applyResolveClassReaction, handleEnemyDefeated } from "./class-abilities.js";
+import { applyClassActive, applyResolveClassReaction, handleEnemyDefeated, validateClassActive } from "./class-abilities.js";
 import { createDefaultCombatState } from "./types.js";
 import { addTestEnemy, addTestPlayer, makeGameState } from "../test/fixtures.js";
+import { tileAt } from "../map.js";
 
 describe("class-abilities", () => {
   it("KOPIS Mag Dump marks enemy", () => {
@@ -20,6 +21,24 @@ describe("class-abilities", () => {
     expect(msg).toContain("Mag Dump");
     expect(state.combat!.kopisMarks!.p1).toBe("e1");
     expect(state.enemies.find((e) => e.id === "e1")?.effects?.["Mag Dump"]).toBe(1);
+  });
+
+  it("KOPIS Mag Dump rejects enemy blocked by obstacle", () => {
+    const state = makeGameState();
+    const player = addTestPlayer(state, "p1", { x: 2, y: 2, class: "KOPIS", actionBudget: true });
+    addTestEnemy(state, "e1", 5, 2, { name: "Gorgenaut" });
+    tileAt(state.tiles, 3, 2)!.terrain = ["obstacle"];
+    state.roundPhase = "playerTurn";
+    state.turn = { role: "player", playerId: "p1" };
+    state.combat = createDefaultCombatState(1);
+
+    expect(
+      validateClassActive(state, player, {
+        action: "classActive",
+        kind: "mag_dump",
+        targetEnemyIds: ["e1"],
+      }),
+    ).toBe("No line of sight");
   });
 
   it("drops Kopis token when marked enemy defeated", () => {
