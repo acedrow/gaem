@@ -23,7 +23,6 @@ import { useCharacterSheetSelection } from "../composables/useCharacterSheetSele
 import { useExpandableSet } from "../composables/useExpandableSet.js";
 import PanelShell from "./PanelShell.vue";
 import PlayerItemDetail from "./PlayerItemDetail.vue";
-import RuleText from "./RuleText.vue";
 import YadathanTowerModal from "./YadathanTowerModal.vue";
 
 const props = defineProps<{
@@ -210,9 +209,7 @@ function yadathanEquipLabel(name: string): string {
 
         <div v-if="isExpanded(item.name)" class="list-card-body">
           <p v-if="'summary' in item && item.summary" class="item-summary">{{ item.summary }}</p>
-          <p class="item-description">
-            <RuleText :text="item.description" />
-          </p>
+          <p v-if="item.description" class="item-description">{{ item.description }}</p>
           <PlayerItemDetail
             :item="item"
             :kind="category"

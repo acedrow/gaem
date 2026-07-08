@@ -9,7 +9,6 @@ import type {
 import { ref } from "vue";
 
 import PlayerItemDetail from "./PlayerItemDetail.vue";
-import RuleText from "./RuleText.vue";
 
 defineProps<{
   label: string;
@@ -86,9 +85,7 @@ function toggleDetail() {
 
       <div v-if="detailOpen && item" class="field-detail">
         <p v-if="'summary' in item && item.summary" class="item-summary">{{ item.summary }}</p>
-        <p v-if="item.description" class="item-description">
-          <RuleText :text="item.description" />
-        </p>
+        <p v-if="item.description" class="item-description">{{ item.description }}</p>
         <PlayerItemDetail
           :item="item"
           :kind="kind"
