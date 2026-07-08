@@ -486,11 +486,18 @@ function startFieldEdit(field: EditableField) {
 
 function startGearFieldEdit(field: GearField) {
   if (!canEdit.value || !sheet.value) return;
+  const gearSlotFilter =
+    field === "gearArmor"
+      ? "armor"
+      : field === "gear" && classGrantsDualGear(form.value.class)
+        ? "weapon"
+        : undefined;
   startGearPick(
     props.sheetId,
     field,
     form.value[field],
     field === "armor" ? form.value.yadathanTower : undefined,
+    gearSlotFilter,
   );
 }
 

@@ -14,6 +14,7 @@ export type GearPick = {
   field: GearField;
   currentValue: string;
   yadathanTower?: string;
+  gearSlotFilter?: "weapon" | "armor";
 };
 
 const persisted = readPersistedUi();
@@ -58,9 +59,10 @@ export function useCharacterSheetSelection() {
     field: GearField,
     currentValue: string,
     yadathanTower?: string,
+    gearSlotFilter?: "weapon" | "armor",
   ) {
     clearDataCategory();
-    gearPick.value = { sheetId, field, currentValue, yadathanTower };
+    gearPick.value = { sheetId, field, currentValue, yadathanTower, gearSlotFilter };
     activeTab.value = "info";
   }
 

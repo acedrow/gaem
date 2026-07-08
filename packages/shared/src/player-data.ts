@@ -10,6 +10,7 @@ import type { ClassActiveKind, ActionTier, StructuredArmorAction, WeaponAttackSp
 import type { AbilityText } from "./rule-text.js";
 import {
   validateCharacterSheetLoadout,
+  classGrantsDualGear,
   type CharacterSheetLoadoutFields,
 } from "./base-upgrades-unlocks.js";
 import { isValidYadathanTowerName, isYadathanArmorName, YADATHAN_ARMOR_NAME } from "./combat/yadathan.js";
@@ -180,8 +181,21 @@ export function validateCharacterSheetRefs(
   if (fields.gear !== undefined && fields.gear && !gearNames.has(fields.gear)) {
     return `Invalid gear: ${fields.gear}`;
   }
+  if (fields.gear !== undefined && fields.gear) {
+    const className = fields.class ?? existing?.class;
+    const gear = getGearByName(fields.gear);
+    if (classGrantsDualGear(className) && gear?.slot !== "weapon") {
+      return "Weapon gear slot requires weapon gear";
+    }
+  }
   if (fields.gearArmor !== undefined && fields.gearArmor && !gearNames.has(fields.gearArmor)) {
     return `Invalid gear: ${fields.gearArmor}`;
+  }
+  if (fields.gearArmor !== undefined && fields.gearArmor) {
+    const gear = getGearByName(fields.gearArmor);
+    if (gear?.slot !== "armor") {
+      return "Armor gear slot requires armor gear";
+    }
   }
   if (fields.weapon2 !== undefined && fields.weapon2 && !weaponNames.has(fields.weapon2)) {
     return `Invalid weapon: ${fields.weapon2}`;

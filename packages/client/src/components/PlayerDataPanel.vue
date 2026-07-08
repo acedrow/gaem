@@ -70,13 +70,17 @@ const title = computed(() => (selectionMode.value ? selectionTitle.value : brows
 const currentValue = computed(() => gearPick.value?.currentValue ?? "");
 const currentTower = computed(() => gearPick.value?.yadathanTower ?? "");
 
+const gearSlotFilter = computed(() => gearPick.value?.gearSlotFilter);
+
 const items = computed(() => {
   let list: readonly (PlayerClass | PlayerArmor | PlayerWeapon | PlayerEquipment | PlayerGear)[];
   if (props.category === "armor") list = PLAYER_ARMOR;
   else if (props.category === "classes") list = PLAYER_CLASSES;
   else if (props.category === "equipment") list = PLAYER_EQUIPMENT;
-  else if (props.category === "gear") list = PLAYER_GEAR;
-  else list = PLAYER_WEAPONS;
+  else if (props.category === "gear") {
+    const slot = gearSlotFilter.value;
+    list = slot ? PLAYER_GEAR.filter((g) => g.slot === slot) : PLAYER_GEAR;
+  } else list = PLAYER_WEAPONS;
 
   const cat = unlockCategory.value;
   const equipped = currentValue.value;
