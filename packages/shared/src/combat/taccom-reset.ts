@@ -55,6 +55,7 @@ export function enterTaccom(state: GameState): void {
     state.combat.thrownTraps = [];
     state.combat.boardTokens = [];
     state.combat.attractors = [];
+    state.combat.attractorPulledEnemyIds = [];
     state.combat.gearCheckGrants = {};
     state.combat.kopisMarks = {};
     state.combat.countdownKinds = {};
@@ -88,6 +89,7 @@ export function exitTaccom(state: GameState, opts?: { removeEnemies?: boolean })
     state.combat.thrownTraps = [];
     state.combat.boardTokens = [];
     state.combat.attractors = [];
+    state.combat.attractorPulledEnemyIds = [];
     state.combat.gearCheckGrants = {};
     state.combat.kopisMarks = {};
     state.combat.countdownKinds = {};

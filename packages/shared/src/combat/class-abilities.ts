@@ -20,7 +20,7 @@ import {
 } from "./attack.js";
 import { maxWeaponDamage, rollDice } from "./damage.js";
 import { applyPullToward } from "./pull.js";
-import { applyAttractorEntryPulls, getAttractorAt, placeAttractor } from "./attractor.js";
+import { applyAttractorEntryPulls, placeAttractor } from "./attractor.js";
 import { applyVoidTileDefeat } from "./void-tile.js";
 
 export const HARPE_CLASS = "HARPE";
@@ -89,7 +89,6 @@ export function validateClassActive(
     if (action.x == null || action.y == null) return "Select tile";
     if (manhattanDistance(player, { x: action.x, y: action.y }) > 4) return "Out of range";
     if (!isWalkable(tileAt(state.tiles, action.x, action.y))) return "Invalid tile";
-    if (getAttractorAt(state, action.x, action.y)) return "Already has attractor";
     return null;
   }
 

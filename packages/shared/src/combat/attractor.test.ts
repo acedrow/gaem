@@ -3,6 +3,7 @@ import {
   applyAttractorEndOfTurnPulls,
   applyAttractorEntryPulls,
   checkSharurEmergencyDefenses,
+  clearAttractorPullForEnemy,
   convertOwnerAttractorsToVoid,
   placeAttractor,
 } from "./attractor.js";
@@ -33,6 +34,7 @@ describe("attractor", () => {
     combatGmTurn(state);
     placeAttractor(state, "sharur", 2, 2);
 
+    clearAttractorPullForEnemy(state, "e1");
     applyEnemyMove(state, "e1", 3, 2);
 
     expect(enemy.x).toBe(2);
@@ -52,6 +54,35 @@ describe("attractor", () => {
     expect(enemy.y).toBe(2);
   });
 
+  it("limits enemies to one attractor pull per turn", () => {
+    const state = makeGameState();
+    addTestPlayer(state, "sharur", { x: 0, y: 0, class: "SHARUR" });
+    const enemy = addTestEnemy(state, "e1", 4, 2);
+    combatGmTurn(state);
+    placeAttractor(state, "sharur", 2, 2);
+
+    clearAttractorPullForEnemy(state, "e1");
+    applyEnemyMove(state, "e1", 3, 2);
+    expect(enemy.x).toBe(2);
+    expect(enemy.y).toBe(2);
+
+    const endMsgs = applyAttractorEndOfTurnPulls(state, enemy, "enemy");
+    expect(endMsgs).toEqual([]);
+    expect(enemy.x).toBe(2);
+    expect(enemy.y).toBe(2);
+  });
+
+  it("replaces the previous attractor when placing a new one", () => {
+    const state = makeGameState();
+    addTestPlayer(state, "sharur", { x: 0, y: 0, class: "SHARUR", hp: 20 });
+    state.combat = createDefaultCombatState(1);
+    placeAttractor(state, "sharur", 2, 2);
+    placeAttractor(state, "sharur", 5, 5);
+
+    expect(state.combat!.attractors).toHaveLength(1);
+    expect(state.combat!.attractors![0]).toMatchObject({ x: 5, y: 5, void: false });
+  });
+
   it("converts attractors via setPlayerHp", () => {
     const state = makeGameState();
     addTestPlayer(state, "sharur", { x: 0, y: 0, class: "SHARUR", hp: 20 });
@@ -64,7 +95,7 @@ describe("attractor", () => {
     expect(state.tiles.find((t) => t.x === 2 && t.y === 2)?.walkable).toBe(false);
   });
 
-  it("does not void attractors placed after emergency is active", () => {
+  it("spawns void attractors when Sharur is at 10 HP or fewer", () => {
     const state = makeGameState();
     const sharur = addTestPlayer(state, "sharur", { x: 0, y: 0, class: "SHARUR", hp: 10 });
     state.combat = createDefaultCombatState(1);
@@ -72,8 +103,8 @@ describe("attractor", () => {
 
     placeAttractor(state, "sharur", 3, 3);
 
-    expect(state.combat!.attractors![0]!.void).toBe(false);
-    expect(state.tiles.find((t) => t.x === 3 && t.y === 3)?.terrain).not.toContain("void");
+    expect(state.combat!.attractors![0]!.void).toBe(true);
+    expect(state.tiles.find((t) => t.x === 3 && t.y === 3)?.terrain).toContain("void");
   });
 
   it("converts owner attractors to void at 10 HP or fewer", () => {
@@ -97,6 +128,7 @@ describe("attractor", () => {
     placeAttractor(state, "sharur", 2, 2);
     convertOwnerAttractorsToVoid(state, "sharur");
 
+    clearAttractorPullForEnemy(state, "e1");
     applyAttractorEntryPulls(state, enemy, "enemy");
 
     expect(enemy.hp).toBe(0);
@@ -125,25 +157,6 @@ describe("attractor", () => {
     expect(enemyFullyOnVoid(state, enemy)).toBe(true);
     expect(applyVoidTileDefeat(state, enemy, "enemy")).toContain("Void");
     expect(enemy.hp).toBe(0);
-  });
-
-  it("entry pull uses one random attractor when player is in multiple zones", () => {
-    const state = makeGameState();
-    addTestPlayer(state, "sharur", { x: 0, y: 0, class: "SHARUR" });
-    const player = addTestPlayer(state, "p2", { x: 4, y: 2 });
-    combatGmTurn(state);
-    placeAttractor(state, "sharur", 2, 2);
-    placeAttractor(state, "sharur", 6, 2);
-
-    applyAttractorEntryPulls(state, player, "player", { rng: () => 0 });
-    expect(player.x).toBe(3);
-    expect(player.y).toBe(2);
-
-    player.x = 4;
-    player.y = 2;
-    applyAttractorEntryPulls(state, player, "player", { rng: () => 0.99 });
-    expect(player.x).toBe(5);
-    expect(player.y).toBe(2);
   });
 
   it("pulls players entering the attractor zone during movement", () => {

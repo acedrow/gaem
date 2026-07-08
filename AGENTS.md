@@ -94,6 +94,7 @@ When clarifying Hellpiercers mechanics or transcribing data into code, consult i
 1. **`HELLPIERCERS v1.02.pdf`** (gitignored, repo root) — primary rulebook text.
 2. **`scripts/rulebook/errata.md`** — official errata (local copy of [hellpiercers.com/#errata](https://hellpiercers.com/#errata)). Overrides or amends book text where they conflict.
 3. **`scripts/rulebook/developer-clarifications.md`** — Sandy Pug developer answers from the itch.io forum. Use for edge cases not covered by the errata; does not duplicate errata entries.
+4. **`scripts/rulebook/house-rules.md`** — table-specific house rules for this implementation. Overrides RAW and developer clarifications where they conflict.
 
 Don't guess stats or mechanics from memory — check these sources first.
 
@@ -148,7 +149,7 @@ Open the PNGs to read tile layouts. Orange squares are attack tiles; green (when
 
 **Agent workflow when transcribing rules:**
 
-1. Check `scripts/rulebook/errata.md` and `scripts/rulebook/developer-clarifications.md` for overrides or edge cases.
+1. Check `scripts/rulebook/errata.md`, `scripts/rulebook/developer-clarifications.md`, and `scripts/rulebook/house-rules.md` for overrides or edge cases.
 2. Run `npm run rulebook:setup` if `scripts/rulebook/.venv` is missing.
 3. Search or pull the relevant page(s) from the PDF. For attack patterns, also run `--list-images` / `--extract-images` on those pages.
 4. Add data to `packages/shared/src/data/`.

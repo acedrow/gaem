@@ -785,18 +785,7 @@ const classAbilitySecondaryKeys = computed(() => {
   return keys;
 });
 
-const sharurAttractorInvalidKeys = computed(() => {
-  if (boardActionMode.value !== "sharurAttractor") return new Set<string>();
-  const me = yourPlayer.value;
-  const s = gameState.value;
-  if (!me || !s) return new Set<string>();
-  const keys = new Set<string>();
-  for (const a of s.combat?.attractors ?? []) {
-    const dist = Math.abs(a.x - me.x) + Math.abs(a.y - me.y);
-    if (dist <= 4 && dist >= 1) keys.add(coordKey(a.x, a.y));
-  }
-  return keys;
-});
+const sharurAttractorInvalidKeys = computed(() => new Set<string>());
 
 const boardTokenKeys = computed(() => {
   const keys = new Set<string>();

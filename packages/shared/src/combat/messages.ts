@@ -145,7 +145,7 @@ import {
   validateClassPassive,
   validateResolveClassReaction,
 } from "./class-abilities.js";
-import { playerArmorGearName, validateRemoveAttractor, applyRemoveAttractor, applyAttractorEndOfTurnPulls } from "./attractor.js";
+import { playerArmorGearName, validateRemoveAttractor, applyRemoveAttractor, applyAttractorEndOfTurnPulls, clearAttractorPullForEnemy } from "./attractor.js";
 import { applyTransferenceHeal } from "./transference.js";
 import {
   computePathCost,
@@ -896,6 +896,7 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
 
   switch (action.action) {
     case "move": {
+      clearAttractorPullForEnemy(state, action.enemyId);
       const dest = action.path[action.path.length - 1]!;
       for (const step of action.path) {
         applyEnemyMove(state, action.enemyId, step.x, step.y);
@@ -904,6 +905,7 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
       return `${enemyLabel(enemy)} moved to (${dest.x}, ${dest.y})`;
     }
     case "swarmChip": {
+      clearAttractorPullForEnemy(state, action.enemyId);
       const group = swarmGroupForEnemy(state, action.enemyId);
       const hits: string[] = [];
       for (const id of action.targetPlayerIds) {
@@ -925,6 +927,7 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
       return `${label} swarm chip → ${hits.join(", ")}`;
     }
     case "attack": {
+      clearAttractorPullForEnemy(state, enemy.id);
       setActiveEnemy(state, enemy.id);
       const attacks = enemy.name ? enemyAttacks(enemy.name) : [];
       const attackText = attacks[action.attackIndex];
@@ -991,6 +994,7 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
       return msg;
     }
     case "assisted": {
+      clearAttractorPullForEnemy(state, enemy.id);
       setActiveEnemy(state, enemy.id);
       addPendingAction(
         state,

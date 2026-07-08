@@ -37,6 +37,46 @@ function applyVoidToAttractorTile(state: GameState, x: number, y: number): void 
   tile.walkable = computeWalkable(tile);
 }
 
+function clearVoidFromAttractorTile(state: GameState, x: number, y: number): void {
+  const tile = tileAt(state.tiles, x, y);
+  if (!tile) return;
+  tile.terrain = tile.terrain.filter((t) => t !== "void");
+  tile.walkable = computeWalkable(tile);
+}
+
+function removeAttractorFromState(state: GameState, attractor: AttractorTile): void {
+  state.combat!.attractors = getAttractors(state).filter((a) => a.id !== attractor.id);
+  if (attractor.void) clearVoidFromAttractorTile(state, attractor.x, attractor.y);
+}
+
+function removeAllAttractors(state: GameState): void {
+  for (const a of [...getAttractors(state)]) removeAttractorFromState(state, a);
+}
+
+function sharurSpawnsVoidAttractor(owner: Player | undefined): boolean {
+  if (!owner || owner.class !== "SHARUR") return false;
+  const hp = owner.hp ?? getClassMaxHp(owner.class);
+  return hp <= 10;
+}
+
+export function clearAttractorPullForEnemy(state: GameState, enemyId: string): void {
+  if (!state.combat?.attractorPulledEnemyIds) return;
+  state.combat.attractorPulledEnemyIds = state.combat.attractorPulledEnemyIds.filter((id) => id !== enemyId);
+  if (!state.combat.attractorPulledEnemyIds.length) delete state.combat.attractorPulledEnemyIds;
+}
+
+function enemyAlreadyAttractorPulledThisTurn(state: GameState, enemyId: string): boolean {
+  return (state.combat?.attractorPulledEnemyIds ?? []).includes(enemyId);
+}
+
+function markEnemyAttractorPulled(state: GameState, enemyId: string): void {
+  if (!state.combat) return;
+  if (!state.combat.attractorPulledEnemyIds) state.combat.attractorPulledEnemyIds = [];
+  if (!state.combat.attractorPulledEnemyIds.includes(enemyId)) {
+    state.combat.attractorPulledEnemyIds.push(enemyId);
+  }
+}
+
 export function placeAttractor(
   state: GameState,
   ownerId: string,
@@ -44,9 +84,13 @@ export function placeAttractor(
   y: number,
 ): AttractorTile {
   ensureCombatObjects(state);
+  removeAllAttractors(state);
+  const owner = state.players.find((p) => p.id === ownerId);
+  const isVoid = sharurSpawnsVoidAttractor(owner);
   const id = `attractor-${ownerId}-${x}-${y}-${Date.now()}`;
-  const attractor: AttractorTile = { id, ownerId, x, y, void: false };
+  const attractor: AttractorTile = { id, ownerId, x, y, void: isVoid };
   state.combat!.attractors!.push(attractor);
+  if (isVoid) applyVoidToAttractorTile(state, x, y);
   return attractor;
 }
 
@@ -70,14 +114,7 @@ export function validateRemoveAttractor(
 export function applyRemoveAttractor(state: GameState, x: number, y: number): string {
   const attractor = getAttractorAt(state, x, y);
   if (!attractor) return "No attractor here";
-  state.combat!.attractors = getAttractors(state).filter((a) => a.id !== attractor.id);
-  if (attractor.void) {
-    const tile = tileAt(state.tiles, x, y);
-    if (tile) {
-      tile.terrain = tile.terrain.filter((t) => t !== "void");
-      tile.walkable = computeWalkable(tile);
-    }
-  }
+  removeAttractorFromState(state, attractor);
   const owner = state.players.find((p) => p.id === attractor.ownerId);
   const ownerName = owner?.nickname ?? attractor.ownerId;
   return `Removed attractor at (${x}, ${y}) · ${ownerName}`;
@@ -107,28 +144,28 @@ function attractorsAffectingTile(state: GameState, x: number, y: number): Attrac
   return hits;
 }
 
+function applyAttractorPull(
+  state: GameState,
+  unit: Player | { id: string; x: number; y: number; hp?: number },
+  kind: "player" | "enemy",
+  endOfTurn: boolean,
+): string[] {
+  if (kind === "enemy" && enemyAlreadyAttractorPulledThisTurn(state, unit.id)) return [];
+  const attractors = attractorsAffectingTile(state, unit.x, unit.y);
+  if (!attractors.length) return [];
+  const a = attractors[0]!;
+  const msg = applyPullToward(state, unit as Player, a.x, a.y, 1, { kind });
+  if (!msg) return [];
+  if (kind === "enemy") markEnemyAttractorPulled(state, unit.id);
+  return [endOfTurn ? `end-of-turn ${msg}` : msg];
+}
+
 export function applyAttractorEntryPulls(
   state: GameState,
   unit: Player | { id: string; x: number; y: number; hp?: number },
   kind: "player" | "enemy",
-  opts?: { rng?: () => number },
 ): string[] {
-  const attractors = attractorsAffectingTile(state, unit.x, unit.y);
-  if (!attractors.length) return [];
-  const rng = opts?.rng ?? Math.random;
-
-  if (kind === "player" && attractors.length > 1) {
-    const a = attractors[Math.floor(rng() * attractors.length)]!;
-    const msg = applyPullToward(state, unit as Player, a.x, a.y, 1, { kind });
-    return msg ? [msg] : [];
-  }
-
-  const messages: string[] = [];
-  for (const a of attractors) {
-    const msg = applyPullToward(state, unit as Player, a.x, a.y, 1, { kind });
-    if (msg) messages.push(msg);
-  }
-  return messages;
+  return applyAttractorPull(state, unit, kind, false);
 }
 
 export function applyAttractorEndOfTurnPulls(
@@ -136,14 +173,7 @@ export function applyAttractorEndOfTurnPulls(
   unit: Player | { id: string; x: number; y: number; hp?: number },
   kind: "player" | "enemy",
 ): string[] {
-  const attractors = attractorsAffectingTile(state, unit.x, unit.y);
-  if (!attractors.length) return [];
-  const messages: string[] = [];
-  for (const a of attractors) {
-    const msg = applyPullToward(state, unit as Player, a.x, a.y, 1, { kind });
-    if (msg) messages.push(`end-of-turn ${msg}`);
-  }
-  return messages;
+  return applyAttractorPull(state, unit, kind, true);
 }
 
 export function checkSharurEmergencyDefenses(state: GameState, player: Player): string | null {

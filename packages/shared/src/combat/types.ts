@@ -161,6 +161,7 @@ export type CombatState = {
   thrownTraps?: ThrownTrap[];
   boardTokens?: BoardToken[];
   attractors?: AttractorTile[];
+  attractorPulledEnemyIds?: string[];
   gearCheckGrants?: Record<string, string>;
   kopisMarks?: Record<string, string>;
   countdownKinds?: Record<string, string>;
