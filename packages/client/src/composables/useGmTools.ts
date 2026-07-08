@@ -5,7 +5,7 @@ import { useBoardActionMode } from "./useBoardActionMode.js";
 import { useEnemySpawnSelection } from "./useEnemySpawnSelection.js";
 import { useGameState } from "./useGameState.js";
 
-export type GmTool = "select" | "damageEffect";
+export type GmTool = "select" | "damageEffect" | "forceMove";
 export type GmSelectTargetKind = "tiles" | "enemies" | "players";
 
 export type GmBulkSelection =

@@ -62,6 +62,7 @@ import {
   usesAnchoredPatternPlacement,
   patternOriginFromAnchor,
   validateEnemyFootprint,
+  validateGmForceMove,
   warhookAdjacentLandingTiles,
   warhookNearestLandings,
   warhookRangeKeys,
@@ -1636,10 +1637,34 @@ function hueFromId(id: string): number {
   return h % 360;
 }
 
+const gmForceMovableKeys = computed(() => {
+  const keys = new Set<string>();
+  const s = gameState.value;
+  if (!s || !canUseGmTools.value || gmActiveTool.value !== "forceMove") return keys;
+
+  if (selectedPlayerId.value) {
+    const target = { kind: "player" as const, id: selectedPlayerId.value };
+    for (const c of cells.value) {
+      if (validateGmForceMove(s, target, c.x, c.y) === null) keys.add(c.key);
+    }
+    return keys;
+  }
+
+  const id = selectedEnemyId.value;
+  if (!id) return keys;
+  const target = { kind: "enemy" as const, id };
+  const solo = isSoloSwarmMemberSelected.value ? { soloSwarmMember: true as const } : undefined;
+  for (const c of cells.value) {
+    if (validateGmForceMove(s, target, c.x, c.y, solo) === null) keys.add(c.key);
+  }
+  return keys;
+});
+
 const gmEnemyMoveTargetKeys = computed(() => {
   const keys = new Set<string>();
   const s = gameState.value;
   const id = selectedEnemyId.value;
+  if (gmActiveTool.value === "forceMove") return keys;
   if (!s || !id || !canGmMoveEnemies(s)) return keys;
   const enemy = s.enemies.find((e) => e.id === id);
   if (!enemy || enemy.exhausted || isTowerEnemy(enemy)) return keys;
@@ -1927,7 +1952,9 @@ const cellStateByKey = computed(() => {
         !player &&
         !enemy,
       gmMovable: canUseGmTools.value && gmEnemyMoveTargetKeys.value.has(c.key),
-      gmSpawnable: canUseGmTools.value && gmSpawnableKeys.value.has(c.key),
+      gmSpawnable:
+        canUseGmTools.value &&
+        (gmSpawnableKeys.value.has(c.key) || gmForceMovableKeys.value.has(c.key)),
       patternPrimary: patternPrimaryKeys.value.has(ck),
       patternSecondary: patternSecondaryKeys.value.has(ck),
       combatTargetPrimary: combatPrimary,
@@ -3736,6 +3763,34 @@ function onGmCellClick(x: number, y: number) {
     return;
   }
 
+  if (gmActiveTool.value === "forceMove") {
+    if (selectOccupantAt(x, y)) return;
+    if (!gmForceMovableKeys.value.has(boardCellKey(x, y))) {
+      clearBoardSelection();
+      return;
+    }
+    if (selectedPlayerId.value) {
+      send({
+        type: "gmForceMove",
+        target: { kind: "player", id: selectedPlayerId.value },
+        x,
+        y,
+      });
+      return;
+    }
+    if (selectedEnemyId.value) {
+      send({
+        type: "gmForceMove",
+        target: { kind: "enemy", id: selectedEnemyId.value },
+        x,
+        y,
+        ...(isSoloSwarmMemberSelected.value ? { soloSwarmMember: true } : {}),
+      });
+      return;
+    }
+    return;
+  }
+
   if (boardActionMode.value === "gmEnemyAttack") {
     if (handleGmEnemyAttackCellClick(x, y)) return;
     clearBoardActionMode();
@@ -4185,6 +4240,10 @@ function onKeydown(e: KeyboardEvent) {
 
   if (canUseGmTools.value) {
     if (e.key === "Escape") {
+      if (gmActiveTool.value === "forceMove" && (selectedPlayerId.value || selectedEnemyId.value)) {
+        clearBoardSelection();
+        return;
+      }
       if (gmActiveTool.value || gmBulkSelection.value) {
         clearActiveTool();
         return;

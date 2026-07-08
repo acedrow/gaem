@@ -2,6 +2,7 @@ import type { ClientMessage, ConsoleActor, ConsoleLogEntry, GaemRole, GameState,
 import {
   addEnemy,
   applyEnemyMove,
+  applyGmForceMove,
   applyMove,
   applyPhaseAction,
   applyBaseCampaignAction,
@@ -16,6 +17,7 @@ import {
   handleCombatMessage,
   logSyncPlayerLoadoutChanges,
   normalizeGameState,
+  playerLabel,
   removeEnemy,
   removePlayer,
   setPlayerHp,
@@ -23,6 +25,7 @@ import {
   syncCharacterSheetWeaponsFromPlayer,
   syncPlayerSheet,
   validateEnemyMove,
+  validateGmForceMove,
   validateMove,
   validatePhaseAction,
   validateBaseCampaignAction,
@@ -309,6 +312,44 @@ export class GameRoom {
             const actor = await this.actorForSocket(ws);
             await this.broadcastConsole(actor, `spawned ${enemyLabel(enemy)} at (${parsed.x}, ${parsed.y})`);
           }
+        }
+      }
+      await this.broadcastState();
+      return;
+    }
+
+    if (parsed.type === "gmForceMove") {
+      if (!this.attHasGmCapabilities(att)) {
+        this.sendError(ws, "Only the game master can force-move tokens");
+        return;
+      }
+      const err = validateGmForceMove(this.gameState, parsed.target, parsed.x, parsed.y, {
+        soloSwarmMember: parsed.soloSwarmMember,
+      });
+      if (err) {
+        this.sendError(ws, err);
+        return;
+      }
+      applyGmForceMove(this.gameState, parsed.target, parsed.x, parsed.y, {
+        soloSwarmMember: parsed.soloSwarmMember,
+      });
+      if (parsed.target.kind === "player") {
+        const player = this.gameState.players.find((p) => p.id === parsed.target.id);
+        if (player) {
+          const actor = await this.actorForSocket(ws);
+          await this.broadcastConsole(
+            actor,
+            `force-moved ${playerLabel(player)} to (${parsed.x}, ${parsed.y})`,
+          );
+        }
+      } else {
+        const enemy = this.gameState.enemies.find((e) => e.id === parsed.target.id);
+        if (enemy) {
+          const actor = await this.actorForSocket(ws);
+          await this.broadcastConsole(
+            actor,
+            `force-moved ${enemyLabel(enemy)} to (${parsed.x}, ${parsed.y})`,
+          );
         }
       }
       await this.broadcastState();

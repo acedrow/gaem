@@ -32,6 +32,19 @@ const { activeTool, setActiveTool } = useGmTools();
         <circle cx="8" cy="8" r="1.25" fill="currentColor" />
       </svg>
     </button>
+    <button
+      type="button"
+      class="chrome-tab"
+      :class="{ active: activeTool === 'forceMove' }"
+      data-tooltip="Force Move"
+      aria-label="Force Move"
+      @click="setActiveTool('forceMove')"
+    >
+      <svg class="chrome-tab-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M8 2v4M8 10v4M2 8h4M10 8h4" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" />
+        <path d="M8 2l-1.5 1.5M8 2l1.5 1.5M8 14l-1.5-1.5M8 14l1.5-1.5M2 8l1.5-1.5M2 8l1.5 1.5M14 8l-1.5-1.5M14 8l-1.5 1.5" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </button>
   </div>
 </template>
 

@@ -257,6 +257,13 @@ export type ClientMessage =
   | { type: "triggerReversal"; extraAllyIds?: string[] }
   | { type: "declineReversal" }
   | {
+      type: "gmForceMove";
+      target: { kind: "player" | "enemy"; id: string };
+      x: number;
+      y: number;
+      soloSwarmMember?: boolean;
+    }
+  | {
       type: "gmApplyDamage";
       target: { kind: "player" | "enemy"; id: string };
       amount: number;

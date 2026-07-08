@@ -17,6 +17,7 @@ import type {
 import {
   addEnemy,
   applyEnemyMove,
+  applyGmForceMove,
   applyMove,
   applyPhaseAction,
   applyBaseCampaignAction,
@@ -34,6 +35,7 @@ import {
   logSyncPlayerLoadoutChanges,
   normalizeGameState,
   parseGameMap,
+  playerLabel,
   removeEnemy,
   removePlayer,
   setPlayerHp,
@@ -41,6 +43,7 @@ import {
   syncCharacterSheetWeaponsFromPlayer,
   syncPlayerSheet,
   validateEnemyMove,
+  validateGmForceMove,
   validateMove,
   validatePhaseAction,
   validateBaseCampaignAction,
@@ -547,6 +550,42 @@ wss.on("connection", (ws: WebSocket) => {
           if (enemy) {
             broadcastConsole(actorForSocket(ws), `spawned ${enemyLabel(enemy)} at (${parsed.x}, ${parsed.y})`);
           }
+        }
+      }
+      broadcastState();
+      return;
+    }
+
+    if (parsed.type === "gmForceMove") {
+      if (!socketHasGmCapabilities(ws)) {
+        sendError(ws, "Only the game master can force-move tokens");
+        return;
+      }
+      const err = validateGmForceMove(gameState, parsed.target, parsed.x, parsed.y, {
+        soloSwarmMember: parsed.soloSwarmMember,
+      });
+      if (err) {
+        sendError(ws, err);
+        return;
+      }
+      applyGmForceMove(gameState, parsed.target, parsed.x, parsed.y, {
+        soloSwarmMember: parsed.soloSwarmMember,
+      });
+      if (parsed.target.kind === "player") {
+        const player = gameState.players.find((p) => p.id === parsed.target.id);
+        if (player) {
+          broadcastConsole(
+            actorForSocket(ws),
+            `force-moved ${playerLabel(player)} to (${parsed.x}, ${parsed.y})`,
+          );
+        }
+      } else {
+        const enemy = gameState.enemies.find((e) => e.id === parsed.target.id);
+        if (enemy) {
+          broadcastConsole(
+            actorForSocket(ws),
+            `force-moved ${enemyLabel(enemy)} to (${parsed.x}, ${parsed.y})`,
+          );
         }
       }
       broadcastState();

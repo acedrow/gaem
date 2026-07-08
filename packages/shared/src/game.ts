@@ -20,6 +20,7 @@ import { enterTaccom, exitTaccom, resetTaccomEncounter } from "./combat/taccom-r
 import {
   buildSwarmGroups,
   reconcileSwarmHp,
+  swarmCanonicalDisplayId,
   swarmGroupForEnemy,
   validateSwarmMove,
   applySwarmMove,
@@ -676,6 +677,130 @@ export function validateEnemyFootprint(
     if (enemy && enemy.id !== excludeEnemyId) return "Tile occupied";
   }
   return null;
+}
+
+// Bounds + token collision only — used by GM force-move (ignores walkability).
+export function validateForceMoveFootprint(
+  state: GameState,
+  x: number,
+  y: number,
+  scale: number,
+  excludeEnemyIds?: ReadonlySet<string> | string,
+  occupancy?: BoardOccupancy,
+): string | null {
+  if (scale < 1) return "Invalid scale";
+  if (!isFootprintInBounds(x, y, scale, state.width, state.height)) {
+    return "Out of bounds";
+  }
+  const exclude =
+    typeof excludeEnemyIds === "string"
+      ? new Set([excludeEnemyIds])
+      : (excludeEnemyIds ?? new Set<string>());
+  const occ = occupancy ?? buildBoardOccupancy(state);
+  for (const tile of enemyFootprintTiles(x, y, scale)) {
+    const key = coordKey(tile.x, tile.y);
+    if (occ.playerByKey.has(key)) return "Tile occupied";
+    const enemy = occ.enemyByKey.get(key);
+    if (enemy && !exclude.has(enemy.id)) return "Tile occupied";
+  }
+  return null;
+}
+
+export type GmForceMoveTarget = { kind: "player" | "enemy"; id: string };
+
+export function validateGmForceMove(
+  state: GameState,
+  target: GmForceMoveTarget,
+  toX: number,
+  toY: number,
+  opts?: { soloSwarmMember?: boolean },
+): string | null {
+  if (target.kind === "player") {
+    const player = state.players.find((p) => p.id === target.id);
+    if (!player) return "Unknown player";
+    if (!isInBounds(toX, toY, state.width, state.height)) return "Out of bounds";
+    if (player.x === toX && player.y === toY) return null;
+    if (isTileOccupied(state, toX, toY)) return "Tile occupied";
+    return null;
+  }
+
+  const enemy = state.enemies.find((e) => e.id === target.id);
+  if (!enemy) return "Unknown enemy";
+
+  const group = swarmGroupForEnemy(state, target.id);
+  if (group && !opts?.soloSwarmMember) {
+    const canonId = swarmCanonicalDisplayId(state, group.memberIds);
+    const canon = state.enemies.find((e) => e.id === canonId);
+    if (!canon) return "Unknown enemy";
+    const dx = toX - canon.x;
+    const dy = toY - canon.y;
+    if (dx === 0 && dy === 0) return null;
+    const memberIds = new Set(group.memberIds);
+    const occ = buildBoardOccupancy(state);
+    for (const memberId of group.memberIds) {
+      const member = state.enemies.find((e) => e.id === memberId);
+      if (!member) return "Unknown enemy";
+      const err = validateForceMoveFootprint(
+        state,
+        member.x + dx,
+        member.y + dy,
+        getEnemyScale(member),
+        memberIds,
+        occ,
+      );
+      if (err) return err;
+    }
+    return null;
+  }
+
+  if (enemy.x === toX && enemy.y === toY) return null;
+  return validateForceMoveFootprint(state, toX, toY, getEnemyScale(enemy), target.id);
+}
+
+export function applyGmForceMove(
+  state: GameState,
+  target: GmForceMoveTarget,
+  toX: number,
+  toY: number,
+  opts?: { soloSwarmMember?: boolean },
+): void {
+  if (target.kind === "player") {
+    const player = state.players.find((p) => p.id === target.id);
+    if (!player) return;
+    player.x = toX;
+    player.y = toY;
+    syncUnitElevationOnTile(state, player, toX, toY);
+    return;
+  }
+
+  const enemy = state.enemies.find((e) => e.id === target.id);
+  if (!enemy) return;
+
+  const group = swarmGroupForEnemy(state, target.id);
+  if (group && !opts?.soloSwarmMember) {
+    const canonId = swarmCanonicalDisplayId(state, group.memberIds);
+    const canon = state.enemies.find((e) => e.id === canonId);
+    if (!canon) return;
+    const dx = toX - canon.x;
+    const dy = toY - canon.y;
+    if (dx === 0 && dy === 0) return;
+    const prevGroups = buildSwarmGroups(state);
+    for (const memberId of group.memberIds) {
+      const member = state.enemies.find((e) => e.id === memberId);
+      if (!member) continue;
+      member.x += dx;
+      member.y += dy;
+      syncUnitElevationOnTile(state, member, member.x, member.y);
+    }
+    reconcileSwarmHp(state, prevGroups);
+    return;
+  }
+
+  const prevGroups = buildSwarmGroups(state);
+  enemy.x = toX;
+  enemy.y = toY;
+  syncUnitElevationOnTile(state, enemy, toX, toY);
+  reconcileSwarmHp(state, prevGroups);
 }
 
 function isOccupied(state: GameState, x: number, y: number, occupancy?: BoardOccupancy): boolean {
