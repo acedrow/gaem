@@ -125,6 +125,7 @@ import {
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 
 import { routesTokenClickToCellTargeting } from "../lib/boardCellTargeting.js";
+import { boardCellMetrics, buildElevationContourPaths } from "../lib/elevationContours.js";
 import { useBoardActionMode } from "../composables/useBoardActionMode.js";
 import { useCombatActions } from "../composables/useCombatActions.js";
 import { useBoardSelection } from "../composables/useBoardSelection.js";
@@ -188,7 +189,7 @@ const activePlayerSelected = computed(() => {
   if (!selectedPlayerId.value) return true;
   return selectedPlayerId.value === id;
 });
-const { showHealthBars, showLineOfSightIndicator } = usePlayerSettings();
+const { showHealthBars, showLineOfSightIndicator, showElevationContours } = usePlayerSettings();
 const showEnemyHealthBars = computed(() => showHealthBars.value && canUseGmTools.value);
 const { indicators: damageIndicators } = useDamageIndicators(gameState);
 const { sheets, loadSheets } = useCharacterSheets();
@@ -1824,6 +1825,17 @@ watch(
   },
 );
 
+const BOARD_CELL_GAP = 3;
+
+const elevationContourPaths = computed(() => {
+  if (!showElevationContours.value) return null;
+  const s = gameState.value;
+  if (!s) return null;
+  const metrics = boardCellMetrics(s.width, s.height, boardWidthPx.value, BOARD_CELL_GAP);
+  const paths = buildElevationContourPaths(s.tiles, metrics);
+  return paths.length > 0 ? paths : null;
+});
+
 const cellStateByKey = computed(() => {
   const map = new Map<string, CellRenderState>();
   const s = gameState.value;
@@ -2184,8 +2196,6 @@ const tooltipData = computed(() => {
     boardTokens: boardTokensByKey.value.get(key) ?? [],
   };
 });
-
-const BOARD_CELL_GAP = 3;
 
 const tooltipStyle = computed(() => {
   const cell = hoveredCell.value;
@@ -4467,6 +4477,23 @@ onUnmounted(() => {
         />
         <div class="board-stage" :style="stageStyle">
           <div class="board" :style="gridStyle">
+            <svg
+              v-if="elevationContourPaths"
+              class="elevation-contour-overlay"
+              aria-hidden="true"
+              :viewBox="`0 0 ${boardWidthPx} ${contentHeightPx}`"
+            >
+              <path
+                v-for="(d, i) in elevationContourPaths"
+                :key="i"
+                :d="d"
+                fill="none"
+                stroke="var(--color-elevation-contour)"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
             <BoardCell
                 v-for="row in boardCellRows"
                 :key="row.key"
@@ -4799,10 +4826,21 @@ onUnmounted(() => {
 }
 
 .board {
+  --board-cell-gap: 3px;
+  position: relative;
   width: fit-content;
   display: grid;
-  gap: 3px;
+  gap: var(--board-cell-gap);
   aspect-ratio: v-bind(boardAspectRatio);
+}
+
+.elevation-contour-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
 }
 
 .board-tooltip {

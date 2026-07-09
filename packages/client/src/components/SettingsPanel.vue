@@ -6,7 +6,7 @@ import { useSession } from "../composables/useSession.js";
 import { useTheme } from "../composables/useTheme.js";
 import ManagePlayersModal from "./ManagePlayersModal.vue";
 
-const { showHealthBars, showConnectionsInConsole, showLineOfSightIndicator } = usePlayerSettings();
+const { showHealthBars, showConnectionsInConsole, showLineOfSightIndicator, showElevationContours } = usePlayerSettings();
 const { theme, themes } = useTheme();
 const { hasGmCapabilities } = useSession();
 
@@ -57,6 +57,20 @@ const managePlayersOpen = ref(false);
           :class="{ on: showLineOfSightIndicator }"
           :aria-checked="showLineOfSightIndicator"
           @click="showLineOfSightIndicator = !showLineOfSightIndicator"
+        >
+          <span class="toggle-thumb" />
+        </button>
+      </label>
+
+      <label class="setting-row">
+        <span class="setting-label">Show elevation contours</span>
+        <button
+          type="button"
+          role="switch"
+          class="toggle"
+          :class="{ on: showElevationContours }"
+          :aria-checked="showElevationContours"
+          @click="showElevationContours = !showElevationContours"
         >
           <span class="toggle-thumb" />
         </button>

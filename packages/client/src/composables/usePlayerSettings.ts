@@ -6,12 +6,14 @@ type PlayerSettings = {
   showHealthBars: boolean;
   showConnectionsInConsole: boolean;
   showLineOfSightIndicator: boolean;
+  showElevationContours: boolean;
 };
 
 const DEFAULT_SETTINGS: PlayerSettings = {
   showHealthBars: true,
   showConnectionsInConsole: true,
   showLineOfSightIndicator: false,
+  showElevationContours: true,
 };
 
 function settingsKey(role: "gm" | "player" | null, playerId: string | null): string | null {
@@ -27,6 +29,7 @@ function parseSettings(raw: string): PlayerSettings {
       showHealthBars: parsed.showHealthBars !== false,
       showConnectionsInConsole: parsed.showConnectionsInConsole !== false,
       showLineOfSightIndicator: parsed.showLineOfSightIndicator === true,
+      showElevationContours: parsed.showElevationContours !== false,
     };
   } catch {
     return { ...DEFAULT_SETTINGS };
@@ -58,6 +61,7 @@ let currentKey = settingsKey(role.value, playerProfile.value?.id ?? null);
 const showHealthBars = ref(readSettings(currentKey).showHealthBars);
 const showConnectionsInConsole = ref(readSettings(currentKey).showConnectionsInConsole);
 const showLineOfSightIndicator = ref(readSettings(currentKey).showLineOfSightIndicator);
+const showElevationContours = ref(readSettings(currentKey).showElevationContours);
 
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -68,11 +72,12 @@ function schedulePersist() {
       showHealthBars: showHealthBars.value,
       showConnectionsInConsole: showConnectionsInConsole.value,
       showLineOfSightIndicator: showLineOfSightIndicator.value,
+      showElevationContours: showElevationContours.value,
     });
   }, 150);
 }
 
-watch([showHealthBars, showConnectionsInConsole, showLineOfSightIndicator], schedulePersist);
+watch([showHealthBars, showConnectionsInConsole, showLineOfSightIndicator, showElevationContours], schedulePersist);
 
 watch(
   [role, playerProfile],
@@ -84,6 +89,7 @@ watch(
     showHealthBars.value = next.showHealthBars;
     showConnectionsInConsole.value = next.showConnectionsInConsole;
     showLineOfSightIndicator.value = next.showLineOfSightIndicator;
+    showElevationContours.value = next.showElevationContours;
   },
   { deep: true },
 );
@@ -93,5 +99,6 @@ export function usePlayerSettings() {
     showHealthBars,
     showConnectionsInConsole,
     showLineOfSightIndicator,
+    showElevationContours,
   };
 }
