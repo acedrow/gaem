@@ -17,7 +17,7 @@ import {
 import { coordKey, isWalkable, tileAt } from "../map.js";
 import { getWeaponByName } from "../player-data.js";
 import { isOrthogonallyAdjacent } from "../patterns.js";
-import { syncUnitElevationOnTile } from "./elevation.js";
+import { enemyHasFlyingTag, syncUnitElevationOnTile } from "./elevation.js";
 
 export type SwarmGroup = {
   canonicalId: string;
@@ -332,6 +332,8 @@ export function swarmFringeTiles(
 ): { x: number; y: number }[] {
   const occ = occupancy ?? buildBoardOccupancy(state);
   const positions = swarmMemberPositions(state, memberIds);
+  const first = memberIds.length > 0 ? state.enemies.find((e) => e.id === memberIds[0]) : undefined;
+  const flying = first != null && enemyHasFlyingTag(first);
   const fringe: { x: number; y: number }[] = [];
   const seen = new Set<string>();
   const deltas = [
@@ -349,7 +351,7 @@ export function swarmFringeTiles(
       if (x < 0 || y < 0 || x >= state.width || y >= state.height) continue;
       if (occ.enemyByKey.has(key) || occ.playerByKey.has(key)) continue;
       const tile = tileAt(state.tiles, x, y);
-      if (!tile || !isWalkable(tile)) continue;
+      if (!flying && (!tile || !isWalkable(tile))) continue;
       seen.add(key);
       fringe.push({ x, y });
     }
@@ -386,7 +388,7 @@ export function canSwarmMemberReachDest(
   if (!group) return false;
   const member = state.enemies.find((e) => e.id === memberId);
   if (!member) return false;
-  if (validateEnemyFootprint(state, destX, destY, getEnemyScale(member), memberId, occupancy) !== null) {
+  if (validateEnemyFootprint(state, destX, destY, getEnemyScale(member), memberId, occupancy, member) !== null) {
     return false;
   }
   const remaining = group.memberIds.filter((id) => id !== memberId);
@@ -528,7 +530,7 @@ export function validateSwarmMove(
   }
 
   const mover = state.enemies.find((e) => e.id === moverId)!;
-  return validateEnemyFootprint(state, destX, destY, getEnemyScale(mover), moverId);
+  return validateEnemyFootprint(state, destX, destY, getEnemyScale(mover), moverId, undefined, mover);
 }
 
 export function applySwarmMove(

@@ -427,13 +427,17 @@ describe("buildElevationContourPaths", () => {
     expect(pathSelfCrosses(paths[0]!)).toBe(false);
   });
 
-  it("connects two diagonally-touching -1 tiles into one trench", () => {
+  it("draws two diagonally-touching -1 tiles as separate rings without crossing", () => {
+    // Inset (pit) contours cannot merge diagonally without self-crossing, so
+    // each -1 tile keeps its own ring; they must not cross like the peak case.
     const tiles = flatGrid(5, 5, 0);
     for (const t of tiles) if ((t.x === 1 && t.y === 1) || (t.x === 2 && t.y === 2)) t.elevation = -1;
     const paths = buildElevationContourPaths(tiles, boardCellMetrics(5, 5, 250, 3));
-    expect(paths).toHaveLength(1);
-    expect(paths[0]).toContain(" Z");
-    expect(pathSelfCrosses(paths[0]!)).toBe(false);
+    expect(paths).toHaveLength(2);
+    for (const path of paths) {
+      expect(path).toContain(" Z");
+      expect(pathSelfCrosses(path)).toBe(false);
+    }
   });
 
   it("closes a negative-elevation region with a diagonal (concave) edge", () => {

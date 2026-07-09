@@ -50,4 +50,27 @@ describe("elevation bonus pattern tile", () => {
     expect(withBonus.some((t) => t.x === 3 && t.y === 1)).toBe(true);
     expect(withBonus.length).toBe(baseTiles.length + 1);
   });
+
+  it("uses hit swarm segment elevation, not canonical anchor elevation", () => {
+    const state = makeGameState();
+    const attacker = addTestPlayer(state, "p1", { x: 2, y: 2, class: "HARPE" });
+    attacker.elevation = 2;
+    tileAt(state.tiles, 2, 2)!.elevation = 2;
+    // Canonical id sorts first ("a"); high elev. Segment "b" is the hit tile at elev 0.
+    addTestEnemy(state, "a", 3, 2, { name: "Scorned Eyes", hp: 20 });
+    addTestEnemy(state, "b", 4, 2, { name: "Scorned Eyes", hp: 20 });
+    tileAt(state.tiles, 3, 2)!.elevation = 2;
+    tileAt(state.tiles, 4, 2)!.elevation = 0;
+    tileAt(state.tiles, 4, 1)!.elevation = 0;
+
+    const spec: WeaponAttackSpec = {
+      tiles: [[2, 0]],
+      damage: "3",
+    };
+    const baseTiles = collectAttackTiles(state, { x: 2, y: 2 }, spec, "e");
+    expect(baseTiles.some((t) => t.x === 4 && t.y === 2)).toBe(true);
+    const candidates = elevationBonusTileCandidates(state, { x: 2, y: 2 }, baseTiles, attacker);
+    expect(candidates.length).toBeGreaterThan(0);
+    expect(candidates.some((t) => t.x === 4 && t.y === 1)).toBe(true);
+  });
 });

@@ -10,7 +10,8 @@ import {
 import { hasLineOfSight } from "./los.js";
 import { terrainStepCost } from "./movement.js";
 import { resolveDamageAgainstTarget } from "./damage.js";
-import { addTestPlayer, makeGameState } from "../test/fixtures.js";
+import { validateAddEnemy, validateEnemyMove } from "../game.js";
+import { addTestEnemy, addTestPlayer, makeGameState } from "../test/fixtures.js";
 import { tileAt } from "../map.js";
 
 describe("elevation helpers", () => {
@@ -28,6 +29,14 @@ describe("elevation helpers", () => {
     player.elevation = 1;
     expect(isFlyingUnit(player)).toBe(true);
     expect(effectiveElevation(state, player)).toBe(2);
+  });
+
+  it("Flying tag grants +1 effective elevation", () => {
+    const state = makeGameState();
+    tileAt(state.tiles, 2, 2)!.elevation = 0;
+    const enemy = addTestEnemy(state, "e1", 2, 2, { name: "Shadowing Witness" });
+    expect(isFlyingUnit(enemy)).toBe(true);
+    expect(effectiveElevation(state, enemy)).toBe(1);
   });
 
   it("sync snaps to higher tile and to lower tile when not Flying", () => {
@@ -75,6 +84,42 @@ describe("Falling", () => {
     expect(player.falling).toBeUndefined();
     expect(player.elevation).toBe(0);
     expect(player.hp).toBe(17);
+  });
+
+  it("landing collision damages and pushes the occupant", () => {
+    const state = makeGameState();
+    tileAt(state.tiles, 2, 2)!.elevation = 0;
+    const faller = addTestPlayer(state, "p1", { x: 2, y: 2, hp: 20, class: "HARPE" });
+    const occupant = addTestPlayer(state, "p2", { x: 2, y: 2, hp: 20, class: "HARPE" });
+    faller.elevation = 2;
+
+    tickFallingStartOfTurn(state, faller, "player");
+    expect(faller.elevation).toBe(1);
+
+    const land = tickFallingStartOfTurn(state, faller, "player");
+    expect(land.some((m) => m.includes("landing collision"))).toBe(true);
+    expect(land.some((m) => m.includes("pushed occupant"))).toBe(true);
+    expect(occupant.hp).toBe(18);
+    expect(occupant.x !== 2 || occupant.y !== 2).toBe(true);
+    expect(faller.falling).toBeUndefined();
+    expect(faller.elevation).toBe(0);
+  });
+});
+
+describe("Flying terrain pass", () => {
+  it("allows Flying enemy move onto void tiles", () => {
+    const state = makeGameState({ roundPhase: "gmTurn", turn: { role: "gm" } });
+    tileAt(state.tiles, 3, 2)!.terrain = ["void"];
+    const enemy = addTestEnemy(state, "e1", 2, 2, { name: "Shadowing Witness" });
+    enemy.movementRemaining = 2;
+    expect(validateEnemyMove(state, "e1", 3, 2)).toBeNull();
+  });
+
+  it("allows Flying enemy spawn onto void tiles", () => {
+    const state = makeGameState();
+    tileAt(state.tiles, 3, 3)!.terrain = ["void"];
+    expect(validateAddEnemy(state, 3, 3, 1, "Shadowing Witness")).toBeNull();
+    expect(validateAddEnemy(state, 3, 3)).toBe("Blocked");
   });
 });
 

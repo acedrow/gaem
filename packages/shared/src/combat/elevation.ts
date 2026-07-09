@@ -59,6 +59,16 @@ export function effectiveElevation(state: GameState, unit: Elevatable): number {
   return clampElevation(elev);
 }
 
+export function elevationAtCoords(state: GameState, x: number, y: number): number {
+  const occ = buildBoardOccupancy(state);
+  const key = coordKey(x, y);
+  const enemy = occ.enemyByKey.get(key);
+  if (enemy) return effectiveElevation(state, enemy);
+  const player = occ.playerByKey.get(key);
+  if (player) return effectiveElevation(state, player);
+  return tileElevation(state, x, y);
+}
+
 export function syncUnitElevationOnTile(
   state: GameState,
   unit: Elevatable,

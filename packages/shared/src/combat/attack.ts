@@ -15,7 +15,7 @@ import type { WeaponAttackSpec } from "./types.js";
 import type { AttackRangeSpan } from "./types.js";
 import { applyEffectStacks } from "./effects.js";
 import { trackCountdownKinds } from "./countdown.js";
-import { effectiveElevation, tileElevation } from "./elevation.js";
+import { effectiveElevation, elevationAtCoords, tileElevation } from "./elevation.js";
 
 export { tileElevation } from "./elevation.js";
 
@@ -318,9 +318,11 @@ export function effectiveRangeLimit(
   const attackerElev = opts?.attacker
     ? effectiveElevation(state, opts.attacker)
     : tileElevation(state, origin.x, origin.y);
-  const targetElev = opts?.targetUnit
-    ? effectiveElevation(state, opts.targetUnit)
-    : tileElevation(state, target.x, target.y);
+  const targetUnit = opts?.targetUnit;
+  const targetElev =
+    targetUnit != null && targetUnit.x === target.x && targetUnit.y === target.y
+      ? effectiveElevation(state, targetUnit)
+      : elevationAtCoords(state, target.x, target.y);
   return baseRange + elevationRangeBonus(attackerElev, targetElev);
 }
 
@@ -334,11 +336,7 @@ export function elevationBonusTileCandidates(
     ? effectiveElevation(state, attacker)
     : tileElevation(state, origin.x, origin.y);
   const hitEnemies = enemiesInTiles(state, patternTiles);
-  const hasLowerEnemy = hitEnemies.some((t) => {
-    const enemy = state.enemies.find((e) => e.id === t.enemyId);
-    const elev = enemy ? effectiveElevation(state, enemy) : tileElevation(state, t.x, t.y);
-    return elev < originElev;
-  });
+  const hasLowerEnemy = hitEnemies.some((t) => elevationAtCoords(state, t.x, t.y) < originElev);
   if (!hasLowerEnemy) return [];
 
   const patternKeys = new Set(patternTiles.map((t) => coordKey(t.x, t.y)));
@@ -624,12 +622,20 @@ function applySethianWholeSwarmAttack(
   const parts: string[] = [];
 
   const damageOpts = { damageSpec: spec.damage };
+  const occ = buildBoardOccupancy(state);
   for (const [canonicalId, hitCount] of groupHits) {
     const damage = Math.min(total * hitCount, SETHIAN_DAMAGE_CAP);
     const enemy = state.enemies.find((e) => e.id === canonicalId)!;
-    applyDamageToEnemy(enemy, damage, state, { ...damageOpts, hitTile: { x: enemy.x, y: enemy.y } });
+    const group = swarmGroupForEnemy(state, canonicalId);
+    const memberIds = new Set(group?.memberIds ?? [canonicalId]);
+    const hitTile =
+      tiles.find((tile) => {
+        const at = occ.enemyByKey.get(coordKey(tile.x, tile.y));
+        return at != null && memberIds.has(at.id);
+      }) ?? { x: enemy.x, y: enemy.y };
+    applyDamageToEnemy(enemy, damage, state, { ...damageOpts, hitTile });
     applyUnitEffectStacks(state,enemy, effects);
-    targets.push({ enemyId: canonicalId, x: enemy.x, y: enemy.y });
+    targets.push({ enemyId: canonicalId, x: hitTile.x, y: hitTile.y });
     parts.push(`${detail}×${hitCount}=${damage}`);
   }
 

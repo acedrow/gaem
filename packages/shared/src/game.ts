@@ -4,7 +4,7 @@ import { playerLabel } from "./console.js";
 import { createDefaultActionBudget, createDefaultCombatState } from "./combat/types.js";
 import { tickRoundCountdowns, tickUnitEndOfTurn, tickUnitStartOfTurn } from "./combat/effects.js";
 import { clearAegisFlyingUsed, ensureAssistedAscensionAegis } from "./combat/aegis.js";
-import { initializeUnitElevation, syncUnitElevationOnTile } from "./combat/elevation.js";
+import { enemyHasFlyingTag, initializeUnitElevation, syncUnitElevationOnTile } from "./combat/elevation.js";
 import { resetEnemyExhaustion, resetGmTurnActions } from "./combat/enemy.js";
 import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles, ensureEnemyMovement, refreshEnemyMovement, spendEnemyMovement } from "./enemy-data.js";
 import { applyLoadoutToPlayer, getClassMaxHp, getArmorSpeed } from "./player-data.js";
@@ -663,18 +663,20 @@ export function validateEnemyFootprint(
   scale: number,
   excludeEnemyId?: string,
   occupancy?: BoardOccupancy,
+  enemy?: Pick<Enemy, "name">,
 ): string | null {
   if (scale < 1) return "Invalid scale";
   if (!isFootprintInBounds(x, y, scale, state.width, state.height)) {
     return "Out of bounds";
   }
+  const flying = enemy != null && enemyHasFlyingTag(enemy);
   const occ = occupancy ?? buildBoardOccupancy(state);
   for (const tile of enemyFootprintTiles(x, y, scale)) {
-    if (!isWalkable(tileAt(state.tiles, tile.x, tile.y))) return "Blocked";
+    if (!flying && !isWalkable(tileAt(state.tiles, tile.x, tile.y))) return "Blocked";
     const key = coordKey(tile.x, tile.y);
     if (occ.playerByKey.has(key)) return "Tile occupied";
-    const enemy = occ.enemyByKey.get(key);
-    if (enemy && enemy.id !== excludeEnemyId) return "Tile occupied";
+    const occupant = occ.enemyByKey.get(key);
+    if (occupant && occupant.id !== excludeEnemyId) return "Tile occupied";
   }
   return null;
 }
@@ -889,7 +891,7 @@ export function validateEnemyMove(
     if ((enemy.movementRemaining ?? 0) < 1) return "Not enough movement";
   }
 
-  return validateEnemyFootprint(state, toX, toY, getEnemyScale(enemy), enemyId);
+  return validateEnemyFootprint(state, toX, toY, getEnemyScale(enemy), enemyId, undefined, enemy);
 }
 
 export function applyEnemyMove(
@@ -950,13 +952,22 @@ export function validateAddEnemy(
   x: number,
   y: number,
   scale = 1,
+  enemyName?: string,
 ): string | null {
-  return validateEnemyFootprint(state, x, y, scale);
+  return validateEnemyFootprint(
+    state,
+    x,
+    y,
+    scale,
+    undefined,
+    undefined,
+    enemyName != null ? { name: enemyName } : undefined,
+  );
 }
 
 export function addEnemy(state: GameState, enemy: Enemy): string | null {
   const scale = getEnemyScale(enemy);
-  const err = validateEnemyFootprint(state, enemy.x, enemy.y, scale);
+  const err = validateEnemyFootprint(state, enemy.x, enemy.y, scale, undefined, undefined, enemy);
   if (err) return err;
   const prevGroups = buildSwarmGroups(state);
   const maxHp = getEnemyMaxHp(enemy);
