@@ -39,7 +39,16 @@ type Segment = {
   fixed: number;
   start: number;
   end: number;
+  inset: number;
 };
+
+export function contourInsetIndex(step: number): number {
+  return step >= 0 ? step : -step - 1;
+}
+
+function snapCoord(v: number): number {
+  return Math.round(v * 1000) / 1000;
+}
 
 function boundaryX(x: number, cellW: number, gap: number): number {
   return (x + 1) * cellW + x * gap + gap / 2;
@@ -105,15 +114,14 @@ function collectRawSegments(tiles: MapTile[], metrics: BoardCellMetrics, stepIns
         const direction = perpendicularInsetDirection(elev, east.elevation);
         const baseFixed = boundaryX(x, cellW, gap);
         const baseSpan = verticalSpan(y, height, cellH, gap);
-        for (let i = 0; i < steps.length; i++) {
-          const inset = i * stepInsetPx;
-          const shrunk = shrinkSpan(baseSpan, inset);
-          if (!shrunk) continue;
+        for (const step of steps) {
+          const inset = contourInsetIndex(step) * stepInsetPx;
           segments.push({
             horizontal: false,
             fixed: baseFixed + direction * inset,
-            start: shrunk.start,
-            end: shrunk.end,
+            start: baseSpan.start,
+            end: baseSpan.end,
+            inset,
           });
         }
       }
@@ -124,15 +132,14 @@ function collectRawSegments(tiles: MapTile[], metrics: BoardCellMetrics, stepIns
         const direction = perpendicularInsetDirection(elev, south.elevation);
         const baseFixed = boundaryY(y, cellH, gap);
         const baseSpan = horizontalSpan(x, width, cellW, gap);
-        for (let i = 0; i < steps.length; i++) {
-          const inset = i * stepInsetPx;
-          const shrunk = shrinkSpan(baseSpan, inset);
-          if (!shrunk) continue;
+        for (const step of steps) {
+          const inset = contourInsetIndex(step) * stepInsetPx;
           segments.push({
             horizontal: true,
             fixed: baseFixed + direction * inset,
-            start: shrunk.start,
-            end: shrunk.end,
+            start: baseSpan.start,
+            end: baseSpan.end,
+            inset,
           });
         }
       }
@@ -142,27 +149,47 @@ function collectRawSegments(tiles: MapTile[], metrics: BoardCellMetrics, stepIns
   return segments;
 }
 
+function mergeKey(fixed: number, inset: number): string {
+  return `${snapCoord(fixed)}|${snapCoord(inset)}`;
+}
+
 function mergeCollinearSegments(segments: Segment[]): Segment[] {
-  const verticals = new Map<number, { start: number; end: number }[]>();
-  const horizontals = new Map<number, { start: number; end: number }[]>();
+  const verticals = new Map<string, { fixed: number; inset: number; ranges: { start: number; end: number }[] }>();
+  const horizontals = new Map<string, { fixed: number; inset: number; ranges: { start: number; end: number }[] }>();
 
   for (const seg of segments) {
-    const key = Math.round(seg.fixed * 1000) / 1000;
+    const key = mergeKey(seg.fixed, seg.inset);
     const bucket = seg.horizontal ? horizontals : verticals;
-    const ranges = bucket.get(key) ?? [];
-    ranges.push({ start: seg.start, end: seg.end });
-    bucket.set(key, ranges);
+    const entry = bucket.get(key) ?? { fixed: snapCoord(seg.fixed), inset: seg.inset, ranges: [] };
+    entry.ranges.push({ start: seg.start, end: seg.end });
+    bucket.set(key, entry);
   }
 
   const merged: Segment[] = [];
-  for (const [fixed, ranges] of verticals) {
-    for (const range of mergeRanges(ranges)) {
-      merged.push({ horizontal: false, fixed, start: range.start, end: range.end });
+  for (const entry of verticals.values()) {
+    for (const range of mergeRanges(entry.ranges)) {
+      const shrunk = shrinkSpan(range, entry.inset);
+      if (!shrunk) continue;
+      merged.push({
+        horizontal: false,
+        fixed: entry.fixed,
+        start: shrunk.start,
+        end: shrunk.end,
+        inset: entry.inset,
+      });
     }
   }
-  for (const [fixed, ranges] of horizontals) {
-    for (const range of mergeRanges(ranges)) {
-      merged.push({ horizontal: true, fixed, start: range.start, end: range.end });
+  for (const entry of horizontals.values()) {
+    for (const range of mergeRanges(entry.ranges)) {
+      const shrunk = shrinkSpan(range, entry.inset);
+      if (!shrunk) continue;
+      merged.push({
+        horizontal: true,
+        fixed: entry.fixed,
+        start: shrunk.start,
+        end: shrunk.end,
+        inset: entry.inset,
+      });
     }
   }
   return merged;
@@ -184,10 +211,6 @@ function mergeRanges(ranges: { start: number; end: number }[]): { start: number;
     }
   }
   return merged;
-}
-
-function snapCoord(v: number): number {
-  return Math.round(v * 1000) / 1000;
 }
 
 function pointKey(x: number, y: number): string {
@@ -297,6 +320,16 @@ function isCollinear(
   return dot > 0.999;
 }
 
+function appendLine(d: string, x: number, y: number): string {
+  const tokens = d.trim().split(/\s+/);
+  const lastY = Number(tokens[tokens.length - 1]);
+  const lastX = Number(tokens[tokens.length - 2]);
+  if (Number.isFinite(lastX) && Number.isFinite(lastY) && Math.hypot(x - lastX, y - lastY) < 1e-3) {
+    return d;
+  }
+  return `${d} L ${x} ${y}`;
+}
+
 function chainToClosedPath(pts: [number, number][], cornerRadius: number): string {
   const ring = simplifyCollinearClosed(pts);
   const n = ring.length;
@@ -310,12 +343,12 @@ function chainToClosedPath(pts: [number, number][], cornerRadius: number): strin
     const fillet = filletCorner(prev, cur, next, cornerRadius);
     if (fillet) {
       if (i === 0) d = `M ${fillet.p1[0]} ${fillet.p1[1]}`;
-      else d += ` L ${fillet.p1[0]} ${fillet.p1[1]}`;
+      else d = appendLine(d, fillet.p1[0], fillet.p1[1]);
       d += ` Q ${cur[0]} ${cur[1]} ${fillet.p2[0]} ${fillet.p2[1]}`;
     } else if (i === 0) {
       d = `M ${cur[0]} ${cur[1]}`;
     } else {
-      d += ` L ${cur[0]} ${cur[1]}`;
+      d = appendLine(d, cur[0], cur[1]);
     }
   }
   return `${d} Z`;
@@ -331,14 +364,14 @@ function chainToOpenPath(pts: [number, number][], cornerRadius: number): string 
   for (let i = 1; i < pts.length - 1; i++) {
     const fillet = filletCorner(pts[i - 1]!, pts[i]!, pts[i + 1]!, cornerRadius);
     if (fillet) {
-      d += ` L ${fillet.p1[0]} ${fillet.p1[1]}`;
+      d = appendLine(d, fillet.p1[0], fillet.p1[1]);
       d += ` Q ${pts[i]![0]} ${pts[i]![1]} ${fillet.p2[0]} ${fillet.p2[1]}`;
     } else {
-      d += ` L ${pts[i]![0]} ${pts[i]![1]}`;
+      d = appendLine(d, pts[i]![0], pts[i]![1]);
     }
   }
   const end = pts[pts.length - 1]!;
-  d += ` L ${end[0]} ${end[1]}`;
+  d = appendLine(d, end[0], end[1]);
   return d;
 }
 

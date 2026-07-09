@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   boardCellMetrics,
   buildElevationContourPaths,
+  contourInsetIndex,
   contourStepInsetPx,
   elevationContourEdges,
   elevationStepsBetween,
@@ -104,6 +105,16 @@ describe("elevationStepsBetween", () => {
   });
 });
 
+describe("contourInsetIndex", () => {
+  it("places each elevation ring at a fixed depth from the boundary", () => {
+    expect(contourInsetIndex(0)).toBe(0);
+    expect(contourInsetIndex(1)).toBe(1);
+    expect(contourInsetIndex(2)).toBe(2);
+    expect(contourInsetIndex(-1)).toBe(0);
+    expect(contourInsetIndex(-2)).toBe(1);
+  });
+});
+
 describe("buildElevationContourPaths", () => {
   it("returns no paths for a flat map", () => {
     expect(buildElevationContourPaths(flatGrid(3, 3), boardCellMetrics(3, 3, 120, 3))).toEqual([]);
@@ -201,5 +212,72 @@ describe("buildElevationContourPaths", () => {
     for (const path of paths) {
       expect(parsePathCommands(path).length).toBeGreaterThanOrEqual(2);
     }
+  });
+
+  it("encloses a single elev-2 tile inside an elev-1 block without joining the outer ring", () => {
+    const tiles = elevatedBlockGrid(1, 1, 2, 2, 4, 4, 1);
+    const peak = tiles.find((t) => t.x === 2 && t.y === 1)!;
+    peak.elevation = 2;
+    const paths = buildElevationContourPaths(tiles, boardCellMetrics(4, 4, 160, 3));
+    expect(paths).toHaveLength(2);
+    for (const path of paths) {
+      expect(path).toContain(" Z");
+      expect(countPathQs(path)).toBe(4);
+    }
+    const byArea = [...paths].sort(
+      (a, b) =>
+        (pathBounds(b).maxX - pathBounds(b).minX) * (pathBounds(b).maxY - pathBounds(b).minY) -
+        (pathBounds(a).maxX - pathBounds(a).minX) * (pathBounds(a).maxY - pathBounds(a).minY),
+    );
+    const outer = pathBounds(byArea[0]!);
+    const inner = pathBounds(byArea[1]!);
+    expect(inner.minX).toBeGreaterThan(outer.minX);
+    expect(inner.maxX).toBeLessThan(outer.maxX);
+    expect(inner.minY).toBeGreaterThan(outer.minY);
+    expect(inner.maxY).toBeLessThan(outer.maxY);
+  });
+
+  it("draws a contiguous elev-2 rectangle inside an elev-1 block", () => {
+    const tiles = elevatedBlockGrid(1, 1, 2, 2, 4, 4, 1);
+    for (const t of tiles) {
+      if (t.x === 2 && (t.y === 1 || t.y === 2)) t.elevation = 2;
+    }
+    const paths = buildElevationContourPaths(tiles, boardCellMetrics(4, 4, 160, 3));
+    expect(paths).toHaveLength(2);
+    for (const path of paths) {
+      expect(path).toContain(" Z");
+      expect(countPathQs(path)).toBe(4);
+    }
+    const byArea = [...paths].sort(
+      (a, b) =>
+        (pathBounds(b).maxX - pathBounds(b).minX) * (pathBounds(b).maxY - pathBounds(b).minY) -
+        (pathBounds(a).maxX - pathBounds(a).minX) * (pathBounds(a).maxY - pathBounds(a).minY),
+    );
+    const outer = pathBounds(byArea[0]!);
+    const inner = pathBounds(byArea[1]!);
+    expect(inner.minX).toBeGreaterThan(outer.minX);
+    expect(inner.maxX).toBeLessThan(outer.maxX);
+    expect(inner.maxY - inner.minY).toBeGreaterThan((outer.maxY - outer.minY) * 0.6);
+  });
+
+  it("keeps nested elev-2 block contours fully connected across tile borders", () => {
+    const tiles = elevatedBlockGrid(1, 1, 2, 2, 4, 4, 2);
+    const paths = buildElevationContourPaths(tiles, boardCellMetrics(4, 4, 160, 3));
+    expect(paths).toHaveLength(2);
+    for (const path of paths) {
+      expect(path).toContain(" Z");
+      expect(countPathQs(path)).toBe(4);
+    }
+    const byArea = [...paths].sort(
+      (a, b) =>
+        (pathBounds(b).maxX - pathBounds(b).minX) * (pathBounds(b).maxY - pathBounds(b).minY) -
+        (pathBounds(a).maxX - pathBounds(a).minX) * (pathBounds(a).maxY - pathBounds(a).minY),
+    );
+    const outer = pathBounds(byArea[0]!);
+    const inner = pathBounds(byArea[1]!);
+    expect(inner.minX).toBeGreaterThan(outer.minX);
+    expect(inner.maxX).toBeLessThan(outer.maxX);
+    expect(inner.minY).toBeGreaterThan(outer.minY);
+    expect(inner.maxY).toBeLessThan(outer.maxY);
   });
 });
