@@ -13,6 +13,11 @@ const isHarpePull = computed(() => pendingClassReaction.value?.kind === "harpe_t
 const isBorrowFollowUp = computed(() => pendingClassReaction.value?.kind === "borrowing_follow_up");
 const isOffhandPistolPush = computed(() => pendingClassReaction.value?.kind === "offhand_pistol_push");
 
+const harpeDamageDealt = computed(() => {
+  const r = pendingClassReaction.value;
+  return r?.kind === "harpe_trap_pull" ? r.damageDealt : 0;
+});
+
 const offhandPushEnemyCount = computed(() => {
   const r = pendingClassReaction.value;
   if (r?.kind !== "offhand_pistol_push") return 0;
@@ -68,7 +73,7 @@ watch(pendingClassReaction, (r) => {
     <div v-if="isHarpePull" class="class-reaction-copy">
       <strong>Weapon Trap — choose pull</strong>
       <p class="class-reaction-detail">
-        {{ pendingClassReaction.damageDealt }} damage dealt. Pull toward you or your weapon?
+        {{ harpeDamageDealt }} damage dealt. Pull toward you or your weapon?
       </p>
       <div class="class-reaction-controls">
         <label class="class-reaction-field">

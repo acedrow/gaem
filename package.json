@@ -12,11 +12,13 @@
     "rulebook:setup": "bash scripts/rulebook/setup.sh",
     "rulebook": "scripts/rulebook/.venv/bin/python scripts/rulebook/extract.py",
     "enemy-portraits:crop": "scripts/rulebook/.venv/bin/python scripts/crop-enemy-portraits.py",
-    "lint": "eslint .",
+    "typecheck": "npm run typecheck -w @gaem/client",
+    "lint": "eslint . && npm run typecheck",
     "lint:fix": "eslint . --fix",
     "test": "npm run test -w @gaem/shared && npm run test -w @gaem/client",
     "test:e2e": "npm run test:e2e -w @gaem/e2e",
-    "test:all": "npm run test && npm run test:e2e"
+    "test:all": "npm run test && npm run test:e2e",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -24,6 +26,7 @@
     "eslint": "^10.6.0",
     "eslint-plugin-vue": "^10.9.2",
     "globals": "^17.7.0",
+    "husky": "^9.1.7",
     "typescript-eslint": "^8.63.0",
     "vue-eslint-parser": "^10.4.1"
   }

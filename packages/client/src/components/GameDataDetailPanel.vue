@@ -43,6 +43,20 @@ const categoryLabel = computed(() => kindLabel(props.focus.kind));
 const item = computed(
   () => playerClass.value ?? playerArmor.value ?? playerWeapon.value ?? playerEquipment.value ?? playerGear.value,
 );
+
+const playerItemKind = computed(() => {
+  const kind = props.focus.kind;
+  if (
+    kind === "classes" ||
+    kind === "armor" ||
+    kind === "weapons" ||
+    kind === "equipment" ||
+    kind === "gear"
+  ) {
+    return kind;
+  }
+  return null;
+});
 </script>
 
 <template>
@@ -65,10 +79,10 @@ const item = computed(
         <RuleText :text="ruleEffect.description" />
       </p>
     </div>
-    <div v-else-if="item" class="panel-body">
+    <div v-else-if="item && playerItemKind" class="panel-body">
       <p v-if="'summary' in item && item.summary" class="item-summary">{{ item.summary }}</p>
       <p v-if="item.description" class="item-description">{{ item.description }}</p>
-      <PlayerItemDetail :item="item" :kind="focus.kind" />
+      <PlayerItemDetail :item="item" :kind="playerItemKind" />
     </div>
     <p v-else class="muted">Entry not found.</p>
   </PanelShell>

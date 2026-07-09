@@ -42,12 +42,16 @@ type Segment = {
   inset: number;
 };
 
+// Positive step n nests n rings into the high side; negative step -n nests n rings into the low side.
 export function contourInsetIndex(step: number): number {
-  return step >= 0 ? step : -step - 1;
+  return step >= 0 ? step : -step;
 }
 
 function snapCoord(v: number): number {
-  return Math.round(v * 1000) / 1000;
+  // Nudge by a sub-milli-pixel epsilon so two float computations of the same
+  // coordinate (e.g. a corner reached from its vertical vs horizontal segment)
+  // that land on a rounding tie always round the same way and share a vertex.
+  return Math.round(v * 1000 + 1e-6) / 1000;
 }
 
 function boundaryX(x: number, cellW: number, gap: number): number {
@@ -90,12 +94,17 @@ function shrinkSpan(span: { start: number; end: number }, inset: number): { star
   return { start, end };
 }
 
-function perpendicularInsetDirection(elevHere: number, elevNeigh: number): number {
-  const absHere = Math.abs(elevHere);
-  const absNeigh = Math.abs(elevNeigh);
-  if (absNeigh > absHere) return 1;
-  if (absNeigh < absHere) return -1;
-  return elevNeigh > elevHere ? 1 : -1;
+function perpendicularInsetDirection(elevHere: number, elevNeigh: number, step: number): number {
+  const towardNeigh = elevNeigh > elevHere ? 1 : -1;
+  return step >= 0 ? towardNeigh : -towardNeigh;
+}
+
+function spanAdjustInset(elevInsetInto: number, elevOther: number, inset: number): number {
+  const absIn = Math.abs(elevInsetInto);
+  const absOut = Math.abs(elevOther);
+  if (absIn > absOut) return inset;
+  if (absIn < absOut) return -inset;
+  return elevInsetInto > elevOther ? inset : -inset;
 }
 
 function collectRawSegments(tiles: MapTile[], metrics: BoardCellMetrics, stepInsetPx: number): Segment[] {
@@ -111,17 +120,19 @@ function collectRawSegments(tiles: MapTile[], metrics: BoardCellMetrics, stepIns
       const east = tileAt(tiles, x + 1, y);
       if (east && east.elevation !== elev) {
         const steps = elevationStepsBetween(elev, east.elevation);
-        const direction = perpendicularInsetDirection(elev, east.elevation);
         const baseFixed = boundaryX(x, cellW, gap);
         const baseSpan = verticalSpan(y, height, cellH, gap);
         for (const step of steps) {
+          const direction = perpendicularInsetDirection(elev, east.elevation, step);
+          const elevInsetInto = step >= 0 ? Math.max(elev, east.elevation) : Math.min(elev, east.elevation);
+          const elevOther = elevInsetInto === elev ? east.elevation : elev;
           const inset = contourInsetIndex(step) * stepInsetPx;
           segments.push({
             horizontal: false,
             fixed: baseFixed + direction * inset,
             start: baseSpan.start,
             end: baseSpan.end,
-            inset,
+            inset: spanAdjustInset(elevInsetInto, elevOther, inset),
           });
         }
       }
@@ -129,17 +140,19 @@ function collectRawSegments(tiles: MapTile[], metrics: BoardCellMetrics, stepIns
       const south = tileAt(tiles, x, y + 1);
       if (south && south.elevation !== elev) {
         const steps = elevationStepsBetween(elev, south.elevation);
-        const direction = perpendicularInsetDirection(elev, south.elevation);
         const baseFixed = boundaryY(y, cellH, gap);
         const baseSpan = horizontalSpan(x, width, cellW, gap);
         for (const step of steps) {
+          const direction = perpendicularInsetDirection(elev, south.elevation, step);
+          const elevInsetInto = step >= 0 ? Math.max(elev, south.elevation) : Math.min(elev, south.elevation);
+          const elevOther = elevInsetInto === elev ? south.elevation : elev;
           const inset = contourInsetIndex(step) * stepInsetPx;
           segments.push({
             horizontal: true,
             fixed: baseFixed + direction * inset,
             start: baseSpan.start,
             end: baseSpan.end,
-            inset,
+            inset: spanAdjustInset(elevInsetInto, elevOther, inset),
           });
         }
       }
@@ -250,6 +263,8 @@ function filletCorner(
   b: [number, number],
   c: [number, number],
   maxRadius: number,
+  fullAb = false,
+  fullCb = false,
 ): { p1: [number, number]; p2: [number, number] } | null {
   const abx = b[0] - a[0];
   const aby = b[1] - a[1];
@@ -260,7 +275,8 @@ function filletCorner(
   if (lenAb < 1e-6 || lenCb < 1e-6) return null;
   const dot = (abx * cbx + aby * cby) / (lenAb * lenCb);
   if (dot > 0.999) return null;
-  const r = Math.min(maxRadius, lenAb / 2, lenCb / 2);
+  // Open-path stubs beside a gap only host one fillet, so they may use the full edge.
+  const r = Math.min(maxRadius, fullAb ? lenAb : lenAb / 2, fullCb ? lenCb : lenCb / 2);
   return {
     p1: [b[0] - (abx / lenAb) * r, b[1] - (aby / lenAb) * r],
     p2: [b[0] + (cbx / lenCb) * r, b[1] + (cby / lenCb) * r],
@@ -360,9 +376,17 @@ function chainToOpenPath(pts: [number, number][], cornerRadius: number): string 
     return `M ${pts[0]![0]} ${pts[0]![1]} L ${pts[1]![0]} ${pts[1]![1]}`;
   }
 
+  const last = pts.length - 1;
   let d = `M ${pts[0]![0]} ${pts[0]![1]}`;
-  for (let i = 1; i < pts.length - 1; i++) {
-    const fillet = filletCorner(pts[i - 1]!, pts[i]!, pts[i + 1]!, cornerRadius);
+  for (let i = 1; i < last; i++) {
+    const fillet = filletCorner(
+      pts[i - 1]!,
+      pts[i]!,
+      pts[i + 1]!,
+      cornerRadius,
+      i === 1,
+      i === last - 1,
+    );
     if (fillet) {
       d = appendLine(d, fillet.p1[0], fillet.p1[1]);
       d += ` Q ${pts[i]![0]} ${pts[i]![1]} ${fillet.p2[0]} ${fillet.p2[1]}`;
@@ -370,7 +394,7 @@ function chainToOpenPath(pts: [number, number][], cornerRadius: number): string 
       d = appendLine(d, pts[i]![0], pts[i]![1]);
     }
   }
-  const end = pts[pts.length - 1]!;
+  const end = pts[last]!;
   d = appendLine(d, end[0], end[1]);
   return d;
 }
@@ -462,6 +486,13 @@ export function buildElevationContourPaths(tiles: MapTile[], metrics: BoardCellM
   const adj = segmentsToAdjacency(merged);
   const cornerRadius = Math.min(25, metrics.gap * 8.5);
   return tracePaths(adj, cornerRadius);
+}
+
+export function __debugSegments(tiles: MapTile[], metrics: BoardCellMetrics) {
+  const stepInsetPx = contourStepInsetPx(metrics);
+  const raw = collectRawSegments(tiles, metrics, stepInsetPx);
+  const merged = mergeCollinearSegments(raw);
+  return { raw, merged };
 }
 
 export function parsePathCommands(d: string): { cmd: string; x: number; y: number }[] {

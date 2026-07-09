@@ -34,7 +34,6 @@ const {
 } = useGmTools();
 
 const colorModalOpen = ref(false);
-const appearanceInput = ref<HTMLInputElement | null>(null);
 
 function onAppearanceSelected(e: Event) {
   const input = e.target as HTMLInputElement;
@@ -115,7 +114,6 @@ function onAppearanceSelected(e: Event) {
       <label class="upload-btn" :class="{ uploading: paintbrushAppearanceUploading }">
         {{ paintbrushAppearanceUploading ? "Uploading…" : "Upload" }}
         <input
-          ref="appearanceInput"
           type="file"
           accept="image/png"
           class="hidden-input"

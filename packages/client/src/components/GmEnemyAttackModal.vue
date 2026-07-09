@@ -41,7 +41,7 @@ const swarmPreview = computed(() => {
     props.enemyId,
     parsedAttack.value,
     targetPlayerId.value,
-    damage,
+    damage === undefined ? undefined : { damage },
   );
 });
 

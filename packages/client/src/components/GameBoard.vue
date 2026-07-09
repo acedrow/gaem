@@ -921,7 +921,7 @@ const sharurAttractorPlacementPreview = computed(() => {
     ownerId: me.id,
     x: cell.x,
     y: cell.y,
-    void: me.hp <= 10,
+    void: (me.hp ?? 0) <= 10,
   };
 });
 
@@ -1565,9 +1565,10 @@ function buildLocalAttackPreview(): AttackPreviewState | null {
       direction: attackDirection.value,
       omnistrikeStep: step,
       omnistrikeBombIndices: [indexA, indexB],
-      omnistrikeAnchors: omnistrikeAnchors.value.map((anchor) =>
-        anchor ? { x: anchor.x, y: anchor.y } : null,
-      ),
+      omnistrikeAnchors: [
+        omnistrikeAnchors.value[0] ? { ...omnistrikeAnchors.value[0] } : null,
+        omnistrikeAnchors.value[1] ? { ...omnistrikeAnchors.value[1] } : null,
+      ],
       hoverX: previewHoverCell.value?.x,
       hoverY: previewHoverCell.value?.y,
     };
@@ -1761,7 +1762,7 @@ const gmSpawnableKeys = computed(() => {
   if (!s || !spawnName) return keys;
   const scale = getEnemyScaleByName(spawnName);
   for (const c of cells.value) {
-    if (validateEnemyFootprint(s, c.x, c.y, scale, undefined, occupancy.value) === null) {
+    if (validateEnemyFootprint(s, c.x, c.y, scale, undefined, occupancy.value ?? undefined) === null) {
       keys.add(c.key);
     }
   }
@@ -2633,7 +2634,7 @@ function canDragDeploy(player: Player): boolean {
   );
 }
 
-function onDeployPointerDown(e: PointerEvent, player: Player) {
+function onDeployPointerDown(_e: PointerEvent, player: Player) {
   if (!canDragDeploy(player)) return;
   draggingDeploy.value = true;
   const onUp = (ev: PointerEvent) => {
@@ -2786,13 +2787,16 @@ function handleAttackCellClick(x: number, y: number, targetEnemyId?: string): bo
     return true;
   }
 
+  const attackPlayer = me;
+  const attackState = s;
+  const attackCtx = ctx;
   function dirsAt(tx: number, ty: number): PatternDirection[] {
-    if (origin.x === me.x && origin.y === me.y) {
-      return playerAttackDirectionsAt(s, me.id, tx, ty, ctx.weapon);
+    if (origin.x === attackPlayer.x && origin.y === attackPlayer.y) {
+      return playerAttackDirectionsAt(attackState, attackPlayer.id, tx, ty, attackCtx.weapon);
     }
     const dirs: PatternDirection[] = [];
     for (const direction of PATTERN_DIRECTIONS) {
-      const tiles = collectAttackTiles(s, origin, ctx.spec, direction);
+      const tiles = collectAttackTiles(attackState, origin, attackCtx.spec, direction);
       if (tiles.some((t) => t.x === tx && t.y === ty)) dirs.push(direction);
     }
     return dirs;

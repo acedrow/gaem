@@ -102,6 +102,7 @@ describe("elevationStepsBetween", () => {
   it("returns all intermediate steps for larger gaps", () => {
     expect(elevationStepsBetween(0, 2)).toEqual([0, 1]);
     expect(elevationStepsBetween(0, -2)).toEqual([-2, -1]);
+    expect(elevationStepsBetween(-3, 3)).toEqual([-3, -2, -1, 0, 1, 2]);
   });
 });
 
@@ -110,8 +111,9 @@ describe("contourInsetIndex", () => {
     expect(contourInsetIndex(0)).toBe(0);
     expect(contourInsetIndex(1)).toBe(1);
     expect(contourInsetIndex(2)).toBe(2);
-    expect(contourInsetIndex(-1)).toBe(0);
-    expect(contourInsetIndex(-2)).toBe(1);
+    expect(contourInsetIndex(-1)).toBe(1);
+    expect(contourInsetIndex(-2)).toBe(2);
+    expect(contourInsetIndex(-3)).toBe(3);
   });
 });
 
@@ -159,6 +161,79 @@ describe("buildElevationContourPaths", () => {
     expect(paths).toHaveLength(2);
     for (const path of paths) {
       expect(path).toContain(" Z");
+    }
+  });
+
+  it("returns six nested rings for elev 3 inside elev -3", () => {
+    const tiles = flatGrid(5, 5, -3);
+    const peak = tiles.find((t) => t.x === 2 && t.y === 2)!;
+    peak.elevation = 3;
+    const paths = buildElevationContourPaths(tiles, boardCellMetrics(5, 5, 200, 3));
+    expect(paths).toHaveLength(6);
+    for (const path of paths) {
+      expect(path).toContain(" Z");
+    }
+    const byArea = [...paths].sort(
+      (a, b) =>
+        (pathBounds(b).maxX - pathBounds(b).minX) * (pathBounds(b).maxY - pathBounds(b).minY) -
+        (pathBounds(a).maxX - pathBounds(a).minX) * (pathBounds(a).maxY - pathBounds(a).minY),
+    );
+    for (let i = 1; i < byArea.length; i++) {
+      const outer = pathBounds(byArea[i - 1]!);
+      const inner = pathBounds(byArea[i]!);
+      expect(inner.minX).toBeGreaterThan(outer.minX);
+      expect(inner.maxX).toBeLessThan(outer.maxX);
+      expect(inner.minY).toBeGreaterThan(outer.minY);
+      expect(inner.maxY).toBeLessThan(outer.maxY);
+    }
+  });
+
+  it("closes and rounds all six rings when cells are non-square (rounding-tie corners)", () => {
+    // Non-square cells (cellW != cellH) put the outermost ring's corners on a
+    // milli-pixel rounding tie; the vertical and horizontal segments must still
+    // agree on the shared corner vertex so the ring stays closed and rounded.
+    const tiles = flatGrid(10, 12, -3);
+    const peak = tiles.find((t) => t.x === 5 && t.y === 6)!;
+    peak.elevation = 3;
+    const paths = buildElevationContourPaths(tiles, boardCellMetrics(10, 12, 500, 3));
+    expect(paths).toHaveLength(6);
+    for (const path of paths) {
+      expect(path).toContain(" Z");
+      expect(countPathQs(path)).toBe(4);
+    }
+  });
+
+  it("keeps full corner radius on open pit rings broken by an edge peak", () => {
+    const tiles = elevatedBlockGrid(2, 1, 3, 4, 7, 7, -3);
+    const peak = tiles.find((t) => t.x === 3 && t.y === 4)!;
+    peak.elevation = 3;
+    const m = boardCellMetrics(7, 7, 420, 3);
+    const paths = buildElevationContourPaths(tiles, m);
+    const open = paths.find((p) => !p.includes(" Z") && (p.match(/\sQ\s/g) ?? []).length === 4);
+    expect(open).toBeTruthy();
+    const tokens = open!.trim().split(/\s+/);
+    const radii: number[] = [];
+    let x = 0;
+    let y = 0;
+    for (let i = 0; i < tokens.length; i++) {
+      const cmd = tokens[i]!;
+      if (cmd === "M" || cmd === "L") {
+        x = Number(tokens[++i]);
+        y = Number(tokens[++i]);
+      } else if (cmd === "Q") {
+        const qx = Number(tokens[++i]);
+        const qy = Number(tokens[++i]);
+        const nx = Number(tokens[++i]);
+        const ny = Number(tokens[++i]);
+        radii.push(Math.hypot(qx - x, qy - y));
+        x = nx;
+        y = ny;
+      }
+    }
+    const cornerR = Math.min(25, m.gap * 8.5);
+    expect(radii).toHaveLength(4);
+    for (const r of radii) {
+      expect(r).toBeCloseTo(cornerR, 1);
     }
   });
 

@@ -458,6 +458,7 @@ function resetFormFromSheet() {
     weapon: sheet.value.weapon,
     equipment: sheet.value.equipment ?? "",
     gear: sheet.value.gear ?? "",
+    gearArmor: sheet.value.gearArmor ?? "",
     weapon2: sheet.value.weapon2 ?? "",
     yadathanTower: sheet.value.yadathanTower ?? "",
     tags: [...(sheet.value.tags ?? [])],
@@ -825,9 +826,6 @@ onUnmounted(() => {
               >
                 Attack
                 <template #tooltip>
-                  <p v-if="selectedWeapon.summary" class="tooltip-summary">
-                    {{ selectedWeapon.summary }}
-                  </p>
                   <WeaponPatternDiagram
                     v-if="selectedWeapon.attack"
                     :attack="selectedWeapon.attack"

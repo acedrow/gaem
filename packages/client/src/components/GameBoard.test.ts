@@ -1,4 +1,4 @@
-import type { GameState } from "@gaem/shared";
+import type { GameState, MapTile } from "@gaem/shared";
 import { mount, flushPromises } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -8,10 +8,10 @@ import { useGameState } from "../composables/useGameState.js";
 import GameBoard from "./GameBoard.vue";
 
 function makeTestGameState(width = 3, height = 3): GameState {
-  const tiles = [];
+  const tiles: MapTile[] = [];
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      tiles.push({ x, y, terrain: ["standard"] as const, elevation: 0 });
+      tiles.push({ x, y, terrain: ["standard"], elevation: 0 });
     }
   }
   return {
