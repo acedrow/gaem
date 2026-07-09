@@ -16,7 +16,6 @@ const {
   showPlayerActionBar,
   budget,
   canMain,
-  canSupport,
   canAux,
   hasteRemaining,
   actionBudgetChips,

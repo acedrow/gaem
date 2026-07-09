@@ -3,7 +3,6 @@ import type { CharacterSheet, PlayerProfile } from "@gaem/shared";
 import {
   getArmorByName,
   getClassByName,
-  getClassActiveTier,
   classGrantsSecondWeapon,
   classGrantsDualGear,
   getEquipmentByName,
@@ -121,8 +120,6 @@ const {
   canUseWeaponActive,
   canUseHeavenBurningUnfold,
   canUseClassActive,
-  classActiveTier,
-  hasFreeWeaponSwap,
   hasThrownTrap,
   armorStructured,
   sendPlayerAction,

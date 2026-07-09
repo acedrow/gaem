@@ -77,6 +77,7 @@ const props = defineProps<{
   playerTeleporting?: boolean;
   enemyAnimating?: boolean;
   paintbrushActive?: boolean;
+  gmInheritCursor?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -256,6 +257,7 @@ const terrainImageUrl = computed(() => {
       'enemy-defeated': enemyDefeated,
       'bulk-tile-selected': isBulkTileSelected,
       'out-of-los': cell.outOfLineOfSight,
+      'gm-inherit-cursor': gmInheritCursor,
     }"
     @click="emit('click')"
     @mouseenter="emit('hover')"
@@ -451,6 +453,10 @@ const terrainImageUrl = computed(() => {
   padding: 0;
   cursor: default;
   background: var(--color-surface-raised);
+}
+
+.cell.gm-inherit-cursor {
+  cursor: inherit !important;
 }
 
 .cell.impassable {

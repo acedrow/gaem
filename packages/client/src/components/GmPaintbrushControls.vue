@@ -159,6 +159,8 @@ function onAppearanceSelected(e: Event) {
 
     <button type="button" class="reset-btn" @click="resetPaintbrushSettings">Reset</button>
 
+    <span class="eyedropper-hint">Hold E to sample a tile</span>
+
     <TileBaseColorModal v-model="paintbrushBaseColor" :open="colorModalOpen" @close="colorModalOpen = false" />
   </div>
 </template>
@@ -375,5 +377,11 @@ function onAppearanceSelected(e: Event) {
 
 .preset-group {
   flex-wrap: wrap;
+}
+
+.eyedropper-hint {
+  width: 100%;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
 }
 </style>

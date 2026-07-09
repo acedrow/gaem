@@ -9,7 +9,6 @@ import {
   getPatternById,
   hasBlobHole,
   nextPatternDirection,
-  PATTERN_MODIFIERS,
 } from "@gaem/shared";
 import { computed, ref, watch } from "vue";
 

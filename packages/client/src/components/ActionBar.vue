@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
-import { getWeaponAttackSpec, isSabaothWeaponName } from "@gaem/shared";
+import { getWeaponAttackSpec } from "@gaem/shared";
 
 import { useCombatActions } from "../composables/useCombatActions.js";
 import { useCombatModeActions } from "../composables/useCombatModeActions.js";

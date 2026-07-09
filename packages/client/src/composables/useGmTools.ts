@@ -1,4 +1,4 @@
-import { coordKey, type TerrainType, type TilePaintPreset } from "@gaem/shared";
+import { coordKey, tileAt, type MapTile, type TerrainType, type TilePaintPreset } from "@gaem/shared";
 import { computed, ref, watch } from "vue";
 
 import {
@@ -40,6 +40,7 @@ const paintbrushPresets = ref<Record<string, TilePaintPreset>>({});
 const paintbrushPresetLoadId = ref("");
 const paintbrushPresetError = ref("");
 const paintbrushAppearanceUploading = ref(false);
+const paintbrushEyedropperActive = ref(false);
 
 export function clearActiveTool() {
   activeTool.value = null;
@@ -79,7 +80,40 @@ export function useGmTools() {
 
   watch(activeTool, (tool) => {
     if (tool === "paintbrush") void refreshPaintbrushPresets();
+    if (tool !== "paintbrush") paintbrushEyedropperActive.value = false;
   });
+
+  function setPaintbrushEyedropperActive(active: boolean) {
+    if (activeTool.value !== "paintbrush") {
+      paintbrushEyedropperActive.value = false;
+      return;
+    }
+    paintbrushEyedropperActive.value = active;
+  }
+
+  function tileToPaintPreset(tile: MapTile): TilePaintPreset {
+    const effects = Object.entries(tile.tileEffects ?? {})
+      .filter(([, stacks]) => stacks !== 0)
+      .sort(([a], [b]) => a.localeCompare(b));
+    const [effectId, effectStacks] = effects[0] ?? [GM_TILE_EFFECT_NONE, 1];
+    return {
+      elevation: tile.elevation,
+      terrain: tile.terrain[0] ?? "standard",
+      tileEffectId: effectId,
+      tileEffectStacks: effectStacks,
+      tileName: tile.name ?? "",
+      ...(tile.baseColor ? { baseColor: tile.baseColor } : {}),
+      ...(tile.appearanceKey ? { appearanceKey: tile.appearanceKey } : {}),
+    };
+  }
+
+  function samplePaintbrushFromTile(x: number, y: number) {
+    const s = gameState.value;
+    if (!s) return;
+    const tile = tileAt(s.tiles, x, y);
+    if (!tile) return;
+    applyPresetToBrush(tileToPaintPreset(tile));
+  }
 
   function setActiveTool(tool: GmTool) {
     if (activeTool.value === tool) {
@@ -314,6 +348,7 @@ export function useGmTools() {
     paintbrushPresetNames,
     paintbrushPresetError,
     paintbrushAppearanceUploading,
+    paintbrushEyedropperActive,
     setActiveTool,
     setBulkSelection,
     clearBulkSelection,
@@ -324,6 +359,8 @@ export function useGmTools() {
     applyDamageEffectToToken,
     resetPaintbrushSettings,
     applyPaintbrushToTile,
+    samplePaintbrushFromTile,
+    setPaintbrushEyedropperActive,
     loadSelectedPreset,
     saveCurrentPreset,
     deleteSelectedPreset,

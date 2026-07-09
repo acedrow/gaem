@@ -136,6 +136,7 @@ import { usePlayerTeleportAnimation } from "../composables/usePlayerTeleportAnim
 import { useCharacterSheets } from "../composables/useCharacterSheets.js";
 import { useEnemySpawnSelection } from "../composables/useEnemySpawnSelection.js";
 import { clearActiveTool, useGmTools } from "../composables/useGmTools.js";
+import { gmToolCursor } from "../lib/gmToolCursors.js";
 import { showToast } from "../composables/useToasts.js";
 import { usePortraitCache } from "../composables/usePortraitCache.js";
 import { useTileAppearanceCache } from "../composables/useTileAppearanceCache.js";
@@ -210,7 +211,30 @@ const {
   isCellInBulkSelection,
   applyDamageEffectToToken,
   applyPaintbrushToTile,
+  samplePaintbrushFromTile,
+  paintbrushEyedropperActive,
+  setPaintbrushEyedropperActive,
 } = useGmTools();
+
+const gmViewportCursor = computed(() => {
+  if (!canUseGmTools.value || !gmActiveTool.value) return null;
+  if (gmActiveTool.value === "paintbrush" && paintbrushEyedropperActive.value) {
+    return gmToolCursor("eyedropper");
+  }
+  return gmToolCursor(gmActiveTool.value);
+});
+
+function isTypingTarget(el: EventTarget | null): boolean {
+  if (!(el instanceof HTMLElement)) return false;
+  const tag = el.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
+}
+
+function handlePaintbrushCellAction(x: number, y: number) {
+  if (paintbrushEyedropperActive.value) samplePaintbrushFromTile(x, y);
+  else applyPaintbrushToTile(x, y);
+}
+
 const {
   selectedPatternId,
   selectedPattern,
@@ -233,8 +257,6 @@ const {
   elevBonusTile,
   rangeAttackTargetIds,
   pendingTargetEnemyId,
-  pendingTargetPlayerId,
-  armorLanding,
   armorPush,
   omnistrikeStep,
   omnistrikeBombs,
@@ -2511,7 +2533,7 @@ function boardTargetingContext() {
 
 function onEnemyCellClick(x: number, y: number, enemyId: string) {
   if (canUseGmTools.value && gmActiveTool.value === "paintbrush") {
-    applyPaintbrushToTile(x, y);
+    handlePaintbrushCellAction(x, y);
     return;
   }
   if (tryGmDamageEffectToken({ kind: "enemy", id: enemyId })) return;
@@ -3551,7 +3573,7 @@ function handleCombatCellClick(x: number, y: number): boolean {
 
 function onBoardPlayerClick(x: number, y: number, playerId: string, characterSheetId?: string) {
   if (canUseGmTools.value && gmActiveTool.value === "paintbrush") {
-    applyPaintbrushToTile(x, y);
+    handlePaintbrushCellAction(x, y);
     return;
   }
   if (tryGmDamageEffectToken({ kind: "player", id: playerId })) return;
@@ -3741,6 +3763,11 @@ function onPaintbrushPointerDown(e: PointerEvent) {
   if (!startCell) return;
   e.preventDefault();
 
+  if (paintbrushEyedropperActive.value) {
+    samplePaintbrushFromTile(startCell.x, startCell.y);
+    return;
+  }
+
   const visited = new Set<string>();
   let lastCell: { x: number; y: number } | null = null;
 
@@ -3812,7 +3839,7 @@ function onGmCellClick(x: number, y: number) {
   if (!s) return;
 
   if (gmActiveTool.value === "paintbrush") {
-    applyPaintbrushToTile(x, y);
+    handlePaintbrushCellAction(x, y);
     return;
   }
 
@@ -4259,7 +4286,17 @@ function tryEndPlayerTurn(): boolean {
 }
 
 function onKeydown(e: KeyboardEvent) {
-  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+  if (isTypingTarget(e.target)) return;
+
+  if (
+    canUseGmTools.value &&
+    gmActiveTool.value === "paintbrush" &&
+    (e.key === "e" || e.key === "E") &&
+    !e.metaKey &&
+    !e.ctrlKey &&
+    !e.altKey
+  ) {
+    setPaintbrushEyedropperActive(true);
     return;
   }
 
@@ -4377,9 +4414,19 @@ function onKeydown(e: KeyboardEvent) {
   tryMove(t.x, t.y);
 }
 
+function onKeyup(e: KeyboardEvent) {
+  if (e.key === "e" || e.key === "E") setPaintbrushEyedropperActive(false);
+}
+
+function onWindowBlur() {
+  setPaintbrushEyedropperActive(false);
+}
+
 onMounted(() => {
   void loadSheets();
   window.addEventListener("keydown", onKeydown);
+  window.addEventListener("keyup", onKeyup);
+  window.addEventListener("blur", onWindowBlur);
 });
 
 watch(viewportEl, (el, prev) => {
@@ -4392,6 +4439,8 @@ onUnmounted(() => {
   if (teleportFinishTimer) clearTimeout(teleportFinishTimer);
   if (enemyMoveFinishTimer) clearTimeout(enemyMoveFinishTimer);
   window.removeEventListener("keydown", onKeydown);
+  window.removeEventListener("keyup", onKeyup);
+  window.removeEventListener("blur", onWindowBlur);
   overlayInsetObserver?.disconnect();
   disconnectViewport();
 });
@@ -4403,7 +4452,8 @@ onUnmounted(() => {
       <div
         ref="viewportEl"
         class="board-viewport"
-        :class="{ 'paintbrush-active': gmActiveTool === 'paintbrush' }"
+        :class="{ 'gm-tool-cursor': !!gmViewportCursor }"
+        :style="gmViewportCursor ? { '--gm-tool-cursor': gmViewportCursor } : undefined"
         @pointerdown="onViewportPointerDown"
         @click="onViewportClick"
         @contextmenu="onBoardContextMenu"
@@ -4457,6 +4507,7 @@ onUnmounted(() => {
                 :player-teleporting="row.playerTeleporting"
                 :enemy-animating="row.enemyAnimating"
                 :paintbrush-active="canUseGmTools && gmActiveTool === 'paintbrush'"
+                :gm-inherit-cursor="!!gmViewportCursor"
                 @click="onCellClick(row.x, row.y)"
                 @hover="onCellHover(row.x, row.y, row.key)"
                 @unhover="onCellUnhover"
@@ -4709,8 +4760,8 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-.board-viewport.paintbrush-active {
-  cursor: crosshair;
+.board-viewport.gm-tool-cursor {
+  cursor: var(--gm-tool-cursor);
 }
 
 .marquee-overlay {
