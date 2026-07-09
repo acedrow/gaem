@@ -56,17 +56,17 @@ Before considering any implementation task done, **run these commands and fix fa
 npm run build
 npm run test
 npm run lint
-npm run test:e2e   # when changing combat UI or WS wiring
+npm run test:e2e
 ```
 
 - **`npm run build`** — mandatory. Shared type errors block client and server; client imports `@gaem/shared` from `dist/`.
 - **`npm run test`** — mandatory when tests exist for the code you touched. If you add or change shared game logic, add or update tests in `packages/shared` when the behavior is worth guarding (see Code style). Run the full root `npm run test` at minimum; re-run focused suites while iterating if helpful.
 - **`npm run lint`** — mandatory. Must report **0 errors** (warnings are pre-existing cleanup backlog; do not add new ones). The config (`eslint.config.mjs`, flat) is tuned to catch real defects, not formatting. Do not silence a rule to make a change pass — fix the code, or add a scoped `// eslint-disable-next-line <rule>` with a one-line justification only when the code is genuinely intentional. Type-aware rules on the backends need `@gaem/shared` built first (`npm run build`), since they resolve types from `dist/`.
-- **`npm run test:e2e`** — Playwright headless browser tests for combat UI wiring (`packages/e2e`). Requires `.env.e2e` (see `.env.e2e.example`); CI runs this after unit tests pass.
+- **`npm run test:e2e`** — mandatory. Playwright headless browser tests for combat UI wiring (`packages/e2e`). Requires `.env.e2e` (see `.env.e2e.example`); first-time setup also needs `npx playwright install chromium` in `packages/e2e`. CI runs this after unit tests pass.
 
 Do not skip verification because a change "looks small" or "only touches the client." Export omissions, missing shared rebuilds, and broken imports often surface only at build time.
 
-After fixing a build, test, or lint failure, re-run all three commands to confirm nothing else regressed.
+After fixing a build, test, lint, or e2e failure, re-run all four commands to confirm nothing else regressed.
 
 ### What the linter enforces (recurring blind spots)
 
@@ -212,6 +212,7 @@ Many panels branch on `useSession().isGm`. Players see reduced enemy/sheet detai
 - [ ] `npm run build` passes (run it; do not assume)
 - [ ] `npm run test` passes (run it; fix or add tests for changed behavior)
 - [ ] `npm run lint` reports 0 errors and no new warnings
+- [ ] `npm run test:e2e` passes (run it; do not assume)
 - [ ] Shared game logic updated if behavior changed
 - [ ] Server and cf-worker stay in sync for WS/REST changes
 - [ ] No secrets committed (`.env`, `.dev.vars`)

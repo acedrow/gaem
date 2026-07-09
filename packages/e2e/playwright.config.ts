@@ -10,6 +10,9 @@ config({ path: join(rootDir, ".env.e2e.example") });
 const gmPassword = process.env.GM_PASSWORD ?? "e2e-gm";
 const playerPassword = process.env.PLAYER_PASSWORD ?? "e2e-player";
 const authSecret = process.env.AUTH_SECRET ?? "e2e-secret";
+const clientUrl = process.env.E2E_CLIENT_URL ?? "http://localhost:5173";
+const clientPort = new URL(clientUrl).port || "5173";
+const apiPort = process.env.PORT ?? "3001";
 
 export default defineConfig({
   testDir: "./tests",
@@ -23,27 +26,33 @@ export default defineConfig({
   },
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : [["list"], ["html", { open: "never" }]],
   use: {
-    baseURL: process.env.E2E_CLIENT_URL ?? "http://localhost:5173",
+    baseURL: clientUrl,
     headless: true,
     trace: "on-first-retry",
   },
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      use: {
+        ...devices["Desktop Chrome"],
+        ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
+          ? { launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } }
+          : {}),
+      },
     },
   ],
+
   webServer: {
-    command:
-      'npm run build -w @gaem/shared && concurrently -n server,client -c blue,green "npm run dev -w @gaem/server" "npm run dev -w @gaem/client"',
+    command: `npm run build -w @gaem/shared && concurrently -n server,client -c blue,green "npm run dev -w @gaem/server" "npm run dev -w @gaem/client -- --port ${clientPort} --strictPort"`,
     cwd: rootDir,
-    url: "http://localhost:5173",
+    url: clientUrl,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     env: {
       GM_PASSWORD: gmPassword,
       PLAYER_PASSWORD: playerPassword,
       AUTH_SECRET: authSecret,
+      PORT: apiPort,
     },
   },
 });

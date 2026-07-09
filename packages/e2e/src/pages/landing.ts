@@ -1,12 +1,15 @@
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 
 import { E2E_ENV } from "../env.js";
 
 export async function loginAsGm(page: Page, password = E2E_ENV.gmPassword): Promise<void> {
   await page.goto("/");
-  await page.getByPlaceholder("Password").fill(password);
-  await page.getByRole("button", { name: "Join as GM" }).click();
-  await page.waitForURL("**/game");
+  const passwordInput = page.getByPlaceholder("Password");
+  await passwordInput.fill(password);
+  await expect(passwordInput).toHaveValue(password);
+  const joinGm = page.getByRole("button", { name: "Join as GM" });
+  await expect(joinGm).toBeEnabled();
+  await Promise.all([page.waitForURL("**/game"), joinGm.click()]);
 }
 
 export async function loginAsPlayer(
@@ -15,9 +18,15 @@ export async function loginAsPlayer(
   password = E2E_ENV.playerPassword,
 ): Promise<void> {
   await page.goto("/");
-  await page.getByPlaceholder("Password").fill(password);
-  await page.getByRole("button", { name: "Join as Player" }).click();
+  const passwordInput = page.getByPlaceholder("Password");
+  await passwordInput.fill(password);
+  await expect(passwordInput).toHaveValue(password);
+  const joinPlayer = page.getByRole("button", { name: "Join as Player" });
+  await expect(joinPlayer).toBeEnabled();
+  await joinPlayer.click();
   await page.getByRole("button", { name: profileName }).click();
-  await page.getByRole("button", { name: "Join game as player" }).click();
-  await page.waitForURL("**/game");
+  await Promise.all([
+    page.waitForURL("**/game"),
+    page.getByRole("button", { name: "Join game as player" }).click(),
+  ]);
 }

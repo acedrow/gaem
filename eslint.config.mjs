@@ -15,6 +15,9 @@ export default tseslint.config(
       "packages/client/public/**",
       "packages/maps/**",
       "packages/assets/**",
+      "packages/e2e/playwright-report/**",
+      "packages/e2e/test-results/**",
+      "test-results/**",
     ],
   },
 
