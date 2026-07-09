@@ -20,61 +20,69 @@ const managePlayersOpen = ref(false);
     </header>
 
     <div class="settings-list">
-      <label class="setting-row">
-        <span class="setting-label">Show health bars</span>
-        <button
-          type="button"
-          role="switch"
-          class="toggle"
-          :class="{ on: showHealthBars }"
-          :aria-checked="showHealthBars"
-          @click="showHealthBars = !showHealthBars"
-        >
-          <span class="toggle-thumb" />
-        </button>
-      </label>
+      <section class="settings-category">
+        <h3 class="settings-section-heading">Map</h3>
+        <label class="setting-row">
+          <span class="setting-label">Show line of sight indicator</span>
+          <button
+            type="button"
+            role="switch"
+            class="toggle"
+            :class="{ on: showLineOfSightIndicator }"
+            :aria-checked="showLineOfSightIndicator"
+            @click="showLineOfSightIndicator = !showLineOfSightIndicator"
+          >
+            <span class="toggle-thumb" />
+          </button>
+        </label>
+        <label class="setting-row">
+          <span class="setting-label">Show elevation contours</span>
+          <button
+            type="button"
+            role="switch"
+            class="toggle"
+            :class="{ on: showElevationContours }"
+            :aria-checked="showElevationContours"
+            @click="showElevationContours = !showElevationContours"
+          >
+            <span class="toggle-thumb" />
+          </button>
+        </label>
+      </section>
 
-      <label class="setting-row">
-        <span class="setting-label">Show connections in console</span>
-        <button
-          type="button"
-          role="switch"
-          class="toggle"
-          :class="{ on: showConnectionsInConsole }"
-          :aria-checked="showConnectionsInConsole"
-          @click="showConnectionsInConsole = !showConnectionsInConsole"
-        >
-          <span class="toggle-thumb" />
-        </button>
-      </label>
+      <section class="settings-category">
+        <h3 class="settings-section-heading">Tokens</h3>
+        <label class="setting-row">
+          <span class="setting-label">Show health bars</span>
+          <button
+            type="button"
+            role="switch"
+            class="toggle"
+            :class="{ on: showHealthBars }"
+            :aria-checked="showHealthBars"
+            @click="showHealthBars = !showHealthBars"
+          >
+            <span class="toggle-thumb" />
+          </button>
+        </label>
+      </section>
 
-      <label class="setting-row">
-        <span class="setting-label">Show line of sight indicator</span>
-        <button
-          type="button"
-          role="switch"
-          class="toggle"
-          :class="{ on: showLineOfSightIndicator }"
-          :aria-checked="showLineOfSightIndicator"
-          @click="showLineOfSightIndicator = !showLineOfSightIndicator"
-        >
-          <span class="toggle-thumb" />
-        </button>
-      </label>
-
-      <label class="setting-row">
-        <span class="setting-label">Show elevation contours</span>
-        <button
-          type="button"
-          role="switch"
-          class="toggle"
-          :class="{ on: showElevationContours }"
-          :aria-checked="showElevationContours"
-          @click="showElevationContours = !showElevationContours"
-        >
-          <span class="toggle-thumb" />
-        </button>
-      </label>
+      <section class="settings-category">
+        <h3 class="settings-section-heading">Console</h3>
+        <label class="setting-row">
+          <span class="setting-label">Show connections in console</span>
+          <button
+            type="button"
+            role="switch"
+            class="toggle"
+            :class="{ on: showConnectionsInConsole }"
+            :aria-checked="showConnectionsInConsole"
+            @click="showConnectionsInConsole = !showConnectionsInConsole"
+          >
+            <span class="toggle-thumb" />
+          </button>
+        </label>
+      </section>
 
       <h3 class="settings-section-heading">Themes</h3>
 
@@ -133,16 +141,29 @@ const managePlayersOpen = ref(false);
 }
 
 .settings-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
   padding: 1rem;
 }
 
+.settings-category {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
 .settings-section-heading {
   margin: 0.5rem 0 0;
   text-transform: uppercase;
   color: var(--color-muted);
+}
+
+.settings-category:first-child .settings-section-heading {
+  margin-top: 0;
 }
 
 .setting-row {

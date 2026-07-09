@@ -4489,9 +4489,8 @@ onUnmounted(() => {
                 :d="d"
                 fill="none"
                 stroke="var(--color-elevation-contour)"
-                stroke-width="1.5"
+                stroke-width="1"
                 stroke-linecap="round"
-                stroke-linejoin="round"
               />
             </svg>
             <BoardCell

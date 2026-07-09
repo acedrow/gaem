@@ -142,8 +142,12 @@ function mergeRanges(ranges: { start: number; end: number }[]): { start: number;
   return merged;
 }
 
+function snapCoord(v: number): number {
+  return Math.round(v * 1000) / 1000;
+}
+
 function pointKey(x: number, y: number): string {
-  return `${x},${y}`;
+  return `${snapCoord(x)},${snapCoord(y)}`;
 }
 
 function parsePoint(key: string): [number, number] {
@@ -174,16 +178,147 @@ function segmentsToAdjacency(segments: Segment[]): Map<string, Set<string>> {
   return adj;
 }
 
-function chainToPath(vertices: string[]): string {
-  const pts = vertices.map(parsePoint);
-  let d = `M ${pts[0]![0]} ${pts[0]![1]}`;
-  for (let i = 1; i < pts.length; i++) {
-    d += ` L ${pts[i]![0]} ${pts[i]![1]}`;
+function filletCorner(
+  a: [number, number],
+  b: [number, number],
+  c: [number, number],
+  maxRadius: number,
+): { p1: [number, number]; p2: [number, number] } | null {
+  const abx = b[0] - a[0];
+  const aby = b[1] - a[1];
+  const cbx = c[0] - b[0];
+  const cby = c[1] - b[1];
+  const lenAb = Math.hypot(abx, aby);
+  const lenCb = Math.hypot(cbx, cby);
+  if (lenAb < 1e-6 || lenCb < 1e-6) return null;
+  const dot = (abx * cbx + aby * cby) / (lenAb * lenCb);
+  if (dot > 0.999) return null;
+  const r = Math.min(maxRadius, lenAb / 2, lenCb / 2);
+  return {
+    p1: [b[0] - (abx / lenAb) * r, b[1] - (aby / lenAb) * r],
+    p2: [b[0] + (cbx / lenCb) * r, b[1] + (cby / lenCb) * r],
+  };
+}
+
+function simplifyCollinear(pts: [number, number][]): [number, number][] {
+  if (pts.length < 3) return pts;
+  const out: [number, number][] = [pts[0]!];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const prev = out[out.length - 1]!;
+    const cur = pts[i]!;
+    const next = pts[i + 1]!;
+    if (isCollinear(prev, cur, next)) continue;
+    out.push(cur);
   }
+  out.push(pts[pts.length - 1]!);
+  return out;
+}
+
+function simplifyCollinearClosed(pts: [number, number][]): [number, number][] {
+  if (pts.length < 4) return pts;
+  let ring = [...pts];
+  let changed = true;
+  while (changed && ring.length >= 4) {
+    changed = false;
+    const next: [number, number][] = [];
+    const n = ring.length;
+    for (let i = 0; i < n; i++) {
+      const prev = ring[(i - 1 + n) % n]!;
+      const cur = ring[i]!;
+      const nxt = ring[(i + 1) % n]!;
+      if (isCollinear(prev, cur, nxt)) {
+        changed = true;
+        continue;
+      }
+      next.push(cur);
+    }
+    ring = next;
+  }
+  return ring;
+}
+
+function isCollinear(
+  a: [number, number],
+  b: [number, number],
+  c: [number, number],
+): boolean {
+  const abx = b[0] - a[0];
+  const aby = b[1] - a[1];
+  const cbx = c[0] - b[0];
+  const cby = c[1] - b[1];
+  const lenAb = Math.hypot(abx, aby);
+  const lenCb = Math.hypot(cbx, cby);
+  if (lenAb < 1e-6 || lenCb < 1e-6) return true;
+  const dot = (abx * cbx + aby * cby) / (lenAb * lenCb);
+  return dot > 0.999;
+}
+
+function chainToClosedPath(pts: [number, number][], cornerRadius: number): string {
+  const ring = simplifyCollinearClosed(pts);
+  const n = ring.length;
+  if (n < 3) return chainToOpenPath(ring, cornerRadius);
+
+  let d = "";
+  for (let i = 0; i < n; i++) {
+    const prev = ring[(i - 1 + n) % n]!;
+    const cur = ring[i]!;
+    const next = ring[(i + 1) % n]!;
+    const fillet = filletCorner(prev, cur, next, cornerRadius);
+    if (fillet) {
+      if (i === 0) d = `M ${fillet.p1[0]} ${fillet.p1[1]}`;
+      else d += ` L ${fillet.p1[0]} ${fillet.p1[1]}`;
+      d += ` Q ${cur[0]} ${cur[1]} ${fillet.p2[0]} ${fillet.p2[1]}`;
+    } else if (i === 0) {
+      d = `M ${cur[0]} ${cur[1]}`;
+    } else {
+      d += ` L ${cur[0]} ${cur[1]}`;
+    }
+  }
+  return `${d} Z`;
+}
+
+function chainToOpenPath(pts: [number, number][], cornerRadius: number): string {
+  if (pts.length < 2) return "";
+  if (pts.length === 2) {
+    return `M ${pts[0]![0]} ${pts[0]![1]} L ${pts[1]![0]} ${pts[1]![1]}`;
+  }
+
+  let d = `M ${pts[0]![0]} ${pts[0]![1]}`;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const fillet = filletCorner(pts[i - 1]!, pts[i]!, pts[i + 1]!, cornerRadius);
+    if (fillet) {
+      d += ` L ${fillet.p1[0]} ${fillet.p1[1]}`;
+      d += ` Q ${pts[i]![0]} ${pts[i]![1]} ${fillet.p2[0]} ${fillet.p2[1]}`;
+    } else {
+      d += ` L ${pts[i]![0]} ${pts[i]![1]}`;
+    }
+  }
+  const end = pts[pts.length - 1]!;
+  d += ` L ${end[0]} ${end[1]}`;
   return d;
 }
 
-function tracePaths(adj: Map<string, Set<string>>): string[] {
+function chainToPath(vertices: string[], cornerRadius: number, closed: boolean): string {
+  let pts = vertices.map(parsePoint);
+  if (
+    pts.length >= 2 &&
+    Math.hypot(pts[0]![0] - pts[pts.length - 1]![0], pts[0]![1] - pts[pts.length - 1]![1]) < 1e-3
+  ) {
+    pts = pts.slice(0, -1);
+  }
+  if (closed && pts.length >= 3) return chainToClosedPath(pts, cornerRadius);
+  return chainToOpenPath(simplifyCollinear(pts), cornerRadius);
+}
+
+function isClosedChain(chain: string[], adj: Map<string, Set<string>>): boolean {
+  if (chain.length < 3) return false;
+  const first = chain[0]!;
+  const last = chain[chain.length - 1]!;
+  if (first === last) return true;
+  return adj.get(first)?.has(last) ?? false;
+}
+
+function tracePaths(adj: Map<string, Set<string>>, cornerRadius: number): string[] {
   const visitedEdges = new Set<string>();
   const paths: string[] = [];
 
@@ -222,7 +357,9 @@ function tracePaths(adj: Map<string, Set<string>>): string[] {
       const ek = edgeKey(node, n);
       if (visitedEdges.has(ek)) continue;
       const chain = walkFrom(node, n);
-      if (chain.length >= 2) paths.push(chainToPath(chain));
+      if (chain.length >= 2) {
+        paths.push(chainToPath(chain, cornerRadius, isClosedChain(chain, adj)));
+      }
     }
   }
 
@@ -231,7 +368,9 @@ function tracePaths(adj: Map<string, Set<string>>): string[] {
       const ek = edgeKey(node, n);
       if (visitedEdges.has(ek)) continue;
       const chain = walkFrom(node, n);
-      if (chain.length >= 2) paths.push(chainToPath(chain));
+      if (chain.length >= 2) {
+        paths.push(chainToPath(chain, cornerRadius, isClosedChain(chain, adj)));
+      }
     }
   }
 
@@ -243,7 +382,8 @@ export function buildElevationContourPaths(tiles: MapTile[], metrics: BoardCellM
   if (raw.length === 0) return [];
   const merged = mergeCollinearSegments(raw);
   const adj = segmentsToAdjacency(merged);
-  return tracePaths(adj);
+  const cornerRadius = Math.min(25, metrics.gap * 8.5);
+  return tracePaths(adj, cornerRadius);
 }
 
 export function parsePathCommands(d: string): { cmd: string; x: number; y: number }[] {
@@ -251,7 +391,17 @@ export function parsePathCommands(d: string): { cmd: string; x: number; y: numbe
   const points: { cmd: string; x: number; y: number }[] = [];
   for (let i = 0; i < tokens.length; i++) {
     const cmd = tokens[i]!;
-    if (cmd !== "M" && cmd !== "L") continue;
+    if (cmd !== "M" && cmd !== "L" && cmd !== "Q") continue;
+    if (cmd === "Q") {
+      const cx = Number(tokens[++i]);
+      const cy = Number(tokens[++i]);
+      const x = Number(tokens[++i]);
+      const y = Number(tokens[++i]);
+      points.push({ cmd, x, y });
+      void cx;
+      void cy;
+      continue;
+    }
     const x = Number(tokens[++i]);
     const y = Number(tokens[++i]);
     points.push({ cmd, x, y });

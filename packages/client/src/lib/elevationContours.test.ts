@@ -50,6 +50,29 @@ describe("elevationContourEdges", () => {
   });
 });
 
+function countPathQs(path: string): number {
+  return (path.match(/\sQ\s/g) ?? []).length;
+}
+
+function elevatedBlockGrid(
+  blockX: number,
+  blockY: number,
+  blockW: number,
+  blockH: number,
+  mapW: number,
+  mapH: number,
+  blockElev = 1,
+): MapTile[] {
+  const tiles: MapTile[] = [];
+  for (let y = 0; y < mapH; y++) {
+    for (let x = 0; x < mapW; x++) {
+      const inBlock = x >= blockX && x < blockX + blockW && y >= blockY && y < blockY + blockH;
+      tiles.push(tile(x, y, inBlock ? blockElev : 0));
+    }
+  }
+  return tiles;
+}
+
 describe("buildElevationContourPaths", () => {
   it("returns no paths for a flat map", () => {
     expect(buildElevationContourPaths(flatGrid(3, 3), boardCellMetrics(3, 3, 120, 3))).toEqual([]);
@@ -76,12 +99,21 @@ describe("buildElevationContourPaths", () => {
     ];
     const paths = buildElevationContourPaths(tiles, metrics2x2);
     expect(paths).toHaveLength(1);
+    expect(paths[0]).toContain(" Q ");
     const points = parsePathCommands(paths[0]!);
     expect(points.length).toBeGreaterThanOrEqual(3);
     const xs = new Set(points.map((p) => Math.round(p.x * 100)));
     const ys = new Set(points.map((p) => Math.round(p.y * 100)));
     expect(xs.size).toBeGreaterThan(1);
     expect(ys.size).toBeGreaterThan(1);
+  });
+
+  it("rounds all four corners of a rectangular contour loop", () => {
+    const tiles = elevatedBlockGrid(1, 1, 2, 2, 4, 4);
+    const paths = buildElevationContourPaths(tiles, boardCellMetrics(4, 4, 160, 3));
+    expect(paths).toHaveLength(1);
+    expect(countPathQs(paths[0]!)).toBe(4);
+    expect(paths[0]).toContain(" Z");
   });
 
   it("returns separate paths for disconnected elevation islands", () => {
