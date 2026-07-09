@@ -61,7 +61,35 @@ function horizontalSpan(x: number, width: number, cellW: number, gap: number): {
   return { start: x0, end: x1 };
 }
 
-function collectRawSegments(tiles: MapTile[], metrics: BoardCellMetrics): Segment[] {
+export function elevationStepsBetween(a: number, b: number): number[] {
+  const lo = Math.min(a, b);
+  const hi = Math.max(a, b);
+  const steps: number[] = [];
+  for (let s = lo; s < hi; s++) steps.push(s);
+  return steps;
+}
+
+export function contourStepInsetPx(metrics: BoardCellMetrics): number {
+  const cell = Math.min(metrics.cellW, metrics.cellH);
+  return Math.min(cell * 0.1, cell / 12);
+}
+
+function shrinkSpan(span: { start: number; end: number }, inset: number): { start: number; end: number } | null {
+  const start = span.start + inset;
+  const end = span.end - inset;
+  if (end - start < 1e-3) return null;
+  return { start, end };
+}
+
+function perpendicularInsetDirection(elevHere: number, elevNeigh: number): number {
+  const absHere = Math.abs(elevHere);
+  const absNeigh = Math.abs(elevNeigh);
+  if (absNeigh > absHere) return 1;
+  if (absNeigh < absHere) return -1;
+  return elevNeigh > elevHere ? 1 : -1;
+}
+
+function collectRawSegments(tiles: MapTile[], metrics: BoardCellMetrics, stepInsetPx: number): Segment[] {
   const { width, height, cellW, cellH, gap } = metrics;
   const segments: Segment[] = [];
 
@@ -73,24 +101,40 @@ function collectRawSegments(tiles: MapTile[], metrics: BoardCellMetrics): Segmen
 
       const east = tileAt(tiles, x + 1, y);
       if (east && east.elevation !== elev) {
-        const span = verticalSpan(y, height, cellH, gap);
-        segments.push({
-          horizontal: false,
-          fixed: boundaryX(x, cellW, gap),
-          start: span.start,
-          end: span.end,
-        });
+        const steps = elevationStepsBetween(elev, east.elevation);
+        const direction = perpendicularInsetDirection(elev, east.elevation);
+        const baseFixed = boundaryX(x, cellW, gap);
+        const baseSpan = verticalSpan(y, height, cellH, gap);
+        for (let i = 0; i < steps.length; i++) {
+          const inset = i * stepInsetPx;
+          const shrunk = shrinkSpan(baseSpan, inset);
+          if (!shrunk) continue;
+          segments.push({
+            horizontal: false,
+            fixed: baseFixed + direction * inset,
+            start: shrunk.start,
+            end: shrunk.end,
+          });
+        }
       }
 
       const south = tileAt(tiles, x, y + 1);
       if (south && south.elevation !== elev) {
-        const span = horizontalSpan(x, width, cellW, gap);
-        segments.push({
-          horizontal: true,
-          fixed: boundaryY(y, cellH, gap),
-          start: span.start,
-          end: span.end,
-        });
+        const steps = elevationStepsBetween(elev, south.elevation);
+        const direction = perpendicularInsetDirection(elev, south.elevation);
+        const baseFixed = boundaryY(y, cellH, gap);
+        const baseSpan = horizontalSpan(x, width, cellW, gap);
+        for (let i = 0; i < steps.length; i++) {
+          const inset = i * stepInsetPx;
+          const shrunk = shrinkSpan(baseSpan, inset);
+          if (!shrunk) continue;
+          segments.push({
+            horizontal: true,
+            fixed: baseFixed + direction * inset,
+            start: shrunk.start,
+            end: shrunk.end,
+          });
+        }
       }
     }
   }
@@ -378,7 +422,8 @@ function tracePaths(adj: Map<string, Set<string>>, cornerRadius: number): string
 }
 
 export function buildElevationContourPaths(tiles: MapTile[], metrics: BoardCellMetrics): string[] {
-  const raw = collectRawSegments(tiles, metrics);
+  const stepInsetPx = contourStepInsetPx(metrics);
+  const raw = collectRawSegments(tiles, metrics, stepInsetPx);
   if (raw.length === 0) return [];
   const merged = mergeCollinearSegments(raw);
   const adj = segmentsToAdjacency(merged);

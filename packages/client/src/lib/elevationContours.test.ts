@@ -4,7 +4,9 @@ import { describe, expect, it } from "vitest";
 import {
   boardCellMetrics,
   buildElevationContourPaths,
+  contourStepInsetPx,
   elevationContourEdges,
+  elevationStepsBetween,
   parsePathCommands,
 } from "./elevationContours.js";
 
@@ -73,9 +75,80 @@ function elevatedBlockGrid(
   return tiles;
 }
 
+function singleTileGrid(x: number, y: number, elevation: number, mapW: number, mapH: number): MapTile[] {
+  const tiles: MapTile[] = [];
+  for (let ty = 0; ty < mapH; ty++) {
+    for (let tx = 0; tx < mapW; tx++) {
+      tiles.push(tile(tx, ty, tx === x && ty === y ? elevation : 0));
+    }
+  }
+  return tiles;
+}
+
+function pathBounds(path: string): { minX: number; maxX: number; minY: number; maxY: number } {
+  const points = parsePathCommands(path);
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y);
+  return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
+}
+
+describe("elevationStepsBetween", () => {
+  it("returns one step for adjacent elevations", () => {
+    expect(elevationStepsBetween(0, 1)).toEqual([0]);
+    expect(elevationStepsBetween(1, 0)).toEqual([0]);
+  });
+
+  it("returns all intermediate steps for larger gaps", () => {
+    expect(elevationStepsBetween(0, 2)).toEqual([0, 1]);
+    expect(elevationStepsBetween(0, -2)).toEqual([-2, -1]);
+  });
+});
+
 describe("buildElevationContourPaths", () => {
   it("returns no paths for a flat map", () => {
     expect(buildElevationContourPaths(flatGrid(3, 3), boardCellMetrics(3, 3, 120, 3))).toEqual([]);
+  });
+
+  it("returns one path for a single elevation step (0 vs 1)", () => {
+    const tiles = [tile(0, 0, 0), tile(1, 0, 1)];
+    const paths = buildElevationContourPaths(tiles, boardCellMetrics(2, 1, 100, 3));
+    expect(paths).toHaveLength(1);
+  });
+
+  it("returns two vertical paths for a two-step east edge (0 vs 2)", () => {
+    const tiles = [tile(0, 0, 0), tile(1, 0, 2)];
+    const m = boardCellMetrics(2, 1, 100, 3);
+    const paths = buildElevationContourPaths(tiles, m);
+    expect(paths).toHaveLength(2);
+    const xs = paths.map((p) => pathBounds(p).minX);
+    expect(new Set(xs.map((x) => Math.round(x * 100))).size).toBe(2);
+    expect(Math.abs(xs[1]! - xs[0]!)).toBeCloseTo(contourStepInsetPx(m), 3);
+  });
+
+  it("returns nested closed paths for a single elevation-2 tile", () => {
+    const tiles = singleTileGrid(2, 2, 2, 5, 5);
+    const paths = buildElevationContourPaths(tiles, boardCellMetrics(5, 5, 200, 3));
+    expect(paths).toHaveLength(2);
+    const byArea = [...paths].sort(
+      (a, b) =>
+        (pathBounds(b).maxX - pathBounds(b).minX) * (pathBounds(b).maxY - pathBounds(b).minY) -
+        (pathBounds(a).maxX - pathBounds(a).minX) * (pathBounds(a).maxY - pathBounds(a).minY),
+    );
+    const outer = pathBounds(byArea[0]!);
+    const inner = pathBounds(byArea[1]!);
+    expect(inner.minX).toBeGreaterThan(outer.minX);
+    expect(inner.maxX).toBeLessThan(outer.maxX);
+    expect(inner.minY).toBeGreaterThan(outer.minY);
+    expect(inner.maxY).toBeLessThan(outer.maxY);
+  });
+
+  it("returns nested closed paths for a single elevation -2 pit tile", () => {
+    const tiles = singleTileGrid(2, 2, -2, 5, 5);
+    const paths = buildElevationContourPaths(tiles, boardCellMetrics(5, 5, 200, 3));
+    expect(paths).toHaveLength(2);
+    for (const path of paths) {
+      expect(path).toContain(" Z");
+    }
   });
 
   it("returns one continuous vertical path for a 2x1 elevation step", () => {
