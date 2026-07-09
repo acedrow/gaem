@@ -25,13 +25,19 @@ describe("dev:cf hot-reload wiring", () => {
     expect(src.slice(src.indexOf("else"))).toContain("build -w @gaem/client");
   });
 
-  it("wrangler watch_dir does not watch client/src (Vite owns the client)", () => {
+  it("wrangler watch_dir is relative to wrangler.toml (not build.cwd)", () => {
+    // Wrangler joins watch_dir to dirname(configPath). Repo-root paths like
+    // packages/cf-worker/src resolve to non-existent dirs and hot-reload dies.
     const toml = read("packages/cf-worker/wrangler.toml");
     const watchLine = toml
       .split("\n")
       .find((l) => l.trimStart().startsWith("watch_dir"));
     expect(watchLine).toBeDefined();
+    expect(watchLine).toContain('"src"');
+    expect(watchLine).toContain('"../shared/src"');
     expect(watchLine).not.toContain("client/src");
+    expect(watchLine).not.toContain("packages/cf-worker");
+    expect(watchLine).not.toContain("packages/shared");
   });
 
   it("dev:cf runs the Vite dev server with VITE_CF_DEV alongside wrangler dev", () => {
