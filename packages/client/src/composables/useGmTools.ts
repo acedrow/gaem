@@ -36,6 +36,12 @@ const paintbrushTileName = ref("");
 const paintbrushBaseColor = ref<string | null>(null);
 const paintbrushAppearanceKey = ref<string | null>(null);
 const paintbrushAppearancePreviewUrl = ref<string | null>(null);
+const paintbrushEnableElevation = ref(true);
+const paintbrushEnableTerrain = ref(true);
+const paintbrushEnableEffect = ref(true);
+const paintbrushEnableName = ref(true);
+const paintbrushEnableColor = ref(true);
+const paintbrushEnableAppearance = ref(true);
 const paintbrushPresets = ref<Record<string, TilePaintPreset>>({});
 const paintbrushPresetLoadId = ref("");
 const paintbrushPresetError = ref("");
@@ -305,26 +311,61 @@ export function useGmTools() {
     clearPaintbrushAppearancePreview();
   }
 
+  function setAllPaintbrushOptionsEnabled(enabled: boolean) {
+    paintbrushEnableElevation.value = enabled;
+    paintbrushEnableTerrain.value = enabled;
+    paintbrushEnableEffect.value = enabled;
+    paintbrushEnableName.value = enabled;
+    paintbrushEnableColor.value = enabled;
+    paintbrushEnableAppearance.value = enabled;
+  }
+
+  function enableAllPaintbrushOptions() {
+    setAllPaintbrushOptionsEnabled(true);
+  }
+
+  function disableAllPaintbrushOptions() {
+    setAllPaintbrushOptionsEnabled(false);
+  }
+
   function applyPaintbrushToTile(x: number, y: number) {
-    const tileEffects =
-      paintbrushEffectId.value && paintbrushEffectStacks.value !== 0
-        ? [`${paintbrushEffectId.value}:${paintbrushEffectStacks.value}`]
-        : [];
     const sel = bulkSelection.value;
     const coords =
       sel?.kind === "tiles" && sel.coords.some((c) => c.x === x && c.y === y)
         ? sel.coords
         : [{ x, y }];
-    send({
-      type: "gmPaintTile",
-      coords,
-      elevation: paintbrushElevation.value,
-      terrain: paintbrushTerrain.value,
-      tileEffects,
-      tileName: paintbrushTileName.value,
-      baseColor: paintbrushBaseColor.value,
-      appearanceKey: paintbrushAppearanceKey.value,
-    });
+    const payload: {
+      type: "gmPaintTile";
+      coords: { x: number; y: number }[];
+      elevation?: number;
+      terrain?: TerrainType;
+      tileEffects?: string[];
+      tileName?: string;
+      baseColor?: string | null;
+      appearanceKey?: string | null;
+    } = { type: "gmPaintTile", coords };
+    if (paintbrushEnableElevation.value) payload.elevation = paintbrushElevation.value;
+    if (paintbrushEnableTerrain.value) payload.terrain = paintbrushTerrain.value;
+    if (paintbrushEnableEffect.value) {
+      payload.tileEffects =
+        paintbrushEffectId.value && paintbrushEffectStacks.value !== 0
+          ? [`${paintbrushEffectId.value}:${paintbrushEffectStacks.value}`]
+          : [];
+    }
+    if (paintbrushEnableName.value) payload.tileName = paintbrushTileName.value;
+    if (paintbrushEnableColor.value) payload.baseColor = paintbrushBaseColor.value;
+    if (paintbrushEnableAppearance.value) payload.appearanceKey = paintbrushAppearanceKey.value;
+    if (
+      payload.elevation === undefined &&
+      payload.terrain === undefined &&
+      payload.tileEffects === undefined &&
+      payload.tileName === undefined &&
+      payload.baseColor === undefined &&
+      payload.appearanceKey === undefined
+    ) {
+      return;
+    }
+    send(payload);
   }
 
   return {
@@ -343,6 +384,12 @@ export function useGmTools() {
     paintbrushBaseColor,
     paintbrushAppearanceKey,
     paintbrushAppearancePreviewUrl,
+    paintbrushEnableElevation,
+    paintbrushEnableTerrain,
+    paintbrushEnableEffect,
+    paintbrushEnableName,
+    paintbrushEnableColor,
+    paintbrushEnableAppearance,
     paintbrushPresets,
     paintbrushPresetLoadId,
     paintbrushPresetNames,
@@ -358,6 +405,8 @@ export function useGmTools() {
     isCellInBulkSelection,
     applyDamageEffectToToken,
     resetPaintbrushSettings,
+    enableAllPaintbrushOptions,
+    disableAllPaintbrushOptions,
     applyPaintbrushToTile,
     samplePaintbrushFromTile,
     setPaintbrushEyedropperActive,

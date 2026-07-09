@@ -309,12 +309,12 @@ export type ClientMessage =
   | {
       type: "gmPaintTile";
       coords: { x: number; y: number }[];
-      elevation: number;
-      terrain: TerrainType;
-      tileEffects: string[];
-      tileName: string;
-      baseColor: string | null;
-      appearanceKey: string | null;
+      elevation?: number;
+      terrain?: TerrainType;
+      tileEffects?: string[];
+      tileName?: string;
+      baseColor?: string | null;
+      appearanceKey?: string | null;
     }
   | { type: "removeAttractor"; x: number; y: number }
   | { type: "phaseAction"; action: PhaseAction }

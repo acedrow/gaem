@@ -34,14 +34,6 @@ export function boardCellMetrics(
   return { width: mapWidth, height: mapHeight, cellW, cellH, gap };
 }
 
-type Segment = {
-  horizontal: boolean;
-  fixed: number;
-  start: number;
-  end: number;
-  inset: number;
-};
-
 // Positive step n nests n rings into the high side; negative step -n nests n rings into the low side.
 export function contourInsetIndex(step: number): number {
   return step >= 0 ? step : -step;
@@ -49,8 +41,7 @@ export function contourInsetIndex(step: number): number {
 
 function snapCoord(v: number): number {
   // Nudge by a sub-milli-pixel epsilon so two float computations of the same
-  // coordinate (e.g. a corner reached from its vertical vs horizontal segment)
-  // that land on a rounding tie always round the same way and share a vertex.
+  // coordinate that land on a rounding tie always round the same way.
   return Math.round(v * 1000 + 1e-6) / 1000;
 }
 
@@ -87,185 +78,170 @@ export function contourStepInsetPx(metrics: BoardCellMetrics): number {
   return Math.min(cell * 0.1, cell / 12);
 }
 
-function shrinkSpan(span: { start: number; end: number }, inset: number): { start: number; end: number } | null {
-  const start = span.start + inset;
-  const end = span.end - inset;
-  if (end - start < 1e-3) return null;
-  return { start, end };
-}
-
+// +1 points from the "here" tile toward the neighbor; contours nest toward the
+// high side for positive steps and toward the low side for negative steps.
 function perpendicularInsetDirection(elevHere: number, elevNeigh: number, step: number): number {
   const towardNeigh = elevNeigh > elevHere ? 1 : -1;
   return step >= 0 ? towardNeigh : -towardNeigh;
 }
 
-function spanAdjustInset(elevInsetInto: number, elevOther: number, inset: number): number {
-  const absIn = Math.abs(elevInsetInto);
-  const absOut = Math.abs(elevOther);
-  if (absIn > absOut) return inset;
-  if (absIn < absOut) return -inset;
-  return elevInsetInto > elevOther ? inset : -inset;
+type Point = [number, number];
+type Graph = { adj: Map<string, Set<string>>; coord: Map<string, Point> };
+type RoleNode = { id: string; xy: Point };
+
+function graphAddEdge(g: Graph, aId: string, aXY: Point, bId: string, bXY: Point): void {
+  if (aId === bId) return;
+  if (!g.coord.has(aId)) g.coord.set(aId, aXY);
+  if (!g.coord.has(bId)) g.coord.set(bId, bXY);
+  if (!g.adj.has(aId)) g.adj.set(aId, new Set());
+  if (!g.adj.has(bId)) g.adj.set(bId, new Set());
+  g.adj.get(aId)!.add(bId);
+  g.adj.get(bId)!.add(aId);
 }
 
-function collectRawSegments(tiles: MapTile[], metrics: BoardCellMetrics, stepInsetPx: number): Segment[] {
+function edgeTerminalId(xy: Point): string {
+  return `e:${snapCoord(xy[0])},${snapCoord(xy[1])}`;
+}
+
+// Build the contour graph for a single elevation level `s` (the boundary
+// between elevation s and s+1). Nodes live on the grid-corner lattice; each
+// corner vertex is placed at the intersection of the two offset lines meeting
+// there, which handles convex, concave, and saddle corners uniformly.
+function buildLevelGraph(tiles: MapTile[], metrics: BoardCellMetrics, s: number, stepInset: number): Graph {
   const { width, height, cellW, cellH, gap } = metrics;
-  const segments: Segment[] = [];
+  const inset = contourInsetIndex(s) * stepInset;
 
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const tile = tileAt(tiles, x, y);
-      if (!tile) continue;
-      const elev = tile.elevation;
+  const elevAt = (x: number, y: number): number | undefined => tileAt(tiles, x, y)?.elevation;
+  const straddle = (a: number | undefined, b: number | undefined): boolean =>
+    a != null && b != null && Math.min(a, b) <= s && s < Math.max(a, b);
+  const vFixed = (i: number, eL: number, eR: number): number =>
+    boundaryX(i, cellW, gap) + perpendicularInsetDirection(eL, eR, s) * inset;
+  const hFixed = (j: number, eT: number, eB: number): number =>
+    boundaryY(j, cellH, gap) + perpendicularInsetDirection(eT, eB, s) * inset;
 
-      const east = tileAt(tiles, x + 1, y);
-      if (east && east.elevation !== elev) {
-        const steps = elevationStepsBetween(elev, east.elevation);
-        const baseFixed = boundaryX(x, cellW, gap);
-        const baseSpan = verticalSpan(y, height, cellH, gap);
-        for (const step of steps) {
-          const direction = perpendicularInsetDirection(elev, east.elevation, step);
-          const elevInsetInto = step >= 0 ? Math.max(elev, east.elevation) : Math.min(elev, east.elevation);
-          const elevOther = elevInsetInto === elev ? east.elevation : elev;
-          const inset = contourInsetIndex(step) * stepInsetPx;
-          segments.push({
-            horizontal: false,
-            fixed: baseFixed + direction * inset,
-            start: baseSpan.start,
-            end: baseSpan.end,
-            inset: spanAdjustInset(elevInsetInto, elevOther, inset),
-          });
-        }
+  const cornerCache = new Map<string, Map<string, RoleNode>>();
+  const resolveCorner = (i: number, j: number): Map<string, RoleNode> => {
+    const key = `${i},${j}`;
+    const cached = cornerCache.get(key);
+    if (cached) return cached;
+
+    const eTL = elevAt(i, j);
+    const eTR = elevAt(i + 1, j);
+    const eBL = elevAt(i, j + 1);
+    const eBR = elevAt(i + 1, j + 1);
+    const topV = straddle(eTL, eTR);
+    const botV = straddle(eBL, eBR);
+    const leftH = straddle(eTL, eBL);
+    const rightH = straddle(eTR, eBR);
+    const bx = boundaryX(i, cellW, gap);
+    const by = boundaryY(j, cellH, gap);
+    const vfTop = topV ? vFixed(i, eTL!, eTR!) : 0;
+    const vfBot = botV ? vFixed(i, eBL!, eBR!) : 0;
+    const hfLeft = leftH ? hFixed(j, eTL!, eBL!) : 0;
+    const hfRight = rightH ? hFixed(j, eTR!, eBR!) : 0;
+    const count = (topV ? 1 : 0) + (botV ? 1 : 0) + (leftH ? 1 : 0) + (rightH ? 1 : 0);
+
+    const roles = new Map<string, RoleNode>();
+    if (count === 4) {
+      // Saddle: two same-elevation diagonals meet at a corner. Pinch one
+      // diagonal (each of its tiles gets its own corner) and let the other pass
+      // through. When the contour sits on the tile boundary (inset 0) the two
+      // pinch vertices coincide at the corner, so pinching the background weaves
+      // the feature into one connected ridge without crossing. When the contour
+      // is inset, the background pairing would self-cross, so pinch the feature
+      // diagonal instead: its tiles stay as separate loops kissing at the corner.
+      const mainAbs = Math.abs(eTL!); // diagonal {TL, BR}
+      const antiAbs = Math.abs(eTR!); // diagonal {TR, BL}
+      const pinchMain = inset === 0 ? mainAbs <= antiAbs : mainAbs >= antiAbs;
+      if (pinchMain) {
+        const nTL: RoleNode = { id: `${key}#0`, xy: [vfTop, hfLeft] };
+        const nBR: RoleNode = { id: `${key}#1`, xy: [vfBot, hfRight] };
+        roles.set("topV", nTL);
+        roles.set("leftH", nTL);
+        roles.set("botV", nBR);
+        roles.set("rightH", nBR);
+      } else {
+        const nTR: RoleNode = { id: `${key}#0`, xy: [vfTop, hfRight] };
+        const nBL: RoleNode = { id: `${key}#1`, xy: [vfBot, hfLeft] };
+        roles.set("topV", nTR);
+        roles.set("rightH", nTR);
+        roles.set("botV", nBL);
+        roles.set("leftH", nBL);
       }
-
-      const south = tileAt(tiles, x, y + 1);
-      if (south && south.elevation !== elev) {
-        const steps = elevationStepsBetween(elev, south.elevation);
-        const baseFixed = boundaryY(y, cellH, gap);
-        const baseSpan = horizontalSpan(x, width, cellW, gap);
-        for (const step of steps) {
-          const direction = perpendicularInsetDirection(elev, south.elevation, step);
-          const elevInsetInto = step >= 0 ? Math.max(elev, south.elevation) : Math.min(elev, south.elevation);
-          const elevOther = elevInsetInto === elev ? south.elevation : elev;
-          const inset = contourInsetIndex(step) * stepInsetPx;
-          segments.push({
-            horizontal: true,
-            fixed: baseFixed + direction * inset,
-            start: baseSpan.start,
-            end: baseSpan.end,
-            inset: spanAdjustInset(elevInsetInto, elevOther, inset),
-          });
-        }
-      }
-    }
-  }
-
-  return segments;
-}
-
-function mergeKey(fixed: number, inset: number): string {
-  return `${snapCoord(fixed)}|${snapCoord(inset)}`;
-}
-
-function mergeCollinearSegments(segments: Segment[]): Segment[] {
-  const verticals = new Map<string, { fixed: number; inset: number; ranges: { start: number; end: number }[] }>();
-  const horizontals = new Map<string, { fixed: number; inset: number; ranges: { start: number; end: number }[] }>();
-
-  for (const seg of segments) {
-    const key = mergeKey(seg.fixed, seg.inset);
-    const bucket = seg.horizontal ? horizontals : verticals;
-    const entry = bucket.get(key) ?? { fixed: snapCoord(seg.fixed), inset: seg.inset, ranges: [] };
-    entry.ranges.push({ start: seg.start, end: seg.end });
-    bucket.set(key, entry);
-  }
-
-  const merged: Segment[] = [];
-  for (const entry of verticals.values()) {
-    for (const range of mergeRanges(entry.ranges)) {
-      const shrunk = shrinkSpan(range, entry.inset);
-      if (!shrunk) continue;
-      merged.push({
-        horizontal: false,
-        fixed: entry.fixed,
-        start: shrunk.start,
-        end: shrunk.end,
-        inset: entry.inset,
-      });
-    }
-  }
-  for (const entry of horizontals.values()) {
-    for (const range of mergeRanges(entry.ranges)) {
-      const shrunk = shrinkSpan(range, entry.inset);
-      if (!shrunk) continue;
-      merged.push({
-        horizontal: true,
-        fixed: entry.fixed,
-        start: shrunk.start,
-        end: shrunk.end,
-        inset: entry.inset,
-      });
-    }
-  }
-  return merged;
-}
-
-function mergeRanges(ranges: { start: number; end: number }[]): { start: number; end: number }[] {
-  if (ranges.length === 0) return [];
-  const sorted = ranges
-    .map((r) => (r.start <= r.end ? r : { start: r.end, end: r.start }))
-    .sort((a, b) => a.start - b.start);
-  const merged: { start: number; end: number }[] = [{ ...sorted[0]! }];
-  for (let i = 1; i < sorted.length; i++) {
-    const cur = sorted[i]!;
-    const last = merged[merged.length - 1]!;
-    if (cur.start <= last.end + 1e-6) {
-      last.end = Math.max(last.end, cur.end);
+    } else if (count === 2 && topV && botV) {
+      const n: RoleNode = { id: key, xy: [vfTop, by] };
+      roles.set("topV", n);
+      roles.set("botV", n);
+    } else if (count === 2 && leftH && rightH) {
+      const n: RoleNode = { id: key, xy: [bx, hfLeft] };
+      roles.set("leftH", n);
+      roles.set("rightH", n);
+    } else if (count === 2) {
+      const n: RoleNode = { id: key, xy: [topV ? vfTop : vfBot, leftH ? hfLeft : hfRight] };
+      if (topV) roles.set("topV", n);
+      if (botV) roles.set("botV", n);
+      if (leftH) roles.set("leftH", n);
+      if (rightH) roles.set("rightH", n);
     } else {
-      merged.push({ ...cur });
+      // Irregular fan-out (map holes): terminate each edge on its boundary line.
+      if (topV) roles.set("topV", { id: `${key}#topV`, xy: [vfTop, by] });
+      if (botV) roles.set("botV", { id: `${key}#botV`, xy: [vfBot, by] });
+      if (leftH) roles.set("leftH", { id: `${key}#leftH`, xy: [bx, hfLeft] });
+      if (rightH) roles.set("rightH", { id: `${key}#rightH`, xy: [bx, hfRight] });
     }
-  }
-  return merged;
-}
-
-function pointKey(x: number, y: number): string {
-  return `${snapCoord(x)},${snapCoord(y)}`;
-}
-
-function parsePoint(key: string): [number, number] {
-  const [x, y] = key.split(",").map(Number);
-  return [x!, y!];
-}
-
-function edgeKey(a: string, b: string): string {
-  return a < b ? `${a}|${b}` : `${b}|${a}`;
-}
-
-function segmentsToAdjacency(segments: Segment[]): Map<string, Set<string>> {
-  const adj = new Map<string, Set<string>>();
-  const addEdge = (a: string, b: string) => {
-    if (!adj.has(a)) adj.set(a, new Set());
-    if (!adj.has(b)) adj.set(b, new Set());
-    adj.get(a)!.add(b);
-    adj.get(b)!.add(a);
+    cornerCache.set(key, roles);
+    return roles;
   };
 
-  for (const seg of segments) {
-    if (seg.horizontal) {
-      addEdge(pointKey(seg.start, seg.fixed), pointKey(seg.end, seg.fixed));
-    } else {
-      addEdge(pointKey(seg.fixed, seg.start), pointKey(seg.fixed, seg.end));
+  const g: Graph = { adj: new Map(), coord: new Map() };
+
+  for (let i = 0; i < width - 1; i++) {
+    for (let y = 0; y < height; y++) {
+      const eL = elevAt(i, y);
+      const eR = elevAt(i + 1, y);
+      if (!straddle(eL, eR)) continue;
+      const f = vFixed(i, eL!, eR!);
+      let top: RoleNode;
+      if (y >= 1) top = resolveCorner(i, y - 1).get("botV")!;
+      else top = { id: "", xy: [f, verticalSpan(0, height, cellH, gap).start] };
+      let bot: RoleNode;
+      if (y <= height - 2) bot = resolveCorner(i, y).get("topV")!;
+      else bot = { id: "", xy: [f, verticalSpan(height - 1, height, cellH, gap).end] };
+      const topId = top.id || edgeTerminalId(top.xy);
+      const botId = bot.id || edgeTerminalId(bot.xy);
+      graphAddEdge(g, topId, top.xy, botId, bot.xy);
     }
   }
-  return adj;
+
+  for (let j = 0; j < height - 1; j++) {
+    for (let x = 0; x < width; x++) {
+      const eT = elevAt(x, j);
+      const eB = elevAt(x, j + 1);
+      if (!straddle(eT, eB)) continue;
+      const f = hFixed(j, eT!, eB!);
+      let left: RoleNode;
+      if (x >= 1) left = resolveCorner(x - 1, j).get("rightH")!;
+      else left = { id: "", xy: [horizontalSpan(0, width, cellW, gap).start, f] };
+      let right: RoleNode;
+      if (x <= width - 2) right = resolveCorner(x, j).get("leftH")!;
+      else right = { id: "", xy: [horizontalSpan(width - 1, width, cellW, gap).end, f] };
+      const leftId = left.id || edgeTerminalId(left.xy);
+      const rightId = right.id || edgeTerminalId(right.xy);
+      graphAddEdge(g, leftId, left.xy, rightId, right.xy);
+    }
+  }
+
+  return g;
 }
 
 function filletCorner(
-  a: [number, number],
-  b: [number, number],
-  c: [number, number],
+  a: Point,
+  b: Point,
+  c: Point,
   maxRadius: number,
   fullAb = false,
   fullCb = false,
-): { p1: [number, number]; p2: [number, number] } | null {
+): { p1: Point; p2: Point } | null {
   const abx = b[0] - a[0];
   const aby = b[1] - a[1];
   const cbx = c[0] - b[0];
@@ -283,9 +259,9 @@ function filletCorner(
   };
 }
 
-function simplifyCollinear(pts: [number, number][]): [number, number][] {
+function simplifyCollinear(pts: Point[]): Point[] {
   if (pts.length < 3) return pts;
-  const out: [number, number][] = [pts[0]!];
+  const out: Point[] = [pts[0]!];
   for (let i = 1; i < pts.length - 1; i++) {
     const prev = out[out.length - 1]!;
     const cur = pts[i]!;
@@ -297,13 +273,13 @@ function simplifyCollinear(pts: [number, number][]): [number, number][] {
   return out;
 }
 
-function simplifyCollinearClosed(pts: [number, number][]): [number, number][] {
+function simplifyCollinearClosed(pts: Point[]): Point[] {
   if (pts.length < 4) return pts;
   let ring = [...pts];
   let changed = true;
   while (changed && ring.length >= 4) {
     changed = false;
-    const next: [number, number][] = [];
+    const next: Point[] = [];
     const n = ring.length;
     for (let i = 0; i < n; i++) {
       const prev = ring[(i - 1 + n) % n]!;
@@ -320,11 +296,7 @@ function simplifyCollinearClosed(pts: [number, number][]): [number, number][] {
   return ring;
 }
 
-function isCollinear(
-  a: [number, number],
-  b: [number, number],
-  c: [number, number],
-): boolean {
+function isCollinear(a: Point, b: Point, c: Point): boolean {
   const abx = b[0] - a[0];
   const aby = b[1] - a[1];
   const cbx = c[0] - b[0];
@@ -346,7 +318,7 @@ function appendLine(d: string, x: number, y: number): string {
   return `${d} L ${x} ${y}`;
 }
 
-function chainToClosedPath(pts: [number, number][], cornerRadius: number): string {
+function chainToClosedPath(pts: Point[], cornerRadius: number): string {
   const ring = simplifyCollinearClosed(pts);
   const n = ring.length;
   if (n < 3) return chainToOpenPath(ring, cornerRadius);
@@ -370,7 +342,7 @@ function chainToClosedPath(pts: [number, number][], cornerRadius: number): strin
   return `${d} Z`;
 }
 
-function chainToOpenPath(pts: [number, number][], cornerRadius: number): string {
+function chainToOpenPath(pts: Point[], cornerRadius: number): string {
   if (pts.length < 2) return "";
   if (pts.length === 2) {
     return `M ${pts[0]![0]} ${pts[0]![1]} L ${pts[1]![0]} ${pts[1]![1]}`;
@@ -399,8 +371,8 @@ function chainToOpenPath(pts: [number, number][], cornerRadius: number): string 
   return d;
 }
 
-function chainToPath(vertices: string[], cornerRadius: number, closed: boolean): string {
-  let pts = vertices.map(parsePoint);
+function chainToPath(chain: string[], coord: Map<string, Point>, cornerRadius: number, closed: boolean): string {
+  let pts = chain.map((id) => coord.get(id)!);
   if (
     pts.length >= 2 &&
     Math.hypot(pts[0]![0] - pts[pts.length - 1]![0], pts[0]![1] - pts[pts.length - 1]![1]) < 1e-3
@@ -419,13 +391,18 @@ function isClosedChain(chain: string[], adj: Map<string, Set<string>>): boolean 
   return adj.get(first)?.has(last) ?? false;
 }
 
-function tracePaths(adj: Map<string, Set<string>>, cornerRadius: number): string[] {
+function edgeKey(a: string, b: string): string {
+  return a < b ? `${a}|${b}` : `${b}|${a}`;
+}
+
+function tracePaths(g: Graph, cornerRadius: number): string[] {
+  const { adj, coord } = g;
   const visitedEdges = new Set<string>();
   const paths: string[] = [];
 
   const walkFrom = (start: string, next: string): string[] => {
     visitedEdges.add(edgeKey(start, next));
-    const vertices = [start, next];
+    const chain = [start, next];
     let prev = start;
     let current = next;
 
@@ -444,34 +421,28 @@ function tracePaths(adj: Map<string, Set<string>>, cornerRadius: number): string
       }
       if (!found) break;
 
-      vertices.push(found);
+      chain.push(found);
       prev = current;
       current = found;
     }
 
-    return vertices;
+    return chain;
   };
 
   for (const [node, neighbors] of adj) {
     if (neighbors.size === 1) {
       const n = [...neighbors][0]!;
-      const ek = edgeKey(node, n);
-      if (visitedEdges.has(ek)) continue;
+      if (visitedEdges.has(edgeKey(node, n))) continue;
       const chain = walkFrom(node, n);
-      if (chain.length >= 2) {
-        paths.push(chainToPath(chain, cornerRadius, isClosedChain(chain, adj)));
-      }
+      if (chain.length >= 2) paths.push(chainToPath(chain, coord, cornerRadius, isClosedChain(chain, adj)));
     }
   }
 
   for (const [node, neighbors] of adj) {
     for (const n of neighbors) {
-      const ek = edgeKey(node, n);
-      if (visitedEdges.has(ek)) continue;
+      if (visitedEdges.has(edgeKey(node, n))) continue;
       const chain = walkFrom(node, n);
-      if (chain.length >= 2) {
-        paths.push(chainToPath(chain, cornerRadius, isClosedChain(chain, adj)));
-      }
+      if (chain.length >= 2) paths.push(chainToPath(chain, coord, cornerRadius, isClosedChain(chain, adj)));
     }
   }
 
@@ -479,20 +450,24 @@ function tracePaths(adj: Map<string, Set<string>>, cornerRadius: number): string
 }
 
 export function buildElevationContourPaths(tiles: MapTile[], metrics: BoardCellMetrics): string[] {
-  const stepInsetPx = contourStepInsetPx(metrics);
-  const raw = collectRawSegments(tiles, metrics, stepInsetPx);
-  if (raw.length === 0) return [];
-  const merged = mergeCollinearSegments(raw);
-  const adj = segmentsToAdjacency(merged);
-  const cornerRadius = Math.min(25, metrics.gap * 8.5);
-  return tracePaths(adj, cornerRadius);
-}
+  if (tiles.length === 0) return [];
+  let minElev = Infinity;
+  let maxElev = -Infinity;
+  for (const t of tiles) {
+    if (t.elevation < minElev) minElev = t.elevation;
+    if (t.elevation > maxElev) maxElev = t.elevation;
+  }
+  if (!Number.isFinite(minElev) || maxElev <= minElev) return [];
 
-export function __debugSegments(tiles: MapTile[], metrics: BoardCellMetrics) {
   const stepInsetPx = contourStepInsetPx(metrics);
-  const raw = collectRawSegments(tiles, metrics, stepInsetPx);
-  const merged = mergeCollinearSegments(raw);
-  return { raw, merged };
+  const cornerRadius = Math.min(25, metrics.gap * 8.5);
+  const paths: string[] = [];
+  for (let s = Math.floor(minElev); s < Math.ceil(maxElev); s++) {
+    const g = buildLevelGraph(tiles, metrics, s, stepInsetPx);
+    if (g.adj.size === 0) continue;
+    paths.push(...tracePaths(g, cornerRadius));
+  }
+  return paths;
 }
 
 export function parsePathCommands(d: string): { cmd: string; x: number; y: number }[] {

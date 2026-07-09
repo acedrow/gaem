@@ -1,41 +1,49 @@
 import type { MapTile } from "@gaem/shared";
 import { describe, it } from "vitest";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-import { boardCellMetrics, __debugSegments } from "./elevationContours.js";
+import { boardCellMetrics, buildElevationContourPaths } from "./elevationContours.js";
 
 function tile(x: number, y: number, elevation: number): MapTile {
   return { x, y, terrain: ["standard"], elevation };
 }
 
-function grid(mapW: number, mapH: number, spots: [number, number, number][]): MapTile[] {
-  const map = new Map(spots.map(([x, y, e]) => [`${x},${y}`, e]));
+function elevatedBlockGrid(
+  bx: number, by: number, bw: number, bh: number, mw: number, mh: number, be: number,
+): MapTile[] {
   const tiles: MapTile[] = [];
-  for (let y = 0; y < mapH; y++) {
-    for (let x = 0; x < mapW; x++) {
-      tiles.push(tile(x, y, map.get(`${x},${y}`) ?? 0));
+  for (let y = 0; y < mh; y++) {
+    for (let x = 0; x < mw; x++) {
+      const inB = x >= bx && x < bx + bw && y >= by && y < by + bh;
+      tiles.push(tile(x, y, inB ? be : 0));
     }
   }
   return tiles;
 }
 
-function show(name: string, tiles: MapTile[]) {
-  const m = boardCellMetrics(5, 5, 250, 3);
-  const { raw, merged } = __debugSegments(tiles, m);
-  // eslint-disable-next-line no-console
-  console.log(`\n=== ${name} === raw=${raw.length} merged=${merged.length}`);
-  for (const s of merged) {
-    const o = s.horizontal ? "H" : "V";
-    // eslint-disable-next-line no-console
-    console.log(`  ${o} fixed=${s.fixed.toFixed(3)} [${s.start.toFixed(3)}..${s.end.toFixed(3)}] inset=${s.inset.toFixed(3)}`);
+function radii(path: string): number[] {
+  const tokens = path.trim().split(/\s+/);
+  const rs: number[] = [];
+  let x = 0, y = 0;
+  for (let i = 0; i < tokens.length; i++) {
+    const cmd = tokens[i]!;
+    if (cmd === "M" || cmd === "L") { x = Number(tokens[++i]); y = Number(tokens[++i]); }
+    else if (cmd === "Q") { const qx = Number(tokens[++i]); const qy = Number(tokens[++i]); const nx = Number(tokens[++i]); const ny = Number(tokens[++i]); rs.push(Math.hypot(qx - x, qy - y)); x = nx; y = ny; }
   }
+  return rs;
 }
 
-describe("dbg segs", () => {
-  it("segments", () => {
-    show("two +1 diagonal (1,1)&(2,2)", grid(5, 5, [[1, 1, 1], [2, 2, 1]]));
-    show("two -1 diagonal (1,1)&(2,2)", grid(5, 5, [[1, 1, -1], [2, 2, -1]]));
-    show("L +1 (1,1)(2,1)(2,2)", grid(5, 5, [[1, 1, 1], [2, 1, 1], [2, 2, 1]]));
-    show("L -1 (1,1)(2,1)(2,2)", grid(5, 5, [[1, 1, -1], [2, 1, -1], [2, 2, -1]]));
+describe("dbg radii", () => {
+  it("dumps", () => {
+    const m = boardCellMetrics(7, 7, 420, 3);
+    const cornerR = Math.min(25, m.gap * 8.5);
+    // eslint-disable-next-line no-console
+    console.log(`cornerR=${cornerR}`);
+    const t1 = elevatedBlockGrid(2, 3, 3, 4, 7, 7, -3);
+    t1.find((t) => t.x === 3 && t.y === 6)!.elevation = 3;
+    const paths = buildElevationContourPaths(t1, m);
+    for (const p of paths.filter((p) => !p.includes(" Z"))) {
+      // eslint-disable-next-line no-console
+      console.log(`open radii=${radii(p).map((r) => r.toFixed(2)).join(",")}`);
+    }
   });
 });

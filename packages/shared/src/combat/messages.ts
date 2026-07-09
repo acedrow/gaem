@@ -1329,34 +1329,62 @@ function validatePaintTileEffectTokens(effects: string[]): string | null {
   return null;
 }
 
+export type GmPaintTileFields = {
+  elevation?: number;
+  terrain?: TerrainType;
+  tileEffects?: string[];
+  tileName?: string;
+  baseColor?: string | null;
+  appearanceKey?: string | null;
+};
+
+function hasGmPaintTileFields(fields: GmPaintTileFields): boolean {
+  return (
+    fields.elevation !== undefined ||
+    fields.terrain !== undefined ||
+    fields.tileEffects !== undefined ||
+    fields.tileName !== undefined ||
+    fields.baseColor !== undefined ||
+    fields.appearanceKey !== undefined
+  );
+}
+
 export function validateGmPaintTile(
   state: GameState,
   x: number,
   y: number,
-  elevation: number,
-  terrain: string,
-  tileEffects: string[],
-  tileName: string,
-  baseColor: string | null,
-  appearanceKey: string | null,
+  fields: GmPaintTileFields,
 ): string | null {
   if (!isInBounds(x, y, state.width, state.height)) return "Out of bounds";
   const tile = tileAt(state.tiles, x, y);
   if (!tile) return "No tile here";
-  if (!Number.isInteger(elevation) || elevation < -3 || elevation > 3) {
-    return "Elevation must be an integer from -3 to 3";
+  if (!hasGmPaintTileFields(fields)) return "No paint fields provided";
+  if (fields.elevation !== undefined) {
+    if (!Number.isInteger(fields.elevation) || fields.elevation < -3 || fields.elevation > 3) {
+      return "Elevation must be an integer from -3 to 3";
+    }
   }
-  if (!isTerrainType(terrain)) return `Invalid terrain type: ${terrain}`;
-  const err = validatePaintTileEffectTokens(tileEffects);
-  if (err) return err;
-  if (typeof tileName !== "string") return "tileName must be a string";
-  if (normalizeTileName(tileName).length > TILE_NAME_MAX_LENGTH) {
-    return `tileName must be at most ${TILE_NAME_MAX_LENGTH} characters`;
+  if (fields.terrain !== undefined) {
+    if (!isTerrainType(fields.terrain)) return `Invalid terrain type: ${fields.terrain}`;
   }
-  if (baseColor != null && !isValidTileBaseColor(baseColor)) {
+  if (fields.tileEffects !== undefined) {
+    const err = validatePaintTileEffectTokens(fields.tileEffects);
+    if (err) return err;
+  }
+  if (fields.tileName !== undefined) {
+    if (typeof fields.tileName !== "string") return "tileName must be a string";
+    if (normalizeTileName(fields.tileName).length > TILE_NAME_MAX_LENGTH) {
+      return `tileName must be at most ${TILE_NAME_MAX_LENGTH} characters`;
+    }
+  }
+  if (fields.baseColor !== undefined && fields.baseColor != null && !isValidTileBaseColor(fields.baseColor)) {
     return "baseColor must be a #RGB or #RRGGBB hex color";
   }
-  if (appearanceKey != null && (typeof appearanceKey !== "string" || !appearanceKey.trim())) {
+  if (
+    fields.appearanceKey !== undefined &&
+    fields.appearanceKey != null &&
+    (typeof fields.appearanceKey !== "string" || !fields.appearanceKey.trim())
+  ) {
     return "appearanceKey must be a non-empty string";
   }
   return null;
@@ -1366,27 +1394,28 @@ export function applyGmPaintTile(
   state: GameState,
   x: number,
   y: number,
-  elevation: number,
-  terrain: TerrainType,
-  tileEffects: string[],
-  tileName: string,
-  baseColor: string | null,
-  appearanceKey: string | null,
+  fields: GmPaintTileFields,
 ): string {
   const tile = tileAt(state.tiles, x, y)!;
-  tile.elevation = elevation;
-  setTileTerrain(tile, terrain);
-  replaceTileEffects(tile, tileEffects);
+  if (fields.elevation !== undefined) tile.elevation = fields.elevation;
+  if (fields.terrain !== undefined) setTileTerrain(tile, fields.terrain);
+  if (fields.tileEffects !== undefined) replaceTileEffects(tile, fields.tileEffects);
 
-  const normalizedName = normalizeTileName(tileName);
-  if (normalizedName) tile.name = normalizedName;
-  else delete tile.name;
+  if (fields.tileName !== undefined) {
+    const normalizedName = normalizeTileName(fields.tileName);
+    if (normalizedName) tile.name = normalizedName;
+    else delete tile.name;
+  }
 
-  if (baseColor) tile.baseColor = baseColor;
-  else delete tile.baseColor;
+  if (fields.baseColor !== undefined) {
+    if (fields.baseColor) tile.baseColor = fields.baseColor;
+    else delete tile.baseColor;
+  }
 
-  if (appearanceKey?.trim()) tile.appearanceKey = appearanceKey.trim();
-  else delete tile.appearanceKey;
+  if (fields.appearanceKey !== undefined) {
+    if (fields.appearanceKey?.trim()) tile.appearanceKey = fields.appearanceKey.trim();
+    else delete tile.appearanceKey;
+  }
 
   return `Painted (${x}, ${y})`;
 }
@@ -1606,32 +1635,20 @@ export function handleCombatMessage(
     case "gmPaintTile": {
       if (!hasGmCapabilities(ctx)) return { handled: true, error: "Only GM can do that" };
       if (parsed.coords.length === 0) return { handled: true, error: "No tiles selected" };
+      const fields: GmPaintTileFields = {
+        ...(parsed.elevation !== undefined ? { elevation: parsed.elevation } : {}),
+        ...(parsed.terrain !== undefined ? { terrain: parsed.terrain } : {}),
+        ...(parsed.tileEffects !== undefined ? { tileEffects: parsed.tileEffects } : {}),
+        ...(parsed.tileName !== undefined ? { tileName: parsed.tileName } : {}),
+        ...(parsed.baseColor !== undefined ? { baseColor: parsed.baseColor } : {}),
+        ...(parsed.appearanceKey !== undefined ? { appearanceKey: parsed.appearanceKey } : {}),
+      };
       for (const { x, y } of parsed.coords) {
-        const err = validateGmPaintTile(
-          state,
-          x,
-          y,
-          parsed.elevation,
-          parsed.terrain,
-          parsed.tileEffects,
-          parsed.tileName,
-          parsed.baseColor,
-          parsed.appearanceKey,
-        );
+        const err = validateGmPaintTile(state, x, y, fields);
         if (err) return { handled: true, error: err };
       }
       for (const { x, y } of parsed.coords) {
-        applyGmPaintTile(
-          state,
-          x,
-          y,
-          parsed.elevation,
-          parsed.terrain,
-          parsed.tileEffects,
-          parsed.tileName,
-          parsed.baseColor,
-          parsed.appearanceKey,
-        );
+        applyGmPaintTile(state, x, y, fields);
       }
       const message =
         parsed.coords.length === 1

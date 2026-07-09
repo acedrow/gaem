@@ -138,17 +138,14 @@ describe("map", () => {
     const map = createBlankGameMap("arena", "Arena", 3, 3);
     map.tiles[0]!.tileEffects = { Stained: 1 };
     const state = createInitialStateFromMap(map);
-    applyGmPaintTile(
-      state,
-      0,
-      0,
-      2,
-      "cover",
-      ["Fortified:1"],
-      "Rock",
-      "#112233",
-      "tile-appearances/x.png",
-    );
+    applyGmPaintTile(state, 0, 0, {
+      elevation: 2,
+      terrain: "cover",
+      tileEffects: ["Fortified:1"],
+      tileName: "Rock",
+      baseColor: "#112233",
+      appearanceKey: "tile-appearances/x.png",
+    });
     persistMapTileAt(state, map, 0, 0);
     const saved = tileAt(map.tiles, 0, 0)!;
     expect(saved.elevation).toBe(2);

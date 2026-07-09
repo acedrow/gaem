@@ -18,11 +18,19 @@ const {
   paintbrushTileName,
   paintbrushBaseColor,
   paintbrushAppearancePreviewUrl,
+  paintbrushEnableElevation,
+  paintbrushEnableTerrain,
+  paintbrushEnableEffect,
+  paintbrushEnableName,
+  paintbrushEnableColor,
+  paintbrushEnableAppearance,
   paintbrushPresetLoadId,
   paintbrushPresetNames,
   paintbrushPresetError,
   paintbrushAppearanceUploading,
   resetPaintbrushSettings,
+  enableAllPaintbrushOptions,
+  disableAllPaintbrushOptions,
   loadSelectedPreset,
   saveCurrentPreset,
   deleteSelectedPreset,
@@ -47,10 +55,22 @@ function onAppearanceSelected(e: Event) {
   <div class="paintbrush-controls">
     <div class="control-group">
       <span class="control-label">Elevation</span>
+      <input
+        v-model="paintbrushEnableElevation"
+        type="checkbox"
+        class="option-enable"
+        aria-label="Enable elevation"
+      />
       <NumberStepper v-model="paintbrushElevation" :min="-3" :max="3" />
     </div>
     <div class="control-group">
       <span class="control-label">Terrain</span>
+      <input
+        v-model="paintbrushEnableTerrain"
+        type="checkbox"
+        class="option-enable"
+        aria-label="Enable terrain"
+      />
       <select v-model="paintbrushTerrain" class="effect-select terrain-select">
         <option v-for="terrain in TERRAIN_TYPES" :key="terrain" :value="terrain">
           {{ terrainTypeDisplayName(terrain) }}
@@ -59,6 +79,12 @@ function onAppearanceSelected(e: Event) {
     </div>
     <div class="control-group effect-group">
       <span class="control-label">Effect</span>
+      <input
+        v-model="paintbrushEnableEffect"
+        type="checkbox"
+        class="option-enable"
+        aria-label="Enable effect"
+      />
       <select v-model="paintbrushEffectId" class="effect-select">
         <option :value="GM_TILE_EFFECT_NONE">None</option>
         <option v-for="effect in TILE_EFFECTS" :key="effect.id" :value="effect.id">
@@ -74,10 +100,22 @@ function onAppearanceSelected(e: Event) {
 
     <div class="control-group">
       <span class="control-label">Name</span>
+      <input
+        v-model="paintbrushEnableName"
+        type="checkbox"
+        class="option-enable"
+        aria-label="Enable name"
+      />
       <input v-model="paintbrushTileName" type="text" class="text-input" placeholder="Optional" />
     </div>
     <div class="control-group">
       <span class="control-label">Color</span>
+      <input
+        v-model="paintbrushEnableColor"
+        type="checkbox"
+        class="option-enable"
+        aria-label="Enable color"
+      />
       <button
         type="button"
         class="color-swatch-btn"
@@ -89,6 +127,12 @@ function onAppearanceSelected(e: Event) {
     </div>
     <div class="control-group appearance-group">
       <span class="control-label">Appearance</span>
+      <input
+        v-model="paintbrushEnableAppearance"
+        type="checkbox"
+        class="option-enable"
+        aria-label="Enable appearance"
+      />
       <img
         v-if="paintbrushAppearancePreviewUrl"
         :src="paintbrushAppearancePreviewUrl"
@@ -155,6 +199,8 @@ function onAppearanceSelected(e: Event) {
 
     <span v-if="paintbrushPresetError" class="preset-error">{{ paintbrushPresetError }}</span>
 
+    <button type="button" class="mini-btn" @click="enableAllPaintbrushOptions">Enable all</button>
+    <button type="button" class="mini-btn" @click="disableAllPaintbrushOptions">Disable all</button>
     <button type="button" class="reset-btn" @click="resetPaintbrushSettings">Reset</button>
 
     <span class="eyedropper-hint">Hold E to sample a tile</span>
@@ -183,6 +229,11 @@ function onAppearanceSelected(e: Event) {
   color: var(--color-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+.option-enable {
+  margin: 0;
+  cursor: pointer;
 }
 
 .effect-group {

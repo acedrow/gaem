@@ -93,6 +93,44 @@ function pathBounds(path: string): { minX: number; maxX: number; minY: number; m
   return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
 }
 
+// Reconstruct the sharp corner polygon from the rounded path (each fillet's Q
+// control point is a true corner) and report any proper (interior) crossing of
+// two non-adjacent edges. A pinch where two corners coincide shares an endpoint,
+// not an interior point, so it is not reported as a crossing.
+function pathSelfCrosses(path: string): boolean {
+  const tokens = path.trim().split(/\s+/);
+  const corners: [number, number][] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokens[i] === "Q") {
+      corners.push([Number(tokens[i + 1]), Number(tokens[i + 2])]);
+      i += 4;
+    }
+  }
+  const closed = path.includes(" Z");
+  const n = corners.length;
+  if (n < 4) return false;
+  const edges: [[number, number], [number, number]][] = [];
+  const limit = closed ? n : n - 1;
+  for (let i = 0; i < limit; i++) edges.push([corners[i]!, corners[(i + 1) % n]!]);
+  const cross = (o: [number, number], a: [number, number], b: [number, number]) =>
+    (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const proper = (p1: [number, number], p2: [number, number], p3: [number, number], p4: [number, number]) => {
+    const d1 = cross(p3, p4, p1);
+    const d2 = cross(p3, p4, p2);
+    const d3 = cross(p1, p2, p3);
+    const d4 = cross(p1, p2, p4);
+    return ((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0)) &&
+      d1 !== 0 && d2 !== 0 && d3 !== 0 && d4 !== 0;
+  };
+  for (let i = 0; i < edges.length; i++) {
+    for (let j = i + 2; j < edges.length; j++) {
+      if (closed && i === 0 && j === edges.length - 1) continue;
+      if (proper(edges[i]![0], edges[i]![1], edges[j]![0], edges[j]![1])) return true;
+    }
+  }
+  return false;
+}
+
 describe("elevationStepsBetween", () => {
   it("returns one step for adjacent elevations", () => {
     expect(elevationStepsBetween(0, 1)).toEqual([0]);
@@ -203,38 +241,59 @@ describe("buildElevationContourPaths", () => {
     }
   });
 
-  it("keeps full corner radius on open pit rings broken by an edge peak", () => {
+  it("closes the pit ring with a notch around an interior edge peak", () => {
+    // An interior peak carving into the bottom edge of a pit does not break the
+    // ring open: the -3 region is simply connected, so each ring stays closed
+    // and detours around the peak notch (8 corners: 4 outer + 4 notch).
     const tiles = elevatedBlockGrid(2, 1, 3, 4, 7, 7, -3);
     const peak = tiles.find((t) => t.x === 3 && t.y === 4)!;
     peak.elevation = 3;
+    const paths = buildElevationContourPaths(tiles, boardCellMetrics(7, 7, 420, 3));
+    expect(paths).toHaveLength(6);
+    for (const path of paths) expect(path).toContain(" Z");
+    const notched = paths.filter((p) => countPathQs(p) === 8);
+    const peakRings = paths.filter((p) => countPathQs(p) === 4);
+    expect(notched).toHaveLength(3);
+    expect(peakRings).toHaveLength(3);
+  });
+
+  it("keeps full corner radius on stubs of rings left open by the board edge", () => {
+    // A pit reaching the board's bottom edge, breached by an edge peak, splits
+    // each ring into open stubs; the stub corners beside the open gap must use
+    // the full corner radius rather than a half-edge radius.
+    const tiles = elevatedBlockGrid(2, 3, 3, 4, 7, 7, -3);
+    const peak = tiles.find((t) => t.x === 3 && t.y === 6)!;
+    peak.elevation = 3;
     const m = boardCellMetrics(7, 7, 420, 3);
-    const paths = buildElevationContourPaths(tiles, m);
-    const open = paths.find((p) => !p.includes(" Z") && (p.match(/\sQ\s/g) ?? []).length === 4);
-    expect(open).toBeTruthy();
-    const tokens = open!.trim().split(/\s+/);
-    const radii: number[] = [];
-    let x = 0;
-    let y = 0;
-    for (let i = 0; i < tokens.length; i++) {
-      const cmd = tokens[i]!;
-      if (cmd === "M" || cmd === "L") {
-        x = Number(tokens[++i]);
-        y = Number(tokens[++i]);
-      } else if (cmd === "Q") {
-        const qx = Number(tokens[++i]);
-        const qy = Number(tokens[++i]);
-        const nx = Number(tokens[++i]);
-        const ny = Number(tokens[++i]);
-        radii.push(Math.hypot(qx - x, qy - y));
-        x = nx;
-        y = ny;
-      }
-    }
     const cornerR = Math.min(25, m.gap * 8.5);
-    expect(radii).toHaveLength(4);
-    for (const r of radii) {
-      expect(r).toBeCloseTo(cornerR, 1);
-    }
+    const paths = buildElevationContourPaths(tiles, m);
+    const open = paths.filter((p) => !p.includes(" Z"));
+    expect(open.length).toBeGreaterThan(0);
+    // The outer (largest) open stubs run the full cell height, so their corners
+    // reach full radius; assert at least one open stub is entirely full-radius.
+    const fullRadiusStub = open.some((p) => {
+      const tokens = p.trim().split(/\s+/);
+      const radii: number[] = [];
+      let x = 0;
+      let y = 0;
+      for (let i = 0; i < tokens.length; i++) {
+        const cmd = tokens[i]!;
+        if (cmd === "M" || cmd === "L") {
+          x = Number(tokens[++i]);
+          y = Number(tokens[++i]);
+        } else if (cmd === "Q") {
+          const qx = Number(tokens[++i]);
+          const qy = Number(tokens[++i]);
+          const nx = Number(tokens[++i]);
+          const ny = Number(tokens[++i]);
+          radii.push(Math.hypot(qx - x, qy - y));
+          x = nx;
+          y = ny;
+        }
+      }
+      return radii.length > 0 && radii.every((r) => Math.abs(r - cornerR) < 0.5);
+    });
+    expect(fullRadiusStub).toBe(true);
   });
 
   it("returns one continuous vertical path for a 2x1 elevation step", () => {
@@ -354,5 +413,36 @@ describe("buildElevationContourPaths", () => {
     expect(inner.maxX).toBeLessThan(outer.maxX);
     expect(inner.minY).toBeGreaterThan(outer.minY);
     expect(inner.maxY).toBeLessThan(outer.maxY);
+  });
+
+  it("pinches two diagonally-touching +1 tiles into one ridge without crossing", () => {
+    const tiles = flatGrid(5, 5, 0);
+    for (const t of tiles) if ((t.x === 1 && t.y === 1) || (t.x === 2 && t.y === 2)) t.elevation = 1;
+    const paths = buildElevationContourPaths(tiles, boardCellMetrics(5, 5, 250, 3));
+    // One closed loop enclosing both tiles, pinched at the shared corner: the
+    // buggy self-crossing "infinity" version had 6 corners, the pinch has 8.
+    expect(paths).toHaveLength(1);
+    expect(paths[0]).toContain(" Z");
+    expect(countPathQs(paths[0]!)).toBe(8);
+    expect(pathSelfCrosses(paths[0]!)).toBe(false);
+  });
+
+  it("connects two diagonally-touching -1 tiles into one trench", () => {
+    const tiles = flatGrid(5, 5, 0);
+    for (const t of tiles) if ((t.x === 1 && t.y === 1) || (t.x === 2 && t.y === 2)) t.elevation = -1;
+    const paths = buildElevationContourPaths(tiles, boardCellMetrics(5, 5, 250, 3));
+    expect(paths).toHaveLength(1);
+    expect(paths[0]).toContain(" Z");
+    expect(pathSelfCrosses(paths[0]!)).toBe(false);
+  });
+
+  it("closes a negative-elevation region with a diagonal (concave) edge", () => {
+    const tiles = flatGrid(5, 5, 0);
+    for (const t of tiles) {
+      if ((t.x === 1 && t.y === 1) || (t.x === 2 && t.y === 1) || (t.x === 2 && t.y === 2)) t.elevation = -1;
+    }
+    const paths = buildElevationContourPaths(tiles, boardCellMetrics(5, 5, 250, 3));
+    expect(paths).toHaveLength(1);
+    expect(paths[0]).toContain(" Z");
   });
 });
