@@ -7,6 +7,7 @@ dist
 packages/e2e/test-results
 packages/e2e/playwright-report
 packages/e2e/blob-report
+packages/e2e/.playwright-browsers
 .dev.vars
 .DS_Store
 HELLPIERCERS v1.02.pdf

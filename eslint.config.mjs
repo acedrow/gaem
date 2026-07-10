@@ -17,6 +17,7 @@ export default tseslint.config(
       "packages/assets/**",
       "packages/e2e/playwright-report/**",
       "packages/e2e/test-results/**",
+      "packages/e2e/.playwright-browsers/**",
       "test-results/**",
     ],
   },

@@ -16,6 +16,7 @@
     "lint": "eslint . && npm run typecheck",
     "lint:fix": "eslint . --fix",
     "test": "npm run test -w @gaem/shared && npm run test -w @gaem/client",
+    "e2e:setup": "bash scripts/e2e-setup.sh",
     "test:e2e": "npm run test:e2e -w @gaem/e2e",
     "test:all": "npm run test && npm run test:e2e",
     "prepare": "husky"

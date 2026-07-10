@@ -21,10 +21,12 @@ Monorepo (npm workspaces). Node 22 (`nvm use`).
 
 ```bash
 npm install
+npm run e2e:setup      # once: .env.e2e + Playwright Chromium (local browser cache)
 npm run build          # shared → server → client
 npm run test           # shared + client vitest suites
 npm run lint           # eslint across all packages
 npm run lint:fix       # eslint with autofix
+npm run test:e2e       # Playwright combat UI tests
 npm run dev            # local stack (client :5173, server :3001)
 npm run dev:cf         # Vite dev (:5173, HMR) + wrangler dev (:8787); open :5173
 npm run deploy:cf      # production deploy
@@ -62,7 +64,7 @@ npm run test:e2e
 - **`npm run build`** — mandatory. Shared type errors block client and server; client imports `@gaem/shared` from `dist/`.
 - **`npm run test`** — mandatory when tests exist for the code you touched. If you add or change shared game logic, add or update tests in `packages/shared` when the behavior is worth guarding (see Code style). Run the full root `npm run test` at minimum; re-run focused suites while iterating if helpful.
 - **`npm run lint`** — mandatory. Runs ESLint, then client `vue-tsc` (`npm run typecheck`). Must report **0 errors** (ESLint warnings are pre-existing cleanup backlog; do not add new ones). The config (`eslint.config.mjs`, flat) is tuned to catch real defects, not formatting. Do not silence a rule to make a change pass — fix the code, or add a scoped `// eslint-disable-next-line <rule>` with a one-line justification only when the code is genuinely intentional. Type-aware ESLint rules on the backends and client `vue-tsc` both need `@gaem/shared` built first (`npm run build`), since they resolve types from `dist/`. A husky pre-commit hook runs `npm run lint` so IDE-only TS errors cannot slip into commits.
-- **`npm run test:e2e`** — mandatory. Playwright headless browser tests for combat UI wiring (`packages/e2e`). Requires `.env.e2e` (see `.env.e2e.example`); first-time setup also needs `npx playwright install chromium` in `packages/e2e`. CI runs this after unit tests pass.
+- **`npm run test:e2e`** — mandatory. Playwright headless browser tests for combat UI wiring (`packages/e2e`). One-time setup: `npm run e2e:setup` (creates `.env.e2e` from `.env.e2e.example` if missing, installs Chromium into `packages/e2e/.playwright-browsers`). Re-run `e2e:setup` after Playwright version bumps or if browsers are missing. Cursor's agent sandbox pre-sets `PLAYWRIGHT_BROWSERS_PATH` to a wiped temp cache — our npm scripts and `playwright.config.ts` always override that to the in-repo directory. Always invoke via `npm run test:e2e` / `npm run e2e:setup` (do not call bare `npx playwright install`). CI runs this after unit tests pass.
 
 Do not skip verification because a change "looks small" or "only touches the client." Export omissions, missing shared rebuilds, and broken imports often surface only at build time.
 

@@ -36,6 +36,7 @@ export function useBoardViewport(
   const stageStyle = computed(() => ({
     transform: `translate(${panX.value}px, ${panY.value}px) scale(${scale.value})`,
     "--board-scale": String(scale.value),
+    "--board-fit-scale": String(fitScale.value),
     ...(stageAnimating.value ? { transition: `transform ${FOCUS_ANIM_MS}ms ease-out` } : {}),
   }));
 

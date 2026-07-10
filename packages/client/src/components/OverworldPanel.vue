@@ -533,9 +533,9 @@ const gridCells = computed(() =>
             class="location-marker"
             :style="locationMarkerStyle(loc)"
             :aria-label="loc.name"
-            :title="loc.name"
           >
             <img class="location-marker-icon" :src="locationUrl" alt="" draggable="false" />
+            <span class="location-tooltip popover-tooltip">{{ loc.name }}</span>
           </div>
           <div
             v-if="!atDis"
@@ -892,8 +892,10 @@ const gridCells = computed(() =>
   display: flex;
   align-items: center;
   justify-content: center;
-  pointer-events: none;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.75));
+  pointer-events: auto;
+  cursor: default;
+  transform: scale(calc(2 * var(--board-fit-scale, 1) / var(--board-scale, 1)));
+  transform-origin: center;
 }
 
 .location-marker-icon {
@@ -902,6 +904,22 @@ const gridCells = computed(() =>
   object-fit: contain;
   pointer-events: none;
   user-select: none;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.75));
+}
+
+.location-tooltip {
+  top: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  z-index: 5;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.location-marker:hover .location-tooltip,
+.location-marker:focus-visible .location-tooltip {
+  opacity: 1;
 }
 
 .party-token {
@@ -911,6 +929,8 @@ const gridCells = computed(() =>
   align-items: center;
   justify-content: center;
   pointer-events: none;
+  transform: scale(calc(2 * var(--board-fit-scale, 1) / var(--board-scale, 1)));
+  transform-origin: center;
 }
 
 .party-token-dot {
@@ -926,6 +946,8 @@ const gridCells = computed(() =>
   width: 14px;
   height: 14px;
   flex-shrink: 0;
+  transform: scale(calc(2 * var(--board-fit-scale, 1) / var(--board-scale, 1)));
+  transform-origin: center;
 }
 
 .remove-location-copy {

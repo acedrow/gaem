@@ -43,14 +43,22 @@ jobs:
 
       - run: npm run build
 
+      - uses: actions/cache@v4
+        with:
+          path: packages/e2e/.playwright-browsers
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       - run: npx playwright install --with-deps chromium
         working-directory: packages/e2e
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/packages/e2e/.playwright-browsers
 
       - run: npm run test:e2e
         env:
           GM_PASSWORD: e2e-gm
           PLAYER_PASSWORD: e2e-player
           AUTH_SECRET: e2e-secret
+          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/packages/e2e/.playwright-browsers
 
       - uses: actions/upload-artifact@v4
         if: failure()

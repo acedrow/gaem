@@ -48,10 +48,14 @@ npm run deploy:cf    # build and deploy to Cloudflare (main branch via CI)
 Before pushing, run the same checks CI does (`.github/workflows/verify.yml`):
 
 ```bash
+npm run e2e:setup      # once per machine / after Playwright upgrades
 npm run build
 npm run lint
 npm run test
+npm run test:e2e
 ```
+
+E2E browsers are stored in `packages/e2e/.playwright-browsers` (gitignored) so they persist across runs.
 
 Open the app at `http://localhost:5173` (the Vite dev server) in both dev flows:
 

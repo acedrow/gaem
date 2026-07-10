@@ -3,7 +3,11 @@ import { defineConfig, devices } from "@playwright/test";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const rootDir = join(dirname(fileURLToPath(import.meta.url)), "../..");
+const e2eDir = dirname(fileURLToPath(import.meta.url));
+const rootDir = join(e2eDir, "../..");
+// Always pin to the in-repo cache. Cursor's agent sandbox pre-sets
+// PLAYWRIGHT_BROWSERS_PATH to a wiped temp dir; do not inherit that.
+process.env.PLAYWRIGHT_BROWSERS_PATH = join(e2eDir, ".playwright-browsers");
 config({ path: join(rootDir, ".env.e2e") });
 config({ path: join(rootDir, ".env.e2e.example") });
 
