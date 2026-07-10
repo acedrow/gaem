@@ -187,6 +187,29 @@ export type OverworldRegion = {
   imageKey?: string;
 };
 
+export type FactionState = {
+  crown: number;
+  force: number;
+  subterfuge: number;
+  territory: number;
+  assets: number;
+};
+
+export type FactionStates = {
+  syncrasis: FactionState;
+  autophyes: FactionState;
+  paracletus: FactionState;
+};
+
+export type FactionCampaignAction =
+  | {
+      kind: "adjustQuality";
+      factionId: keyof FactionStates;
+      quality: "force" | "subterfuge" | "territory" | "assets";
+      delta: number;
+    }
+  | { kind: "adjustCrown"; factionId: keyof FactionStates; delta: number };
+
 export type GameState = {
   mapId: string;
   mapName: string;
@@ -208,6 +231,7 @@ export type GameState = {
   partyResources?: PartyResources;
   constructedBaseUpgrades?: string[];
   overworldRegions?: OverworldRegion[];
+  factionStates?: FactionStates;
 };
 
 /**
@@ -336,6 +360,7 @@ export type ClientMessage =
       regionId: OverworldRegionId;
       imageKey: string | null;
     }
+  | { type: "factionCampaignAction"; action: FactionCampaignAction }
   | { type: "spawnPlayerToken"; characterSheetId: string }
   | { type: "removePlayerToken"; playerId: string }
   | { type: "activateMap"; mapId: string };

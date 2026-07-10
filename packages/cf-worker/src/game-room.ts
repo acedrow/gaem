@@ -9,6 +9,7 @@ import {
   applyBaseCampaignAction,
   applySetSandboxMode,
   applySetOverworldRegionImage,
+  applyFactionCampaignAction,
   canSetPlayerHp,
   characterTargetLabel,
   CONSOLE_MSG_CONNECTED,
@@ -34,6 +35,7 @@ import {
   validatePhaseAction,
   validateBaseCampaignAction,
   validateSetOverworldRegionImage,
+  validateFactionCampaignAction,
   validateActivateMap,
   verifyAuthToken,
 } from "@gaem/shared";
@@ -625,6 +627,23 @@ export class GameRoom {
         parsed.regionId,
         parsed.imageKey,
       );
+      const actor = await this.actorForSocket(ws);
+      await this.broadcastConsole(actor, message);
+      await this.broadcastState();
+      return;
+    }
+
+    if (parsed.type === "factionCampaignAction") {
+      if (!this.attHasGmCapabilities(att)) {
+        this.sendError(ws, "Only the game master can do that");
+        return;
+      }
+      const err = validateFactionCampaignAction(this.gameState, parsed.action);
+      if (err) {
+        this.sendError(ws, err);
+        return;
+      }
+      const message = applyFactionCampaignAction(this.gameState, parsed.action);
       const actor = await this.actorForSocket(ws);
       await this.broadcastConsole(actor, message);
       await this.broadcastState();

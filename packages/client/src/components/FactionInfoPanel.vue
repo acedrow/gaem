@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import {
+  FACTION_QUALITY_KEYS,
   getFactionById,
+  resolveRuleTermTooltip,
   type FactionLocation,
   type FactionQualityDots,
   type FactionStratcomAction,
@@ -11,15 +13,32 @@ import { computed } from "vue";
 import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useExpandableSet } from "../composables/useExpandableSet.js";
 import { selectedFactionId } from "../composables/useFactionSelection.js";
+import { useGameState } from "../composables/useGameState.js";
+import { useSession } from "../composables/useSession.js";
+import NumberStepper from "./NumberStepper.vue";
 import PanelShell from "./PanelShell.vue";
+import RuleTerm from "./RuleTerm.vue";
 import RuleText from "./RuleText.vue";
 
 const { closeRightPanel } = useBoardSelection();
 const { isExpanded, toggle } = useExpandableSet();
+const { gameState, send } = useGameState();
+const { isGm } = useSession();
 
 const faction = computed(() => getFactionById(selectedFactionId.value));
 
-const QUALITY_KEYS: (keyof FactionQualityDots)[] = ["force", "subterfuge", "territory", "assets"];
+const liveState = computed(() => {
+  const id = selectedFactionId.value;
+  if (!id) return null;
+  return gameState.value?.factionStates?.[id] ?? null;
+});
+
+const crownValue = computed(() => liveState.value?.crown ?? faction.value?.crown ?? 5);
+
+function qualityValue(key: keyof FactionQualityDots): number {
+  if (liveState.value) return liveState.value[key];
+  return faction.value?.qualities[key] ?? 0;
+}
 
 function qualityLabel(key: keyof FactionQualityDots): string {
   return key.charAt(0).toUpperCase() + key.slice(1);
@@ -27,7 +46,7 @@ function qualityLabel(key: keyof FactionQualityDots): string {
 
 function formatQuality(quality: Partial<FactionQualityDots> | undefined): string {
   if (!quality) return "";
-  return QUALITY_KEYS.filter((key) => quality[key] != null)
+  return FACTION_QUALITY_KEYS.filter((key) => quality[key] != null)
     .map((key) => `${qualityLabel(key)} ${quality[key]}`)
     .join(", ");
 }
@@ -61,6 +80,27 @@ function sectionKey(section: string): string {
 function itemKey(section: string, name: string): string {
   return `${section}:${name}`;
 }
+
+function onCrownAdjust(delta: number) {
+  const id = selectedFactionId.value;
+  if (!id || !isGm.value) return;
+  send({ type: "factionCampaignAction", action: { kind: "adjustCrown", factionId: id, delta } });
+}
+
+function onQualityAdjust(quality: keyof FactionQualityDots, delta: number) {
+  const id = selectedFactionId.value;
+  if (!id || !isGm.value) return;
+  send({
+    type: "factionCampaignAction",
+    action: { kind: "adjustQuality", factionId: id, quality, delta },
+  });
+}
+
+const crownTooltip = resolveRuleTermTooltip("Crown");
+const qualitiesTooltip = resolveRuleTermTooltip("Qualities");
+const qualityTooltips = Object.fromEntries(
+  FACTION_QUALITY_KEYS.map((key) => [key, resolveRuleTermTooltip(qualityLabel(key))]),
+) as Record<keyof FactionQualityDots, ReturnType<typeof resolveRuleTermTooltip>>;
 </script>
 
 <template>
@@ -72,14 +112,41 @@ function itemKey(section: string, name: string): string {
   >
     <div class="panel-scroll">
       <header class="faction-header">
-        <p class="faction-tagline">
-          {{ faction.tagline }}: {{ faction.threat }}
-        </p>
+        <div class="crown-row">
+          <div class="crown-text">
+            <RuleTerm text="Crown" :tooltip="crownTooltip" />
+            <span class="faction-tagline">{{ faction.tagline }}</span>
+          </div>
+          <NumberStepper
+            :model-value="crownValue"
+            :min="1"
+            :max="5"
+            :disabled="!isGm"
+            @adjust="onCrownAdjust"
+          />
+        </div>
         <p class="item-description">{{ faction.description }}</p>
         <div class="qualities">
-          <span v-for="key in QUALITY_KEYS" :key="key" class="quality">
-            {{ qualityLabel(key) }}: {{ "Θ".repeat(faction[key]) }}
-          </span>
+          <div class="qualities-heading">
+            <RuleTerm text="Qualities" :tooltip="qualitiesTooltip" />
+          </div>
+          <div
+            v-for="key in FACTION_QUALITY_KEYS"
+            :key="key"
+            class="quality-row"
+          >
+            <RuleTerm
+              :text="qualityLabel(key)"
+              :tooltip="qualityTooltips[key]"
+            />
+            <NumberStepper
+              :model-value="qualityValue(key)"
+              :min="0"
+              :max="5"
+              :disabled="!isGm"
+              @adjust="onQualityAdjust(key, $event)"
+            />
+          </div>
         </div>
         <div v-if="faction.uniqueMechanics?.length" class="mechanics">
           <p
@@ -284,6 +351,19 @@ function itemKey(section: string, name: string): string {
   border-bottom: 1px solid var(--color-border);
 }
 
+.crown-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.crown-text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.5rem;
+}
+
 .faction-tagline {
   margin: 0;
   font-size: 0.85rem;
@@ -294,13 +374,20 @@ function itemKey(section: string, name: string): string {
 
 .qualities {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem 0.75rem;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.quality {
+.qualities-heading {
   font-size: 0.8rem;
-  color: var(--color-text-secondary);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.quality-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
 }
 
 .mechanics {

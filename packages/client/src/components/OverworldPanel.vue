@@ -54,6 +54,8 @@ function onSelectRegion(regionId: OverworldRegionId) {
 }
 
 const {
+  scale,
+  fitScale,
   stageStyle,
   isTransformed,
   fitToView,
@@ -62,6 +64,8 @@ const {
   observeViewport,
   disconnect,
 } = useBoardViewport(viewportEl, contentWidthPx, contentHeightPx, isReady, viewportKey);
+
+const showQuarters = computed(() => fitScale.value > 0 && scale.value / fitScale.value >= 2);
 
 watch(viewportEl, (el, prev) => {
   observeViewport(el, prev);
@@ -233,6 +237,7 @@ const gridCells = computed(() =>
           </div>
           <div
             class="grid-overlay"
+            :class="{ 'grid-overlay--quarters': showQuarters }"
             :style="{
               gridTemplateColumns: `repeat(${OVERWORLD_WIDTH}, 1fr)`,
               gridTemplateRows: `repeat(${OVERWORLD_HEIGHT}, 1fr)`,
@@ -406,9 +411,18 @@ const gridCells = computed(() =>
 }
 
 .grid-cell {
-  border-right: 1px solid var(--color-border);
-  border-bottom: 1px solid var(--color-border);
+  border-right: 2px solid var(--color-border);
+  border-bottom: 2px solid var(--color-border);
   opacity: 0.45;
+}
+
+.grid-overlay--quarters .grid-cell {
+  background-image:
+    linear-gradient(var(--color-border), var(--color-border)),
+    linear-gradient(var(--color-border), var(--color-border));
+  background-size: 1px 100%, 100% 1px;
+  background-position: center, center;
+  background-repeat: no-repeat;
 }
 
 .reset-zoom-btn {

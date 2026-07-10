@@ -21,6 +21,7 @@ import {
   applyBaseCampaignAction,
   applySetSandboxMode,
   applySetOverworldRegionImage,
+  applyFactionCampaignAction,
   canSetPlayerHp,
   characterTargetLabel,
   CONSOLE_MSG_CONNECTED,
@@ -46,6 +47,7 @@ import {
   validatePhaseAction,
   validateBaseCampaignAction,
   validateSetOverworldRegionImage,
+  validateFactionCampaignAction,
   persistMapTileAt,
   persistMapTilesAt,
   validateActivateMap,
@@ -953,6 +955,22 @@ wss.on("connection", (ws: WebSocket) => {
         parsed.regionId,
         parsed.imageKey,
       );
+      broadcastConsole(actorForSocket(ws), message);
+      broadcastState();
+      return;
+    }
+
+    if (parsed.type === "factionCampaignAction") {
+      if (!socketHasGmCapabilities(ws)) {
+        sendError(ws, "Only the game master can do that");
+        return;
+      }
+      const err = validateFactionCampaignAction(gameState, parsed.action);
+      if (err) {
+        sendError(ws, err);
+        return;
+      }
+      const message = applyFactionCampaignAction(gameState, parsed.action);
       broadcastConsole(actorForSocket(ws), message);
       broadcastState();
       return;

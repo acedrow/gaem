@@ -7,6 +7,7 @@ import { clearAegisFlyingUsed, ensureAssistedAscensionAegis } from "./combat/aeg
 import { enemyHasFlyingTag, initializeUnitElevation, syncUnitElevationOnTile } from "./combat/elevation.js";
 import { resetEnemyExhaustion, resetGmTurnActions } from "./combat/enemy.js";
 import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles, ensureEnemyMovement, refreshEnemyMovement, spendEnemyMovement } from "./enemy-data.js";
+import { ensureFactionStates } from "./faction-campaign.js";
 import { applyLoadoutToPlayer, getClassMaxHp, getArmorSpeed } from "./player-data.js";
 import { coordKey, createInitialStateFromMap, isFootprintInBounds, isInBounds, isWalkable, tileAt } from "./map.js";
 import { isOrthogonallyAdjacent } from "./patterns.js";
@@ -1321,6 +1322,7 @@ export function normalizeGameState(state: GameState, map?: GameMap): GameState {
       { id: "east" },
     ];
   }
+  ensureFactionStates(state);
   if (!state.combat && state.roundPhase !== "deployment") {
     state.combat = createDefaultCombatState(state.players.length);
   }
@@ -1352,6 +1354,7 @@ export function applyActivateMap(state: GameState, map: GameMap): string {
   const partyResources = state.partyResources;
   const constructedBaseUpgrades = state.constructedBaseUpgrades;
   const overworldRegions = state.overworldRegions;
+  const factionStates = state.factionStates;
   const sandboxMode = state.sandboxMode;
 
   const fresh = createInitialStateFromMap(map);
@@ -1375,6 +1378,7 @@ export function applyActivateMap(state: GameState, map: GameMap): string {
   if (partyResources) state.partyResources = partyResources;
   if (constructedBaseUpgrades) state.constructedBaseUpgrades = constructedBaseUpgrades;
   if (overworldRegions) state.overworldRegions = overworldRegions;
+  if (factionStates) state.factionStates = factionStates;
   if (sandboxMode !== undefined) state.sandboxMode = sandboxMode;
 
   normalizeGameState(state, map);

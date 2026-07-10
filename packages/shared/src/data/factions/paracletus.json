@@ -2,12 +2,14 @@
   "id": "paracletus",
   "name": "PARACLETUS",
   "tagline": "REMAKE THE STRANGE INTO SOMETHING FAMILIAR",
-  "threat": 5,
+  "crown": 5,
   "description": "A living infection of strange shapes spying on our world. They seek to assimilate their foes in order to compute the Samsaran Sequence.",
-  "force": 2,
-  "subterfuge": 2,
-  "territory": 5,
-  "assets": 2,
+  "qualities": {
+    "force": 2,
+    "subterfuge": 2,
+    "territory": 5,
+    "assets": 2
+  },
   "uniqueMechanics": [
     {
       "name": "Stained Squares",

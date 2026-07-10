@@ -45,18 +45,24 @@ export type FactionListing = {
   id: FactionId;
   name: string;
   tagline: string;
-  threat: number;
+  crown: number;
   description: string;
-  force: number;
-  subterfuge: number;
-  territory: number;
-  assets: number;
+  qualities: FactionQualityDots;
   uniqueMechanics?: { name: string; effect: string }[];
   startingLocations: FactionLocation[];
   uniqueLocations: FactionLocation[];
   stratcomActions: FactionStratcomAction[];
   upgrades: FactionUpgrade[];
 };
+
+export const FACTION_QUALITY_KEYS: (keyof FactionQualityDots)[] = [
+  "force",
+  "subterfuge",
+  "territory",
+  "assets",
+];
+
+export const FACTION_IDS: FactionId[] = ["syncrasis", "autophyes", "paracletus"];
 
 export const OVERWORLD_REGION_FACTIONS: Record<OverworldRegionId, FactionId> = {
   west: "syncrasis",

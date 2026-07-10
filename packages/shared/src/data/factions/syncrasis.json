@@ -2,12 +2,14 @@
   "id": "syncrasis",
   "name": "SYNCRASIS",
   "tagline": "CONQUER, DESTROY, RETVRN",
-  "threat": 5,
+  "crown": 5,
   "description": "A faction long thought dead, even the demons of Hell were surprised at its sudden and terrifying revival.",
-  "force": 5,
-  "subterfuge": 2,
-  "territory": 3,
-  "assets": 2,
+  "qualities": {
+    "force": 5,
+    "subterfuge": 2,
+    "territory": 3,
+    "assets": 2
+  },
   "startingLocations": [
     {
       "name": "Oraios's Vengence",

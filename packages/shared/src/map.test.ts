@@ -125,6 +125,11 @@ describe("map", () => {
       { id: "center" },
       { id: "east" },
     ];
+    state.factionStates = {
+      syncrasis: { crown: 4, force: 3, subterfuge: 2, territory: 1, assets: 0 },
+      autophyes: { crown: 5, force: 2, subterfuge: 2, territory: 3, assets: 5 },
+      paracletus: { crown: 5, force: 2, subterfuge: 2, territory: 5, assets: 2 },
+    };
     state.sandboxMode = true;
 
     const message = applyActivateMap(state, map);
@@ -141,6 +146,11 @@ describe("map", () => {
       { id: "center" },
       { id: "east" },
     ]);
+    expect(state.factionStates).toEqual({
+      syncrasis: { crown: 4, force: 3, subterfuge: 2, territory: 1, assets: 0 },
+      autophyes: { crown: 5, force: 2, subterfuge: 2, territory: 3, assets: 5 },
+      paracletus: { crown: 5, force: 2, subterfuge: 2, territory: 5, assets: 2 },
+    });
     expect(state.sandboxMode).toBe(true);
   });
 

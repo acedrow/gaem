@@ -2,12 +2,14 @@
   "id": "autophyes",
   "name": "AUTOPHYES",
   "tagline": "CONSUME, EXPLOIT, RETAIN AT ALL COST",
-  "threat": 5,
+  "crown": 5,
   "description": "Post-industrial horrors consumed by an elemental greed. Their sole focus: to tear up all the realms of Hell to sate their bottomless avarice.",
-  "force": 2,
-  "subterfuge": 2,
-  "territory": 3,
-  "assets": 5,
+  "qualities": {
+    "force": 2,
+    "subterfuge": 2,
+    "territory": 3,
+    "assets": 5
+  },
   "startingLocations": [
     {
       "name": "Omphalos",
