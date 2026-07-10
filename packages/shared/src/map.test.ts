@@ -126,9 +126,9 @@ describe("map", () => {
       { id: "east" },
     ];
     state.factionStates = {
-      syncrasis: { crown: 4, force: 3, subterfuge: 2, territory: 1, assets: 0 },
-      autophyes: { crown: 5, force: 2, subterfuge: 2, territory: 3, assets: 5 },
-      paracletus: { crown: 5, force: 2, subterfuge: 2, territory: 5, assets: 2 },
+      syncrasis: { crown: 4, force: 3, subterfuge: 2, territory: 1, assets: 0, defeated: false },
+      autophyes: { crown: 0, force: 0, subterfuge: 0, territory: 0, assets: 0, defeated: true },
+      paracletus: { crown: 5, force: 2, subterfuge: 2, territory: 5, assets: 2, defeated: false },
     };
     state.sandboxMode = true;
 
@@ -147,9 +147,9 @@ describe("map", () => {
       { id: "east" },
     ]);
     expect(state.factionStates).toEqual({
-      syncrasis: { crown: 4, force: 3, subterfuge: 2, territory: 1, assets: 0 },
-      autophyes: { crown: 5, force: 2, subterfuge: 2, territory: 3, assets: 5 },
-      paracletus: { crown: 5, force: 2, subterfuge: 2, territory: 5, assets: 2 },
+      syncrasis: { crown: 4, force: 3, subterfuge: 2, territory: 1, assets: 0, defeated: false },
+      autophyes: { crown: 0, force: 0, subterfuge: 0, territory: 0, assets: 0, defeated: true },
+      paracletus: { crown: 5, force: 2, subterfuge: 2, territory: 5, assets: 2, defeated: false },
     });
     expect(state.sandboxMode).toBe(true);
   });

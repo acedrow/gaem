@@ -23,6 +23,7 @@ export function defaultFactionState(factionId: FactionId): FactionState {
     subterfuge: listing.qualities.subterfuge,
     territory: listing.qualities.territory,
     assets: listing.qualities.assets,
+    defeated: false,
   };
 }
 
@@ -42,15 +43,35 @@ function clampCrown(value: number): number {
   return Math.max(1, Math.min(5, value));
 }
 
+function zeroFactionStats(faction: FactionState): void {
+  faction.crown = 0;
+  faction.force = 0;
+  faction.subterfuge = 0;
+  faction.territory = 0;
+  faction.assets = 0;
+}
+
 function normalizeFactionState(raw: Partial<FactionState> | undefined, factionId: FactionId): FactionState {
   const defaults = defaultFactionState(factionId);
   if (!raw) return defaults;
+  const defeated = raw.defeated === true;
+  if (defeated) {
+    return {
+      crown: 0,
+      force: 0,
+      subterfuge: 0,
+      territory: 0,
+      assets: 0,
+      defeated: true,
+    };
+  }
   return {
     crown: clampCrown(typeof raw.crown === "number" ? raw.crown : defaults.crown),
     force: clampQuality(typeof raw.force === "number" ? raw.force : defaults.force),
     subterfuge: clampQuality(typeof raw.subterfuge === "number" ? raw.subterfuge : defaults.subterfuge),
     territory: clampQuality(typeof raw.territory === "number" ? raw.territory : defaults.territory),
     assets: clampQuality(typeof raw.assets === "number" ? raw.assets : defaults.assets),
+    defeated: false,
   };
 }
 
@@ -72,6 +93,13 @@ export function validateFactionCampaignAction(
   if (!FACTION_IDS.includes(action.factionId)) return "Unknown faction";
   const faction = state.factionStates![action.factionId];
 
+  if (action.kind === "setDefeated") {
+    if (typeof action.defeated !== "boolean") return "Invalid defeated value";
+    return null;
+  }
+
+  if (faction.defeated) return "Faction is defeated";
+
   if (action.kind === "adjustCrown") {
     if (!Number.isInteger(action.delta) || action.delta === 0) return "Invalid delta";
     const next = faction.crown + action.delta;
@@ -90,6 +118,12 @@ export function applyFactionCampaignAction(state: GameState, action: FactionCamp
   ensureFactionStates(state);
   const faction = state.factionStates![action.factionId];
   const name = FACTIONS.find((f) => f.id === action.factionId)?.name ?? action.factionId;
+
+  if (action.kind === "setDefeated") {
+    faction.defeated = action.defeated;
+    if (action.defeated) zeroFactionStats(faction);
+    return action.defeated ? `${name} marked defeated` : `${name} no longer defeated`;
+  }
 
   if (action.kind === "adjustCrown") {
     faction.crown += action.delta;

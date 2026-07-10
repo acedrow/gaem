@@ -193,6 +193,7 @@ export type FactionState = {
   subterfuge: number;
   territory: number;
   assets: number;
+  defeated: boolean;
 };
 
 export type FactionStates = {
@@ -208,7 +209,8 @@ export type FactionCampaignAction =
       quality: "force" | "subterfuge" | "territory" | "assets";
       delta: number;
     }
-  | { kind: "adjustCrown"; factionId: keyof FactionStates; delta: number };
+  | { kind: "adjustCrown"; factionId: keyof FactionStates; delta: number }
+  | { kind: "setDefeated"; factionId: keyof FactionStates; defeated: boolean };
 
 export type GameState = {
   mapId: string;

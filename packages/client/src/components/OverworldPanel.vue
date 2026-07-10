@@ -2,6 +2,7 @@
 import {
   getFactionForRegion,
   OVERWORLD_HEIGHT,
+  OVERWORLD_REGION_FACTIONS,
   OVERWORLD_WIDTH,
   type OverworldRegion,
   type OverworldRegionId,
@@ -15,6 +16,7 @@ import { useGameState } from "../composables/useGameState.js";
 import { activeMainTab } from "../composables/useMainSectionTab.js";
 import { useSession } from "../composables/useSession.js";
 import { showToast } from "../composables/useToasts.js";
+import skullUrl from "../assets/skull.svg";
 
 const CELL = 64;
 const contentWidthPx = computed(() => OVERWORLD_WIDTH * CELL);
@@ -47,6 +49,11 @@ function regionFactionName(regionId: OverworldRegionId): string {
 
 function isRegionSelected(regionId: OverworldRegionId): boolean {
   return selectedFactionId.value === getFactionForRegion(regionId).id;
+}
+
+function isRegionDefeated(regionId: OverworldRegionId): boolean {
+  const factionId = OVERWORLD_REGION_FACTIONS[regionId];
+  return gameState.value?.factionStates?.[factionId]?.defeated === true;
 }
 
 function onSelectRegion(regionId: OverworldRegionId) {
@@ -198,10 +205,15 @@ const gridCells = computed(() =>
               :class="{
                 'region--empty': !imageUrls[region.id],
                 'region--selected': isRegionSelected(region.id),
+                'region--defeated': isRegionDefeated(region.id),
               }"
               role="button"
               tabindex="0"
-              :aria-label="regionFactionName(region.id) + ' territory'"
+              :aria-label="
+                regionFactionName(region.id) +
+                ' territory' +
+                (isRegionDefeated(region.id) ? ', defeated' : '')
+              "
               :aria-pressed="isRegionSelected(region.id)"
               @click="onSelectRegion(region.id)"
               @keydown.enter.prevent="onSelectRegion(region.id)"
@@ -216,6 +228,13 @@ const gridCells = computed(() =>
               />
               <div v-else class="region-placeholder">
                 <span class="region-label">{{ regionFactionName(region.id) }}</span>
+              </div>
+              <div
+                v-if="isRegionDefeated(region.id)"
+                class="region-defeated-overlay"
+                aria-hidden="true"
+              >
+                <img class="region-skull" :src="skullUrl" alt="" draggable="false" />
               </div>
               <button
                 v-if="hasGmCapabilities"
@@ -327,6 +346,31 @@ const gridCells = computed(() =>
 .region--selected {
   box-shadow: inset 0 0 0 2px var(--color-accent);
   z-index: 1;
+}
+
+.region--defeated .region-image,
+.region--defeated .region-placeholder {
+  filter: grayscale(1) brightness(0.55);
+}
+
+.region-defeated-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.region-skull {
+  width: min(42%, 7rem);
+  height: auto;
+  opacity: 0.85;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.6));
+  pointer-events: none;
+  user-select: none;
 }
 
 .region:hover .region-placeholder,

@@ -95,6 +95,17 @@ function onQualityAdjust(quality: keyof FactionQualityDots, delta: number) {
   });
 }
 
+const isDefeated = computed(() => liveState.value?.defeated === true);
+
+function onDefeatedToggle(defeated: boolean) {
+  const id = selectedFactionId.value;
+  if (!id || !isGm.value) return;
+  send({
+    type: "factionCampaignAction",
+    action: { kind: "setDefeated", factionId: id, defeated },
+  });
+}
+
 const crownTooltip = resolveRuleTermTooltip("Crown");
 const qualitiesTooltip = resolveRuleTermTooltip("Qualities");
 const qualityTooltips = Object.fromEntries(
@@ -119,7 +130,7 @@ const qualityTooltips = Object.fromEntries(
             </span>
             <span class="faction-tagline">{{ faction.tagline }}</span>
           </div>
-          <div v-if="isGm" class="stepper">
+          <div v-if="isGm && !isDefeated" class="stepper">
             <button
               type="button"
               class="step-btn"
@@ -157,7 +168,7 @@ const qualityTooltips = Object.fromEntries(
                 <span class="theta-filled">{{ "Θ".repeat(qualityValue(key)) }}</span><span class="theta-empty">{{ "Θ".repeat(5 - qualityValue(key)) }}</span>
               </span>
             </div>
-            <div v-if="isGm" class="stepper">
+            <div v-if="isGm && !isDefeated" class="stepper">
               <button
                 type="button"
                 class="step-btn"
@@ -358,6 +369,22 @@ const qualityTooltips = Object.fromEntries(
           </article>
         </div>
       </section>
+
+      <div v-if="isGm" class="defeated-footer">
+        <label class="defeated-toggle">
+          <span class="defeated-label">Defeated</span>
+          <button
+            type="button"
+            role="switch"
+            class="toggle"
+            :class="{ on: isDefeated }"
+            :aria-checked="isDefeated"
+            @click="onDefeatedToggle(!isDefeated)"
+          >
+            <span class="toggle-thumb" />
+          </button>
+        </label>
+      </div>
     </div>
   </PanelShell>
 </template>
@@ -532,5 +559,57 @@ const qualityTooltips = Object.fromEntries(
   margin-right: 0.35rem;
   font-weight: 600;
   color: var(--color-text);
+}
+
+.defeated-footer {
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.defeated-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.defeated-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.toggle {
+  position: relative;
+  width: 2.25rem;
+  height: 1.25rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  background: var(--color-surface-raised);
+  padding: 0;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+}
+
+.toggle.on {
+  background: var(--color-success-dark);
+  border-color: var(--color-success-bright);
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background: var(--color-text);
+  transition: transform 0.15s;
+}
+
+.toggle.on .toggle-thumb {
+  transform: translateX(1rem);
 }
 </style>
