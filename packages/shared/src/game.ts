@@ -1314,6 +1314,13 @@ export function normalizeGameState(state: GameState, map?: GameMap): GameState {
   if (!state.constructedBaseUpgrades) {
     state.constructedBaseUpgrades = [];
   }
+  if (!state.overworldRegions || state.overworldRegions.length !== 3) {
+    state.overworldRegions = [
+      { id: "west" },
+      { id: "center" },
+      { id: "east" },
+    ];
+  }
   if (!state.combat && state.roundPhase !== "deployment") {
     state.combat = createDefaultCombatState(state.players.length);
   }
@@ -1344,6 +1351,7 @@ export function normalizeGameState(state: GameState, map?: GameMap): GameState {
 export function applyActivateMap(state: GameState, map: GameMap): string {
   const partyResources = state.partyResources;
   const constructedBaseUpgrades = state.constructedBaseUpgrades;
+  const overworldRegions = state.overworldRegions;
   const sandboxMode = state.sandboxMode;
 
   const fresh = createInitialStateFromMap(map);
@@ -1366,6 +1374,7 @@ export function applyActivateMap(state: GameState, map: GameMap): string {
 
   if (partyResources) state.partyResources = partyResources;
   if (constructedBaseUpgrades) state.constructedBaseUpgrades = constructedBaseUpgrades;
+  if (overworldRegions) state.overworldRegions = overworldRegions;
   if (sandboxMode !== undefined) state.sandboxMode = sandboxMode;
 
   normalizeGameState(state, map);

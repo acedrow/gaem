@@ -177,6 +177,16 @@ export type BaseCampaignAction =
   | { kind: "demolish"; upgradeId: string }
   | { kind: "adjustResource"; resource: PartyResourceKey; delta: number };
 
+export const OVERWORLD_WIDTH = 17;
+export const OVERWORLD_HEIGHT = 11;
+
+export type OverworldRegionId = "west" | "center" | "east";
+
+export type OverworldRegion = {
+  id: OverworldRegionId;
+  imageKey?: string;
+};
+
 export type GameState = {
   mapId: string;
   mapName: string;
@@ -197,6 +207,7 @@ export type GameState = {
   silentHpEnemyIds?: string[];
   partyResources?: PartyResources;
   constructedBaseUpgrades?: string[];
+  overworldRegions?: OverworldRegion[];
 };
 
 /**
@@ -320,6 +331,11 @@ export type ClientMessage =
   | { type: "phaseAction"; action: PhaseAction }
   | { type: "setSandboxMode"; sandboxMode: boolean }
   | { type: "baseCampaignAction"; action: BaseCampaignAction }
+  | {
+      type: "setOverworldRegionImage";
+      regionId: OverworldRegionId;
+      imageKey: string | null;
+    }
   | { type: "spawnPlayerToken"; characterSheetId: string }
   | { type: "removePlayerToken"; playerId: string }
   | { type: "activateMap"; mapId: string };

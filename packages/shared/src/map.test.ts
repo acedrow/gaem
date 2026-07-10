@@ -120,6 +120,11 @@ describe("map", () => {
     state.roundPhase = "playerTurn";
     state.partyResources = { hellsteel: 5, soulfire: 2, brimstone: 1 };
     state.constructedBaseUpgrades = ["upgrade-a"];
+    state.overworldRegions = [
+      { id: "west", imageKey: "region-images/abc.png" },
+      { id: "center" },
+      { id: "east" },
+    ];
     state.sandboxMode = true;
 
     const message = applyActivateMap(state, map);
@@ -131,6 +136,11 @@ describe("map", () => {
     expect(state.roundPhase).toBe("deployment");
     expect(state.partyResources).toEqual({ hellsteel: 5, soulfire: 2, brimstone: 1 });
     expect(state.constructedBaseUpgrades).toEqual(["upgrade-a"]);
+    expect(state.overworldRegions).toEqual([
+      { id: "west", imageKey: "region-images/abc.png" },
+      { id: "center" },
+      { id: "east" },
+    ]);
     expect(state.sandboxMode).toBe(true);
   });
 

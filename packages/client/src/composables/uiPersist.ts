@@ -23,7 +23,7 @@ const DATA_CATEGORIES = new Set<DataCategory>([
 ]);
 
 const RIGHT_PANEL_TABS = new Set<RightPanelTab>(["console", "info", "turnOrder", "settings"]);
-const MAIN_SECTION_TABS = new Set<MainSectionTab>(["taccom", "baseUpgrades"]);
+const MAIN_SECTION_TABS = new Set<MainSectionTab>(["taccom", "overworld", "baseUpgrades"]);
 
 export type PersistedViewport = {
   boardKey: string;

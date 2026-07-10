@@ -8,6 +8,7 @@ import {
   applyActivateMap,
   applyBaseCampaignAction,
   applySetSandboxMode,
+  applySetOverworldRegionImage,
   canSetPlayerHp,
   characterTargetLabel,
   CONSOLE_MSG_CONNECTED,
@@ -32,6 +33,7 @@ import {
   validateMove,
   validatePhaseAction,
   validateBaseCampaignAction,
+  validateSetOverworldRegionImage,
   validateActivateMap,
   verifyAuthToken,
 } from "@gaem/shared";
@@ -598,6 +600,31 @@ export class GameRoom {
         return;
       }
       const message = applyBaseCampaignAction(this.gameState, parsed.action);
+      const actor = await this.actorForSocket(ws);
+      await this.broadcastConsole(actor, message);
+      await this.broadcastState();
+      return;
+    }
+
+    if (parsed.type === "setOverworldRegionImage") {
+      if (!this.attHasGmCapabilities(att)) {
+        this.sendError(ws, "Only the game master can do that");
+        return;
+      }
+      const err = validateSetOverworldRegionImage(
+        this.gameState,
+        parsed.regionId,
+        parsed.imageKey,
+      );
+      if (err) {
+        this.sendError(ws, err);
+        return;
+      }
+      const message = applySetOverworldRegionImage(
+        this.gameState,
+        parsed.regionId,
+        parsed.imageKey,
+      );
       const actor = await this.actorForSocket(ws);
       await this.broadcastConsole(actor, message);
       await this.broadcastState();

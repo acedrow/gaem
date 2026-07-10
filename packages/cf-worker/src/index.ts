@@ -27,6 +27,10 @@ import {
   handlePutTileAppearance,
 } from "./tile-appearances.js";
 import {
+  handleGetRegionImage,
+  handlePutRegionImage,
+} from "./region-images.js";
+import {
   handleDeleteTilePreset,
   handleListTilePresets,
   handlePutTilePreset,
@@ -44,6 +48,7 @@ const SHEET_ID_RE = /^\/api\/character-sheets\/([^/]+)$/;
 const PORTRAIT_RE = /^\/api\/character-sheets\/([^/]+)\/portrait$/;
 const PROFILE_ID_RE = /^\/api\/player-profiles\/([^/]+)$/;
 const TILE_APPEARANCE_RE = /^\/api\/tile-appearances\/([^/]+\/[^/]+)$/;
+const REGION_IMAGE_RE = /^\/api\/region-images\/([^/]+\/[^/]+)$/;
 const MAPS_RE = /^\/api\/maps$/;
 const MAP_ID_RE = /^\/api\/maps\/([^/]+)$/;
 const TILE_PRESETS_RE = /^\/api\/maps\/([^/]+)\/tile-presets$/;
@@ -201,6 +206,19 @@ export default {
       const auth = await verifyAuth(request, env);
       if (auth instanceof Response) return auth;
       return handleGetTileAppearance(env, tileAppearanceMatch[1]);
+    }
+
+    if (url.pathname === "/api/region-images" && request.method === "PUT") {
+      const auth = await verifyAuth(request, env);
+      if (auth instanceof Response) return auth;
+      return handlePutRegionImage(env, auth, request);
+    }
+
+    const regionImageMatch = url.pathname.match(REGION_IMAGE_RE);
+    if (regionImageMatch && request.method === "GET") {
+      const auth = await verifyAuth(request, env);
+      if (auth instanceof Response) return auth;
+      return handleGetRegionImage(env, regionImageMatch[1]);
     }
 
     if (url.pathname.match(MAPS_RE)) {

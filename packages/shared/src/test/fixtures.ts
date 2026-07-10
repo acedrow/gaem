@@ -40,6 +40,7 @@ export function makeGameState(overrides: Partial<GameState> = {}): GameState {
     sandboxMode: false,
     partyResources: { hellsteel: 0, soulfire: 0, brimstone: 0 },
     constructedBaseUpgrades: [],
+    overworldRegions: [{ id: "west" }, { id: "center" }, { id: "east" }],
     ...overrides,
   };
 }

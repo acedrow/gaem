@@ -20,6 +20,7 @@ import {
   applyActivateMap,
   applyBaseCampaignAction,
   applySetSandboxMode,
+  applySetOverworldRegionImage,
   canSetPlayerHp,
   characterTargetLabel,
   CONSOLE_MSG_CONNECTED,
@@ -44,6 +45,7 @@ import {
   validateMove,
   validatePhaseAction,
   validateBaseCampaignAction,
+  validateSetOverworldRegionImage,
   persistMapTileAt,
   persistMapTilesAt,
   validateActivateMap,
@@ -73,6 +75,10 @@ import {
   getTileAppearanceHandler,
   putTileAppearanceHandler,
 } from "./tile-appearances.js";
+import {
+  getRegionImageHandler,
+  putRegionImageHandler,
+} from "./region-images.js";
 import {
   deleteTilePresetHandler,
   listTilePresetsHandler,
@@ -226,6 +232,11 @@ const tileAppearanceParser = express.raw({
   limit: "2mb",
 });
 
+const regionImageParser = express.raw({
+  type: ["image/png", "image/jpeg", "image/webp"],
+  limit: "8mb",
+});
+
 function resolveSheetForJoin(
   playerKey: string,
   characterSheetId?: string
@@ -346,6 +357,18 @@ app.get("/api/tile-appearances/:segment/:file", (req, res) => {
   const auth = parseAuth(req, res);
   if (!auth) return;
   getTileAppearanceHandler(`${req.params.segment}/${req.params.file}`, res);
+});
+
+app.put("/api/region-images", regionImageParser, (req, res) => {
+  const auth = parseAuth(req, res);
+  if (!auth) return;
+  putRegionImageHandler(auth, req, res);
+});
+
+app.get("/api/region-images/:segment/:file", (req, res) => {
+  const auth = parseAuth(req, res);
+  if (!auth) return;
+  getRegionImageHandler(`${req.params.segment}/${req.params.file}`, res);
 });
 
 app.get("/api/maps", (req, res) => {
@@ -906,6 +929,30 @@ wss.on("connection", (ws: WebSocket) => {
         return;
       }
       const message = applyBaseCampaignAction(gameState, parsed.action);
+      broadcastConsole(actorForSocket(ws), message);
+      broadcastState();
+      return;
+    }
+
+    if (parsed.type === "setOverworldRegionImage") {
+      if (!socketHasGmCapabilities(ws)) {
+        sendError(ws, "Only the game master can do that");
+        return;
+      }
+      const err = validateSetOverworldRegionImage(
+        gameState,
+        parsed.regionId,
+        parsed.imageKey,
+      );
+      if (err) {
+        sendError(ws, err);
+        return;
+      }
+      const message = applySetOverworldRegionImage(
+        gameState,
+        parsed.regionId,
+        parsed.imageKey,
+      );
       broadcastConsole(actorForSocket(ws), message);
       broadcastState();
       return;

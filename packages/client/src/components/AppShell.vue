@@ -14,11 +14,13 @@ import { gameWsUrl, useGameSocket } from "../composables/useGameSocket.js";
 import { useGameState } from "../composables/useGameState.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import { activeMainTab } from "../composables/useMainSectionTab.js";
+import type { MainSectionTab } from "../composables/useMainSectionTab.js";
 import { useSession } from "../composables/useSession.js";
 import { showToast } from "../composables/useToasts.js";
 import { initUiPersistence } from "../composables/uiPersist.js";
 import ActionBar from "./ActionBar.vue";
 import BaseUpgradesPanel from "./BaseUpgradesPanel.vue";
+import OverworldPanel from "./OverworldPanel.vue";
 import GmActionBar from "./GmActionBar.vue";
 import GmToolsOverlay from "./GmToolsOverlay.vue";
 import ReversalPrompt from "./ReversalPrompt.vue";
@@ -78,9 +80,11 @@ onUnmounted(() => {
 const mapName = computed(() => gameState.value?.mapName ?? gameState.value?.mapId ?? null);
 const sandboxMode = computed(() => gameState.value != null && isSandboxMode(gameState.value));
 
-const centerHeaderTitle = computed(() =>
-  activeMainTab.value === "baseUpgrades" ? "Base Upgrades" : mapName.value,
-);
+const centerHeaderTitle = computed(() => {
+  if (activeMainTab.value === "baseUpgrades") return "Base Upgrades";
+  if (activeMainTab.value === "overworld") return "Overworld";
+  return mapName.value;
+});
 
 const roundStatus = computed(() => {
   const s = gameState.value;
@@ -188,17 +192,13 @@ function openTaccomInfoPanel() {
   }
 }
 
-function selectMainTab(tab: "taccom" | "baseUpgrades") {
+function selectMainTab(tab: MainSectionTab) {
   activeMainTab.value = tab;
   if (tab === "baseUpgrades") {
     openResourcesPanel();
-  } else {
+  } else if (tab === "taccom") {
     openTaccomInfoPanel();
   }
-}
-
-function onOverworldClick() {
-  showToast("Work in progress", "info");
 }
 </script>
 
@@ -242,9 +242,10 @@ function onOverworldClick() {
           <button
             type="button"
             class="chrome-tab"
+            :class="{ active: activeMainTab === 'overworld' }"
             data-tooltip="Overworld"
             aria-label="Overworld"
-            @click="onOverworldClick"
+            @click="selectMainTab('overworld')"
           >
             <svg class="chrome-tab-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
               <path
@@ -318,6 +319,7 @@ function onOverworldClick() {
         </div>
       </div>
       <BaseUpgradesPanel v-show="activeMainTab === 'baseUpgrades'" />
+      <OverworldPanel v-show="activeMainTab === 'overworld'" />
     </main>
 
     <RightPanel v-if="role" />

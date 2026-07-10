@@ -83,6 +83,36 @@ export function useApi() {
     return URL.createObjectURL(blob);
   }
 
+  function regionImageApiPath(key: string): string {
+    return `/api/region-images/${key}`;
+  }
+
+  async function uploadRegionImage(file: File): Promise<string | null> {
+    const contentType = file.type;
+    if (
+      contentType !== "image/png" &&
+      contentType !== "image/jpeg" &&
+      contentType !== "image/webp"
+    ) {
+      return null;
+    }
+    const res = await apiFetch("/api/region-images", {
+      method: "PUT",
+      headers: { "Content-Type": contentType },
+      body: file,
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { key?: string };
+    return typeof data.key === "string" ? data.key : null;
+  }
+
+  async function fetchRegionImageUrl(key: string): Promise<string | null> {
+    const res = await apiFetch(regionImageApiPath(key));
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  }
+
   async function fetchTilePresets(mapId: string): Promise<Record<string, TilePaintPreset>> {
     const res = await apiFetch(`/api/maps/${encodeURIComponent(mapId)}/tile-presets`);
     if (!res.ok) return {};
@@ -180,6 +210,9 @@ export function useApi() {
     tileAppearanceApiPath,
     uploadTileAppearance,
     fetchTileAppearanceUrl,
+    regionImageApiPath,
+    uploadRegionImage,
+    fetchRegionImageUrl,
     fetchTilePresets,
     saveTilePreset,
     deleteTilePreset,
