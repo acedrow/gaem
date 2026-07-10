@@ -128,6 +128,7 @@ describe("map", () => {
     state.overworldParty = {
       qx: 4,
       qy: 6,
+      atDis: false,
       mapSpeed: 1.5,
       fuel: 5,
       revelations: 2,
@@ -156,6 +157,7 @@ describe("map", () => {
     expect(state.overworldParty).toEqual({
       qx: 4,
       qy: 6,
+      atDis: false,
       mapSpeed: 1.5,
       fuel: 5,
       revelations: 2,

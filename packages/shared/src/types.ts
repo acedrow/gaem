@@ -196,6 +196,7 @@ export type OverworldRegion = {
 export type OverworldParty = {
   qx: number;
   qy: number;
+  atDis: boolean;
   mapSpeed: number;
   fuel: number;
   revelations: number;
@@ -205,7 +206,9 @@ export type OverworldCampaignAction =
   | { kind: "adjustMapSpeed"; delta: number }
   | { kind: "adjustFuel"; delta: number }
   | { kind: "adjustRevelations"; delta: number }
-  | { kind: "travel"; qx: number; qy: number };
+  | { kind: "travel"; qx: number; qy: number }
+  | { kind: "returnToDis" }
+  | { kind: "deployToHell"; qx: number; qy: number };
 
 export type FactionState = {
   crown: number;

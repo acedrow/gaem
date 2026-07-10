@@ -64,6 +64,7 @@ export function defaultOverworldParty(): OverworldParty {
   return {
     qx: Math.floor((OVERWORLD_QUARTER_WIDTH - 1) / 2),
     qy: Math.floor((OVERWORLD_QUARTER_HEIGHT - 1) / 2),
+    atDis: true,
     mapSpeed: 1,
     fuel: 0,
     revelations: 0,
@@ -89,6 +90,7 @@ export function ensureOverworldParty(state: GameState): OverworldParty {
   }
   existing.qx = clampInt(existing.qx, 0, OVERWORLD_QUARTER_WIDTH - 1);
   existing.qy = clampInt(existing.qy, 0, OVERWORLD_QUARTER_HEIGHT - 1);
+  existing.atDis = existing.atDis === true;
   existing.mapSpeed = normalizeNonNeg(existing.mapSpeed);
   existing.fuel = Math.floor(normalizeNonNeg(existing.fuel));
   existing.revelations = Math.floor(normalizeNonNeg(existing.revelations));
@@ -145,6 +147,19 @@ export function listOverworldTravelDestinations(
   return out;
 }
 
+export function isOverworldDeployDestination(qx: number, qy: number): boolean {
+  return isOverworldQuarterInBounds(qx, qy) && qy === OVERWORLD_QUARTER_HEIGHT - 1;
+}
+
+export function listOverworldDeployDestinations(): { qx: number; qy: number }[] {
+  const qy = OVERWORLD_QUARTER_HEIGHT - 1;
+  const out: { qx: number; qy: number }[] = [];
+  for (let qx = 0; qx < OVERWORLD_QUARTER_WIDTH; qx++) {
+    out.push({ qx, qy });
+  }
+  return out;
+}
+
 export function validateOverworldCampaignAction(
   state: GameState,
   action: OverworldCampaignAction,
@@ -167,9 +182,21 @@ export function validateOverworldCampaignAction(
       return null;
     }
     case "travel": {
+      if (party.atDis) return "Party is in DIS";
       if (party.fuel < OVERWORLD_TRAVEL_FUEL_COST) return "Not enough fuel";
       if (!isOverworldTravelDestination(party, { qx: action.qx, qy: action.qy }, party.mapSpeed)) {
         return "Invalid travel destination";
+      }
+      return null;
+    }
+    case "returnToDis": {
+      if (party.atDis) return "Party is already in DIS";
+      return null;
+    }
+    case "deployToHell": {
+      if (!party.atDis) return "Party is not in DIS";
+      if (!isOverworldDeployDestination(action.qx, action.qy)) {
+        return "Invalid deploy destination";
       }
       return null;
     }
@@ -202,6 +229,18 @@ export function applyOverworldCampaignAction(
       party.qx = action.qx;
       party.qy = action.qy;
       return `Traveled to (${action.qx}, ${action.qy}) (−${OVERWORLD_TRAVEL_FUEL_COST} Fuel)`;
+    }
+    case "returnToDis": {
+      party.atDis = true;
+      party.fuel = 0;
+      party.revelations = 0;
+      return "Returned to DIS (Fuel and Revelations cleared)";
+    }
+    case "deployToHell": {
+      party.atDis = false;
+      party.qx = action.qx;
+      party.qy = action.qy;
+      return `Deployed to Hell at (${action.qx}, ${action.qy})`;
     }
   }
 }

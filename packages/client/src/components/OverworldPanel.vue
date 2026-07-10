@@ -2,10 +2,11 @@
 import {
   defaultOverworldParty,
   getFactionForRegion,
+  listOverworldDeployDestinations,
   listOverworldTravelDestinations,
   OVERWORLD_HEIGHT,
-  OVERWORLD_QUARTER_HEIGHT,
   OVERWORLD_QUARTER_WIDTH,
+  OVERWORLD_QUARTER_HEIGHT,
   OVERWORLD_REGION_FACTIONS,
   OVERWORLD_TRAVEL_FUEL_COST,
   OVERWORLD_WIDTH,
@@ -26,8 +27,12 @@ import OverworldReconOverlay from "./OverworldReconOverlay.vue";
 
 const CELL = 64;
 const QUARTER = CELL / 2;
-const contentWidthPx = computed(() => OVERWORLD_WIDTH * CELL);
-const contentHeightPx = computed(() => OVERWORLD_HEIGHT * CELL);
+const DIS_NODE = 72;
+const DIS_GAP = 56;
+const boardWidthPx = OVERWORLD_WIDTH * CELL;
+const boardHeightPx = OVERWORLD_HEIGHT * CELL;
+const contentWidthPx = computed(() => boardWidthPx);
+const contentHeightPx = computed(() => boardHeightPx + DIS_GAP + DIS_NODE);
 
 const { gameState, send } = useGameState();
 const { hasGmCapabilities } = useSession();
@@ -41,6 +46,7 @@ const uploadingRegionId = ref<OverworldRegionId | null>(null);
 const fileInputEl = ref<HTMLInputElement | null>(null);
 const pendingUploadRegionId = ref<OverworldRegionId | null>(null);
 const travelMode = ref(false);
+const deployMode = ref(false);
 
 const imageUrls = ref<Partial<Record<OverworldRegionId, string>>>({});
 const loadedKeys = new Map<OverworldRegionId, string>();
@@ -52,12 +58,18 @@ const regions = computed((): OverworldRegion[] => {
 });
 
 const party = computed(() => gameState.value?.overworldParty ?? defaultOverworldParty());
+const atDis = computed(() => party.value.atDis === true);
 
 const travelDestKeys = computed(() => {
-  if (!travelMode.value) return new Set<string>();
+  if (!travelMode.value || atDis.value) return new Set<string>();
   return new Set(
     listOverworldTravelDestinations(party.value).map((d) => `${d.qx},${d.qy}`),
   );
+});
+
+const deployDestKeys = computed(() => {
+  if (!deployMode.value || !atDis.value) return new Set<string>();
+  return new Set(listOverworldDeployDestinations().map((d) => `${d.qx},${d.qy}`));
 });
 
 const quarterCells = computed(() =>
@@ -75,6 +87,17 @@ const partyTokenStyle = computed(() => ({
   height: `${QUARTER}px`,
 }));
 
+const disLineEnds = computed(() => {
+  const topY = 0;
+  const bottomY = DIS_GAP + DIS_NODE / 2;
+  const disX = boardWidthPx / 2;
+  return [
+    { x1: boardWidthPx / 6, y1: topY, x2: disX, y2: bottomY },
+    { x1: boardWidthPx / 2, y1: topY, x2: disX, y2: bottomY },
+    { x1: (boardWidthPx * 5) / 6, y1: topY, x2: disX, y2: bottomY },
+  ];
+});
+
 function regionFactionName(regionId: OverworldRegionId): string {
   return getFactionForRegion(regionId).name;
 }
@@ -89,7 +112,7 @@ function isRegionDefeated(regionId: OverworldRegionId): boolean {
 }
 
 function onSelectRegion(regionId: OverworldRegionId) {
-  if (travelMode.value) return;
+  if (travelMode.value || deployMode.value) return;
   selectFaction(getFactionForRegion(regionId).id);
 }
 
@@ -97,7 +120,24 @@ function isTravelDest(qx: number, qy: number): boolean {
   return travelDestKeys.value.has(`${qx},${qy}`);
 }
 
+function isDeployDest(qx: number, qy: number): boolean {
+  return deployDestKeys.value.has(`${qx},${qy}`);
+}
+
+function isHitDest(qx: number, qy: number): boolean {
+  return isTravelDest(qx, qy) || isDeployDest(qx, qy);
+}
+
 function onQuarterClick(qx: number, qy: number) {
+  if (deployMode.value) {
+    if (!isDeployDest(qx, qy)) {
+      deployMode.value = false;
+      return;
+    }
+    send({ type: "overworldCampaignAction", action: { kind: "deployToHell", qx, qy } });
+    deployMode.value = false;
+    return;
+  }
   if (!travelMode.value) return;
   if (!isTravelDest(qx, qy)) {
     travelMode.value = false;
@@ -112,8 +152,9 @@ function onQuarterClick(qx: number, qy: number) {
 }
 
 function onKeydown(e: KeyboardEvent) {
-  if (e.key === "Escape" && travelMode.value) {
-    travelMode.value = false;
+  if (e.key === "Escape") {
+    if (travelMode.value) travelMode.value = false;
+    if (deployMode.value) deployMode.value = false;
   }
 }
 
@@ -130,7 +171,10 @@ const {
 } = useBoardViewport(viewportEl, contentWidthPx, contentHeightPx, isReady, viewportKey);
 
 const showQuarters = computed(
-  () => travelMode.value || (fitScale.value > 0 && scale.value / fitScale.value >= 2),
+  () =>
+    travelMode.value ||
+    deployMode.value ||
+    (fitScale.value > 0 && scale.value / fitScale.value >= 2),
 );
 
 watch(viewportEl, (el, prev) => {
@@ -141,9 +185,17 @@ watch(
   () => activeMainTab.value,
   (tab) => {
     if (tab === "overworld") nextTick(restoreOrFit);
-    else travelMode.value = false;
+    else {
+      travelMode.value = false;
+      deployMode.value = false;
+    }
   },
 );
+
+watch(atDis, (inDis) => {
+  if (inDis) travelMode.value = false;
+  else deployMode.value = false;
+});
 
 async function syncRegionImages(list: OverworldRegion[]) {
   const nextUrls: Partial<Record<OverworldRegionId, string>> = { ...imageUrls.value };
@@ -242,7 +294,7 @@ const gridCells = computed(() =>
 
 <template>
   <div class="overworld-root">
-    <OverworldReconOverlay v-model:travel-mode="travelMode" />
+    <OverworldReconOverlay v-model:travel-mode="travelMode" v-model:deploy-mode="deployMode" />
     <input
       ref="fileInputEl"
       class="region-file-input"
@@ -262,7 +314,10 @@ const gridCells = computed(() =>
           { width: `${contentWidthPx}px`, height: `${contentHeightPx}px` },
         ]"
       >
-        <div class="overworld-board">
+        <div
+          class="overworld-board"
+          :style="{ width: `${boardWidthPx}px`, height: `${boardHeightPx}px` }"
+        >
           <div class="regions">
             <div
               v-for="region in regions"
@@ -336,7 +391,7 @@ const gridCells = computed(() =>
             />
           </div>
           <div
-            v-if="travelMode"
+            v-if="travelMode || deployMode"
             class="quarter-hit-layer"
             :style="{
               gridTemplateColumns: `repeat(${OVERWORLD_QUARTER_WIDTH}, 1fr)`,
@@ -348,23 +403,59 @@ const gridCells = computed(() =>
               :key="cell.key"
               type="button"
               class="quarter-hit"
-              :class="{ 'quarter-hit--dest': isTravelDest(cell.qx, cell.qy) }"
+              :class="{ 'quarter-hit--dest': isHitDest(cell.qx, cell.qy) }"
               :aria-label="
                 isTravelDest(cell.qx, cell.qy)
                   ? `Travel to ${cell.qx}, ${cell.qy}`
-                  : undefined
+                  : isDeployDest(cell.qx, cell.qy)
+                    ? `Deploy to ${cell.qx}, ${cell.qy}`
+                    : undefined
               "
-              :tabindex="isTravelDest(cell.qx, cell.qy) ? 0 : -1"
+              :tabindex="isHitDest(cell.qx, cell.qy) ? 0 : -1"
               @click="onQuarterClick(cell.qx, cell.qy)"
             />
           </div>
           <div
+            v-if="!atDis"
             class="party-token"
             :style="partyTokenStyle"
             aria-label="Party"
             title="Party"
           >
             <span class="party-token-dot" />
+          </div>
+        </div>
+        <div
+          class="dis-spur"
+          :style="{ width: `${boardWidthPx}px`, height: `${DIS_GAP + DIS_NODE}px` }"
+        >
+          <svg
+            class="dis-lines"
+            :viewBox="`0 0 ${boardWidthPx} ${DIS_GAP + DIS_NODE}`"
+            aria-hidden="true"
+          >
+            <line
+              v-for="line in disLineEnds"
+              :key="`${line.x1},${line.y1}`"
+              :x1="line.x1"
+              :y1="line.y1"
+              :x2="line.x2"
+              :y2="line.y2"
+            />
+          </svg>
+          <div
+            class="dis-node"
+            :style="{ width: `${DIS_NODE}px`, height: `${DIS_NODE}px` }"
+            aria-label="DIS"
+            title="DIS"
+          >
+            <span class="dis-node-label">DIS</span>
+            <span
+              v-if="atDis"
+              class="party-token-dot party-token-dot--on-dis"
+              aria-label="Party in DIS"
+              title="Party in DIS"
+            />
           </div>
         </div>
       </div>
@@ -409,18 +500,62 @@ const gridCells = computed(() =>
 
 .overworld-stage {
   position: relative;
+  display: flex;
+  flex-direction: column;
   transform-origin: 0 0;
   will-change: transform;
 }
 
 .overworld-board {
   position: relative;
-  width: 100%;
-  height: 100%;
-  aspect-ratio: 17 / 11;
+  flex-shrink: 0;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   overflow: hidden;
+}
+
+.dis-spur {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.dis-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.dis-lines line {
+  stroke: var(--color-border);
+  stroke-width: 2;
+}
+
+.dis-node {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  border-radius: 50%;
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-popover);
+}
+
+.dis-node-label {
+  font-family: var(--font-heading);
+  font-size: 0.95rem;
+  letter-spacing: 0.08em;
+  color: var(--color-text);
+  pointer-events: none;
 }
 
 .regions {
@@ -615,6 +750,12 @@ const gridCells = computed(() =>
   background: var(--color-accent);
   border: 2px solid var(--color-bg);
   box-shadow: 0 0 0 1px var(--color-accent-bright);
+}
+
+.party-token-dot--on-dis {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }
 
 .reset-zoom-btn {

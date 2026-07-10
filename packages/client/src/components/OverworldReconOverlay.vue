@@ -8,10 +8,12 @@ import RuleTerm from "./RuleTerm.vue";
 
 const props = defineProps<{
   travelMode: boolean;
+  deployMode: boolean;
 }>();
 
 const emit = defineEmits<{
   "update:travelMode": [value: boolean];
+  "update:deployMode": [value: boolean];
 }>();
 
 const SPEED_TOOLTIP: RuleTermTooltip = {
@@ -38,6 +40,7 @@ const REVELATIONS_TOOLTIP: RuleTermTooltip = {
 const { gameState, send } = useGameState();
 
 const party = computed(() => gameState.value?.overworldParty ?? defaultOverworldParty());
+const atDis = computed(() => party.value.atDis === true);
 
 function onMapSpeedAdjust(delta: number) {
   send({ type: "overworldCampaignAction", action: { kind: "adjustMapSpeed", delta } });
@@ -52,7 +55,22 @@ function onRevelationsAdjust(delta: number) {
 }
 
 function toggleTravelMode() {
+  if (atDis.value) return;
+  if (!props.travelMode) emit("update:deployMode", false);
   emit("update:travelMode", !props.travelMode);
+}
+
+function onReturnToDis() {
+  if (atDis.value) return;
+  emit("update:travelMode", false);
+  emit("update:deployMode", false);
+  send({ type: "overworldCampaignAction", action: { kind: "returnToDis" } });
+}
+
+function toggleDeployMode() {
+  if (!atDis.value) return;
+  if (!props.deployMode) emit("update:travelMode", false);
+  emit("update:deployMode", !props.deployMode);
 }
 </script>
 
@@ -87,9 +105,27 @@ function toggleTravelMode() {
       type="button"
       class="action-btn move-btn"
       :class="{ active: travelMode }"
+      :disabled="atDis"
       @click="toggleTravelMode"
     >
       Move
+    </button>
+    <button
+      type="button"
+      class="action-btn"
+      :disabled="atDis"
+      @click="onReturnToDis"
+    >
+      Return to DIS
+    </button>
+    <button
+      type="button"
+      class="action-btn move-btn"
+      :class="{ active: deployMode }"
+      :disabled="!atDis"
+      @click="toggleDeployMode"
+    >
+      Deploy to Hell
     </button>
   </div>
 </template>
@@ -127,5 +163,10 @@ function toggleTravelMode() {
 .move-btn.active {
   border-color: var(--color-accent-bright);
   background: var(--color-accent-tint-bg);
+}
+
+.action-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 </style>

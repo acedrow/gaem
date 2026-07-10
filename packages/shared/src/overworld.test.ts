@@ -3,13 +3,19 @@ import { describe, expect, it } from "vitest";
 import {
   applyOverworldCampaignAction,
   defaultOverworldParty,
+  isOverworldDeployDestination,
   isOverworldTravelDestination,
+  listOverworldDeployDestinations,
   listOverworldTravelDestinations,
   overworldTravelReachQuarters,
   validateOverworldCampaignAction,
 } from "./overworld.js";
 import { makeGameState } from "./test/fixtures.js";
-import { OVERWORLD_TRAVEL_FUEL_COST } from "./types.js";
+import { OVERWORLD_QUARTER_HEIGHT, OVERWORLD_QUARTER_WIDTH, OVERWORLD_TRAVEL_FUEL_COST } from "./types.js";
+
+function partyOnMap(overrides: Partial<ReturnType<typeof defaultOverworldParty>> = {}) {
+  return { ...defaultOverworldParty(), atDis: false, ...overrides };
+}
 
 describe("overworldTravelReachQuarters", () => {
   it("maps Map Speed 1 to 5 quarter-cells (2.5 inches)", () => {
@@ -60,9 +66,18 @@ describe("listOverworldTravelDestinations", () => {
 });
 
 describe("overworldCampaignAction travel", () => {
+  it("rejects travel while in DIS", () => {
+    const state = makeGameState({
+      overworldParty: { ...defaultOverworldParty(), fuel: 5, mapSpeed: 1 },
+    });
+    expect(
+      validateOverworldCampaignAction(state, { kind: "travel", qx: 0, qy: 0 }),
+    ).toBe("Party is in DIS");
+  });
+
   it("rejects travel without enough fuel", () => {
     const state = makeGameState({
-      overworldParty: { ...defaultOverworldParty(), fuel: 1, mapSpeed: 1 },
+      overworldParty: partyOnMap({ fuel: 1, mapSpeed: 1 }),
     });
     const party = state.overworldParty!;
     const dest = listOverworldTravelDestinations(party)[0]!;
@@ -73,7 +88,7 @@ describe("overworldCampaignAction travel", () => {
 
   it("spends fuel and moves the party token", () => {
     const state = makeGameState({
-      overworldParty: { ...defaultOverworldParty(), fuel: 5, mapSpeed: 1 },
+      overworldParty: partyOnMap({ fuel: 5, mapSpeed: 1 }),
     });
     const party = state.overworldParty!;
     const dest = listOverworldTravelDestinations(party)[0]!;
@@ -87,7 +102,7 @@ describe("overworldCampaignAction travel", () => {
 
   it("rejects invalid destinations even with fuel", () => {
     const state = makeGameState({
-      overworldParty: { ...defaultOverworldParty(), fuel: 5, mapSpeed: 1 },
+      overworldParty: partyOnMap({ fuel: 5, mapSpeed: 1 }),
     });
     const party = state.overworldParty!;
     expect(
@@ -97,6 +112,63 @@ describe("overworldCampaignAction travel", () => {
         qy: party.qy,
       }),
     ).toBe("Invalid travel destination");
+  });
+});
+
+describe("overworld deploy destinations", () => {
+  it("only allows the southernmost quarter-row", () => {
+    expect(isOverworldDeployDestination(0, OVERWORLD_QUARTER_HEIGHT - 1)).toBe(true);
+    expect(isOverworldDeployDestination(16, OVERWORLD_QUARTER_HEIGHT - 2)).toBe(false);
+    expect(listOverworldDeployDestinations()).toHaveLength(OVERWORLD_QUARTER_WIDTH);
+  });
+});
+
+describe("overworldCampaignAction returnToDis / deployToHell", () => {
+  it("returns to DIS and clears journey currencies", () => {
+    const state = makeGameState({
+      overworldParty: partyOnMap({ fuel: 4, revelations: 3 }),
+    });
+    expect(validateOverworldCampaignAction(state, { kind: "returnToDis" })).toBeNull();
+    const message = applyOverworldCampaignAction(state, { kind: "returnToDis" });
+    expect(message).toContain("Returned to DIS");
+    expect(state.overworldParty!.atDis).toBe(true);
+    expect(state.overworldParty!.fuel).toBe(0);
+    expect(state.overworldParty!.revelations).toBe(0);
+  });
+
+  it("rejects return when already in DIS", () => {
+    const state = makeGameState({ overworldParty: defaultOverworldParty() });
+    expect(validateOverworldCampaignAction(state, { kind: "returnToDis" })).toBe(
+      "Party is already in DIS",
+    );
+  });
+
+  it("deploys from DIS to a southern cell", () => {
+    const state = makeGameState({ overworldParty: defaultOverworldParty() });
+    const qx = 10;
+    const qy = OVERWORLD_QUARTER_HEIGHT - 1;
+    expect(validateOverworldCampaignAction(state, { kind: "deployToHell", qx, qy })).toBeNull();
+    const message = applyOverworldCampaignAction(state, { kind: "deployToHell", qx, qy });
+    expect(message).toContain("Deployed to Hell");
+    expect(state.overworldParty!.atDis).toBe(false);
+    expect(state.overworldParty!.qx).toBe(qx);
+    expect(state.overworldParty!.qy).toBe(qy);
+  });
+
+  it("rejects deploy when not in DIS or destination is invalid", () => {
+    const state = makeGameState({ overworldParty: partyOnMap() });
+    expect(
+      validateOverworldCampaignAction(state, {
+        kind: "deployToHell",
+        qx: 0,
+        qy: OVERWORLD_QUARTER_HEIGHT - 1,
+      }),
+    ).toBe("Party is not in DIS");
+
+    const inDis = makeGameState({ overworldParty: defaultOverworldParty() });
+    expect(
+      validateOverworldCampaignAction(inDis, { kind: "deployToHell", qx: 0, qy: 0 }),
+    ).toBe("Invalid deploy destination");
   });
 });
 
@@ -116,7 +188,7 @@ describe("overworldCampaignAction adjustments", () => {
 
   it("blocks adjustments below zero", () => {
     const state = makeGameState({
-      overworldParty: { ...defaultOverworldParty(), fuel: 0, revelations: 0, mapSpeed: 0 },
+      overworldParty: partyOnMap({ fuel: 0, revelations: 0, mapSpeed: 0 }),
     });
     expect(validateOverworldCampaignAction(state, { kind: "adjustFuel", delta: -1 })).toBe(
       "Insufficient fuel",
