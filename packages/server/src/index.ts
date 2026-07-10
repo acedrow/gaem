@@ -19,6 +19,7 @@ import {
   applyPhaseAction,
   applyActivateMap,
   applyBaseCampaignAction,
+  applyOverworldCampaignAction,
   applySetSandboxMode,
   applySetOverworldRegionImage,
   applyFactionCampaignAction,
@@ -46,6 +47,7 @@ import {
   validateMove,
   validatePhaseAction,
   validateBaseCampaignAction,
+  validateOverworldCampaignAction,
   validateSetOverworldRegionImage,
   validateFactionCampaignAction,
   persistMapTileAt,
@@ -931,6 +933,22 @@ wss.on("connection", (ws: WebSocket) => {
         return;
       }
       const message = applyBaseCampaignAction(gameState, parsed.action);
+      broadcastConsole(actorForSocket(ws), message);
+      broadcastState();
+      return;
+    }
+
+    if (parsed.type === "overworldCampaignAction") {
+      if (!role) {
+        sendError(ws, "Not joined");
+        return;
+      }
+      const err = validateOverworldCampaignAction(gameState, parsed.action);
+      if (err) {
+        sendError(ws, err);
+        return;
+      }
+      const message = applyOverworldCampaignAction(gameState, parsed.action);
       broadcastConsole(actorForSocket(ws), message);
       broadcastState();
       return;

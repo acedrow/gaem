@@ -8,6 +8,7 @@ import { activeTab } from "../composables/useGameConsole.js";
 import { useGameState } from "../composables/useGameState.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import { selectedMapId } from "../composables/useMapSelection.js";
+import { selectedTableId } from "../composables/useTableSelection.js";
 import AssistedActionPanel from "./AssistedActionPanel.vue";
 import CharacterSheetPanel from "./CharacterSheetPanel.vue";
 import EnemyInfoPanel from "./EnemyInfoPanel.vue";
@@ -24,6 +25,7 @@ import ParacletusEnemiesPanel from "./ParacletusEnemiesPanel.vue";
 import PartyResourcesPanel from "./PartyResourcesPanel.vue";
 import PatternsPanel from "./PatternsPanel.vue";
 import SettingsPanel from "./SettingsPanel.vue";
+import TableInfoPanel from "./TableInfoPanel.vue";
 import TurnOrderPanel from "./TurnOrderPanel.vue";
 
 const { selectedSheetId, gearPickCategory } = useCharacterSheetSelection();
@@ -167,6 +169,10 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
           <FactionInfoPanel
             v-else-if="selectedFactionId"
             :key="selectedFactionId"
+          />
+          <TableInfoPanel
+            v-else-if="selectedTableId"
+            :key="selectedTableId"
           />
           <MapPanel
             v-else-if="selectedMapId"

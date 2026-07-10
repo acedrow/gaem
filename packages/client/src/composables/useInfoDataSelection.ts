@@ -4,6 +4,7 @@ import { readPersistedUi } from "./uiPersist.js";
 import { selectedFactionId } from "./useFactionSelection.js";
 import { useEnemySpawnSelection } from "./useEnemySpawnSelection.js";
 import { usePatternSelection } from "./usePatternSelection.js";
+import { selectedTableId } from "./useTableSelection.js";
 
 export type DataCategory = "armor" | "classes" | "weapons" | "equipment" | "gear" | "resources" | "effects" | "terrain" | "patterns" | "paracletus";
 export type DataFocusKind = DataCategory | "enemy";
@@ -27,6 +28,7 @@ export function useInfoDataSelection() {
     if (category !== "patterns") clearPatternSelection();
     if (category !== "paracletus") clearSpawnEnemySelection();
     selectedFactionId.value = null;
+    selectedTableId.value = null;
     dataCategory.value = category;
     dataFocus.value = null;
     dataFocusReturnCategory.value = null;
@@ -34,6 +36,7 @@ export function useInfoDataSelection() {
 
   function selectDataFocus(focus: DataFocus, options?: { returnTo?: DataCategory }) {
     selectedFactionId.value = null;
+    selectedTableId.value = null;
     dataFocus.value = focus;
     dataCategory.value = focus.kind === "enemy" ? null : focus.kind;
     dataFocusReturnCategory.value = options?.returnTo ?? null;

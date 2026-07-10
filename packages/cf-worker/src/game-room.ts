@@ -7,6 +7,7 @@ import {
   applyPhaseAction,
   applyActivateMap,
   applyBaseCampaignAction,
+  applyOverworldCampaignAction,
   applySetSandboxMode,
   applySetOverworldRegionImage,
   applyFactionCampaignAction,
@@ -34,6 +35,7 @@ import {
   validateMove,
   validatePhaseAction,
   validateBaseCampaignAction,
+  validateOverworldCampaignAction,
   validateSetOverworldRegionImage,
   validateFactionCampaignAction,
   validateActivateMap,
@@ -602,6 +604,23 @@ export class GameRoom {
         return;
       }
       const message = applyBaseCampaignAction(this.gameState, parsed.action);
+      const actor = await this.actorForSocket(ws);
+      await this.broadcastConsole(actor, message);
+      await this.broadcastState();
+      return;
+    }
+
+    if (parsed.type === "overworldCampaignAction") {
+      if (!att?.role) {
+        this.sendError(ws, "Not joined");
+        return;
+      }
+      const err = validateOverworldCampaignAction(this.gameState, parsed.action);
+      if (err) {
+        this.sendError(ws, err);
+        return;
+      }
+      const message = applyOverworldCampaignAction(this.gameState, parsed.action);
       const actor = await this.actorForSocket(ws);
       await this.broadcastConsole(actor, message);
       await this.broadcastState();

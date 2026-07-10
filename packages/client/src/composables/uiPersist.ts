@@ -1,7 +1,6 @@
 import { watch, type Ref } from "vue";
-import type { GaemRole } from "@gaem/shared";
-
-import type { FactionId } from "@gaem/shared";
+import type { FactionId, GaemRole, ReconTableId } from "@gaem/shared";
+import { RECON_TABLE_IDS } from "@gaem/shared";
 
 import type { BoardSelection } from "./useBoardSelection.js";
 import type { DataCategory, DataFocus } from "./useInfoDataSelection.js";
@@ -25,6 +24,7 @@ const DATA_CATEGORIES = new Set<DataCategory>([
 ]);
 
 const FACTION_IDS = new Set<FactionId>(["syncrasis", "autophyes", "paracletus"]);
+const TABLE_IDS = new Set<ReconTableId>(RECON_TABLE_IDS);
 
 const RIGHT_PANEL_TABS = new Set<RightPanelTab>(["console", "info", "turnOrder", "settings"]);
 const MAIN_SECTION_TABS = new Set<MainSectionTab>(["taccom", "overworld", "baseUpgrades"]);
@@ -41,6 +41,7 @@ export type PersistedUi = {
   selectedSheetId: string | null;
   selectedMapId: string | null;
   selectedFactionId: FactionId | null;
+  selectedTableId: ReconTableId | null;
   dataCategory: DataCategory | null;
   dataFocus: DataFocus | null;
   dataFocusReturnCategory: DataCategory | null;
@@ -50,6 +51,7 @@ export type PersistedUi = {
   dataExpanded: boolean;
   mapsExpanded: boolean;
   factionsExpanded: boolean;
+  tablesExpanded: boolean;
   viewport: PersistedViewport | null;
 };
 
@@ -58,6 +60,7 @@ const DEFAULT_UI: PersistedUi = {
   selectedSheetId: null,
   selectedMapId: null,
   selectedFactionId: null,
+  selectedTableId: null,
   dataCategory: null,
   dataFocus: null,
   dataFocusReturnCategory: null,
@@ -67,6 +70,7 @@ const DEFAULT_UI: PersistedUi = {
   dataExpanded: false,
   mapsExpanded: false,
   factionsExpanded: false,
+  tablesExpanded: false,
   viewport: null,
 };
 
@@ -115,6 +119,10 @@ function parsePersistedUi(raw: string): PersistedUi {
         parsed.selectedFactionId && FACTION_IDS.has(parsed.selectedFactionId)
           ? parsed.selectedFactionId
           : null,
+      selectedTableId:
+        parsed.selectedTableId && TABLE_IDS.has(parsed.selectedTableId)
+          ? parsed.selectedTableId
+          : null,
       dataCategory:
         parsed.dataCategory && DATA_CATEGORIES.has(parsed.dataCategory)
           ? parsed.dataCategory
@@ -137,6 +145,7 @@ function parsePersistedUi(raw: string): PersistedUi {
       dataExpanded: parsed.dataExpanded === true,
       mapsExpanded: parsed.mapsExpanded === true,
       factionsExpanded: parsed.factionsExpanded === true,
+      tablesExpanded: parsed.tablesExpanded === true,
       viewport: isViewport(parsed.viewport) ? parsed.viewport : null,
     };
   } catch {
@@ -219,6 +228,7 @@ export type UiPersistRefs = {
   selectedSheetId: Ref<string | null>;
   selectedMapId: Ref<string | null>;
   selectedFactionId: Ref<FactionId | null>;
+  selectedTableId: Ref<ReconTableId | null>;
   dataCategory: Ref<DataCategory | null>;
   dataFocus: Ref<DataFocus | null>;
   dataFocusReturnCategory: Ref<DataCategory | null>;
@@ -228,6 +238,7 @@ export type UiPersistRefs = {
   dataExpanded: Ref<boolean>;
   mapsExpanded: Ref<boolean>;
   factionsExpanded: Ref<boolean>;
+  tablesExpanded: Ref<boolean>;
 };
 
 export function applyPersistedUiState(refs: UiPersistRefs, persisted: PersistedUi = readPersistedUi()) {
@@ -235,6 +246,7 @@ export function applyPersistedUiState(refs: UiPersistRefs, persisted: PersistedU
   refs.selectedSheetId.value = persisted.selectedSheetId;
   refs.selectedMapId.value = persisted.selectedMapId;
   refs.selectedFactionId.value = persisted.selectedFactionId;
+  refs.selectedTableId.value = persisted.selectedTableId;
   refs.dataCategory.value = persisted.dataCategory;
   refs.dataFocus.value = persisted.dataFocus;
   refs.dataFocusReturnCategory.value = persisted.dataFocusReturnCategory;
@@ -244,6 +256,7 @@ export function applyPersistedUiState(refs: UiPersistRefs, persisted: PersistedU
   refs.dataExpanded.value = persisted.dataExpanded;
   refs.mapsExpanded.value = persisted.mapsExpanded;
   refs.factionsExpanded.value = persisted.factionsExpanded;
+  refs.tablesExpanded.value = persisted.tablesExpanded;
 }
 
 export function initUiPersistence(opts: UiPersistRefs) {
@@ -252,6 +265,7 @@ export function initUiPersistence(opts: UiPersistRefs) {
     selectedSheetId,
     selectedMapId,
     selectedFactionId,
+    selectedTableId,
     dataCategory,
     dataFocus,
     dataFocusReturnCategory,
@@ -261,6 +275,7 @@ export function initUiPersistence(opts: UiPersistRefs) {
     dataExpanded,
     mapsExpanded,
     factionsExpanded,
+    tablesExpanded,
   } = opts;
 
   const refs: UiPersistRefs = {
@@ -268,6 +283,7 @@ export function initUiPersistence(opts: UiPersistRefs) {
     selectedSheetId,
     selectedMapId,
     selectedFactionId,
+    selectedTableId,
     dataCategory,
     dataFocus,
     dataFocusReturnCategory,
@@ -277,6 +293,7 @@ export function initUiPersistence(opts: UiPersistRefs) {
     dataExpanded,
     mapsExpanded,
     factionsExpanded,
+    tablesExpanded,
   };
 
   watch(
@@ -294,6 +311,7 @@ export function initUiPersistence(opts: UiPersistRefs) {
       selectedSheetId,
       selectedMapId,
       selectedFactionId,
+      selectedTableId,
       dataCategory,
       dataFocus,
       dataFocusReturnCategory,
@@ -303,6 +321,7 @@ export function initUiPersistence(opts: UiPersistRefs) {
       dataExpanded,
       mapsExpanded,
       factionsExpanded,
+      tablesExpanded,
     ],
     () => {
       schedulePersist(() => ({
@@ -310,6 +329,7 @@ export function initUiPersistence(opts: UiPersistRefs) {
         selectedSheetId: selectedSheetId.value,
         selectedMapId: selectedMapId.value,
         selectedFactionId: selectedFactionId.value,
+        selectedTableId: selectedTableId.value,
         dataCategory: dataCategory.value,
         dataFocus: dataFocus.value,
         dataFocusReturnCategory: dataFocusReturnCategory.value,
@@ -319,6 +339,7 @@ export function initUiPersistence(opts: UiPersistRefs) {
         dataExpanded: dataExpanded.value,
         mapsExpanded: mapsExpanded.value,
         factionsExpanded: factionsExpanded.value,
+        tablesExpanded: tablesExpanded.value,
       }));
     },
     { deep: true },

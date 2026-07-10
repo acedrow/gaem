@@ -125,6 +125,13 @@ describe("map", () => {
       { id: "center" },
       { id: "east" },
     ];
+    state.overworldParty = {
+      qx: 4,
+      qy: 6,
+      mapSpeed: 1.5,
+      fuel: 5,
+      revelations: 2,
+    };
     state.factionStates = {
       syncrasis: { crown: 4, force: 3, subterfuge: 2, territory: 1, assets: 0, defeated: false },
       autophyes: { crown: 0, force: 0, subterfuge: 0, territory: 0, assets: 0, defeated: true },
@@ -146,6 +153,13 @@ describe("map", () => {
       { id: "center" },
       { id: "east" },
     ]);
+    expect(state.overworldParty).toEqual({
+      qx: 4,
+      qy: 6,
+      mapSpeed: 1.5,
+      fuel: 5,
+      revelations: 2,
+    });
     expect(state.factionStates).toEqual({
       syncrasis: { crown: 4, force: 3, subterfuge: 2, territory: 1, assets: 0, defeated: false },
       autophyes: { crown: 0, force: 0, subterfuge: 0, territory: 0, assets: 0, defeated: true },

@@ -1,13 +1,18 @@
 <script setup lang="ts">
 import {
+  defaultOverworldParty,
   getFactionForRegion,
+  listOverworldTravelDestinations,
   OVERWORLD_HEIGHT,
+  OVERWORLD_QUARTER_HEIGHT,
+  OVERWORLD_QUARTER_WIDTH,
   OVERWORLD_REGION_FACTIONS,
+  OVERWORLD_TRAVEL_FUEL_COST,
   OVERWORLD_WIDTH,
   type OverworldRegion,
   type OverworldRegionId,
 } from "@gaem/shared";
-import { computed, nextTick, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 
 import { useApi } from "../composables/useApi.js";
 import { useBoardViewport } from "../composables/useBoardViewport.js";
@@ -17,8 +22,10 @@ import { activeMainTab } from "../composables/useMainSectionTab.js";
 import { useSession } from "../composables/useSession.js";
 import { showToast } from "../composables/useToasts.js";
 import skullUrl from "../assets/skull.svg";
+import OverworldReconOverlay from "./OverworldReconOverlay.vue";
 
 const CELL = 64;
+const QUARTER = CELL / 2;
 const contentWidthPx = computed(() => OVERWORLD_WIDTH * CELL);
 const contentHeightPx = computed(() => OVERWORLD_HEIGHT * CELL);
 
@@ -33,6 +40,7 @@ const isReady = ref(true);
 const uploadingRegionId = ref<OverworldRegionId | null>(null);
 const fileInputEl = ref<HTMLInputElement | null>(null);
 const pendingUploadRegionId = ref<OverworldRegionId | null>(null);
+const travelMode = ref(false);
 
 const imageUrls = ref<Partial<Record<OverworldRegionId, string>>>({});
 const loadedKeys = new Map<OverworldRegionId, string>();
@@ -42,6 +50,30 @@ const regions = computed((): OverworldRegion[] => {
   if (list && list.length === 3) return list;
   return [{ id: "west" }, { id: "center" }, { id: "east" }];
 });
+
+const party = computed(() => gameState.value?.overworldParty ?? defaultOverworldParty());
+
+const travelDestKeys = computed(() => {
+  if (!travelMode.value) return new Set<string>();
+  return new Set(
+    listOverworldTravelDestinations(party.value).map((d) => `${d.qx},${d.qy}`),
+  );
+});
+
+const quarterCells = computed(() =>
+  Array.from({ length: OVERWORLD_QUARTER_WIDTH * OVERWORLD_QUARTER_HEIGHT }, (_, i) => {
+    const qx = i % OVERWORLD_QUARTER_WIDTH;
+    const qy = Math.floor(i / OVERWORLD_QUARTER_WIDTH);
+    return { key: `${qx},${qy}`, qx, qy };
+  }),
+);
+
+const partyTokenStyle = computed(() => ({
+  left: `${party.value.qx * QUARTER}px`,
+  top: `${party.value.qy * QUARTER}px`,
+  width: `${QUARTER}px`,
+  height: `${QUARTER}px`,
+}));
 
 function regionFactionName(regionId: OverworldRegionId): string {
   return getFactionForRegion(regionId).name;
@@ -57,7 +89,32 @@ function isRegionDefeated(regionId: OverworldRegionId): boolean {
 }
 
 function onSelectRegion(regionId: OverworldRegionId) {
+  if (travelMode.value) return;
   selectFaction(getFactionForRegion(regionId).id);
+}
+
+function isTravelDest(qx: number, qy: number): boolean {
+  return travelDestKeys.value.has(`${qx},${qy}`);
+}
+
+function onQuarterClick(qx: number, qy: number) {
+  if (!travelMode.value) return;
+  if (!isTravelDest(qx, qy)) {
+    travelMode.value = false;
+    return;
+  }
+  if (party.value.fuel < OVERWORLD_TRAVEL_FUEL_COST) {
+    showToast("Not enough fuel", "error");
+    return;
+  }
+  send({ type: "overworldCampaignAction", action: { kind: "travel", qx, qy } });
+  travelMode.value = false;
+}
+
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === "Escape" && travelMode.value) {
+    travelMode.value = false;
+  }
 }
 
 const {
@@ -72,7 +129,9 @@ const {
   disconnect,
 } = useBoardViewport(viewportEl, contentWidthPx, contentHeightPx, isReady, viewportKey);
 
-const showQuarters = computed(() => fitScale.value > 0 && scale.value / fitScale.value >= 2);
+const showQuarters = computed(
+  () => travelMode.value || (fitScale.value > 0 && scale.value / fitScale.value >= 2),
+);
 
 watch(viewportEl, (el, prev) => {
   observeViewport(el, prev);
@@ -82,6 +141,7 @@ watch(
   () => activeMainTab.value,
   (tab) => {
     if (tab === "overworld") nextTick(restoreOrFit);
+    else travelMode.value = false;
   },
 );
 
@@ -132,7 +192,12 @@ watch(
   { immediate: true, deep: true },
 );
 
+onMounted(() => {
+  window.addEventListener("keydown", onKeydown);
+});
+
 onUnmounted(() => {
+  window.removeEventListener("keydown", onKeydown);
   disconnect();
   for (const url of Object.values(imageUrls.value)) {
     if (url) URL.revokeObjectURL(url);
@@ -177,6 +242,7 @@ const gridCells = computed(() =>
 
 <template>
   <div class="overworld-root">
+    <OverworldReconOverlay v-model:travel-mode="travelMode" />
     <input
       ref="fileInputEl"
       class="region-file-input"
@@ -269,6 +335,37 @@ const gridCells = computed(() =>
               class="grid-cell"
             />
           </div>
+          <div
+            v-if="travelMode"
+            class="quarter-hit-layer"
+            :style="{
+              gridTemplateColumns: `repeat(${OVERWORLD_QUARTER_WIDTH}, 1fr)`,
+              gridTemplateRows: `repeat(${OVERWORLD_QUARTER_HEIGHT}, 1fr)`,
+            }"
+          >
+            <button
+              v-for="cell in quarterCells"
+              :key="cell.key"
+              type="button"
+              class="quarter-hit"
+              :class="{ 'quarter-hit--dest': isTravelDest(cell.qx, cell.qy) }"
+              :aria-label="
+                isTravelDest(cell.qx, cell.qy)
+                  ? `Travel to ${cell.qx}, ${cell.qy}`
+                  : undefined
+              "
+              :tabindex="isTravelDest(cell.qx, cell.qy) ? 0 : -1"
+              @click="onQuarterClick(cell.qx, cell.qy)"
+            />
+          </div>
+          <div
+            class="party-token"
+            :style="partyTokenStyle"
+            aria-label="Party"
+            title="Party"
+          >
+            <span class="party-token-dot" />
+          </div>
         </div>
       </div>
       <button
@@ -290,6 +387,13 @@ const gridCells = computed(() =>
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+.overworld-root > :deep(.recon-overlay) {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 5;
 }
 
 .region-file-input {
@@ -467,6 +571,50 @@ const gridCells = computed(() =>
   background-size: 1px 100%, 100% 1px;
   background-position: center, center;
   background-repeat: no-repeat;
+}
+
+.quarter-hit-layer {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  z-index: 3;
+}
+
+.quarter-hit {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: default;
+}
+
+.quarter-hit--dest {
+  cursor: pointer;
+  outline: 1px dashed var(--color-purple-outline-strong);
+  outline-offset: -1px;
+  background: var(--color-purple-faint-bg);
+}
+
+.quarter-hit--dest:hover {
+  background: var(--color-accent-hover-bg);
+}
+
+.party-token {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.party-token-dot {
+  width: 58%;
+  height: 58%;
+  border-radius: 50%;
+  background: var(--color-accent);
+  border: 2px solid var(--color-bg);
+  box-shadow: 0 0 0 1px var(--color-accent-bright);
 }
 
 .reset-zoom-btn {

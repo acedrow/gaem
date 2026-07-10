@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { CharacterSheet, FactionId, GameMapSummary, PlayerProfile } from "@gaem/shared";
-import { BOARD_HEIGHT, BOARD_WIDTH, FACTIONS, YADATHAN_ARMOR_NAME } from "@gaem/shared";
+import type { CharacterSheet, FactionId, GameMapSummary, PlayerProfile, ReconTableId } from "@gaem/shared";
+import { BOARD_HEIGHT, BOARD_WIDTH, FACTIONS, listReconTables, YADATHAN_ARMOR_NAME } from "@gaem/shared";
 import { computed, ref, watch } from "vue";
 
 import { useApi } from "../composables/useApi.js";
@@ -12,6 +12,7 @@ import type { DataCategory } from "../composables/useInfoDataSelection.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import { useMapSelection } from "../composables/useMapSelection.js";
 import { useSession } from "../composables/useSession.js";
+import { useTableSelection } from "../composables/useTableSelection.js";
 import CharacterSheetFormFields from "./CharacterSheetFormFields.vue";
 import GmToolsToolbar from "./GmToolsToolbar.vue";
 import ModalDialog from "./ModalDialog.vue";
@@ -25,8 +26,11 @@ const { selectedSheetId, sheetsExpanded, sheetsVersion, selectSheet } =
 const { selectedMapId, mapsExpanded, mapsVersion, selectMap, notifyMapsChanged } =
   useMapSelection();
 const { selectedFactionId, factionsExpanded, selectFaction } = useFactionSelection();
+const { selectedTableId, tablesExpanded, selectTable } = useTableSelection();
 const { clearBoardSelection, selectSheetFromNav } = useBoardSelection();
 const { dataCategory, dataExpanded, selectDataCategory } = useInfoDataSelection();
+
+const reconTables = listReconTables();
 
 const sheets = ref<CharacterSheet[]>([]);
 const maps = ref<GameMapSummary[]>([]);
@@ -143,6 +147,10 @@ function toggleFactions() {
   factionsExpanded.value = !factionsExpanded.value;
 }
 
+function toggleTables() {
+  tablesExpanded.value = !tablesExpanded.value;
+}
+
 function onSelectSheet(sheetId: string) {
   selectSheetFromNav(sheetId);
 }
@@ -157,6 +165,10 @@ function onSelectData(category: DataCategory) {
 
 function onSelectFaction(factionId: FactionId) {
   selectFaction(factionId);
+}
+
+function onSelectTable(tableId: ReconTableId) {
+  selectTable(tableId);
 }
 
 function onSelectMap(mapId: string) {
@@ -417,6 +429,29 @@ watch(sheetsVersion, () => {
         @click="onSelectFaction(faction.id)"
       >
         <span class="sheet-name">{{ faction.name }}</span>
+      </button>
+    </div>
+
+    <button
+      class="nav-link nav-toggle"
+      :class="{ expanded: tablesExpanded }"
+      type="button"
+      @click="toggleTables"
+    >
+      Tables
+      <span class="chevron" aria-hidden="true">{{ tablesExpanded ? "▾" : "▸" }}</span>
+    </button>
+
+    <div v-if="tablesExpanded" class="sheet-sublist">
+      <button
+        v-for="table in reconTables"
+        :key="table.id"
+        class="sheet-item"
+        :class="{ selected: selectedTableId === table.id }"
+        type="button"
+        @click="onSelectTable(table.id)"
+      >
+        <span class="sheet-name">{{ table.name }}</span>
       </button>
     </div>
 

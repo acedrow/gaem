@@ -16,6 +16,7 @@ import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import { activeMainTab } from "../composables/useMainSectionTab.js";
 import type { MainSectionTab } from "../composables/useMainSectionTab.js";
 import { useFactionSelection } from "../composables/useFactionSelection.js";
+import { useTableSelection } from "../composables/useTableSelection.js";
 import { useSession } from "../composables/useSession.js";
 import { showToast } from "../composables/useToasts.js";
 import { initUiPersistence } from "../composables/uiPersist.js";
@@ -35,6 +36,7 @@ const { role, playerProfile, hasGmCapabilities, clearSession } = useSession();
 const { selectedSheetId, sheetsExpanded, selectSheet } = useCharacterSheetSelection();
 const { selectedMapId, mapsExpanded } = useMapSelection();
 const { selectedFactionId, factionsExpanded } = useFactionSelection();
+const { selectedTableId, tablesExpanded } = useTableSelection();
 const { boardSelection, selectBoardPlayer, clearBoardSelection, selectSheetFromNav } = useBoardSelection();
 const { dataCategory, dataFocus, dataFocusReturnCategory, dataExpanded, clearDataCategory, selectDataCategory } =
   useInfoDataSelection();
@@ -61,6 +63,7 @@ onMounted(() => {
     selectedSheetId,
     selectedMapId,
     selectedFactionId,
+    selectedTableId,
     dataCategory,
     dataFocus,
     dataFocusReturnCategory,
@@ -70,6 +73,7 @@ onMounted(() => {
     dataExpanded,
     mapsExpanded,
     factionsExpanded,
+    tablesExpanded,
   });
   if (activeMainTab.value === "baseUpgrades") {
     openResourcesPanel();
@@ -177,6 +181,7 @@ function openResourcesPanel() {
   clearBoardSelection();
   selectSheet(null);
   selectedFactionId.value = null;
+  selectedTableId.value = null;
   selectDataCategory("resources");
   activeTab.value = "info";
 }
@@ -187,6 +192,7 @@ function openTaccomInfoPanel() {
     selectSheet(null);
     clearDataCategory();
     selectedFactionId.value = null;
+    selectedTableId.value = null;
     activeTab.value = "info";
     return;
   }

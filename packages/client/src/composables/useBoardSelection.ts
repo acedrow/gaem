@@ -9,6 +9,7 @@ import { useCharacterSheetSelection } from "./useCharacterSheetSelection.js";
 import { activeTab } from "./useGameConsole.js";
 import { useGameState } from "./useGameState.js";
 import { useInfoDataSelection } from "./useInfoDataSelection.js";
+import { selectedTableId } from "./useTableSelection.js";
 
 export type BoardSelection =
   | { kind: "player"; id: string }
@@ -98,12 +99,14 @@ export function useBoardSelection() {
     else if (dataCategory.value || dataFocus.value) clearDataCategory();
     else if (selectedMapId.value) selectedMapId.value = null;
     else if (selectedFactionId.value) selectedFactionId.value = null;
+    else if (selectedTableId.value) selectedTableId.value = null;
     else selectSheet(null);
   }
 
   function selectBoardPlayer(playerId: string, characterSheetId?: string) {
     clearDataCategory();
     selectedFactionId.value = null;
+    selectedTableId.value = null;
     boardSelection.value = { kind: "player", id: playerId };
     activeTab.value = "info";
     if (characterSheetId) {
@@ -127,6 +130,7 @@ export function useBoardSelection() {
   function selectBoardEnemy(enemyId: string) {
     clearDataCategory();
     selectedFactionId.value = null;
+    selectedTableId.value = null;
     const s = gameState.value;
     const group = s ? swarmGroupForEnemy(s, enemyId) : null;
     boardSelection.value = {
@@ -140,6 +144,7 @@ export function useBoardSelection() {
   function selectBoardEnemyMember(enemyId: string) {
     clearDataCategory();
     selectedFactionId.value = null;
+    selectedTableId.value = null;
     const s = gameState.value;
     const group = s ? swarmGroupForEnemy(s, enemyId) : null;
     if (!group || group.size < 2) {
@@ -158,6 +163,7 @@ export function useBoardSelection() {
   function selectSheetFromNav(sheetId: string) {
     selectedMapId.value = null;
     selectedFactionId.value = null;
+    selectedTableId.value = null;
     clearDataCategory();
     selectSheet(sheetId);
     const player = gameState.value?.players.find((p) => p.characterSheetId === sheetId);

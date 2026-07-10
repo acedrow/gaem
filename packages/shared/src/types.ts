@@ -179,6 +179,12 @@ export type BaseCampaignAction =
 
 export const OVERWORLD_WIDTH = 17;
 export const OVERWORLD_HEIGHT = 11;
+export const OVERWORLD_QUARTER_WIDTH = OVERWORLD_WIDTH * 2;
+export const OVERWORLD_QUARTER_HEIGHT = OVERWORLD_HEIGHT * 2;
+export const OVERWORLD_TRAVEL_FUEL_COST = 2;
+export const MAP_SPEED_INCHES = 2.5;
+export const MAJOR_CELL_INCHES = 1;
+export const QUARTER_CELL_INCHES = MAJOR_CELL_INCHES / 2;
 
 export type OverworldRegionId = "west" | "center" | "east";
 
@@ -186,6 +192,20 @@ export type OverworldRegion = {
   id: OverworldRegionId;
   imageKey?: string;
 };
+
+export type OverworldParty = {
+  qx: number;
+  qy: number;
+  mapSpeed: number;
+  fuel: number;
+  revelations: number;
+};
+
+export type OverworldCampaignAction =
+  | { kind: "adjustMapSpeed"; delta: number }
+  | { kind: "adjustFuel"; delta: number }
+  | { kind: "adjustRevelations"; delta: number }
+  | { kind: "travel"; qx: number; qy: number };
 
 export type FactionState = {
   crown: number;
@@ -233,6 +253,7 @@ export type GameState = {
   partyResources?: PartyResources;
   constructedBaseUpgrades?: string[];
   overworldRegions?: OverworldRegion[];
+  overworldParty?: OverworldParty;
   factionStates?: FactionStates;
 };
 
@@ -357,6 +378,7 @@ export type ClientMessage =
   | { type: "phaseAction"; action: PhaseAction }
   | { type: "setSandboxMode"; sandboxMode: boolean }
   | { type: "baseCampaignAction"; action: BaseCampaignAction }
+  | { type: "overworldCampaignAction"; action: OverworldCampaignAction }
   | {
       type: "setOverworldRegionImage";
       regionId: OverworldRegionId;

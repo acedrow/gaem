@@ -2,6 +2,7 @@ import type { Enemy, GameMap, GameMapSummary, GameState, MapTile, TerrainType } 
 import { BOARD_HEIGHT, BOARD_WIDTH } from "./constants.js";
 import { TERRAIN_TYPES } from "./types.js";
 import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles, refreshEnemyMovement } from "./enemy-data.js";
+import { defaultOverworldParty } from "./overworld.js";
 import {
   isValidTileBaseColor,
   normalizeTileName,
@@ -358,6 +359,7 @@ export function createInitialStateFromMap(map: GameMap): GameState {
       { id: "center" },
       { id: "east" },
     ],
+    overworldParty: defaultOverworldParty(),
   };
 }
 

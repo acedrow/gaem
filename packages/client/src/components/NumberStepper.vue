@@ -4,6 +4,7 @@ const model = defineModel<number>({ required: true });
 const props = defineProps<{
   min?: number;
   max?: number;
+  step?: number;
   disabled?: boolean;
   clamp?: (value: number) => number;
   invertButtons?: boolean;
@@ -26,7 +27,8 @@ function onChange() {
 }
 
 function adjust(delta: number) {
-  const applied = props.invertButtons ? -delta : delta;
+  const step = props.step ?? 1;
+  const applied = (props.invertButtons ? -delta : delta) * step;
   model.value = clampValue(model.value + applied);
   emit("adjust", applied);
 }
@@ -48,6 +50,7 @@ function adjust(delta: number) {
       class="step-input"
       :min="min"
       :max="max"
+      :step="step ?? 1"
       :disabled="disabled"
       @change="onChange"
     />

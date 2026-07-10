@@ -1,6 +1,7 @@
 import type { Enemy, GameState, MapTile, Player } from "../types.js";
 import { createDefaultActionBudget } from "../combat/types.js";
 import { coordKey } from "../map.js";
+import { defaultOverworldParty } from "../overworld.js";
 
 export function makeTiles(
   width: number,
@@ -41,6 +42,7 @@ export function makeGameState(overrides: Partial<GameState> = {}): GameState {
     partyResources: { hellsteel: 0, soulfire: 0, brimstone: 0 },
     constructedBaseUpgrades: [],
     overworldRegions: [{ id: "west" }, { id: "center" }, { id: "east" }],
+    overworldParty: defaultOverworldParty(),
     ...overrides,
   };
 }

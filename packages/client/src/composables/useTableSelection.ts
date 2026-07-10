@@ -1,48 +1,49 @@
-import type { FactionId } from "@gaem/shared";
+import type { ReconTableId } from "@gaem/shared";
+import { RECON_TABLE_IDS } from "@gaem/shared";
 import { ref } from "vue";
 
 import { readPersistedUi } from "./uiPersist.js";
 import { boardSelection } from "./useBoardSelection.js";
 import { useCharacterSheetSelection } from "./useCharacterSheetSelection.js";
+import { selectedFactionId } from "./useFactionSelection.js";
 import { activeTab } from "./useGameConsole.js";
 import { useInfoDataSelection } from "./useInfoDataSelection.js";
 import { selectedMapId } from "./useMapSelection.js";
-import { selectedTableId } from "./useTableSelection.js";
 
-const FACTION_IDS = new Set<FactionId>(["syncrasis", "autophyes", "paracletus"]);
+const TABLE_IDS = new Set<ReconTableId>(RECON_TABLE_IDS);
 
 const persisted = readPersistedUi();
-export const selectedFactionId = ref<FactionId | null>(
-  persisted.selectedFactionId && FACTION_IDS.has(persisted.selectedFactionId)
-    ? persisted.selectedFactionId
+export const selectedTableId = ref<ReconTableId | null>(
+  persisted.selectedTableId && TABLE_IDS.has(persisted.selectedTableId)
+    ? persisted.selectedTableId
     : null,
 );
-export const factionsExpanded = ref(persisted.factionsExpanded);
+export const tablesExpanded = ref(persisted.tablesExpanded);
 
-export function useFactionSelection() {
+export function useTableSelection() {
   const { selectSheet } = useCharacterSheetSelection();
   const { clearDataCategory } = useInfoDataSelection();
 
-  function selectFaction(id: FactionId | null) {
+  function selectTable(id: ReconTableId | null) {
     if (id) {
       boardSelection.value = null;
       selectSheet(null);
       selectedMapId.value = null;
-      selectedTableId.value = null;
+      selectedFactionId.value = null;
       clearDataCategory();
       activeTab.value = "info";
     }
-    selectedFactionId.value = id;
+    selectedTableId.value = id;
   }
 
-  function clearFaction() {
-    selectedFactionId.value = null;
+  function clearTable() {
+    selectedTableId.value = null;
   }
 
   return {
-    selectedFactionId,
-    factionsExpanded,
-    selectFaction,
-    clearFaction,
+    selectedTableId,
+    tablesExpanded,
+    selectTable,
+    clearTable,
   };
 }

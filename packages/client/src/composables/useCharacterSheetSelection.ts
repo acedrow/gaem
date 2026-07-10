@@ -7,6 +7,7 @@ import { selectedFactionId } from "./useFactionSelection.js";
 import { activeTab } from "./useGameConsole.js";
 import { useGameState } from "./useGameState.js";
 import { useInfoDataSelection } from "./useInfoDataSelection.js";
+import { selectedTableId } from "./useTableSelection.js";
 
 export type GearField = "class" | "armor" | "weapon" | "equipment" | "gear" | "gearArmor" | "weapon2";
 
@@ -43,6 +44,7 @@ export function useCharacterSheetSelection() {
     if (id) {
       clearDataCategory();
       selectedFactionId.value = null;
+      selectedTableId.value = null;
     }
     selectedSheetId.value = id;
     if (id) {
@@ -67,6 +69,7 @@ export function useCharacterSheetSelection() {
   ) {
     clearDataCategory();
     selectedFactionId.value = null;
+    selectedTableId.value = null;
     gearPick.value = { sheetId, field, currentValue, yadathanTower, gearSlotFilter };
     activeTab.value = "info";
   }

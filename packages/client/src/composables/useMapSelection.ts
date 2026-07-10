@@ -6,6 +6,7 @@ import { selectedFactionId } from "./useFactionSelection.js";
 import { activeTab } from "./useGameConsole.js";
 import { useCharacterSheetSelection } from "./useCharacterSheetSelection.js";
 import { useInfoDataSelection } from "./useInfoDataSelection.js";
+import { selectedTableId } from "./useTableSelection.js";
 
 const persisted = readPersistedUi();
 export const selectedMapId = ref<string | null>(persisted.selectedMapId);
@@ -21,6 +22,7 @@ export function useMapSelection() {
       boardSelection.value = null;
       selectSheet(null);
       selectedFactionId.value = null;
+      selectedTableId.value = null;
       clearDataCategory();
     }
     selectedMapId.value = id;
