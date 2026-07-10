@@ -10,6 +10,7 @@ import {
   OVERWORLD_REGION_FACTIONS,
   OVERWORLD_TRAVEL_FUEL_COST,
   OVERWORLD_WIDTH,
+  type OverworldLocation,
   type OverworldRegion,
   type OverworldRegionId,
 } from "@gaem/shared";
@@ -22,8 +23,12 @@ import { useGameState } from "../composables/useGameState.js";
 import { activeMainTab } from "../composables/useMainSectionTab.js";
 import { useSession } from "../composables/useSession.js";
 import { showToast } from "../composables/useToasts.js";
+import locationUrl from "../assets/location.svg";
 import skullUrl from "../assets/skull.svg";
+import BoardContextMenu, { type BoardContextMenuItem } from "./BoardContextMenu.vue";
+import ModalDialog from "./ModalDialog.vue";
 import OverworldReconOverlay from "./OverworldReconOverlay.vue";
+import PlaceOverworldLocationModal from "./PlaceOverworldLocationModal.vue";
 
 const CELL = 64;
 const QUARTER = CELL / 2;
@@ -48,6 +53,26 @@ const pendingUploadRegionId = ref<OverworldRegionId | null>(null);
 const travelMode = ref(false);
 const deployMode = ref(false);
 
+const contextMenu = ref<{
+  open: boolean;
+  x: number;
+  y: number;
+  qx: number;
+  qy: number;
+  items: BoardContextMenuItem[];
+}>({ open: false, x: 0, y: 0, qx: 0, qy: 0, items: [] });
+
+const placeModal = ref<{ open: boolean; qx: number | null; qy: number | null }>({
+  open: false,
+  qx: null,
+  qy: null,
+});
+
+const removeModal = ref<{ open: boolean; location: OverworldLocation | null }>({
+  open: false,
+  location: null,
+});
+
 const imageUrls = ref<Partial<Record<OverworldRegionId, string>>>({});
 const loadedKeys = new Map<OverworldRegionId, string>();
 
@@ -59,6 +84,14 @@ const regions = computed((): OverworldRegion[] => {
 
 const party = computed(() => gameState.value?.overworldParty ?? defaultOverworldParty());
 const atDis = computed(() => party.value.atDis === true);
+const locations = computed(() => gameState.value?.overworldLocations ?? []);
+const locationByKey = computed(() => {
+  const map = new Map<string, OverworldLocation>();
+  for (const loc of locations.value) {
+    map.set(`${loc.qx},${loc.qy}`, loc);
+  }
+  return map;
+});
 
 const travelDestKeys = computed(() => {
   if (!travelMode.value || atDis.value) return new Set<string>();
@@ -151,10 +184,88 @@ function onQuarterClick(qx: number, qy: number) {
   travelMode.value = false;
 }
 
+function closeContextMenu() {
+  contextMenu.value = { open: false, x: 0, y: 0, qx: 0, qy: 0, items: [] };
+}
+
+function onBoardContextMenu(e: MouseEvent) {
+  if (!hasGmCapabilities.value || travelMode.value || deployMode.value) return;
+  e.preventDefault();
+  const board = e.currentTarget as HTMLElement;
+  const rect = board.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) {
+    closeContextMenu();
+    return;
+  }
+  const qx = Math.floor(((e.clientX - rect.left) / rect.width) * OVERWORLD_QUARTER_WIDTH);
+  const qy = Math.floor(((e.clientY - rect.top) / rect.height) * OVERWORLD_QUARTER_HEIGHT);
+  if (
+    !Number.isInteger(qx) ||
+    !Number.isInteger(qy) ||
+    qx < 0 ||
+    qy < 0 ||
+    qx >= OVERWORLD_QUARTER_WIDTH ||
+    qy >= OVERWORLD_QUARTER_HEIGHT
+  ) {
+    closeContextMenu();
+    return;
+  }
+  const existing = locationByKey.value.get(`${qx},${qy}`);
+  contextMenu.value = {
+    open: true,
+    x: e.clientX,
+    y: e.clientY,
+    qx,
+    qy,
+    items: existing
+      ? [{ id: "remove-location", label: "Remove location", danger: true }]
+      : [{ id: "place-location", label: "Place location" }],
+  };
+}
+
+function onContextMenuSelect(id: string) {
+  const { qx, qy } = contextMenu.value;
+  closeContextMenu();
+  if (id === "place-location") {
+    placeModal.value = { open: true, qx, qy };
+    return;
+  }
+  if (id === "remove-location") {
+    const existing = locationByKey.value.get(`${qx},${qy}`);
+    if (!existing) return;
+    removeModal.value = { open: true, location: existing };
+  }
+}
+
+function closePlaceModal() {
+  placeModal.value = { open: false, qx: null, qy: null };
+}
+
+function closeRemoveModal() {
+  removeModal.value = { open: false, location: null };
+}
+
+function confirmRemoveLocation() {
+  const loc = removeModal.value.location;
+  if (!loc) return;
+  send({ type: "overworldLocationAction", action: { kind: "remove", locationId: loc.id } });
+  closeRemoveModal();
+}
+
+function locationMarkerStyle(loc: OverworldLocation) {
+  return {
+    left: `${loc.qx * QUARTER}px`,
+    top: `${loc.qy * QUARTER}px`,
+    width: `${QUARTER}px`,
+    height: `${QUARTER}px`,
+  };
+}
+
 function onKeydown(e: KeyboardEvent) {
   if (e.key === "Escape") {
     if (travelMode.value) travelMode.value = false;
     if (deployMode.value) deployMode.value = false;
+    if (contextMenu.value.open) closeContextMenu();
   }
 }
 
@@ -317,6 +428,7 @@ const gridCells = computed(() =>
         <div
           class="overworld-board"
           :style="{ width: `${boardWidthPx}px`, height: `${boardHeightPx}px` }"
+          @contextmenu="onBoardContextMenu"
         >
           <div class="regions">
             <div
@@ -416,6 +528,16 @@ const gridCells = computed(() =>
             />
           </div>
           <div
+            v-for="loc in locations"
+            :key="loc.id"
+            class="location-marker"
+            :style="locationMarkerStyle(loc)"
+            :aria-label="loc.name"
+            :title="loc.name"
+          >
+            <img class="location-marker-icon" :src="locationUrl" alt="" draggable="false" />
+          </div>
+          <div
             v-if="!atDis"
             class="party-token"
             :style="partyTokenStyle"
@@ -468,6 +590,36 @@ const gridCells = computed(() =>
         Reset zoom
       </button>
     </div>
+
+    <BoardContextMenu
+      :open="contextMenu.open"
+      :x="contextMenu.x"
+      :y="contextMenu.y"
+      :items="contextMenu.items"
+      @select="onContextMenuSelect"
+      @close="closeContextMenu"
+    />
+
+    <PlaceOverworldLocationModal
+      :open="placeModal.open"
+      :qx="placeModal.qx"
+      :qy="placeModal.qy"
+      @close="closePlaceModal"
+    />
+
+    <ModalDialog
+      title="Remove location?"
+      :open="removeModal.open"
+      ok-label="Remove"
+      @close="closeRemoveModal"
+      @confirm="confirmRemoveLocation"
+    >
+      <p class="remove-location-copy">
+        Remove
+        <strong>{{ removeModal.location?.name }}</strong>
+        from the overworld map?
+      </p>
+    </ModalDialog>
   </div>
 </template>
 
@@ -552,7 +704,7 @@ const gridCells = computed(() =>
 
 .dis-node-label {
   font-family: var(--font-heading);
-  font-size: 0.95rem;
+  font-size: 1.35rem;
   letter-spacing: 0.08em;
   color: var(--color-text);
   pointer-events: none;
@@ -734,6 +886,24 @@ const gridCells = computed(() =>
   background: var(--color-accent-hover-bg);
 }
 
+.location-marker {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.75));
+}
+
+.location-marker-icon {
+  width: 70%;
+  height: 70%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+
 .party-token {
   position: absolute;
   z-index: 4;
@@ -756,6 +926,12 @@ const gridCells = computed(() =>
   width: 14px;
   height: 14px;
   flex-shrink: 0;
+}
+
+.remove-location-copy {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-text);
 }
 
 .reset-zoom-btn {

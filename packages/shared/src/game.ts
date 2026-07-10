@@ -8,7 +8,7 @@ import { enemyHasFlyingTag, initializeUnitElevation, syncUnitElevationOnTile } f
 import { resetEnemyExhaustion, resetGmTurnActions } from "./combat/enemy.js";
 import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles, ensureEnemyMovement, refreshEnemyMovement, spendEnemyMovement } from "./enemy-data.js";
 import { ensureFactionStates } from "./faction-campaign.js";
-import { ensureOverworldParty } from "./overworld.js";
+import { ensureOverworldLocations, ensureOverworldParty } from "./overworld.js";
 import { applyLoadoutToPlayer, getClassMaxHp, getArmorSpeed } from "./player-data.js";
 import { coordKey, createInitialStateFromMap, isFootprintInBounds, isInBounds, isWalkable, tileAt } from "./map.js";
 import { isOrthogonallyAdjacent } from "./patterns.js";
@@ -1324,6 +1324,7 @@ export function normalizeGameState(state: GameState, map?: GameMap): GameState {
     ];
   }
   ensureOverworldParty(state);
+  ensureOverworldLocations(state);
   ensureFactionStates(state);
   if (!state.combat && state.roundPhase !== "deployment") {
     state.combat = createDefaultCombatState(state.players.length);
@@ -1357,6 +1358,7 @@ export function applyActivateMap(state: GameState, map: GameMap): string {
   const constructedBaseUpgrades = state.constructedBaseUpgrades;
   const overworldRegions = state.overworldRegions;
   const overworldParty = state.overworldParty;
+  const overworldLocations = state.overworldLocations;
   const factionStates = state.factionStates;
   const sandboxMode = state.sandboxMode;
 
@@ -1382,6 +1384,7 @@ export function applyActivateMap(state: GameState, map: GameMap): string {
   if (constructedBaseUpgrades) state.constructedBaseUpgrades = constructedBaseUpgrades;
   if (overworldRegions) state.overworldRegions = overworldRegions;
   if (overworldParty) state.overworldParty = overworldParty;
+  if (overworldLocations) state.overworldLocations = overworldLocations;
   if (factionStates) state.factionStates = factionStates;
   if (sandboxMode !== undefined) state.sandboxMode = sandboxMode;
 

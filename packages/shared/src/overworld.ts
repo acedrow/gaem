@@ -1,6 +1,8 @@
 import type {
   GameState,
   OverworldCampaignAction,
+  OverworldLocation,
+  OverworldLocationAction,
   OverworldParty,
   OverworldRegion,
   OverworldRegionId,
@@ -10,10 +12,13 @@ import {
   OVERWORLD_QUARTER_HEIGHT,
   OVERWORLD_QUARTER_WIDTH,
   OVERWORLD_TRAVEL_FUEL_COST,
+  OVERWORLD_WIDTH,
   QUARTER_CELL_INCHES,
 } from "./types.js";
+import { type FactionId } from "./faction-data.js";
 
 const REGION_IDS: OverworldRegionId[] = ["west", "center", "east"];
+const FACTION_IDS: FactionId[] = ["syncrasis", "autophyes", "paracletus"];
 
 const REGION_IMAGE_KEY_RE = /^region-images\/[0-9a-f-]+\.(png|jpe?g|webp)$/i;
 
@@ -96,6 +101,108 @@ export function ensureOverworldParty(state: GameState): OverworldParty {
   existing.revelations = Math.floor(normalizeNonNeg(existing.revelations));
   state.overworldParty = existing;
   return existing;
+}
+
+export function regionIdForQuarter(qx: number): OverworldRegionId {
+  const majorX = Math.floor(qx / 2);
+  const third = OVERWORLD_WIDTH / 3;
+  if (majorX < third) return "west";
+  if (majorX < third * 2) return "center";
+  return "east";
+}
+
+function newLocationId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+export function ensureOverworldLocations(state: GameState): OverworldLocation[] {
+  if (!Array.isArray(state.overworldLocations)) {
+    state.overworldLocations = [];
+    return state.overworldLocations;
+  }
+  const seen = new Set<string>();
+  const out: OverworldLocation[] = [];
+  for (const loc of state.overworldLocations) {
+    if (!loc || typeof loc !== "object") continue;
+    if (typeof loc.id !== "string" || !loc.id) continue;
+    if (typeof loc.name !== "string" || !loc.name.trim()) continue;
+    if (!FACTION_IDS.includes(loc.factionId as FactionId)) continue;
+    if (!isOverworldQuarterInBounds(loc.qx, loc.qy)) continue;
+    const key = `${loc.qx},${loc.qy}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      id: loc.id,
+      qx: loc.qx,
+      qy: loc.qy,
+      name: loc.name.trim(),
+      factionId: loc.factionId,
+    });
+  }
+  state.overworldLocations = out;
+  return out;
+}
+
+export function locationAtQuarter(
+  state: GameState,
+  qx: number,
+  qy: number,
+): OverworldLocation | undefined {
+  return ensureOverworldLocations(state).find((loc) => loc.qx === qx && loc.qy === qy);
+}
+
+export function validateOverworldLocationAction(
+  state: GameState,
+  action: OverworldLocationAction,
+): string | null {
+  ensureOverworldLocations(state);
+  switch (action.kind) {
+    case "place": {
+      if (!isOverworldQuarterInBounds(action.qx, action.qy)) return "Out of bounds";
+      if (!FACTION_IDS.includes(action.factionId as FactionId)) return "Unknown faction";
+      const name = typeof action.name === "string" ? action.name.trim() : "";
+      if (!name) return "Location name is required";
+      if (locationAtQuarter(state, action.qx, action.qy)) {
+        return "A location is already placed here";
+      }
+      return null;
+    }
+    case "remove": {
+      if (typeof action.locationId !== "string" || !action.locationId) {
+        return "Location id is required";
+      }
+      if (!state.overworldLocations!.some((loc) => loc.id === action.locationId)) {
+        return "Location not found";
+      }
+      return null;
+    }
+  }
+}
+
+export function applyOverworldLocationAction(
+  state: GameState,
+  action: OverworldLocationAction,
+): string {
+  const locations = ensureOverworldLocations(state);
+  switch (action.kind) {
+    case "place": {
+      const name = action.name.trim();
+      locations.push({
+        id: newLocationId(),
+        qx: action.qx,
+        qy: action.qy,
+        name,
+        factionId: action.factionId,
+      });
+      return `Placed location "${name}" at (${action.qx}, ${action.qy})`;
+    }
+    case "remove": {
+      const idx = locations.findIndex((loc) => loc.id === action.locationId);
+      const removed = locations[idx]!;
+      locations.splice(idx, 1);
+      return `Removed location "${removed.name}"`;
+    }
+  }
 }
 
 export function overworldTravelReachQuarters(mapSpeed: number): number {

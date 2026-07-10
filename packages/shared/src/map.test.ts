@@ -133,6 +133,9 @@ describe("map", () => {
       fuel: 5,
       revelations: 2,
     };
+    state.overworldLocations = [
+      { id: "loc-1", qx: 2, qy: 3, name: "Test Site", factionId: "syncrasis" },
+    ];
     state.factionStates = {
       syncrasis: { crown: 4, force: 3, subterfuge: 2, territory: 1, assets: 0, defeated: false },
       autophyes: { crown: 0, force: 0, subterfuge: 0, territory: 0, assets: 0, defeated: true },
@@ -162,6 +165,9 @@ describe("map", () => {
       fuel: 5,
       revelations: 2,
     });
+    expect(state.overworldLocations).toEqual([
+      { id: "loc-1", qx: 2, qy: 3, name: "Test Site", factionId: "syncrasis" },
+    ]);
     expect(state.factionStates).toEqual({
       syncrasis: { crown: 4, force: 3, subterfuge: 2, territory: 1, assets: 0, defeated: false },
       autophyes: { crown: 0, force: 0, subterfuge: 0, territory: 0, assets: 0, defeated: true },

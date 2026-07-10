@@ -60,17 +60,15 @@ function toggleTravelMode() {
   emit("update:travelMode", !props.travelMode);
 }
 
-function onReturnToDis() {
-  if (atDis.value) return;
+function onDisHellAction() {
+  if (atDis.value) {
+    if (!props.deployMode) emit("update:travelMode", false);
+    emit("update:deployMode", !props.deployMode);
+    return;
+  }
   emit("update:travelMode", false);
   emit("update:deployMode", false);
   send({ type: "overworldCampaignAction", action: { kind: "returnToDis" } });
-}
-
-function toggleDeployMode() {
-  if (!atDis.value) return;
-  if (!props.deployMode) emit("update:travelMode", false);
-  emit("update:deployMode", !props.deployMode);
 }
 </script>
 
@@ -112,20 +110,11 @@ function toggleDeployMode() {
     </button>
     <button
       type="button"
-      class="action-btn"
-      :disabled="atDis"
-      @click="onReturnToDis"
-    >
-      Return to DIS
-    </button>
-    <button
-      type="button"
       class="action-btn move-btn"
       :class="{ active: deployMode }"
-      :disabled="!atDis"
-      @click="toggleDeployMode"
+      @click="onDisHellAction"
     >
-      Deploy to Hell
+      {{ atDis ? "Deploy to Hell" : "Return to DIS" }}
     </button>
   </div>
 </template>

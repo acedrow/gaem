@@ -225,6 +225,18 @@ export type FactionStates = {
   paracletus: FactionState;
 };
 
+export type OverworldLocation = {
+  id: string;
+  qx: number;
+  qy: number;
+  name: string;
+  factionId: keyof FactionStates;
+};
+
+export type OverworldLocationAction =
+  | { kind: "place"; qx: number; qy: number; name: string; factionId: keyof FactionStates }
+  | { kind: "remove"; locationId: string };
+
 export type FactionCampaignAction =
   | {
       kind: "adjustQuality";
@@ -257,6 +269,7 @@ export type GameState = {
   constructedBaseUpgrades?: string[];
   overworldRegions?: OverworldRegion[];
   overworldParty?: OverworldParty;
+  overworldLocations?: OverworldLocation[];
   factionStates?: FactionStates;
 };
 
@@ -388,6 +401,7 @@ export type ClientMessage =
       imageKey: string | null;
     }
   | { type: "factionCampaignAction"; action: FactionCampaignAction }
+  | { type: "overworldLocationAction"; action: OverworldLocationAction }
   | { type: "spawnPlayerToken"; characterSheetId: string }
   | { type: "removePlayerToken"; playerId: string }
   | { type: "activateMap"; mapId: string };

@@ -2,13 +2,16 @@ import { describe, expect, it } from "vitest";
 
 import {
   applyOverworldCampaignAction,
+  applyOverworldLocationAction,
   defaultOverworldParty,
   isOverworldDeployDestination,
   isOverworldTravelDestination,
   listOverworldDeployDestinations,
   listOverworldTravelDestinations,
   overworldTravelReachQuarters,
+  regionIdForQuarter,
   validateOverworldCampaignAction,
+  validateOverworldLocationAction,
 } from "./overworld.js";
 import { makeGameState } from "./test/fixtures.js";
 import { OVERWORLD_QUARTER_HEIGHT, OVERWORLD_QUARTER_WIDTH, OVERWORLD_TRAVEL_FUEL_COST } from "./types.js";
@@ -198,6 +201,86 @@ describe("overworldCampaignAction adjustments", () => {
     );
     expect(validateOverworldCampaignAction(state, { kind: "adjustMapSpeed", delta: -0.5 })).toBe(
       "Insufficient map speed",
+    );
+  });
+});
+
+describe("regionIdForQuarter", () => {
+  it("maps quarter columns to the three equal region thirds", () => {
+    expect(regionIdForQuarter(0)).toBe("west");
+    expect(regionIdForQuarter(11)).toBe("west");
+    expect(regionIdForQuarter(12)).toBe("center");
+    expect(regionIdForQuarter(23)).toBe("center");
+    expect(regionIdForQuarter(24)).toBe("east");
+    expect(regionIdForQuarter(33)).toBe("east");
+  });
+});
+
+describe("overworldLocationAction", () => {
+  it("places a location on an empty quarter cell", () => {
+    const state = makeGameState();
+    const action = {
+      kind: "place" as const,
+      qx: 4,
+      qy: 5,
+      name: "  Oraios's Vengence  ",
+      factionId: "syncrasis" as const,
+    };
+    expect(validateOverworldLocationAction(state, action)).toBeNull();
+    const message = applyOverworldLocationAction(state, action);
+    expect(message).toContain('Placed location "Oraios\'s Vengence"');
+    expect(state.overworldLocations).toHaveLength(1);
+    expect(state.overworldLocations![0]).toMatchObject({
+      qx: 4,
+      qy: 5,
+      name: "Oraios's Vengence",
+      factionId: "syncrasis",
+    });
+    expect(state.overworldLocations![0]!.id).toBeTruthy();
+  });
+
+  it("rejects place when the cell is occupied or name is empty", () => {
+    const state = makeGameState({
+      overworldLocations: [
+        { id: "loc-1", qx: 4, qy: 5, name: "Existing", factionId: "syncrasis" },
+      ],
+    });
+    expect(
+      validateOverworldLocationAction(state, {
+        kind: "place",
+        qx: 4,
+        qy: 5,
+        name: "Another",
+        factionId: "syncrasis",
+      }),
+    ).toBe("A location is already placed here");
+    expect(
+      validateOverworldLocationAction(state, {
+        kind: "place",
+        qx: 1,
+        qy: 1,
+        name: "   ",
+        factionId: "syncrasis",
+      }),
+    ).toBe("Location name is required");
+  });
+
+  it("removes a placed location by id", () => {
+    const state = makeGameState({
+      overworldLocations: [
+        { id: "loc-1", qx: 4, qy: 5, name: "Existing", factionId: "syncrasis" },
+      ],
+    });
+    expect(validateOverworldLocationAction(state, { kind: "remove", locationId: "loc-1" })).toBeNull();
+    const message = applyOverworldLocationAction(state, { kind: "remove", locationId: "loc-1" });
+    expect(message).toBe('Removed location "Existing"');
+    expect(state.overworldLocations).toEqual([]);
+  });
+
+  it("rejects remove for unknown ids", () => {
+    const state = makeGameState();
+    expect(validateOverworldLocationAction(state, { kind: "remove", locationId: "missing" })).toBe(
+      "Location not found",
     );
   });
 });
