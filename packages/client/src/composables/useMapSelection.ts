@@ -2,6 +2,7 @@ import { ref } from "vue";
 
 import { readPersistedUi } from "./uiPersist.js";
 import { boardSelection } from "./useBoardSelection.js";
+import { selectedFactionId } from "./useFactionSelection.js";
 import { activeTab } from "./useGameConsole.js";
 import { useCharacterSheetSelection } from "./useCharacterSheetSelection.js";
 import { useInfoDataSelection } from "./useInfoDataSelection.js";
@@ -19,6 +20,7 @@ export function useMapSelection() {
     if (id) {
       boardSelection.value = null;
       selectSheet(null);
+      selectedFactionId.value = null;
       clearDataCategory();
     }
     selectedMapId.value = id;

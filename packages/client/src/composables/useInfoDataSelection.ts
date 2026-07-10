@@ -1,6 +1,7 @@
 import { ref } from "vue";
 
 import { readPersistedUi } from "./uiPersist.js";
+import { selectedFactionId } from "./useFactionSelection.js";
 import { useEnemySpawnSelection } from "./useEnemySpawnSelection.js";
 import { usePatternSelection } from "./usePatternSelection.js";
 
@@ -25,12 +26,14 @@ export function useInfoDataSelection() {
   function selectDataCategory(category: DataCategory) {
     if (category !== "patterns") clearPatternSelection();
     if (category !== "paracletus") clearSpawnEnemySelection();
+    selectedFactionId.value = null;
     dataCategory.value = category;
     dataFocus.value = null;
     dataFocusReturnCategory.value = null;
   }
 
   function selectDataFocus(focus: DataFocus, options?: { returnTo?: DataCategory }) {
+    selectedFactionId.value = null;
     dataFocus.value = focus;
     dataCategory.value = focus.kind === "enemy" ? null : focus.kind;
     dataFocusReturnCategory.value = options?.returnTo ?? null;

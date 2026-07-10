@@ -3,6 +3,7 @@ import { swarmGroupForEnemy } from "@gaem/shared";
 import { computed, ref, watch } from "vue";
 
 import { readPersistedUi } from "./uiPersist.js";
+import { selectedFactionId } from "./useFactionSelection.js";
 import { selectedMapId } from "./useMapSelection.js";
 import { useCharacterSheetSelection } from "./useCharacterSheetSelection.js";
 import { activeTab } from "./useGameConsole.js";
@@ -96,11 +97,13 @@ export function useBoardSelection() {
     if (boardSelection.value) clearBoardSelection();
     else if (dataCategory.value || dataFocus.value) clearDataCategory();
     else if (selectedMapId.value) selectedMapId.value = null;
+    else if (selectedFactionId.value) selectedFactionId.value = null;
     else selectSheet(null);
   }
 
   function selectBoardPlayer(playerId: string, characterSheetId?: string) {
     clearDataCategory();
+    selectedFactionId.value = null;
     boardSelection.value = { kind: "player", id: playerId };
     activeTab.value = "info";
     if (characterSheetId) {
@@ -123,6 +126,7 @@ export function useBoardSelection() {
 
   function selectBoardEnemy(enemyId: string) {
     clearDataCategory();
+    selectedFactionId.value = null;
     const s = gameState.value;
     const group = s ? swarmGroupForEnemy(s, enemyId) : null;
     boardSelection.value = {
@@ -135,6 +139,7 @@ export function useBoardSelection() {
 
   function selectBoardEnemyMember(enemyId: string) {
     clearDataCategory();
+    selectedFactionId.value = null;
     const s = gameState.value;
     const group = s ? swarmGroupForEnemy(s, enemyId) : null;
     if (!group || group.size < 2) {
@@ -152,6 +157,7 @@ export function useBoardSelection() {
 
   function selectSheetFromNav(sheetId: string) {
     selectedMapId.value = null;
+    selectedFactionId.value = null;
     clearDataCategory();
     selectSheet(sheetId);
     const player = gameState.value?.players.find((p) => p.characterSheetId === sheetId);

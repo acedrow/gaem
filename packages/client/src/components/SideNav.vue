@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import type { CharacterSheet, GameMapSummary, PlayerProfile } from "@gaem/shared";
-import { BOARD_HEIGHT, BOARD_WIDTH, YADATHAN_ARMOR_NAME } from "@gaem/shared";
+import type { CharacterSheet, FactionId, GameMapSummary, PlayerProfile } from "@gaem/shared";
+import { BOARD_HEIGHT, BOARD_WIDTH, FACTIONS, YADATHAN_ARMOR_NAME } from "@gaem/shared";
 import { computed, ref, watch } from "vue";
 
 import { useApi } from "../composables/useApi.js";
 import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useCharacterSheetSelection } from "../composables/useCharacterSheetSelection.js";
+import { useFactionSelection } from "../composables/useFactionSelection.js";
 import { activeTab } from "../composables/useGameConsole.js";
 import type { DataCategory } from "../composables/useInfoDataSelection.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
@@ -23,6 +24,7 @@ const { selectedSheetId, sheetsExpanded, sheetsVersion, selectSheet } =
   useCharacterSheetSelection();
 const { selectedMapId, mapsExpanded, mapsVersion, selectMap, notifyMapsChanged } =
   useMapSelection();
+const { selectedFactionId, factionsExpanded, selectFaction } = useFactionSelection();
 const { clearBoardSelection, selectSheetFromNav } = useBoardSelection();
 const { dataCategory, dataExpanded, selectDataCategory } = useInfoDataSelection();
 
@@ -137,6 +139,10 @@ function toggleData() {
   dataExpanded.value = !dataExpanded.value;
 }
 
+function toggleFactions() {
+  factionsExpanded.value = !factionsExpanded.value;
+}
+
 function onSelectSheet(sheetId: string) {
   selectSheetFromNav(sheetId);
 }
@@ -147,6 +153,10 @@ function onSelectData(category: DataCategory) {
   selectMap(null);
   selectDataCategory(category);
   activeTab.value = "info";
+}
+
+function onSelectFaction(factionId: FactionId) {
+  selectFaction(factionId);
 }
 
 function onSelectMap(mapId: string) {
@@ -384,6 +394,29 @@ watch(sheetsVersion, () => {
         @click="onSelectData('paracletus')"
       >
         <span class="sheet-name">Enemies — Paracletus</span>
+      </button>
+    </div>
+
+    <button
+      class="nav-link nav-toggle"
+      :class="{ expanded: factionsExpanded }"
+      type="button"
+      @click="toggleFactions"
+    >
+      Factions
+      <span class="chevron" aria-hidden="true">{{ factionsExpanded ? "▾" : "▸" }}</span>
+    </button>
+
+    <div v-if="factionsExpanded" class="sheet-sublist">
+      <button
+        v-for="faction in FACTIONS"
+        :key="faction.id"
+        class="sheet-item"
+        :class="{ selected: selectedFactionId === faction.id }"
+        type="button"
+        @click="onSelectFaction(faction.id)"
+      >
+        <span class="sheet-name">{{ faction.name }}</span>
       </button>
     </div>
 

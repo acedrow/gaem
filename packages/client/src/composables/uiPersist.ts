@@ -1,6 +1,8 @@
 import { watch, type Ref } from "vue";
 import type { GaemRole } from "@gaem/shared";
 
+import type { FactionId } from "@gaem/shared";
+
 import type { BoardSelection } from "./useBoardSelection.js";
 import type { DataCategory, DataFocus } from "./useInfoDataSelection.js";
 import type { RightPanelTab } from "./useGameConsole.js";
@@ -22,6 +24,8 @@ const DATA_CATEGORIES = new Set<DataCategory>([
   "paracletus",
 ]);
 
+const FACTION_IDS = new Set<FactionId>(["syncrasis", "autophyes", "paracletus"]);
+
 const RIGHT_PANEL_TABS = new Set<RightPanelTab>(["console", "info", "turnOrder", "settings"]);
 const MAIN_SECTION_TABS = new Set<MainSectionTab>(["taccom", "overworld", "baseUpgrades"]);
 
@@ -36,6 +40,7 @@ export type PersistedUi = {
   boardSelection: BoardSelection | null;
   selectedSheetId: string | null;
   selectedMapId: string | null;
+  selectedFactionId: FactionId | null;
   dataCategory: DataCategory | null;
   dataFocus: DataFocus | null;
   dataFocusReturnCategory: DataCategory | null;
@@ -44,6 +49,7 @@ export type PersistedUi = {
   sheetsExpanded: boolean;
   dataExpanded: boolean;
   mapsExpanded: boolean;
+  factionsExpanded: boolean;
   viewport: PersistedViewport | null;
 };
 
@@ -51,6 +57,7 @@ const DEFAULT_UI: PersistedUi = {
   boardSelection: null,
   selectedSheetId: null,
   selectedMapId: null,
+  selectedFactionId: null,
   dataCategory: null,
   dataFocus: null,
   dataFocusReturnCategory: null,
@@ -59,6 +66,7 @@ const DEFAULT_UI: PersistedUi = {
   sheetsExpanded: false,
   dataExpanded: false,
   mapsExpanded: false,
+  factionsExpanded: false,
   viewport: null,
 };
 
@@ -103,6 +111,10 @@ function parsePersistedUi(raw: string): PersistedUi {
         typeof parsed.selectedSheetId === "string" ? parsed.selectedSheetId : null,
       selectedMapId:
         typeof parsed.selectedMapId === "string" ? parsed.selectedMapId : null,
+      selectedFactionId:
+        parsed.selectedFactionId && FACTION_IDS.has(parsed.selectedFactionId)
+          ? parsed.selectedFactionId
+          : null,
       dataCategory:
         parsed.dataCategory && DATA_CATEGORIES.has(parsed.dataCategory)
           ? parsed.dataCategory
@@ -124,6 +136,7 @@ function parsePersistedUi(raw: string): PersistedUi {
       sheetsExpanded: parsed.sheetsExpanded === true,
       dataExpanded: parsed.dataExpanded === true,
       mapsExpanded: parsed.mapsExpanded === true,
+      factionsExpanded: parsed.factionsExpanded === true,
       viewport: isViewport(parsed.viewport) ? parsed.viewport : null,
     };
   } catch {
@@ -205,6 +218,7 @@ export type UiPersistRefs = {
   boardSelection: Ref<BoardSelection | null>;
   selectedSheetId: Ref<string | null>;
   selectedMapId: Ref<string | null>;
+  selectedFactionId: Ref<FactionId | null>;
   dataCategory: Ref<DataCategory | null>;
   dataFocus: Ref<DataFocus | null>;
   dataFocusReturnCategory: Ref<DataCategory | null>;
@@ -213,12 +227,14 @@ export type UiPersistRefs = {
   sheetsExpanded: Ref<boolean>;
   dataExpanded: Ref<boolean>;
   mapsExpanded: Ref<boolean>;
+  factionsExpanded: Ref<boolean>;
 };
 
 export function applyPersistedUiState(refs: UiPersistRefs, persisted: PersistedUi = readPersistedUi()) {
   refs.boardSelection.value = persisted.boardSelection;
   refs.selectedSheetId.value = persisted.selectedSheetId;
   refs.selectedMapId.value = persisted.selectedMapId;
+  refs.selectedFactionId.value = persisted.selectedFactionId;
   refs.dataCategory.value = persisted.dataCategory;
   refs.dataFocus.value = persisted.dataFocus;
   refs.dataFocusReturnCategory.value = persisted.dataFocusReturnCategory;
@@ -227,6 +243,7 @@ export function applyPersistedUiState(refs: UiPersistRefs, persisted: PersistedU
   refs.sheetsExpanded.value = persisted.sheetsExpanded;
   refs.dataExpanded.value = persisted.dataExpanded;
   refs.mapsExpanded.value = persisted.mapsExpanded;
+  refs.factionsExpanded.value = persisted.factionsExpanded;
 }
 
 export function initUiPersistence(opts: UiPersistRefs) {
@@ -234,6 +251,7 @@ export function initUiPersistence(opts: UiPersistRefs) {
     boardSelection,
     selectedSheetId,
     selectedMapId,
+    selectedFactionId,
     dataCategory,
     dataFocus,
     dataFocusReturnCategory,
@@ -242,12 +260,14 @@ export function initUiPersistence(opts: UiPersistRefs) {
     sheetsExpanded,
     dataExpanded,
     mapsExpanded,
+    factionsExpanded,
   } = opts;
 
   const refs: UiPersistRefs = {
     boardSelection,
     selectedSheetId,
     selectedMapId,
+    selectedFactionId,
     dataCategory,
     dataFocus,
     dataFocusReturnCategory,
@@ -256,6 +276,7 @@ export function initUiPersistence(opts: UiPersistRefs) {
     sheetsExpanded,
     dataExpanded,
     mapsExpanded,
+    factionsExpanded,
   };
 
   watch(
@@ -272,6 +293,7 @@ export function initUiPersistence(opts: UiPersistRefs) {
       boardSelection,
       selectedSheetId,
       selectedMapId,
+      selectedFactionId,
       dataCategory,
       dataFocus,
       dataFocusReturnCategory,
@@ -280,12 +302,14 @@ export function initUiPersistence(opts: UiPersistRefs) {
       sheetsExpanded,
       dataExpanded,
       mapsExpanded,
+      factionsExpanded,
     ],
     () => {
       schedulePersist(() => ({
         boardSelection: boardSelection.value,
         selectedSheetId: selectedSheetId.value,
         selectedMapId: selectedMapId.value,
+        selectedFactionId: selectedFactionId.value,
         dataCategory: dataCategory.value,
         dataFocus: dataFocus.value,
         dataFocusReturnCategory: dataFocusReturnCategory.value,
@@ -294,6 +318,7 @@ export function initUiPersistence(opts: UiPersistRefs) {
         sheetsExpanded: sheetsExpanded.value,
         dataExpanded: dataExpanded.value,
         mapsExpanded: mapsExpanded.value,
+        factionsExpanded: factionsExpanded.value,
       }));
     },
     { deep: true },

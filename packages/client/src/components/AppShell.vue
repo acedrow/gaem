@@ -15,6 +15,7 @@ import { useGameState } from "../composables/useGameState.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import { activeMainTab } from "../composables/useMainSectionTab.js";
 import type { MainSectionTab } from "../composables/useMainSectionTab.js";
+import { useFactionSelection } from "../composables/useFactionSelection.js";
 import { useSession } from "../composables/useSession.js";
 import { showToast } from "../composables/useToasts.js";
 import { initUiPersistence } from "../composables/uiPersist.js";
@@ -33,6 +34,7 @@ const router = useRouter();
 const { role, playerProfile, hasGmCapabilities, clearSession } = useSession();
 const { selectedSheetId, sheetsExpanded, selectSheet } = useCharacterSheetSelection();
 const { selectedMapId, mapsExpanded } = useMapSelection();
+const { selectedFactionId, factionsExpanded } = useFactionSelection();
 const { boardSelection, selectBoardPlayer, clearBoardSelection, selectSheetFromNav } = useBoardSelection();
 const { dataCategory, dataFocus, dataFocusReturnCategory, dataExpanded, clearDataCategory, selectDataCategory } =
   useInfoDataSelection();
@@ -58,6 +60,7 @@ onMounted(() => {
     boardSelection,
     selectedSheetId,
     selectedMapId,
+    selectedFactionId,
     dataCategory,
     dataFocus,
     dataFocusReturnCategory,
@@ -66,6 +69,7 @@ onMounted(() => {
     sheetsExpanded,
     dataExpanded,
     mapsExpanded,
+    factionsExpanded,
   });
   if (activeMainTab.value === "baseUpgrades") {
     openResourcesPanel();
@@ -172,6 +176,7 @@ function onPhaseAction() {
 function openResourcesPanel() {
   clearBoardSelection();
   selectSheet(null);
+  selectedFactionId.value = null;
   selectDataCategory("resources");
   activeTab.value = "info";
 }
@@ -181,6 +186,7 @@ function openTaccomInfoPanel() {
     clearBoardSelection();
     selectSheet(null);
     clearDataCategory();
+    selectedFactionId.value = null;
     activeTab.value = "info";
     return;
   }

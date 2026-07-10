@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 
 import { readPersistedUi } from "./uiPersist.js";
 import { useApi } from "./useApi.js";
+import { selectedFactionId } from "./useFactionSelection.js";
 import { activeTab } from "./useGameConsole.js";
 import { useGameState } from "./useGameState.js";
 import { useInfoDataSelection } from "./useInfoDataSelection.js";
@@ -39,7 +40,10 @@ export function useCharacterSheetSelection() {
 
   function selectSheet(id: string | null) {
     gearPick.value = null;
-    if (id) clearDataCategory();
+    if (id) {
+      clearDataCategory();
+      selectedFactionId.value = null;
+    }
     selectedSheetId.value = id;
     if (id) {
       activeTab.value = "info";
@@ -62,6 +66,7 @@ export function useCharacterSheetSelection() {
     gearSlotFilter?: "weapon" | "armor",
   ) {
     clearDataCategory();
+    selectedFactionId.value = null;
     gearPick.value = { sheetId, field, currentValue, yadathanTower, gearSlotFilter };
     activeTab.value = "info";
   }

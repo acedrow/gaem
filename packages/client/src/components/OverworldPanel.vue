@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+  getFactionForRegion,
   OVERWORLD_HEIGHT,
   OVERWORLD_WIDTH,
   type OverworldRegion,
@@ -9,6 +10,7 @@ import { computed, nextTick, onUnmounted, ref, watch } from "vue";
 
 import { useApi } from "../composables/useApi.js";
 import { useBoardViewport } from "../composables/useBoardViewport.js";
+import { useFactionSelection } from "../composables/useFactionSelection.js";
 import { useGameState } from "../composables/useGameState.js";
 import { activeMainTab } from "../composables/useMainSectionTab.js";
 import { useSession } from "../composables/useSession.js";
@@ -21,6 +23,7 @@ const contentHeightPx = computed(() => OVERWORLD_HEIGHT * CELL);
 const { gameState, send } = useGameState();
 const { hasGmCapabilities } = useSession();
 const { uploadRegionImage, fetchRegionImageUrl } = useApi();
+const { selectedFactionId, selectFaction } = useFactionSelection();
 
 const viewportEl = ref<HTMLElement | null>(null);
 const viewportKey = ref("overworld");
@@ -37,6 +40,18 @@ const regions = computed((): OverworldRegion[] => {
   if (list && list.length === 3) return list;
   return [{ id: "west" }, { id: "center" }, { id: "east" }];
 });
+
+function regionFactionName(regionId: OverworldRegionId): string {
+  return getFactionForRegion(regionId).name;
+}
+
+function isRegionSelected(regionId: OverworldRegionId): boolean {
+  return selectedFactionId.value === getFactionForRegion(regionId).id;
+}
+
+function onSelectRegion(regionId: OverworldRegionId) {
+  selectFaction(getFactionForRegion(regionId).id);
+}
 
 const {
   stageStyle,
@@ -176,17 +191,27 @@ const gridCells = computed(() =>
               v-for="region in regions"
               :key="region.id"
               class="region"
-              :class="{ 'region--empty': !imageUrls[region.id] }"
+              :class="{
+                'region--empty': !imageUrls[region.id],
+                'region--selected': isRegionSelected(region.id),
+              }"
+              role="button"
+              tabindex="0"
+              :aria-label="regionFactionName(region.id) + ' territory'"
+              :aria-pressed="isRegionSelected(region.id)"
+              @click="onSelectRegion(region.id)"
+              @keydown.enter.prevent="onSelectRegion(region.id)"
+              @keydown.space.prevent="onSelectRegion(region.id)"
             >
               <img
                 v-if="imageUrls[region.id]"
                 class="region-image"
                 :src="imageUrls[region.id]"
-                :alt="`${region.id} region`"
+                :alt="regionFactionName(region.id) + ' region'"
                 draggable="false"
               />
               <div v-else class="region-placeholder">
-                <span class="region-label">{{ region.id }}</span>
+                <span class="region-label">{{ regionFactionName(region.id) }}</span>
               </div>
               <button
                 v-if="hasGmCapabilities"
@@ -194,7 +219,7 @@ const gridCells = computed(() =>
                 class="region-edit-btn"
                 :class="{ uploading: uploadingRegionId === region.id }"
                 :disabled="uploadingRegionId !== null"
-                :aria-label="`Upload ${region.id} region image`"
+                :aria-label="'Upload ' + regionFactionName(region.id) + ' region image'"
                 @click.stop="openUpload(region.id)"
               >
                 <svg class="region-edit-icon" viewBox="0 0 16 16" aria-hidden="true">
@@ -283,6 +308,7 @@ const gridCells = computed(() =>
   min-height: 0;
   border-right: 1px solid var(--color-border);
   background: var(--color-bg);
+  cursor: pointer;
 }
 
 .region:last-child {
@@ -291,6 +317,22 @@ const gridCells = computed(() =>
 
 .region--empty {
   background: var(--color-surface);
+}
+
+.region--selected {
+  box-shadow: inset 0 0 0 2px var(--color-accent);
+  z-index: 1;
+}
+
+.region:hover .region-placeholder,
+.region--selected .region-placeholder {
+  color: var(--color-text);
+}
+
+.region:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+  z-index: 1;
 }
 
 .region-image {
@@ -312,7 +354,7 @@ const gridCells = computed(() =>
 }
 
 .region-label {
-  text-transform: capitalize;
+  text-transform: uppercase;
   font-size: 0.9rem;
   letter-spacing: 0.04em;
   opacity: 0.7;
