@@ -15,7 +15,6 @@ import { useExpandableSet } from "../composables/useExpandableSet.js";
 import { selectedFactionId } from "../composables/useFactionSelection.js";
 import { useGameState } from "../composables/useGameState.js";
 import { useSession } from "../composables/useSession.js";
-import NumberStepper from "./NumberStepper.vue";
 import PanelShell from "./PanelShell.vue";
 import RuleTerm from "./RuleTerm.vue";
 import RuleText from "./RuleText.vue";
@@ -115,15 +114,29 @@ const qualityTooltips = Object.fromEntries(
         <div class="crown-row">
           <div class="crown-text">
             <RuleTerm text="Crown" :tooltip="crownTooltip" />
+            <span class="theta-row" aria-hidden="true">
+              <span class="theta-filled">{{ "Θ".repeat(crownValue) }}</span><span class="theta-empty">{{ "Θ".repeat(5 - crownValue) }}</span>
+            </span>
             <span class="faction-tagline">{{ faction.tagline }}</span>
           </div>
-          <NumberStepper
-            :model-value="crownValue"
-            :min="1"
-            :max="5"
-            :disabled="!isGm"
-            @adjust="onCrownAdjust"
-          />
+          <div v-if="isGm" class="stepper">
+            <button
+              type="button"
+              class="step-btn"
+              :disabled="crownValue <= 1"
+              @click="onCrownAdjust(-1)"
+            >
+              −
+            </button>
+            <button
+              type="button"
+              class="step-btn"
+              :disabled="crownValue >= 5"
+              @click="onCrownAdjust(1)"
+            >
+              +
+            </button>
+          </div>
         </div>
         <p class="item-description">{{ faction.description }}</p>
         <div class="qualities">
@@ -135,17 +148,33 @@ const qualityTooltips = Object.fromEntries(
             :key="key"
             class="quality-row"
           >
-            <RuleTerm
-              :text="qualityLabel(key)"
-              :tooltip="qualityTooltips[key]"
-            />
-            <NumberStepper
-              :model-value="qualityValue(key)"
-              :min="0"
-              :max="5"
-              :disabled="!isGm"
-              @adjust="onQualityAdjust(key, $event)"
-            />
+            <div class="quality-label-value">
+              <RuleTerm
+                :text="qualityLabel(key)"
+                :tooltip="qualityTooltips[key]"
+              />
+              <span class="theta-row" aria-hidden="true">
+                <span class="theta-filled">{{ "Θ".repeat(qualityValue(key)) }}</span><span class="theta-empty">{{ "Θ".repeat(5 - qualityValue(key)) }}</span>
+              </span>
+            </div>
+            <div v-if="isGm" class="stepper">
+              <button
+                type="button"
+                class="step-btn"
+                :disabled="qualityValue(key) <= 0"
+                @click="onQualityAdjust(key, -1)"
+              >
+                −
+              </button>
+              <button
+                type="button"
+                class="step-btn"
+                :disabled="qualityValue(key) >= 5"
+                @click="onQualityAdjust(key, 1)"
+              >
+                +
+              </button>
+            </div>
           </div>
         </div>
         <div v-if="faction.uniqueMechanics?.length" class="mechanics">
@@ -353,8 +382,9 @@ const qualityTooltips = Object.fromEntries(
 
 .crown-row {
   display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
 }
 
 .crown-text {
@@ -362,6 +392,7 @@ const qualityTooltips = Object.fromEntries(
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0.35rem 0.5rem;
+  min-width: 0;
 }
 
 .faction-tagline {
@@ -375,7 +406,7 @@ const qualityTooltips = Object.fromEntries(
 .qualities {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.35rem;
 }
 
 .qualities-heading {
@@ -386,8 +417,34 @@ const qualityTooltips = Object.fromEntries(
 
 .quality-row {
   display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
+}
+
+.quality-label-value {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.theta-row {
+  font-size: 0.9rem;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.theta-filled {
+  color: var(--color-text);
+}
+
+.theta-empty {
+  color: var(--color-muted);
+}
+
+.stepper .step-btn + .step-btn {
+  border-left: 1px solid var(--color-border);
 }
 
 .mechanics {
