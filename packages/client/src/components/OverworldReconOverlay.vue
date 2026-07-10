@@ -134,8 +134,10 @@ function onDisHellAction() {
 
 .recon-row {
   display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
 }
 
 .recon-row :deep(.rule-term) {
