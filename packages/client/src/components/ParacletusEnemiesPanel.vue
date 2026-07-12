@@ -1,11 +1,17 @@
 <script setup lang="ts">
-import { listEnemyListings } from "@gaem/shared";
+import {
+  isEnemyCrownGated,
+  isEnemyUpgradeLocked,
+  listEnemyListings,
+  type EnemyListing,
+} from "@gaem/shared";
 import { computed } from "vue";
 
 import { useApi } from "../composables/useApi.js";
 import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useEnemySpawnSelection } from "../composables/useEnemySpawnSelection.js";
 import { useExpandableSet } from "../composables/useExpandableSet.js";
+import { useGameState } from "../composables/useGameState.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import { useSession } from "../composables/useSession.js";
 import PanelShell from "./PanelShell.vue";
@@ -15,11 +21,24 @@ const { closeRightPanel } = useBoardSelection();
 const { selectedSpawnEnemyName, selectSpawnEnemy } = useEnemySpawnSelection();
 const { dataCategoryReturnFactionId, goBackFromDataCategory } = useInfoDataSelection();
 const { enemyPortraitUrl } = useApi();
+const { gameState } = useGameState();
 
 const enemies = listEnemyListings();
 const { isExpanded, toggle } = useExpandableSet();
 
 const showBack = computed(() => dataCategoryReturnFactionId.value != null);
+
+const factionState = computed(() => gameState.value?.factionStates?.paracletus ?? null);
+const factionCrown = computed(() => factionState.value?.crown ?? 5);
+
+function showLockedTag(enemy: EnemyListing): boolean {
+  return isEnemyUpgradeLocked(enemy, factionState.value);
+}
+
+function crownGateLabel(enemy: EnemyListing): string | null {
+  if (!isEnemyCrownGated(enemy, factionCrown.value) || enemy.crown == null) return null;
+  return `${"Θ".repeat(enemy.crown)} < Crowns`;
+}
 </script>
 
 <template>
@@ -50,8 +69,13 @@ const showBack = computed(() => dataCategoryReturnFactionId.value != null);
           >
             <span class="header-main">
               <span class="enemy-name">{{ enemy.name }}</span>
-              <span v-if="enemy.tags?.length" class="enemy-tags">
-                <span v-for="tag in enemy.tags" :key="tag" class="enemy-tag">{{ tag }}</span>
+              <span class="enemy-tags">
+                <span v-for="tag in enemy.tags ?? []" :key="tag" class="enemy-tag">{{ tag }}</span>
+                <span v-if="showLockedTag(enemy)" class="enemy-tag enemy-tag--locked">Locked</span>
+                <span
+                  v-if="crownGateLabel(enemy)"
+                  class="enemy-tag enemy-tag--crown"
+                >{{ crownGateLabel(enemy) }}</span>
               </span>
             </span>
             <span class="chevron" aria-hidden="true">{{ isExpanded(enemy.name) ? "▾" : "▸" }}</span>
@@ -166,6 +190,11 @@ const showBack = computed(() => dataCategoryReturnFactionId.value != null);
   border: 1px solid var(--color-border);
   border-radius: 4px;
   padding: 0.1rem 0.35rem;
+}
+
+.enemy-tag--locked,
+.enemy-tag--crown {
+  background: var(--color-surface-raised);
 }
 
 .chevron {

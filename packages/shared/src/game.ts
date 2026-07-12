@@ -1316,6 +1316,11 @@ export function normalizeGameState(state: GameState, map?: GameMap): GameState {
   if (!state.constructedBaseUpgrades) {
     state.constructedBaseUpgrades = [];
   }
+  if (typeof state.gmIchor !== "number" || !Number.isFinite(state.gmIchor) || state.gmIchor < 0) {
+    state.gmIchor = 0;
+  } else {
+    state.gmIchor = Math.trunc(state.gmIchor);
+  }
   if (!state.overworldRegions || state.overworldRegions.length !== 3) {
     state.overworldRegions = [
       { id: "west" },
@@ -1356,6 +1361,7 @@ export function normalizeGameState(state: GameState, map?: GameMap): GameState {
 export function applyActivateMap(state: GameState, map: GameMap): string {
   const partyResources = state.partyResources;
   const constructedBaseUpgrades = state.constructedBaseUpgrades;
+  const gmIchor = state.gmIchor;
   const overworldRegions = state.overworldRegions;
   const overworldParty = state.overworldParty;
   const overworldLocations = state.overworldLocations;
@@ -1382,6 +1388,7 @@ export function applyActivateMap(state: GameState, map: GameMap): string {
 
   if (partyResources) state.partyResources = partyResources;
   if (constructedBaseUpgrades) state.constructedBaseUpgrades = constructedBaseUpgrades;
+  if (gmIchor !== undefined) state.gmIchor = gmIchor;
   if (overworldRegions) state.overworldRegions = overworldRegions;
   if (overworldParty) state.overworldParty = overworldParty;
   if (overworldLocations) state.overworldLocations = overworldLocations;

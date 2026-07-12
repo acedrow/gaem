@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import { getEnemyListingByName } from "./enemy-data.js";
 import {
   applyFactionCampaignAction,
   ensureFactionStates,
+  ensureGmIchor,
+  isEnemyCrownGated,
+  isEnemyUpgradeLocked,
   validateFactionCampaignAction,
 } from "./faction-campaign.js";
 import { makeGameState } from "./test/fixtures.js";
@@ -59,6 +63,8 @@ describe("faction campaign defeated", () => {
       subterfuge: 0,
       territory: 0,
       assets: 0,
+      unlockedUpgrades: [],
+      unlockedUniqueLocations: [],
     });
 
     expect(
@@ -77,5 +83,130 @@ describe("faction campaign defeated", () => {
       }),
     ).toBe("PARACLETUS no longer defeated");
     expect(state.factionStates!.paracletus.defeated).toBe(false);
+  });
+
+  it("clears unlocks when faction is defeated", () => {
+    const state = makeGameState();
+    ensureFactionStates(state);
+    ensureGmIchor(state);
+    state.gmIchor = 5;
+    applyFactionCampaignAction(state, {
+      kind: "unlockUpgrade",
+      factionId: "paracletus",
+      upgradeName: "Living Tide",
+    });
+    applyFactionCampaignAction(state, {
+      kind: "unlockUniqueLocation",
+      factionId: "paracletus",
+      locationName: "The Teethlands",
+    });
+    applyFactionCampaignAction(state, {
+      kind: "setDefeated",
+      factionId: "paracletus",
+      defeated: true,
+    });
+    expect(state.factionStates!.paracletus.unlockedUpgrades).toEqual([]);
+    expect(state.factionStates!.paracletus.unlockedUniqueLocations).toEqual([]);
+  });
+});
+
+describe("faction campaign ichor and unlocks", () => {
+  it("adjusts gm ichor", () => {
+    const state = makeGameState();
+    expect(ensureGmIchor(state)).toBe(0);
+    expect(validateFactionCampaignAction(state, { kind: "adjustIchor", delta: 3 })).toBeNull();
+    expect(applyFactionCampaignAction(state, { kind: "adjustIchor", delta: 3 })).toBe(
+      "Ichor +3 → 3",
+    );
+    expect(state.gmIchor).toBe(3);
+    expect(validateFactionCampaignAction(state, { kind: "adjustIchor", delta: -4 })).toBe(
+      "Ichor cannot go below 0",
+    );
+  });
+
+  it("unlocks upgrades by spending ichor and refunds on lock", () => {
+    const state = makeGameState();
+    ensureFactionStates(state);
+    ensureGmIchor(state);
+    state.gmIchor = 2;
+
+    expect(
+      validateFactionCampaignAction(state, {
+        kind: "unlockUpgrade",
+        factionId: "paracletus",
+        upgradeName: "Extrarterran Evolution",
+      }),
+    ).toBe("Insufficient ichor");
+
+    state.gmIchor = 5;
+    expect(
+      validateFactionCampaignAction(state, {
+        kind: "unlockUpgrade",
+        factionId: "paracletus",
+        upgradeName: "Extrarterran Evolution",
+      }),
+    ).toBeNull();
+    applyFactionCampaignAction(state, {
+      kind: "unlockUpgrade",
+      factionId: "paracletus",
+      upgradeName: "Extrarterran Evolution",
+    });
+    expect(state.gmIchor).toBe(2);
+    expect(state.factionStates!.paracletus.unlockedUpgrades).toEqual([
+      "Extrarterran Evolution",
+    ]);
+
+    applyFactionCampaignAction(state, {
+      kind: "lockUpgrade",
+      factionId: "paracletus",
+      upgradeName: "Extrarterran Evolution",
+    });
+    expect(state.gmIchor).toBe(5);
+    expect(state.factionStates!.paracletus.unlockedUpgrades).toEqual([]);
+  });
+
+  it("unlocks unique locations without spending ichor", () => {
+    const state = makeGameState();
+    ensureFactionStates(state);
+    ensureGmIchor(state);
+    state.gmIchor = 4;
+
+    expect(
+      validateFactionCampaignAction(state, {
+        kind: "unlockUniqueLocation",
+        factionId: "paracletus",
+        locationName: "Brightwater Runs",
+      }),
+    ).toBeNull();
+    applyFactionCampaignAction(state, {
+      kind: "unlockUniqueLocation",
+      factionId: "paracletus",
+      locationName: "Brightwater Runs",
+    });
+    expect(state.gmIchor).toBe(4);
+    expect(state.factionStates!.paracletus.unlockedUniqueLocations).toEqual([
+      "Brightwater Runs",
+    ]);
+  });
+
+  it("gates enemy upgrade and crown helpers", () => {
+    const potagon = getEnemyListingByName("POTAGON")!;
+    const bombardier = getEnemyListingByName("CHALAZAOR")!;
+    const orobas = getEnemyListingByName("OROBAS")!;
+    const faction = {
+      ...ensureFactionStates(makeGameState()).paracletus,
+      crown: 5,
+      unlockedUpgrades: [] as string[],
+    };
+
+    expect(isEnemyUpgradeLocked(potagon, faction)).toBe(true);
+    expect(isEnemyUpgradeLocked(bombardier, faction)).toBe(true);
+    expect(isEnemyCrownGated(bombardier, 5)).toBe(true);
+    expect(isEnemyCrownGated(bombardier, 3)).toBe(false);
+    expect(isEnemyCrownGated(orobas, 4)).toBe(false);
+
+    faction.unlockedUpgrades = ["Extrarterran Evolution"];
+    expect(isEnemyUpgradeLocked(potagon, faction)).toBe(false);
+    expect(isEnemyUpgradeLocked(bombardier, faction)).toBe(false);
   });
 });

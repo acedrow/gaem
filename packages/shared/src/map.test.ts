@@ -137,9 +137,36 @@ describe("map", () => {
       { id: "loc-1", qx: 2, qy: 3, name: "Test Site", factionId: "syncrasis" },
     ];
     state.factionStates = {
-      syncrasis: { crown: 4, force: 3, subterfuge: 2, territory: 1, assets: 0, defeated: false },
-      autophyes: { crown: 0, force: 0, subterfuge: 0, territory: 0, assets: 0, defeated: true },
-      paracletus: { crown: 5, force: 2, subterfuge: 2, territory: 5, assets: 2, defeated: false },
+      syncrasis: {
+        crown: 4,
+        force: 3,
+        subterfuge: 2,
+        territory: 1,
+        assets: 0,
+        defeated: false,
+        unlockedUpgrades: ["Fleet Deployment Orders"],
+        unlockedUniqueLocations: [],
+      },
+      autophyes: {
+        crown: 0,
+        force: 0,
+        subterfuge: 0,
+        territory: 0,
+        assets: 0,
+        defeated: true,
+        unlockedUpgrades: [],
+        unlockedUniqueLocations: [],
+      },
+      paracletus: {
+        crown: 5,
+        force: 2,
+        subterfuge: 2,
+        territory: 5,
+        assets: 2,
+        defeated: false,
+        unlockedUpgrades: [],
+        unlockedUniqueLocations: ["The Teethlands"],
+      },
     };
     state.sandboxMode = true;
 
@@ -169,9 +196,36 @@ describe("map", () => {
       { id: "loc-1", qx: 2, qy: 3, name: "Test Site", factionId: "syncrasis" },
     ]);
     expect(state.factionStates).toEqual({
-      syncrasis: { crown: 4, force: 3, subterfuge: 2, territory: 1, assets: 0, defeated: false },
-      autophyes: { crown: 0, force: 0, subterfuge: 0, territory: 0, assets: 0, defeated: true },
-      paracletus: { crown: 5, force: 2, subterfuge: 2, territory: 5, assets: 2, defeated: false },
+      syncrasis: {
+        crown: 4,
+        force: 3,
+        subterfuge: 2,
+        territory: 1,
+        assets: 0,
+        defeated: false,
+        unlockedUpgrades: ["Fleet Deployment Orders"],
+        unlockedUniqueLocations: [],
+      },
+      autophyes: {
+        crown: 0,
+        force: 0,
+        subterfuge: 0,
+        territory: 0,
+        assets: 0,
+        defeated: true,
+        unlockedUpgrades: [],
+        unlockedUniqueLocations: [],
+      },
+      paracletus: {
+        crown: 5,
+        force: 2,
+        subterfuge: 2,
+        territory: 5,
+        assets: 2,
+        defeated: false,
+        unlockedUpgrades: [],
+        unlockedUniqueLocations: ["The Teethlands"],
+      },
     });
     expect(state.sandboxMode).toBe(true);
   });

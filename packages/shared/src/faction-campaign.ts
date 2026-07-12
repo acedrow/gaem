@@ -1,3 +1,4 @@
+import type { EnemyListing } from "./enemy-data.js";
 import {
   FACTION_IDS,
   FACTION_QUALITY_KEYS,
@@ -15,6 +16,20 @@ const QUALITY_LABELS: Record<keyof FactionQualityDots, string> = {
   assets: "Assets",
 };
 
+function normalizeNameList(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    if (typeof item !== "string") continue;
+    const name = item.trim();
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    out.push(name);
+  }
+  return out;
+}
+
 export function defaultFactionState(factionId: FactionId): FactionState {
   const listing = getFactionById(factionId)!;
   return {
@@ -24,6 +39,8 @@ export function defaultFactionState(factionId: FactionId): FactionState {
     territory: listing.qualities.territory,
     assets: listing.qualities.assets,
     defeated: false,
+    unlockedUpgrades: [],
+    unlockedUniqueLocations: [],
   };
 }
 
@@ -33,6 +50,19 @@ export function defaultFactionStates(): FactionStates {
     states[id] = defaultFactionState(id);
   }
   return states;
+}
+
+export function defaultGmIchor(): number {
+  return 0;
+}
+
+export function ensureGmIchor(state: GameState): number {
+  if (typeof state.gmIchor !== "number" || !Number.isFinite(state.gmIchor) || state.gmIchor < 0) {
+    state.gmIchor = defaultGmIchor();
+  } else {
+    state.gmIchor = Math.trunc(state.gmIchor);
+  }
+  return state.gmIchor;
 }
 
 function clampQuality(value: number): number {
@@ -49,6 +79,8 @@ function zeroFactionStats(faction: FactionState): void {
   faction.subterfuge = 0;
   faction.territory = 0;
   faction.assets = 0;
+  faction.unlockedUpgrades = [];
+  faction.unlockedUniqueLocations = [];
 }
 
 function normalizeFactionState(raw: Partial<FactionState> | undefined, factionId: FactionId): FactionState {
@@ -63,6 +95,8 @@ function normalizeFactionState(raw: Partial<FactionState> | undefined, factionId
       territory: 0,
       assets: 0,
       defeated: true,
+      unlockedUpgrades: [],
+      unlockedUniqueLocations: [],
     };
   }
   return {
@@ -72,6 +106,8 @@ function normalizeFactionState(raw: Partial<FactionState> | undefined, factionId
     territory: clampQuality(typeof raw.territory === "number" ? raw.territory : defaults.territory),
     assets: clampQuality(typeof raw.assets === "number" ? raw.assets : defaults.assets),
     defeated: false,
+    unlockedUpgrades: normalizeNameList(raw.unlockedUpgrades),
+    unlockedUniqueLocations: normalizeNameList(raw.unlockedUniqueLocations),
   };
 }
 
@@ -85,11 +121,52 @@ export function ensureFactionStates(state: GameState): FactionStates {
   return next;
 }
 
+export function isFactionUpgradeUnlocked(faction: FactionState, upgradeName: string): boolean {
+  return faction.unlockedUpgrades.includes(upgradeName);
+}
+
+export function isFactionUniqueLocationUnlocked(faction: FactionState, locationName: string): boolean {
+  return faction.unlockedUniqueLocations.includes(locationName);
+}
+
+export function isEnemyUpgradeLocked(
+  enemy: Pick<EnemyListing, "requiresUpgrade">,
+  faction: FactionState | null | undefined,
+): boolean {
+  if (!enemy.requiresUpgrade) return false;
+  if (!faction) return true;
+  return !isFactionUpgradeUnlocked(faction, enemy.requiresUpgrade);
+}
+
+export function isEnemyCrownGated(
+  enemy: Pick<EnemyListing, "crown">,
+  factionCrown: number,
+): boolean {
+  return enemy.crown != null && factionCrown > enemy.crown;
+}
+
+function findUpgrade(factionId: FactionId, upgradeName: string) {
+  return getFactionById(factionId)?.upgrades.find((u) => u.name === upgradeName);
+}
+
+function findUniqueLocation(factionId: FactionId, locationName: string) {
+  return getFactionById(factionId)?.uniqueLocations.find((l) => l.name === locationName);
+}
+
 export function validateFactionCampaignAction(
   state: GameState,
   action: FactionCampaignAction,
 ): string | null {
   ensureFactionStates(state);
+  ensureGmIchor(state);
+
+  if (action.kind === "adjustIchor") {
+    if (!Number.isInteger(action.delta) || action.delta === 0) return "Invalid delta";
+    const next = state.gmIchor! + action.delta;
+    if (next < 0) return "Ichor cannot go below 0";
+    return null;
+  }
+
   if (!FACTION_IDS.includes(action.factionId)) return "Unknown faction";
   const faction = state.factionStates![action.factionId];
 
@@ -107,15 +184,54 @@ export function validateFactionCampaignAction(
     return null;
   }
 
-  if (!FACTION_QUALITY_KEYS.includes(action.quality)) return "Unknown quality";
-  if (!Number.isInteger(action.delta) || action.delta === 0) return "Invalid delta";
-  const next = faction[action.quality] + action.delta;
-  if (next < 0 || next > 5) return "Quality must be between 0 and 5";
+  if (action.kind === "adjustQuality") {
+    if (!FACTION_QUALITY_KEYS.includes(action.quality)) return "Unknown quality";
+    if (!Number.isInteger(action.delta) || action.delta === 0) return "Invalid delta";
+    const next = faction[action.quality] + action.delta;
+    if (next < 0 || next > 5) return "Quality must be between 0 and 5";
+    return null;
+  }
+
+  if (action.kind === "unlockUpgrade") {
+    const upgrade = findUpgrade(action.factionId, action.upgradeName);
+    if (!upgrade) return "Unknown upgrade";
+    if (isFactionUpgradeUnlocked(faction, action.upgradeName)) return "Upgrade already unlocked";
+    if (state.gmIchor! < upgrade.ichorCost) return "Insufficient ichor";
+    return null;
+  }
+
+  if (action.kind === "lockUpgrade") {
+    const upgrade = findUpgrade(action.factionId, action.upgradeName);
+    if (!upgrade) return "Unknown upgrade";
+    if (!isFactionUpgradeUnlocked(faction, action.upgradeName)) return "Upgrade is not unlocked";
+    return null;
+  }
+
+  if (action.kind === "unlockUniqueLocation") {
+    if (!findUniqueLocation(action.factionId, action.locationName)) return "Unknown unique location";
+    if (isFactionUniqueLocationUnlocked(faction, action.locationName)) {
+      return "Unique location already unlocked";
+    }
+    return null;
+  }
+
+  if (!findUniqueLocation(action.factionId, action.locationName)) return "Unknown unique location";
+  if (!isFactionUniqueLocationUnlocked(faction, action.locationName)) {
+    return "Unique location is not unlocked";
+  }
   return null;
 }
 
 export function applyFactionCampaignAction(state: GameState, action: FactionCampaignAction): string {
   ensureFactionStates(state);
+  ensureGmIchor(state);
+
+  if (action.kind === "adjustIchor") {
+    state.gmIchor! += action.delta;
+    const sign = action.delta >= 0 ? "+" : "";
+    return `Ichor ${sign}${action.delta} → ${state.gmIchor}`;
+  }
+
   const faction = state.factionStates![action.factionId];
   const name = FACTIONS.find((f) => f.id === action.factionId)?.name ?? action.factionId;
 
@@ -131,7 +247,33 @@ export function applyFactionCampaignAction(state: GameState, action: FactionCamp
     return `${name} Crown ${sign}${action.delta} → ${faction.crown}`;
   }
 
-  faction[action.quality] += action.delta;
-  const sign = action.delta >= 0 ? "+" : "";
-  return `${name} ${QUALITY_LABELS[action.quality]} ${sign}${action.delta} → ${faction[action.quality]}`;
+  if (action.kind === "adjustQuality") {
+    faction[action.quality] += action.delta;
+    const sign = action.delta >= 0 ? "+" : "";
+    return `${name} ${QUALITY_LABELS[action.quality]} ${sign}${action.delta} → ${faction[action.quality]}`;
+  }
+
+  if (action.kind === "unlockUpgrade") {
+    const upgrade = findUpgrade(action.factionId, action.upgradeName)!;
+    state.gmIchor! -= upgrade.ichorCost;
+    faction.unlockedUpgrades = [...faction.unlockedUpgrades, action.upgradeName];
+    return `${name} unlocked ${action.upgradeName} (−${upgrade.ichorCost} Ichor → ${state.gmIchor})`;
+  }
+
+  if (action.kind === "lockUpgrade") {
+    const upgrade = findUpgrade(action.factionId, action.upgradeName)!;
+    state.gmIchor! += upgrade.ichorCost;
+    faction.unlockedUpgrades = faction.unlockedUpgrades.filter((u) => u !== action.upgradeName);
+    return `${name} locked ${action.upgradeName} (+${upgrade.ichorCost} Ichor → ${state.gmIchor})`;
+  }
+
+  if (action.kind === "unlockUniqueLocation") {
+    faction.unlockedUniqueLocations = [...faction.unlockedUniqueLocations, action.locationName];
+    return `${name} unlocked unique location ${action.locationName}`;
+  }
+
+  faction.unlockedUniqueLocations = faction.unlockedUniqueLocations.filter(
+    (l) => l !== action.locationName,
+  );
+  return `${name} locked unique location ${action.locationName}`;
 }

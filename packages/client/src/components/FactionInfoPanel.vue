@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import {
   FACTION_QUALITY_KEYS,
+  defaultGmIchor,
   factionHasEnemyListings,
   getFactionById,
+  isFactionUniqueLocationUnlocked,
+  isFactionUpgradeUnlocked,
   resolveRuleTermTooltip,
   type FactionLocation,
   type FactionQualityDots,
   type FactionStratcomAction,
   type FactionUpgrade,
 } from "@gaem/shared";
-import { computed } from "vue";
+import { computed, ref } from "vue";
 
 import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useExpandableSet } from "../composables/useExpandableSet.js";
@@ -17,9 +20,15 @@ import { selectedFactionId } from "../composables/useFactionSelection.js";
 import { useGameState } from "../composables/useGameState.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import { useSession } from "../composables/useSession.js";
+import { showToast } from "../composables/useToasts.js";
+import BoardContextMenu, { type BoardContextMenuItem } from "./BoardContextMenu.vue";
 import PanelShell from "./PanelShell.vue";
 import RuleTerm from "./RuleTerm.vue";
 import RuleText from "./RuleText.vue";
+
+type UnlockTarget =
+  | { kind: "upgrade"; name: string }
+  | { kind: "uniqueLocation"; name: string };
 
 const { closeRightPanel } = useBoardSelection();
 const { isExpanded, toggle } = useExpandableSet();
@@ -28,6 +37,8 @@ const { selectDataCategory } = useInfoDataSelection();
 const { isGm } = useSession();
 
 const faction = computed(() => getFactionById(selectedFactionId.value));
+
+const canTrackUnlocks = computed(() => selectedFactionId.value === "paracletus");
 
 const hasEnemies = computed(() => {
   const id = selectedFactionId.value;
@@ -40,7 +51,17 @@ const liveState = computed(() => {
   return gameState.value?.factionStates?.[id] ?? null;
 });
 
+const gmIchor = computed(() => gameState.value?.gmIchor ?? defaultGmIchor());
+
 const crownValue = computed(() => liveState.value?.crown ?? faction.value?.crown ?? 5);
+
+const contextMenu = ref<{
+  open: boolean;
+  x: number;
+  y: number;
+  items: BoardContextMenuItem[];
+  target: UnlockTarget | null;
+}>({ open: false, x: 0, y: 0, items: [], target: null });
 
 function qualityValue(key: keyof FactionQualityDots): number {
   if (liveState.value) return liveState.value[key];
@@ -88,6 +109,14 @@ function itemKey(section: string, name: string): string {
   return `${section}:${name}`;
 }
 
+function isUpgradeUnlocked(name: string): boolean {
+  return liveState.value != null && isFactionUpgradeUnlocked(liveState.value, name);
+}
+
+function isUniqueLocationUnlocked(name: string): boolean {
+  return liveState.value != null && isFactionUniqueLocationUnlocked(liveState.value, name);
+}
+
 function onCrownAdjust(delta: number) {
   const id = selectedFactionId.value;
   if (!id || !isGm.value) return;
@@ -118,6 +147,84 @@ function openEnemies() {
   const id = selectedFactionId.value;
   if (!id || !factionHasEnemyListings(id)) return;
   selectDataCategory("paracletus", { returnToFaction: id });
+}
+
+function closeContextMenu() {
+  contextMenu.value = { open: false, x: 0, y: 0, items: [], target: null };
+}
+
+function onUpgradeContextMenu(e: MouseEvent, upgrade: FactionUpgrade) {
+  if (!isGm.value || !canTrackUnlocks.value || isDefeated.value) return;
+  e.preventDefault();
+  const unlocked = isUpgradeUnlocked(upgrade.name);
+  contextMenu.value = {
+    open: true,
+    x: e.clientX,
+    y: e.clientY,
+    target: { kind: "upgrade", name: upgrade.name },
+    items: unlocked
+      ? [{ id: "lock", label: "Lock upgrade", danger: true }]
+      : [{ id: "unlock", label: `Unlock (−${upgrade.ichorCost} Ichor)` }],
+  };
+}
+
+function onUniqueLocationContextMenu(e: MouseEvent, loc: FactionLocation) {
+  if (!isGm.value || !canTrackUnlocks.value || isDefeated.value) return;
+  e.preventDefault();
+  const unlocked = isUniqueLocationUnlocked(loc.name);
+  contextMenu.value = {
+    open: true,
+    x: e.clientX,
+    y: e.clientY,
+    target: { kind: "uniqueLocation", name: loc.name },
+    items: unlocked
+      ? [{ id: "lock", label: "Lock unique location", danger: true }]
+      : [{ id: "unlock", label: "Unlock unique location" }],
+  };
+}
+
+function onContextMenuSelect(id: string) {
+  const target = contextMenu.value.target;
+  const factionId = selectedFactionId.value;
+  closeContextMenu();
+  if (!target || !factionId || !isGm.value) return;
+
+  if (target.kind === "upgrade") {
+    const upgrade = faction.value?.upgrades.find((u) => u.name === target.name);
+    if (!upgrade) return;
+    if (id === "unlock") {
+      if (gmIchor.value < upgrade.ichorCost) {
+        showToast("Insufficient ichor");
+        return;
+      }
+      send({
+        type: "factionCampaignAction",
+        action: { kind: "unlockUpgrade", factionId, upgradeName: target.name },
+      });
+      return;
+    }
+    if (id === "lock") {
+      send({
+        type: "factionCampaignAction",
+        action: { kind: "lockUpgrade", factionId, upgradeName: target.name },
+      });
+    }
+    return;
+  }
+
+  if (id === "unlock") {
+    send({
+      type: "factionCampaignAction",
+      action: { kind: "unlockUniqueLocation", factionId, locationName: target.name },
+    });
+    return;
+  }
+  if (id === "lock") {
+    send({
+      type: "factionCampaignAction",
+      action: { kind: "lockUniqueLocation", factionId, locationName: target.name },
+    });
+  }
 }
 
 const crownTooltip = resolveRuleTermTooltip("Crown");
@@ -274,6 +381,8 @@ const qualityTooltips = Object.fromEntries(
             v-for="loc in faction.uniqueLocations"
             :key="loc.name"
             class="list-card"
+            :class="{ 'list-card--unlocked': isUniqueLocationUnlocked(loc.name) }"
+            @contextmenu="onUniqueLocationContextMenu($event, loc)"
           >
             <button
               type="button"
@@ -359,6 +468,8 @@ const qualityTooltips = Object.fromEntries(
             v-for="upgrade in faction.upgrades"
             :key="upgrade.name"
             class="list-card"
+            :class="{ 'list-card--unlocked': isUpgradeUnlocked(upgrade.name) }"
+            @contextmenu="onUpgradeContextMenu($event, upgrade)"
           >
             <button
               type="button"
@@ -407,6 +518,15 @@ const qualityTooltips = Object.fromEntries(
         </label>
       </div>
     </div>
+
+    <BoardContextMenu
+      :open="contextMenu.open"
+      :x="contextMenu.x"
+      :y="contextMenu.y"
+      :items="contextMenu.items"
+      @select="onContextMenuSelect"
+      @close="closeContextMenu"
+    />
   </PanelShell>
 </template>
 
@@ -580,6 +700,15 @@ const qualityTooltips = Object.fromEntries(
   margin-right: 0.35rem;
   font-weight: 600;
   color: var(--color-text);
+}
+
+.list-card--unlocked {
+  border-color: var(--color-success-outline);
+  background: var(--color-success-muted-bg);
+}
+
+.list-card--unlocked .list-card-header {
+  background: var(--color-success-muted-bg);
 }
 
 .defeated-footer {

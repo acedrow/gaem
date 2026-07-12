@@ -217,6 +217,8 @@ export type FactionState = {
   territory: number;
   assets: number;
   defeated: boolean;
+  unlockedUpgrades: string[];
+  unlockedUniqueLocations: string[];
 };
 
 export type FactionStates = {
@@ -245,7 +247,12 @@ export type FactionCampaignAction =
       delta: number;
     }
   | { kind: "adjustCrown"; factionId: keyof FactionStates; delta: number }
-  | { kind: "setDefeated"; factionId: keyof FactionStates; defeated: boolean };
+  | { kind: "setDefeated"; factionId: keyof FactionStates; defeated: boolean }
+  | { kind: "adjustIchor"; delta: number }
+  | { kind: "unlockUpgrade"; factionId: keyof FactionStates; upgradeName: string }
+  | { kind: "lockUpgrade"; factionId: keyof FactionStates; upgradeName: string }
+  | { kind: "unlockUniqueLocation"; factionId: keyof FactionStates; locationName: string }
+  | { kind: "lockUniqueLocation"; factionId: keyof FactionStates; locationName: string };
 
 export type GameState = {
   mapId: string;
@@ -267,6 +274,7 @@ export type GameState = {
   silentHpEnemyIds?: string[];
   partyResources?: PartyResources;
   constructedBaseUpgrades?: string[];
+  gmIchor?: number;
   overworldRegions?: OverworldRegion[];
   overworldParty?: OverworldParty;
   overworldLocations?: OverworldLocation[];

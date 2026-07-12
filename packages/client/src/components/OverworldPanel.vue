@@ -27,6 +27,7 @@ import locationUrl from "../assets/location.svg";
 import skullUrl from "../assets/skull.svg";
 import BoardContextMenu, { type BoardContextMenuItem } from "./BoardContextMenu.vue";
 import ModalDialog from "./ModalDialog.vue";
+import OverworldGmIchorOverlay from "./OverworldGmIchorOverlay.vue";
 import OverworldReconOverlay from "./OverworldReconOverlay.vue";
 import PlaceOverworldLocationModal from "./PlaceOverworldLocationModal.vue";
 
@@ -40,7 +41,7 @@ const contentWidthPx = computed(() => boardWidthPx);
 const contentHeightPx = computed(() => boardHeightPx + DIS_GAP + DIS_NODE);
 
 const { gameState, send } = useGameState();
-const { hasGmCapabilities } = useSession();
+const { hasGmCapabilities, isGm } = useSession();
 const { uploadRegionImage, fetchRegionImageUrl } = useApi();
 const { selectedFactionId, selectFaction } = useFactionSelection();
 
@@ -405,7 +406,10 @@ const gridCells = computed(() =>
 
 <template>
   <div class="overworld-root">
-    <OverworldReconOverlay v-model:travel-mode="travelMode" v-model:deploy-mode="deployMode" />
+    <div class="overworld-side-stack">
+      <OverworldReconOverlay v-model:travel-mode="travelMode" v-model:deploy-mode="deployMode" />
+      <OverworldGmIchorOverlay v-if="isGm" />
+    </div>
     <input
       ref="fileInputEl"
       class="region-file-input"
@@ -632,11 +636,14 @@ const gridCells = computed(() =>
   flex-direction: column;
 }
 
-.overworld-root > :deep(.recon-overlay) {
+.overworld-side-stack {
   position: absolute;
   top: 0.75rem;
   right: 0.75rem;
   z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
 }
 
 .region-file-input {

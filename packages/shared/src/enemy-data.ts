@@ -18,6 +18,7 @@ export type EnemyListing = {
   speed?: number;
   actions?: string;
   tags?: string[];
+  requiresUpgrade?: string;
   attacks?: string[];
   agnosia?: string;
   special?: string;
