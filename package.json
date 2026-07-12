@@ -17,7 +17,7 @@
     "lint:fix": "eslint . --fix",
     "test": "npm run test -w @gaem/shared && npm run test -w @gaem/client",
     "e2e:setup": "bash scripts/e2e-setup.sh",
-    "test:e2e": "npm run test:e2e -w @gaem/e2e",
+    "test:e2e": "E2E_CLIENT_URL=http://localhost:5174 E2E_API_URL=http://localhost:3002 PORT=3002 npm run test:e2e -w @gaem/e2e",
     "test:all": "npm run test && npm run test:e2e",
     "prepare": "husky"
   },

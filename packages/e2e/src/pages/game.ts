@@ -10,10 +10,6 @@ export async function waitForBoard(page: Page): Promise<void> {
   await expect(page.locator("[data-cell-x]").first()).toBeVisible();
 }
 
-function sidebarTool(page: Page, name: string): Locator {
-  return page.locator(".sidebar").getByRole("button", { name, exact: true });
-}
-
 export async function advancePastDeployment(page: Page): Promise<void> {
   await page.getByRole("button", { name: "TACCOM" }).click();
   const endDeployment = page.getByRole("button", { name: "End deployment" });
@@ -99,7 +95,7 @@ export async function getHpOnCell(page: Page, coord: CellCoord): Promise<number>
 }
 
 export async function getPlayerHp(page: Page, sheetName: string): Promise<number> {
-  await sidebarTool(page, "Select").click();
+  await closeGmTool(page);
   await openCharacterSheet(page, sheetName);
   const hpLocator = page.locator(".sheet-hp-bar .hp-current, .sheet-hp-bar .hp-editable");
   await expect(hpLocator.first()).toBeVisible();
@@ -131,10 +127,14 @@ export async function gmDirectEnemyAttack(page: Page, targetCoord: CellCoord): P
 
 export async function openDamageTool(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Damage / Effect" }).click();
+  await expect(page.locator(".info-pane .panel-title")).toHaveText("Damage & Effect");
 }
 
 export async function closeGmTool(page: Page): Promise<void> {
-  await sidebarTool(page, "Select").click();
+  const closeBtn = page.locator(".info-pane .panel .close-btn");
+  if (await closeBtn.isVisible().catch(() => false)) {
+    await closeBtn.click();
+  }
 }
 
 export async function setDamageAmount(page: Page, amount: number): Promise<void> {
@@ -151,7 +151,7 @@ export async function setDamageAmount(page: Page, amount: number): Promise<void>
 }
 
 export async function removePlayerTokenFromSheet(page: Page, sheetName: string): Promise<void> {
-  await sidebarTool(page, "Select").click();
+  await closeGmTool(page);
   await openCharacterSheet(page, sheetName);
   const removeBtn = page.getByRole("button", { name: "Remove token" });
   if (await removeBtn.isVisible().catch(() => false)) {
@@ -162,7 +162,7 @@ export async function removePlayerTokenFromSheet(page: Page, sheetName: string):
 }
 
 export async function cleanupCombat(page: Page, sheetName?: string): Promise<void> {
-  await sidebarTool(page, "Select").click();
+  await closeGmTool(page);
   await openTurnOrderTab(page);
   const toggle = page.getByRole("switch");
   if ((await toggle.getAttribute("aria-checked")) === "true") {

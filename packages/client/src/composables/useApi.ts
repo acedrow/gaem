@@ -13,11 +13,12 @@ type PlayerProfileOption = PlayerProfile & { isActive?: boolean };
 export function useApi() {
   const { apiHeaders, clearSession } = useSession();
 
-  const apiBase = computed(() =>
-    import.meta.env.DEV && !import.meta.env.VITE_CF_DEV
-      ? `http://${location.hostname}:3001`
-      : "",
-  );
+  const apiBase = computed(() => {
+    if (import.meta.env.VITE_CF_DEV) return "";
+    if (import.meta.env.VITE_API_BASE) return import.meta.env.VITE_API_BASE;
+    if (import.meta.env.DEV) return `http://${location.hostname}:3001`;
+    return "";
+  });
 
   async function apiFetch(path: string, init: RequestInit = {}) {
     const headers = new Headers(init.headers);

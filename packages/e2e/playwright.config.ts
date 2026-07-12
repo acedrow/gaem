@@ -14,9 +14,13 @@ config({ path: join(rootDir, ".env.e2e.example") });
 const gmPassword = process.env.GM_PASSWORD ?? "e2e-gm";
 const playerPassword = process.env.PLAYER_PASSWORD ?? "e2e-player";
 const authSecret = process.env.AUTH_SECRET ?? "e2e-secret";
-const clientUrl = process.env.E2E_CLIENT_URL ?? "http://localhost:5173";
-const clientPort = new URL(clientUrl).port || "5173";
-const apiPort = process.env.PORT ?? "3001";
+// Dedicated ports so e2e can run alongside `npm run dev:cf` (Vite :5173, wrangler :8787)
+// or `npm run dev` (Vite :5173, Express :3001).
+const clientUrl = process.env.E2E_CLIENT_URL ?? "http://localhost:5174";
+const clientPort = new URL(clientUrl).port || "5174";
+const apiPort = process.env.PORT ?? "3002";
+const apiBaseUrl = process.env.E2E_API_URL ?? `http://localhost:${apiPort}`;
+const wsUrl = process.env.E2E_WS_URL ?? `ws://localhost:${apiPort}/ws`;
 
 export default defineConfig({
   testDir: "./tests",
@@ -47,16 +51,19 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: `npm run build -w @gaem/shared && concurrently -n server,client -c blue,green "npm run dev -w @gaem/server" "npm run dev -w @gaem/client -- --port ${clientPort} --strictPort"`,
+    command: `npm run build -w @gaem/shared && concurrently -n server,client -c blue,green "npm run dev -w @gaem/server" "VITE_API_BASE=${apiBaseUrl} VITE_WS_URL=${wsUrl} npm run dev -w @gaem/client -- --port ${clientPort} --strictPort"`,
     cwd: rootDir,
     url: clientUrl,
-    reuseExistingServer: !process.env.CI,
+    // Dedicated e2e ports — never reuse a leftover Vite/Express from a prior run.
+    reuseExistingServer: false,
     timeout: 120_000,
     env: {
       GM_PASSWORD: gmPassword,
       PLAYER_PASSWORD: playerPassword,
       AUTH_SECRET: authSecret,
       PORT: apiPort,
+      E2E_CLIENT_URL: clientUrl,
+      E2E_API_URL: apiBaseUrl,
     },
   },
 });

@@ -6,11 +6,12 @@ import { useGameConnection } from "./useGameConnection.js";
 import { useGameState } from "./useGameState.js";
 import { useSession } from "./useSession.js";
 
-export const gameWsUrl =
-  import.meta.env.VITE_WS_URL ??
-  (import.meta.env.DEV && !import.meta.env.VITE_CF_DEV
-    ? `ws://${location.hostname}:3001/ws`
-    : `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`);
+export const gameWsUrl = import.meta.env.VITE_CF_DEV
+  ? `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`
+  : (import.meta.env.VITE_WS_URL ??
+    (import.meta.env.DEV
+      ? `ws://${location.hostname}:3001/ws`
+      : `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`));
 
 export function useGameSocket(opts: {
   wsUrl: string;

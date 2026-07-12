@@ -90,6 +90,12 @@ function onAppearanceSelected(e: Event) {
 
 <template>
   <div class="paintbrush-controls">
+    <div class="action-row">
+      <button type="button" class="mini-btn" @click="enableAllPaintbrushOptions">Enable all</button>
+      <button type="button" class="mini-btn" @click="disableAllPaintbrushOptions">Disable all</button>
+      <button type="button" class="reset-btn" @click="resetPaintbrushSettings">Reset</button>
+    </div>
+
     <div class="control-group">
       <span class="control-label">Elevation</span>
       <input
@@ -276,12 +282,6 @@ function onAppearanceSelected(e: Event) {
     </div>
 
     <p v-if="paintbrushPresetError" class="preset-error">{{ paintbrushPresetError }}</p>
-
-    <div class="action-row">
-      <button type="button" class="mini-btn" @click="enableAllPaintbrushOptions">Enable all</button>
-      <button type="button" class="mini-btn" @click="disableAllPaintbrushOptions">Disable all</button>
-      <button type="button" class="reset-btn" @click="resetPaintbrushSettings">Reset</button>
-    </div>
 
     <p class="eyedropper-hint">Hold E to sample a tile</p>
 

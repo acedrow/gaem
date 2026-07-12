@@ -52,10 +52,10 @@ npm run e2e:setup      # once per machine / after Playwright upgrades
 npm run build
 npm run lint
 npm run test
-npm run test:e2e
+npm run test:e2e       # Playwright on :5174 / :3002 (safe alongside `dev:cf` on :5173 / :8787)
 ```
 
-E2E browsers are stored in `packages/e2e/.playwright-browsers` (gitignored) so they persist across runs.
+E2E browsers are stored in `packages/e2e/.playwright-browsers` (gitignored) so they persist across runs. The e2e stack uses **dedicated ports** (`5174` client, `3002` API) so it can run while `npm run dev:cf` or `npm run dev` is already up on the default ports.
 
 Open the app at `http://localhost:5173` (the Vite dev server) in both dev flows:
 
