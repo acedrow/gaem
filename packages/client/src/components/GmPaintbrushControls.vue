@@ -37,8 +37,10 @@ const {
   uploadPaintbrushAppearance,
   clearPaintbrushAppearance,
   selectBundledPaintbrushAppearance,
-  bundledTileAppearances,
+  bundledTileSets,
+  bundledTileAppearancesForSet,
   paintbrushAppearanceKey,
+  paintbrushAppearanceSetId,
 } = useGmTools();
 
 const colorModalOpen = ref(false);
@@ -139,11 +141,21 @@ function onAppearanceSelected(e: Event) {
         alt=""
         class="appearance-thumb tile-image"
       />
-      <details v-if="bundledTileAppearances.length" class="appearance-gallery">
+      <select
+        v-if="bundledTileSets.length"
+        v-model="paintbrushAppearanceSetId"
+        class="effect-select set-select"
+        aria-label="Tile set"
+      >
+        <option v-for="set in bundledTileSets" :key="set.id" :value="set.id">
+          {{ set.label }}
+        </option>
+      </select>
+      <details v-if="bundledTileAppearancesForSet.length" class="appearance-gallery">
         <summary class="gallery-toggle">Gallery</summary>
         <div class="gallery-menu">
           <button
-            v-for="item in bundledTileAppearances"
+            v-for="item in bundledTileAppearancesForSet"
             :key="item.key"
             type="button"
             class="gallery-item"
@@ -253,6 +265,10 @@ function onAppearanceSelected(e: Event) {
 
 .terrain-select {
   max-width: 9rem;
+}
+
+.set-select {
+  max-width: 8rem;
 }
 
 .preset-select {

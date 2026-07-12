@@ -2,9 +2,10 @@ import { coordKey, tileAt, type MapTile, type TerrainType, type TilePaintPreset 
 import { computed, ref, watch } from "vue";
 
 import {
-  BUNDLED_TILE_APPEARANCES,
+  BUNDLED_TILE_SETS,
   bundledTileAppearanceUrl,
   isBundledTileAppearanceKey,
+  setIdFromAppearanceKey,
 } from "../lib/bundledTileAppearances.js";
 import { useApi } from "./useApi.js";
 import { useBoardActionMode } from "./useBoardActionMode.js";
@@ -36,6 +37,7 @@ const paintbrushTileName = ref("");
 const paintbrushBaseColor = ref<string | null>(null);
 const paintbrushAppearanceKey = ref<string | null>(null);
 const paintbrushAppearancePreviewUrl = ref<string | null>(null);
+const paintbrushAppearanceSetId = ref(BUNDLED_TILE_SETS[0]?.id ?? "basic");
 const paintbrushEnableElevation = ref(true);
 const paintbrushEnableTerrain = ref(true);
 const paintbrushEnableEffect = ref(true);
@@ -74,6 +76,18 @@ export function useGmTools() {
   const paintbrushPresetNames = computed(() =>
     Object.keys(paintbrushPresets.value).sort((a, b) => a.localeCompare(b)),
   );
+
+  const bundledTileAppearancesForSet = computed(
+    () =>
+      BUNDLED_TILE_SETS.find((set) => set.id === paintbrushAppearanceSetId.value)?.appearances ??
+      [],
+  );
+
+  function syncPaintbrushAppearanceSetFromKey(key: string | null | undefined) {
+    if (!key) return;
+    const setId = setIdFromAppearanceKey(key);
+    if (setId) paintbrushAppearanceSetId.value = setId;
+  }
 
   async function refreshPaintbrushPresets() {
     const mapId = gameState.value?.mapId;
@@ -241,12 +255,14 @@ export function useGmTools() {
     paintbrushTileName.value = preset.tileName;
     paintbrushBaseColor.value = preset.baseColor ?? null;
     paintbrushAppearanceKey.value = preset.appearanceKey ?? null;
+    syncPaintbrushAppearanceSetFromKey(preset.appearanceKey);
     if (preset.appearanceKey) setPaintbrushAppearancePreview(preset.appearanceKey);
     else clearPaintbrushAppearancePreview();
   }
 
   function selectBundledPaintbrushAppearance(key: string) {
     paintbrushAppearanceKey.value = key;
+    syncPaintbrushAppearanceSetFromKey(key);
     setPaintbrushAppearancePreview(key);
   }
 
@@ -384,6 +400,7 @@ export function useGmTools() {
     paintbrushBaseColor,
     paintbrushAppearanceKey,
     paintbrushAppearancePreviewUrl,
+    paintbrushAppearanceSetId,
     paintbrushEnableElevation,
     paintbrushEnableTerrain,
     paintbrushEnableEffect,
@@ -416,7 +433,8 @@ export function useGmTools() {
     uploadPaintbrushAppearance,
     clearPaintbrushAppearance,
     selectBundledPaintbrushAppearance,
-    bundledTileAppearances: BUNDLED_TILE_APPEARANCES,
+    bundledTileSets: BUNDLED_TILE_SETS,
+    bundledTileAppearancesForSet,
     refreshPaintbrushPresets,
   };
 }
