@@ -57,6 +57,12 @@ function applyPending(pendingId: string, reject = false) {
   delete damageDraft.value[pendingId];
   rejectId.value = null;
 }
+
+function clearInbox() {
+  for (const id of gmPending.value.map((p) => p.id)) {
+    applyPending(id, true);
+  }
+}
 </script>
 
 <template>
@@ -76,6 +82,9 @@ function applyPending(pendingId: string, reject = false) {
       @close="dismissed = true"
     >
     <div class="inbox">
+      <div class="inbox-toolbar">
+        <button type="button" class="action-btn reject" @click="clearInbox">Clear all</button>
+      </div>
       <article v-for="item in gmPending" :key="item.id" class="inbox-item">
         <h4 class="item-title">{{ item.label }}</h4>
         <p v-if="item.detail" class="item-detail">{{ item.detail }}</p>
@@ -122,6 +131,11 @@ function applyPending(pendingId: string, reject = false) {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+.inbox-toolbar {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .inbox-item {
