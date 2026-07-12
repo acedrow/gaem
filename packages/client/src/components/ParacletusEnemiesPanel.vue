@@ -163,8 +163,9 @@ function crownGateLabel(enemy: EnemyListing): string | null {
 
 .header-main {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.35rem 0.5rem;
   min-width: 0;
   flex: 1;
 }
@@ -178,7 +179,8 @@ function crownGateLabel(enemy: EnemyListing): string | null {
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem;
-  flex-shrink: 0;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .enemy-tag {
