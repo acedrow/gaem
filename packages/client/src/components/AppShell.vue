@@ -38,8 +38,15 @@ const { selectedMapId, mapsExpanded } = useMapSelection();
 const { selectedFactionId, factionsExpanded } = useFactionSelection();
 const { selectedTableId, tablesExpanded } = useTableSelection();
 const { boardSelection, selectBoardPlayer, clearBoardSelection, selectSheetFromNav } = useBoardSelection();
-const { dataCategory, dataFocus, dataFocusReturnCategory, dataExpanded, clearDataCategory, selectDataCategory } =
-  useInfoDataSelection();
+const {
+  dataCategory,
+  dataFocus,
+  dataFocusReturnCategory,
+  dataCategoryReturnFactionId,
+  dataExpanded,
+  clearDataCategory,
+  selectDataCategory,
+} = useInfoDataSelection();
 const { connection } = useGameConnection();
 const { gameState, yourPlayerId, send } = useGameState();
 const { setMode } = useBoardActionMode();
@@ -67,6 +74,7 @@ onMounted(() => {
     dataCategory,
     dataFocus,
     dataFocusReturnCategory,
+    dataCategoryReturnFactionId,
     activeTab,
     activeMainTab,
     sheetsExpanded,

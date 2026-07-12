@@ -45,6 +45,7 @@ export type PersistedUi = {
   dataCategory: DataCategory | null;
   dataFocus: DataFocus | null;
   dataFocusReturnCategory: DataCategory | null;
+  dataCategoryReturnFactionId: FactionId | null;
   activeTab: RightPanelTab;
   activeMainTab: MainSectionTab;
   sheetsExpanded: boolean;
@@ -64,6 +65,7 @@ const DEFAULT_UI: PersistedUi = {
   dataCategory: null,
   dataFocus: null,
   dataFocusReturnCategory: null,
+  dataCategoryReturnFactionId: null,
   activeTab: "info",
   activeMainTab: "taccom",
   sheetsExpanded: false,
@@ -132,6 +134,11 @@ function parsePersistedUi(raw: string): PersistedUi {
         parsed.dataFocusReturnCategory &&
         DATA_CATEGORIES.has(parsed.dataFocusReturnCategory)
           ? parsed.dataFocusReturnCategory
+          : null,
+      dataCategoryReturnFactionId:
+        parsed.dataCategoryReturnFactionId &&
+        FACTION_IDS.has(parsed.dataCategoryReturnFactionId)
+          ? parsed.dataCategoryReturnFactionId
           : null,
       activeTab:
         parsed.activeTab && RIGHT_PANEL_TABS.has(parsed.activeTab)
@@ -232,6 +239,7 @@ export type UiPersistRefs = {
   dataCategory: Ref<DataCategory | null>;
   dataFocus: Ref<DataFocus | null>;
   dataFocusReturnCategory: Ref<DataCategory | null>;
+  dataCategoryReturnFactionId: Ref<FactionId | null>;
   activeTab: Ref<RightPanelTab>;
   activeMainTab: Ref<MainSectionTab>;
   sheetsExpanded: Ref<boolean>;
@@ -250,6 +258,7 @@ export function applyPersistedUiState(refs: UiPersistRefs, persisted: PersistedU
   refs.dataCategory.value = persisted.dataCategory;
   refs.dataFocus.value = persisted.dataFocus;
   refs.dataFocusReturnCategory.value = persisted.dataFocusReturnCategory;
+  refs.dataCategoryReturnFactionId.value = persisted.dataCategoryReturnFactionId;
   refs.activeTab.value = persisted.activeTab;
   refs.activeMainTab.value = persisted.activeMainTab;
   refs.sheetsExpanded.value = persisted.sheetsExpanded;
@@ -269,6 +278,7 @@ export function initUiPersistence(opts: UiPersistRefs) {
     dataCategory,
     dataFocus,
     dataFocusReturnCategory,
+    dataCategoryReturnFactionId,
     activeTab,
     activeMainTab,
     sheetsExpanded,
@@ -287,6 +297,7 @@ export function initUiPersistence(opts: UiPersistRefs) {
     dataCategory,
     dataFocus,
     dataFocusReturnCategory,
+    dataCategoryReturnFactionId,
     activeTab,
     activeMainTab,
     sheetsExpanded,
@@ -315,6 +326,7 @@ export function initUiPersistence(opts: UiPersistRefs) {
       dataCategory,
       dataFocus,
       dataFocusReturnCategory,
+      dataCategoryReturnFactionId,
       activeTab,
       activeMainTab,
       sheetsExpanded,
@@ -333,6 +345,7 @@ export function initUiPersistence(opts: UiPersistRefs) {
         dataCategory: dataCategory.value,
         dataFocus: dataFocus.value,
         dataFocusReturnCategory: dataFocusReturnCategory.value,
+        dataCategoryReturnFactionId: dataCategoryReturnFactionId.value,
         activeTab: activeTab.value,
         activeMainTab: activeMainTab.value,
         sheetsExpanded: sheetsExpanded.value,

@@ -4,7 +4,10 @@ import { computed, ref, watch } from "vue";
 import {
   BUNDLED_TILE_SETS,
   bundledTileAppearanceUrl,
+  galleryEntriesForSet,
+  isAppearanceGroupKey,
   isBundledTileAppearanceKey,
+  resolveAppearanceKeyForPaint,
   setIdFromAppearanceKey,
 } from "../lib/bundledTileAppearances.js";
 import { useApi } from "./useApi.js";
@@ -77,10 +80,8 @@ export function useGmTools() {
     Object.keys(paintbrushPresets.value).sort((a, b) => a.localeCompare(b)),
   );
 
-  const bundledTileAppearancesForSet = computed(
-    () =>
-      BUNDLED_TILE_SETS.find((set) => set.id === paintbrushAppearanceSetId.value)?.appearances ??
-      [],
+  const bundledTileAppearancesForSet = computed(() =>
+    galleryEntriesForSet(paintbrushAppearanceSetId.value),
   );
 
   function syncPaintbrushAppearanceSetFromKey(key: string | null | undefined) {
@@ -350,38 +351,64 @@ export function useGmTools() {
       sel?.kind === "tiles" && sel.coords.some((c) => c.x === x && c.y === y)
         ? sel.coords
         : [{ x, y }];
-    const payload: {
-      type: "gmPaintTile";
-      coords: { x: number; y: number }[];
+    const shared: {
       elevation?: number;
       terrain?: TerrainType;
       tileEffects?: string[];
       tileName?: string;
       baseColor?: string | null;
-      appearanceKey?: string | null;
-    } = { type: "gmPaintTile", coords };
-    if (paintbrushEnableElevation.value) payload.elevation = paintbrushElevation.value;
-    if (paintbrushEnableTerrain.value) payload.terrain = paintbrushTerrain.value;
+    } = {};
+    if (paintbrushEnableElevation.value) shared.elevation = paintbrushElevation.value;
+    if (paintbrushEnableTerrain.value) shared.terrain = paintbrushTerrain.value;
     if (paintbrushEnableEffect.value) {
-      payload.tileEffects =
+      shared.tileEffects =
         paintbrushEffectId.value && paintbrushEffectStacks.value !== 0
           ? [`${paintbrushEffectId.value}:${paintbrushEffectStacks.value}`]
           : [];
     }
-    if (paintbrushEnableName.value) payload.tileName = paintbrushTileName.value;
-    if (paintbrushEnableColor.value) payload.baseColor = paintbrushBaseColor.value;
-    if (paintbrushEnableAppearance.value) payload.appearanceKey = paintbrushAppearanceKey.value;
+    if (paintbrushEnableName.value) shared.tileName = paintbrushTileName.value;
+    if (paintbrushEnableColor.value) shared.baseColor = paintbrushBaseColor.value;
+
+    const brushAppearance = paintbrushEnableAppearance.value
+      ? paintbrushAppearanceKey.value
+      : undefined;
+    const randomizePerTile =
+      brushAppearance !== undefined &&
+      brushAppearance !== null &&
+      isAppearanceGroupKey(brushAppearance);
+
     if (
-      payload.elevation === undefined &&
-      payload.terrain === undefined &&
-      payload.tileEffects === undefined &&
-      payload.tileName === undefined &&
-      payload.baseColor === undefined &&
-      payload.appearanceKey === undefined
+      shared.elevation === undefined &&
+      shared.terrain === undefined &&
+      shared.tileEffects === undefined &&
+      shared.tileName === undefined &&
+      shared.baseColor === undefined &&
+      brushAppearance === undefined
     ) {
       return;
     }
-    send(payload);
+
+    // Folder groups: pick a random member per tile so bulk/drag paint varies.
+    if (randomizePerTile) {
+      for (const coord of coords) {
+        send({
+          type: "gmPaintTile",
+          coords: [coord],
+          ...shared,
+          appearanceKey: resolveAppearanceKeyForPaint(brushAppearance),
+        });
+      }
+      return;
+    }
+
+    send({
+      type: "gmPaintTile",
+      coords,
+      ...shared,
+      ...(brushAppearance !== undefined
+        ? { appearanceKey: resolveAppearanceKeyForPaint(brushAppearance) }
+        : {}),
+    });
   }
 
   return {

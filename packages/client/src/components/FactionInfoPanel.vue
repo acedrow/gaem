@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   FACTION_QUALITY_KEYS,
+  factionHasEnemyListings,
   getFactionById,
   resolveRuleTermTooltip,
   type FactionLocation,
@@ -14,6 +15,7 @@ import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useExpandableSet } from "../composables/useExpandableSet.js";
 import { selectedFactionId } from "../composables/useFactionSelection.js";
 import { useGameState } from "../composables/useGameState.js";
+import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import { useSession } from "../composables/useSession.js";
 import PanelShell from "./PanelShell.vue";
 import RuleTerm from "./RuleTerm.vue";
@@ -22,9 +24,15 @@ import RuleText from "./RuleText.vue";
 const { closeRightPanel } = useBoardSelection();
 const { isExpanded, toggle } = useExpandableSet();
 const { gameState, send } = useGameState();
+const { selectDataCategory } = useInfoDataSelection();
 const { isGm } = useSession();
 
 const faction = computed(() => getFactionById(selectedFactionId.value));
+
+const hasEnemies = computed(() => {
+  const id = selectedFactionId.value;
+  return id != null && factionHasEnemyListings(id);
+});
 
 const liveState = computed(() => {
   const id = selectedFactionId.value;
@@ -104,6 +112,12 @@ function onDefeatedToggle(defeated: boolean) {
     type: "factionCampaignAction",
     action: { kind: "setDefeated", factionId: id, defeated },
   });
+}
+
+function openEnemies() {
+  const id = selectedFactionId.value;
+  if (!id || !factionHasEnemyListings(id)) return;
+  selectDataCategory("paracletus", { returnToFaction: id });
 }
 
 const crownTooltip = resolveRuleTermTooltip("Crown");
@@ -368,6 +382,13 @@ const qualityTooltips = Object.fromEntries(
             </div>
           </article>
         </div>
+      </section>
+
+      <section v-if="hasEnemies" class="faction-section">
+        <button type="button" class="section-toggle" @click="openEnemies">
+          <span>Enemies</span>
+          <span class="chevron" aria-hidden="true">→</span>
+        </button>
       </section>
 
       <div v-if="isGm" class="defeated-footer">

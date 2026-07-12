@@ -1,24 +1,35 @@
 <script setup lang="ts">
 import { listEnemyListings } from "@gaem/shared";
+import { computed } from "vue";
 
 import { useApi } from "../composables/useApi.js";
 import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useEnemySpawnSelection } from "../composables/useEnemySpawnSelection.js";
 import { useExpandableSet } from "../composables/useExpandableSet.js";
+import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import { useSession } from "../composables/useSession.js";
 import PanelShell from "./PanelShell.vue";
 
 const { hasGmCapabilities } = useSession();
 const { closeRightPanel } = useBoardSelection();
 const { selectedSpawnEnemyName, selectSpawnEnemy } = useEnemySpawnSelection();
+const { dataCategoryReturnFactionId, goBackFromDataCategory } = useInfoDataSelection();
 const { enemyPortraitUrl } = useApi();
 
 const enemies = listEnemyListings();
 const { isExpanded, toggle } = useExpandableSet();
+
+const showBack = computed(() => dataCategoryReturnFactionId.value != null);
 </script>
 
 <template>
-  <PanelShell title="Enemies — Paracletus" close-variant="ghost" @close="closeRightPanel">
+  <PanelShell
+    title="Enemies — Paracletus"
+    close-variant="ghost"
+    :show-back="showBack"
+    @close="closeRightPanel"
+    @back="goBackFromDataCategory"
+  >
     <p v-if="hasGmCapabilities && selectedSpawnEnemyName" class="spawn-hint">
       Click an empty walkable tile to spawn {{ selectedSpawnEnemyName }}.
     </p>

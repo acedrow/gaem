@@ -1,5 +1,6 @@
 import paracletusJson from "./data/enemies/paracletus.json" with { type: "json" };
 
+import type { FactionId } from "./faction-data.js";
 import type { Enemy } from "./types.js";
 
 export type EnemyListing = {
@@ -24,6 +25,7 @@ export type EnemyListing = {
 };
 
 type EnemyFaction = {
+  name: string;
   enemies: EnemyListing[];
 };
 
@@ -31,8 +33,11 @@ const ENEMY_FACTIONS = [paracletusJson] as EnemyFaction[];
 
 const ENEMY_LISTING_BY_KEY = new Map<string, EnemyListing>();
 const PORTRAIT_BG_EXCLUDE_HUES = new Map<string, [number, number][]>();
+const ENEMY_LISTINGS_BY_FACTION = new Map<FactionId, EnemyListing[]>();
 
 for (const faction of ENEMY_FACTIONS) {
+  const factionId = faction.name.trim().toLowerCase() as FactionId;
+  ENEMY_LISTINGS_BY_FACTION.set(factionId, faction.enemies);
   for (const enemy of faction.enemies) {
     ENEMY_LISTING_BY_KEY.set(enemy.name.trim().toLowerCase(), enemy);
     if (enemy.codename) {
@@ -46,6 +51,14 @@ for (const faction of ENEMY_FACTIONS) {
 
 export function listEnemyListings(): EnemyListing[] {
   return ENEMY_FACTIONS.flatMap((faction) => faction.enemies);
+}
+
+export function listEnemyListingsForFaction(factionId: FactionId): EnemyListing[] {
+  return ENEMY_LISTINGS_BY_FACTION.get(factionId) ?? [];
+}
+
+export function factionHasEnemyListings(factionId: FactionId): boolean {
+  return listEnemyListingsForFaction(factionId).length > 0;
 }
 
 function findEnemyListing(name: string | undefined): EnemyListing | undefined {

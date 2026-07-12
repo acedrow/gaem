@@ -170,12 +170,6 @@ function onAppearanceSelected(e: Event) {
         class="option-enable"
         aria-label="Enable appearance"
       />
-      <img
-        v-if="paintbrushAppearancePreviewUrl"
-        :src="paintbrushAppearancePreviewUrl"
-        alt=""
-        class="appearance-thumb tile-image"
-      />
       <select
         v-if="bundledTileSets.length"
         v-model="paintbrushAppearanceSetId"
@@ -189,12 +183,19 @@ function onAppearanceSelected(e: Event) {
       <div v-if="bundledTileAppearancesForSet.length" class="appearance-gallery">
         <button
           type="button"
-          class="gallery-toggle"
+          class="appearance-thumb-btn"
           :aria-expanded="galleryOpen"
           aria-haspopup="listbox"
+          aria-label="Choose tile appearance"
           @click="toggleGallery"
         >
-          Gallery
+          <img
+            v-if="paintbrushAppearancePreviewUrl"
+            :src="paintbrushAppearancePreviewUrl"
+            alt=""
+            class="appearance-thumb tile-image"
+          />
+          <span v-else class="appearance-thumb-placeholder">—</span>
         </button>
         <template v-if="galleryOpen">
           <div class="gallery-backdrop" @click="closeGallery" />
@@ -207,6 +208,7 @@ function onAppearanceSelected(e: Event) {
               class="gallery-item"
               :class="{ selected: paintbrushAppearanceKey === item.key }"
               :aria-selected="paintbrushAppearanceKey === item.key"
+              :title="item.kind === 'group' ? `Random from ${item.name}/` : item.name"
               @click="onSelectAppearance(item.key)"
             >
               <img :src="item.url" alt="" class="gallery-thumb tile-image" />
@@ -215,6 +217,12 @@ function onAppearanceSelected(e: Event) {
           </div>
         </template>
       </div>
+      <img
+        v-else-if="paintbrushAppearancePreviewUrl"
+        :src="paintbrushAppearancePreviewUrl"
+        alt=""
+        class="appearance-thumb tile-image"
+      />
       <label class="upload-btn" :class="{ uploading: paintbrushAppearanceUploading }">
         {{ paintbrushAppearanceUploading ? "Uploading…" : "Upload" }}
         <input
@@ -359,27 +367,40 @@ function onAppearanceSelected(e: Event) {
   object-fit: cover;
   border-radius: 4px;
   border: 1px solid var(--color-border);
+  display: block;
+}
+
+.appearance-thumb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-surface-raised);
+  cursor: pointer;
+}
+
+.appearance-thumb-btn:hover,
+.appearance-thumb-btn[aria-expanded="true"] {
+  border-color: var(--color-text-muted);
+}
+
+.appearance-thumb-btn .appearance-thumb {
+  border: none;
+  border-radius: 3px;
+}
+
+.appearance-thumb-placeholder {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  line-height: 1;
 }
 
 .appearance-gallery {
   position: relative;
-}
-
-.gallery-toggle {
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  background: var(--color-surface);
-  color: var(--color-muted);
-  font-size: 0.78rem;
-  font-weight: 600;
-  font-family: inherit;
-  padding: 0.2rem 0.45rem;
-  cursor: pointer;
-}
-
-.gallery-toggle[aria-expanded="true"] {
-  color: var(--color-text);
-  background: var(--color-surface-raised);
 }
 
 .gallery-backdrop {
