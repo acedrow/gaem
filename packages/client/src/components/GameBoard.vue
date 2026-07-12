@@ -226,6 +226,9 @@ const {
   paintbrushImageRotation,
   paintbrushImageFlip,
   peekPaintbrushPlacement,
+  paintbrushSuppressPreviewKey,
+  clearPaintbrushSuppressPreview,
+  paintbrushAutoRotate,
 } = useGmTools();
 
 const gmViewportCursor = computed(() => {
@@ -2109,7 +2112,9 @@ const cellStateByKey = computed(() => {
     canUseGmTools.value &&
     gmActiveTool.value === "paintbrush" &&
     !paintbrushEyedropperActive.value &&
-    hoveredCell.value
+    hoveredCell.value &&
+    paintbrushSuppressPreviewKey.value !==
+      coordKey(hoveredCell.value.x, hoveredCell.value.y)
   ) {
     const { x, y } = hoveredCell.value;
     const previewCell = map.get(boardCellKey(x, y));
@@ -2123,7 +2128,9 @@ const cellStateByKey = computed(() => {
       if (showColor || showAppearance || showFeature || showRotation || showFlip) {
         const placement = peekPaintbrushPlacement(x, y);
         const imageRotation = showRotation
-          ? paintbrushImageRotation.value
+          ? paintbrushAutoRotate.value
+            ? (placement.imageRotation ?? 0)
+            : paintbrushImageRotation.value
           : (tile?.imageRotation ?? 0);
         const imageFlip = showFlip ? paintbrushImageFlip.value : !!tile?.imageFlip;
         const previewBaseColor = showColor ? paintbrushBaseColor.value : null;
@@ -4010,12 +4017,17 @@ function onCellClick(x: number, y: number) {
 }
 
 function onCellHover(x: number, y: number, key: string) {
+  const suppressKey = paintbrushSuppressPreviewKey.value;
+  if (suppressKey && suppressKey !== coordKey(x, y)) {
+    clearPaintbrushSuppressPreview();
+  }
   hoveredKey.value = key;
   hoveredCell.value = { x, y };
   setPatternHoverOrigin({ x, y });
 }
 
 function onCellUnhover() {
+  clearPaintbrushSuppressPreview();
   hoveredKey.value = null;
   hoveredCell.value = null;
   setPatternHoverOrigin(null);

@@ -20,6 +20,12 @@ import { useTableSelection } from "../composables/useTableSelection.js";
 import { useSession } from "../composables/useSession.js";
 import { showToast } from "../composables/useToasts.js";
 import { initUiPersistence } from "../composables/uiPersist.js";
+import {
+  applyPersistedGmTools,
+  gmToolsWatchSources,
+  snapshotGmTools,
+  useGmTools,
+} from "../composables/useGmTools.js";
 import ActionBar from "./ActionBar.vue";
 import BaseUpgradesPanel from "./BaseUpgradesPanel.vue";
 import OverworldPanel from "./OverworldPanel.vue";
@@ -49,6 +55,7 @@ const {
 const { connection } = useGameConnection();
 const { gameState, yourPlayerId, send } = useGameState();
 const { setMode } = useBoardActionMode();
+useGmTools();
 
 const boardOverlaysEl = ref<HTMLElement | null>(null);
 
@@ -81,6 +88,9 @@ onMounted(() => {
     mapsExpanded,
     factionsExpanded,
     tablesExpanded,
+    snapshotGmTools,
+    applyGmTools: applyPersistedGmTools,
+    gmToolsWatchSources,
   });
   if (activeMainTab.value === "baseUpgrades") {
     openResourcesPanel();

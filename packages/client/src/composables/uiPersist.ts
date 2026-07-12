@@ -1,6 +1,6 @@
 import { watch, type Ref } from "vue";
-import type { FactionId, GaemRole, ReconTableId } from "@gaem/shared";
-import { RECON_TABLE_IDS } from "@gaem/shared";
+import type { FactionId, GaemRole, ReconTableId, TerrainType, TileImageRotation } from "@gaem/shared";
+import { RECON_TABLE_IDS, TERRAIN_TYPES, TILE_IMAGE_ROTATIONS } from "@gaem/shared";
 
 import type { BoardSelection } from "./useBoardSelection.js";
 import type { DataCategory, DataFocus } from "./useInfoDataSelection.js";
@@ -30,6 +30,43 @@ const TABLE_IDS = new Set<ReconTableId>(RECON_TABLE_IDS);
 const RIGHT_PANEL_TABS = new Set<RightPanelTab>(["console", "info", "turnOrder", "settings"]);
 const MAIN_SECTION_TABS = new Set<MainSectionTab>(["taccom", "overworld", "baseUpgrades"]);
 
+const GM_TOOLS = new Set<string>(["select", "damageEffect", "forceMove", "paintbrush"]);
+const GM_SELECT_TARGET_KINDS = new Set<string>(["tiles", "enemies", "players"]);
+const TERRAIN_TYPE_SET = new Set<string>(TERRAIN_TYPES);
+const TILE_ROTATION_SET = new Set<number>(TILE_IMAGE_ROTATIONS);
+
+export type PersistedGmTool = "select" | "damageEffect" | "forceMove" | "paintbrush";
+export type PersistedGmSelectTargetKind = "tiles" | "enemies" | "players";
+
+export type PersistedGmTools = {
+  activeTool: PersistedGmTool | null;
+  selectTargetKind: PersistedGmSelectTargetKind;
+  damageAmount: number;
+  effectId: string;
+  effectStacks: number;
+  paintbrushElevation: number;
+  paintbrushTerrain: TerrainType;
+  paintbrushEffectId: string;
+  paintbrushEffectStacks: number;
+  paintbrushTileName: string;
+  paintbrushBaseColor: string | null;
+  paintbrushAppearanceKey: string | null | undefined;
+  paintbrushAppearanceSetId: string;
+  paintbrushFeatureKey: string | null | undefined;
+  paintbrushImageRotation: TileImageRotation;
+  paintbrushImageFlip: boolean;
+  paintbrushAutoRotate: boolean;
+  paintbrushEnableElevation: boolean;
+  paintbrushEnableTerrain: boolean;
+  paintbrushEnableEffect: boolean;
+  paintbrushEnableName: boolean;
+  paintbrushEnableColor: boolean;
+  paintbrushEnableAppearance: boolean;
+  paintbrushEnableFeature: boolean;
+  paintbrushEnableRotation: boolean;
+  paintbrushEnableFlip: boolean;
+};
+
 export type PersistedViewport = {
   boardKey: string;
   scale: number;
@@ -55,6 +92,36 @@ export type PersistedUi = {
   factionsExpanded: boolean;
   tablesExpanded: boolean;
   viewport: PersistedViewport | null;
+  gmTools: PersistedGmTools;
+};
+
+export const DEFAULT_GM_TOOLS: PersistedGmTools = {
+  activeTool: null,
+  selectTargetKind: "enemies",
+  damageAmount: 0,
+  effectId: "",
+  effectStacks: 1,
+  paintbrushElevation: 0,
+  paintbrushTerrain: "standard",
+  paintbrushEffectId: "",
+  paintbrushEffectStacks: 1,
+  paintbrushTileName: "",
+  paintbrushBaseColor: null,
+  paintbrushAppearanceKey: undefined,
+  paintbrushAppearanceSetId: "basic",
+  paintbrushFeatureKey: undefined,
+  paintbrushImageRotation: 0,
+  paintbrushImageFlip: false,
+  paintbrushAutoRotate: false,
+  paintbrushEnableElevation: true,
+  paintbrushEnableTerrain: true,
+  paintbrushEnableEffect: true,
+  paintbrushEnableName: true,
+  paintbrushEnableColor: true,
+  paintbrushEnableAppearance: true,
+  paintbrushEnableFeature: true,
+  paintbrushEnableRotation: false,
+  paintbrushEnableFlip: false,
 };
 
 const DEFAULT_UI: PersistedUi = {
@@ -75,6 +142,7 @@ const DEFAULT_UI: PersistedUi = {
   factionsExpanded: false,
   tablesExpanded: false,
   viewport: null,
+  gmTools: { ...DEFAULT_GM_TOOLS },
 };
 
 function isBoardSelection(value: unknown): value is BoardSelection {
@@ -107,6 +175,102 @@ function isViewport(value: unknown): value is PersistedViewport {
     Number.isFinite(v.panX) &&
     Number.isFinite(v.panY)
   );
+}
+
+function parseOptionalStringKey(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value === "string") return value;
+  return undefined;
+}
+
+export function parsePersistedGmTools(raw: unknown): PersistedGmTools {
+  if (!raw || typeof raw !== "object") return { ...DEFAULT_GM_TOOLS };
+  const g = raw as Record<string, unknown>;
+  const activeTool =
+    g.activeTool === null
+      ? null
+      : typeof g.activeTool === "string" && GM_TOOLS.has(g.activeTool as PersistedGmTool)
+        ? (g.activeTool as PersistedGmTool)
+        : DEFAULT_GM_TOOLS.activeTool;
+  const selectTargetKind =
+    typeof g.selectTargetKind === "string" &&
+    GM_SELECT_TARGET_KINDS.has(g.selectTargetKind as PersistedGmSelectTargetKind)
+      ? (g.selectTargetKind as PersistedGmSelectTargetKind)
+      : DEFAULT_GM_TOOLS.selectTargetKind;
+  const damageAmount =
+    typeof g.damageAmount === "number" && Number.isFinite(g.damageAmount)
+      ? g.damageAmount
+      : DEFAULT_GM_TOOLS.damageAmount;
+  const effectId = typeof g.effectId === "string" ? g.effectId : DEFAULT_GM_TOOLS.effectId;
+  const effectStacks =
+    typeof g.effectStacks === "number" && Number.isFinite(g.effectStacks)
+      ? g.effectStacks
+      : DEFAULT_GM_TOOLS.effectStacks;
+  const paintbrushElevation =
+    typeof g.paintbrushElevation === "number" && Number.isInteger(g.paintbrushElevation)
+      ? Math.min(3, Math.max(-3, g.paintbrushElevation))
+      : DEFAULT_GM_TOOLS.paintbrushElevation;
+  const paintbrushTerrain =
+    typeof g.paintbrushTerrain === "string" && TERRAIN_TYPE_SET.has(g.paintbrushTerrain)
+      ? (g.paintbrushTerrain as TerrainType)
+      : DEFAULT_GM_TOOLS.paintbrushTerrain;
+  const paintbrushEffectId =
+    typeof g.paintbrushEffectId === "string"
+      ? g.paintbrushEffectId
+      : DEFAULT_GM_TOOLS.paintbrushEffectId;
+  const paintbrushEffectStacks =
+    typeof g.paintbrushEffectStacks === "number" && Number.isFinite(g.paintbrushEffectStacks)
+      ? g.paintbrushEffectStacks
+      : DEFAULT_GM_TOOLS.paintbrushEffectStacks;
+  const paintbrushTileName =
+    typeof g.paintbrushTileName === "string"
+      ? g.paintbrushTileName
+      : DEFAULT_GM_TOOLS.paintbrushTileName;
+  const paintbrushBaseColor =
+    g.paintbrushBaseColor === null
+      ? null
+      : typeof g.paintbrushBaseColor === "string"
+        ? g.paintbrushBaseColor
+        : DEFAULT_GM_TOOLS.paintbrushBaseColor;
+  const paintbrushAppearanceSetId =
+    typeof g.paintbrushAppearanceSetId === "string" && g.paintbrushAppearanceSetId.length > 0
+      ? g.paintbrushAppearanceSetId
+      : DEFAULT_GM_TOOLS.paintbrushAppearanceSetId;
+  const paintbrushImageRotation =
+    typeof g.paintbrushImageRotation === "number" &&
+    TILE_ROTATION_SET.has(g.paintbrushImageRotation)
+      ? (g.paintbrushImageRotation as TileImageRotation)
+      : DEFAULT_GM_TOOLS.paintbrushImageRotation;
+
+  return {
+    activeTool,
+    selectTargetKind,
+    damageAmount,
+    effectId,
+    effectStacks,
+    paintbrushElevation,
+    paintbrushTerrain,
+    paintbrushEffectId,
+    paintbrushEffectStacks,
+    paintbrushTileName,
+    paintbrushBaseColor,
+    paintbrushAppearanceKey: parseOptionalStringKey(g.paintbrushAppearanceKey),
+    paintbrushAppearanceSetId,
+    paintbrushFeatureKey: parseOptionalStringKey(g.paintbrushFeatureKey),
+    paintbrushImageRotation,
+    paintbrushImageFlip: g.paintbrushImageFlip === true,
+    paintbrushAutoRotate: g.paintbrushAutoRotate === true,
+    paintbrushEnableElevation: g.paintbrushEnableElevation !== false,
+    paintbrushEnableTerrain: g.paintbrushEnableTerrain !== false,
+    paintbrushEnableEffect: g.paintbrushEnableEffect !== false,
+    paintbrushEnableName: g.paintbrushEnableName !== false,
+    paintbrushEnableColor: g.paintbrushEnableColor !== false,
+    paintbrushEnableAppearance: g.paintbrushEnableAppearance !== false,
+    paintbrushEnableFeature: g.paintbrushEnableFeature !== false,
+    paintbrushEnableRotation: g.paintbrushEnableRotation === true,
+    paintbrushEnableFlip: g.paintbrushEnableFlip === true,
+  };
 }
 
 function parsePersistedUi(raw: string): PersistedUi {
@@ -155,9 +319,10 @@ function parsePersistedUi(raw: string): PersistedUi {
       factionsExpanded: parsed.factionsExpanded === true,
       tablesExpanded: parsed.tablesExpanded === true,
       viewport: isViewport(parsed.viewport) ? parsed.viewport : null,
+      gmTools: parsePersistedGmTools(parsed.gmTools),
     };
   } catch {
-    return { ...DEFAULT_UI };
+    return { ...DEFAULT_UI, gmTools: { ...DEFAULT_GM_TOOLS } };
   }
 }
 
@@ -180,9 +345,9 @@ function readFromStorage(key: string | null): PersistedUi {
         raw = legacy;
       }
     }
-    return raw ? parsePersistedUi(raw) : { ...DEFAULT_UI };
+    return raw ? parsePersistedUi(raw) : { ...DEFAULT_UI, gmTools: { ...DEFAULT_GM_TOOLS } };
   } catch {
-    return { ...DEFAULT_UI };
+    return { ...DEFAULT_UI, gmTools: { ...DEFAULT_GM_TOOLS } };
   }
 }
 
@@ -248,6 +413,9 @@ export type UiPersistRefs = {
   mapsExpanded: Ref<boolean>;
   factionsExpanded: Ref<boolean>;
   tablesExpanded: Ref<boolean>;
+  snapshotGmTools: () => PersistedGmTools;
+  applyGmTools: (gm: PersistedGmTools) => void;
+  gmToolsWatchSources: Ref<unknown>[];
 };
 
 export function applyPersistedUiState(refs: UiPersistRefs, persisted: PersistedUi = readPersistedUi()) {
@@ -267,6 +435,7 @@ export function applyPersistedUiState(refs: UiPersistRefs, persisted: PersistedU
   refs.mapsExpanded.value = persisted.mapsExpanded;
   refs.factionsExpanded.value = persisted.factionsExpanded;
   refs.tablesExpanded.value = persisted.tablesExpanded;
+  refs.applyGmTools(persisted.gmTools);
 }
 
 export function initUiPersistence(opts: UiPersistRefs) {
@@ -287,6 +456,9 @@ export function initUiPersistence(opts: UiPersistRefs) {
     mapsExpanded,
     factionsExpanded,
     tablesExpanded,
+    snapshotGmTools,
+    applyGmTools,
+    gmToolsWatchSources,
   } = opts;
 
   const refs: UiPersistRefs = {
@@ -306,6 +478,9 @@ export function initUiPersistence(opts: UiPersistRefs) {
     mapsExpanded,
     factionsExpanded,
     tablesExpanded,
+    snapshotGmTools,
+    applyGmTools,
+    gmToolsWatchSources,
   };
 
   watch(
@@ -335,6 +510,7 @@ export function initUiPersistence(opts: UiPersistRefs) {
       mapsExpanded,
       factionsExpanded,
       tablesExpanded,
+      ...gmToolsWatchSources,
     ],
     () => {
       schedulePersist(() => ({
@@ -354,6 +530,7 @@ export function initUiPersistence(opts: UiPersistRefs) {
         mapsExpanded: mapsExpanded.value,
         factionsExpanded: factionsExpanded.value,
         tablesExpanded: tablesExpanded.value,
+        gmTools: snapshotGmTools(),
       }));
     },
     { deep: true },

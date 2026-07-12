@@ -1,4 +1,12 @@
-import { coordKey, tileAt, type MapTile, type TerrainType, type TileImageRotation, type TilePaintPreset } from "@gaem/shared";
+import {
+  coordKey,
+  tileAt,
+  TILE_IMAGE_ROTATIONS,
+  type MapTile,
+  type TerrainType,
+  type TileImageRotation,
+  type TilePaintPreset,
+} from "@gaem/shared";
 import { computed, ref, watch } from "vue";
 
 import {
@@ -23,6 +31,7 @@ import { useEnemySpawnSelection } from "./useEnemySpawnSelection.js";
 import { activeTab } from "./useGameConsole.js";
 import { useGameState } from "./useGameState.js";
 import { activeMainTab } from "./useMainSectionTab.js";
+import { readPersistedUi, type PersistedGmTools } from "./uiPersist.js";
 
 export type GmTool = "select" | "damageEffect" | "forceMove" | "paintbrush";
 export type GmSelectTargetKind = "tiles" | "enemies" | "players";
@@ -35,46 +44,51 @@ export type GmBulkSelection =
 export const GM_EFFECT_NONE = "";
 export const GM_TILE_EFFECT_NONE = "";
 
-const activeTool = ref<GmTool | null>(null);
-const selectTargetKind = ref<GmSelectTargetKind>("enemies");
+const persistedGm = readPersistedUi().gmTools;
+
+const activeTool = ref<GmTool | null>(persistedGm.activeTool);
+const selectTargetKind = ref<GmSelectTargetKind>(persistedGm.selectTargetKind);
 const bulkSelection = ref<GmBulkSelection | null>(null);
-const damageAmount = ref(0);
-const effectId = ref(GM_EFFECT_NONE);
-const effectStacks = ref(1);
-const paintbrushElevation = ref(0);
-const paintbrushTerrain = ref<TerrainType>("standard");
-const paintbrushEffectId = ref(GM_TILE_EFFECT_NONE);
-const paintbrushEffectStacks = ref(1);
-const paintbrushTileName = ref("");
-const paintbrushBaseColor = ref<string | null>(null);
-const paintbrushAppearanceKey = ref<string | null>(null);
+const damageAmount = ref(persistedGm.damageAmount);
+const effectId = ref(persistedGm.effectId);
+const effectStacks = ref(persistedGm.effectStacks);
+const paintbrushElevation = ref(persistedGm.paintbrushElevation);
+const paintbrushTerrain = ref<TerrainType>(persistedGm.paintbrushTerrain);
+const paintbrushEffectId = ref(persistedGm.paintbrushEffectId);
+const paintbrushEffectStacks = ref(persistedGm.paintbrushEffectStacks);
+const paintbrushTileName = ref(persistedGm.paintbrushTileName);
+const paintbrushBaseColor = ref<string | null>(persistedGm.paintbrushBaseColor);
+const paintbrushAppearanceKey = ref<string | null | undefined>(persistedGm.paintbrushAppearanceKey);
 const paintbrushAppearancePreviewUrl = ref<string | null>(null);
-const paintbrushAppearanceSetId = ref(BUNDLED_TILE_SETS[0]?.id ?? "basic");
-const paintbrushFeatureKey = ref<string | null>(null);
+const paintbrushAppearanceSetId = ref(persistedGm.paintbrushAppearanceSetId);
+const paintbrushFeatureKey = ref<string | null | undefined>(persistedGm.paintbrushFeatureKey);
 const paintbrushFeaturePreviewUrl = ref<string | null>(null);
-const paintbrushEnableElevation = ref(true);
-const paintbrushEnableTerrain = ref(true);
-const paintbrushEnableEffect = ref(true);
-const paintbrushEnableName = ref(true);
-const paintbrushEnableColor = ref(true);
-const paintbrushEnableAppearance = ref(true);
-const paintbrushEnableFeature = ref(true);
-const paintbrushImageRotation = ref<TileImageRotation>(0);
-const paintbrushImageFlip = ref(false);
-const paintbrushEnableRotation = ref(true);
-const paintbrushEnableFlip = ref(true);
+const paintbrushEnableElevation = ref(persistedGm.paintbrushEnableElevation);
+const paintbrushEnableTerrain = ref(persistedGm.paintbrushEnableTerrain);
+const paintbrushEnableEffect = ref(persistedGm.paintbrushEnableEffect);
+const paintbrushEnableName = ref(persistedGm.paintbrushEnableName);
+const paintbrushEnableColor = ref(persistedGm.paintbrushEnableColor);
+const paintbrushEnableAppearance = ref(persistedGm.paintbrushEnableAppearance);
+const paintbrushEnableFeature = ref(persistedGm.paintbrushEnableFeature);
+const paintbrushImageRotation = ref<TileImageRotation>(persistedGm.paintbrushImageRotation);
+const paintbrushImageFlip = ref(persistedGm.paintbrushImageFlip);
+const paintbrushEnableRotation = ref(persistedGm.paintbrushEnableRotation);
+const paintbrushEnableFlip = ref(persistedGm.paintbrushEnableFlip);
+const paintbrushAutoRotate = ref(persistedGm.paintbrushAutoRotate);
 const paintbrushPresets = ref<Record<string, TilePaintPreset>>({});
 const paintbrushPresetLoadId = ref("");
 const paintbrushPresetError = ref("");
 const paintbrushAppearanceUploading = ref(false);
 const paintbrushFeatureUploading = ref(false);
 const paintbrushEyedropperActive = ref(false);
+const paintbrushSuppressPreviewKey = ref<string | null>(null);
 
 type PendingTilePlacement = {
   brushAppearance: string | null | undefined;
   brushFeature: string | null | undefined;
   appearanceKey: string | null | undefined;
   featureKey: string | null | undefined;
+  imageRotation: TileImageRotation | undefined;
 };
 
 const pendingTilePlacements = new Map<string, PendingTilePlacement>();
@@ -83,6 +97,70 @@ function clearPendingTilePlacements() {
   pendingTilePlacements.clear();
 }
 
+function clearPaintbrushSuppressPreview() {
+  paintbrushSuppressPreviewKey.value = null;
+}
+
+export function snapshotGmTools(): PersistedGmTools {
+  return {
+    activeTool: activeTool.value,
+    selectTargetKind: selectTargetKind.value,
+    damageAmount: damageAmount.value,
+    effectId: effectId.value,
+    effectStacks: effectStacks.value,
+    paintbrushElevation: paintbrushElevation.value,
+    paintbrushTerrain: paintbrushTerrain.value,
+    paintbrushEffectId: paintbrushEffectId.value,
+    paintbrushEffectStacks: paintbrushEffectStacks.value,
+    paintbrushTileName: paintbrushTileName.value,
+    paintbrushBaseColor: paintbrushBaseColor.value,
+    paintbrushAppearanceKey: paintbrushAppearanceKey.value,
+    paintbrushAppearanceSetId: paintbrushAppearanceSetId.value,
+    paintbrushFeatureKey: paintbrushFeatureKey.value,
+    paintbrushImageRotation: paintbrushImageRotation.value,
+    paintbrushImageFlip: paintbrushImageFlip.value,
+    paintbrushAutoRotate: paintbrushAutoRotate.value,
+    paintbrushEnableElevation: paintbrushEnableElevation.value,
+    paintbrushEnableTerrain: paintbrushEnableTerrain.value,
+    paintbrushEnableEffect: paintbrushEnableEffect.value,
+    paintbrushEnableName: paintbrushEnableName.value,
+    paintbrushEnableColor: paintbrushEnableColor.value,
+    paintbrushEnableAppearance: paintbrushEnableAppearance.value,
+    paintbrushEnableFeature: paintbrushEnableFeature.value,
+    paintbrushEnableRotation: paintbrushEnableRotation.value,
+    paintbrushEnableFlip: paintbrushEnableFlip.value,
+  };
+}
+
+export const gmToolsWatchSources = [
+  activeTool,
+  selectTargetKind,
+  damageAmount,
+  effectId,
+  effectStacks,
+  paintbrushElevation,
+  paintbrushTerrain,
+  paintbrushEffectId,
+  paintbrushEffectStacks,
+  paintbrushTileName,
+  paintbrushBaseColor,
+  paintbrushAppearanceKey,
+  paintbrushAppearanceSetId,
+  paintbrushFeatureKey,
+  paintbrushImageRotation,
+  paintbrushImageFlip,
+  paintbrushAutoRotate,
+  paintbrushEnableElevation,
+  paintbrushEnableTerrain,
+  paintbrushEnableEffect,
+  paintbrushEnableName,
+  paintbrushEnableColor,
+  paintbrushEnableAppearance,
+  paintbrushEnableFeature,
+  paintbrushEnableRotation,
+  paintbrushEnableFlip,
+];
+
 export function clearActiveTool() {
   activeTool.value = null;
 }
@@ -90,6 +168,38 @@ export function clearActiveTool() {
 watch(activeMainTab, (tab) => {
   if (tab !== "taccom") clearActiveTool();
 });
+
+let syncPaintbrushPreviewsFromKeys: (() => void) | null = null;
+
+export function applyPersistedGmTools(gm: PersistedGmTools) {
+  activeTool.value = gm.activeTool;
+  selectTargetKind.value = gm.selectTargetKind;
+  damageAmount.value = gm.damageAmount;
+  effectId.value = gm.effectId;
+  effectStacks.value = gm.effectStacks;
+  paintbrushElevation.value = gm.paintbrushElevation;
+  paintbrushTerrain.value = gm.paintbrushTerrain;
+  paintbrushEffectId.value = gm.paintbrushEffectId;
+  paintbrushEffectStacks.value = gm.paintbrushEffectStacks;
+  paintbrushTileName.value = gm.paintbrushTileName;
+  paintbrushBaseColor.value = gm.paintbrushBaseColor;
+  paintbrushAppearanceKey.value = gm.paintbrushAppearanceKey;
+  paintbrushAppearanceSetId.value = gm.paintbrushAppearanceSetId;
+  paintbrushFeatureKey.value = gm.paintbrushFeatureKey;
+  paintbrushImageRotation.value = gm.paintbrushImageRotation;
+  paintbrushImageFlip.value = gm.paintbrushImageFlip;
+  paintbrushAutoRotate.value = gm.paintbrushAutoRotate;
+  paintbrushEnableElevation.value = gm.paintbrushEnableElevation;
+  paintbrushEnableTerrain.value = gm.paintbrushEnableTerrain;
+  paintbrushEnableEffect.value = gm.paintbrushEnableEffect;
+  paintbrushEnableName.value = gm.paintbrushEnableName;
+  paintbrushEnableColor.value = gm.paintbrushEnableColor;
+  paintbrushEnableAppearance.value = gm.paintbrushEnableAppearance;
+  paintbrushEnableFeature.value = gm.paintbrushEnableFeature;
+  paintbrushEnableRotation.value = gm.paintbrushEnableRotation;
+  paintbrushEnableFlip.value = gm.paintbrushEnableFlip;
+  syncPaintbrushPreviewsFromKeys?.();
+}
 
 export function useGmTools() {
   const { clearMode } = useBoardActionMode();
@@ -140,10 +250,14 @@ export function useGmTools() {
     if (tool !== "paintbrush") {
       paintbrushEyedropperActive.value = false;
       clearPendingTilePlacements();
+      clearPaintbrushSuppressPreview();
     }
   });
 
-  watch([paintbrushAppearanceKey, paintbrushFeatureKey], clearPendingTilePlacements);
+  watch(
+    [paintbrushAppearanceKey, paintbrushFeatureKey, paintbrushAutoRotate, paintbrushEnableRotation],
+    clearPendingTilePlacements,
+  );
 
   function setPaintbrushEyedropperActive(active: boolean) {
     if (activeTool.value !== "paintbrush") {
@@ -285,6 +399,16 @@ export function useGmTools() {
     });
   }
 
+  syncPaintbrushPreviewsFromKeys = () => {
+    const appearance = paintbrushAppearanceKey.value;
+    if (typeof appearance === "string") setPaintbrushAppearancePreview(appearance);
+    else clearPaintbrushAppearancePreview();
+    const feature = paintbrushFeatureKey.value;
+    if (typeof feature === "string") setPaintbrushFeaturePreview(feature);
+    else clearPaintbrushFeaturePreview();
+  };
+  syncPaintbrushPreviewsFromKeys();
+
   function resetPaintbrushSettings() {
     paintbrushElevation.value = 0;
     paintbrushTerrain.value = "standard";
@@ -292,12 +416,15 @@ export function useGmTools() {
     paintbrushEffectStacks.value = 1;
     paintbrushTileName.value = "";
     paintbrushBaseColor.value = null;
-    paintbrushAppearanceKey.value = null;
+    paintbrushAppearanceKey.value = undefined;
     clearPaintbrushAppearancePreview();
-    paintbrushFeatureKey.value = null;
+    paintbrushFeatureKey.value = undefined;
     clearPaintbrushFeaturePreview();
     paintbrushImageRotation.value = 0;
     paintbrushImageFlip.value = false;
+    paintbrushEnableRotation.value = false;
+    paintbrushEnableFlip.value = false;
+    paintbrushAutoRotate.value = false;
     paintbrushPresetLoadId.value = "";
     paintbrushPresetError.value = "";
   }
@@ -469,11 +596,13 @@ export function useGmTools() {
     const brushFeature = paintbrushEnableFeature.value
       ? paintbrushFeatureKey.value
       : undefined;
+    const autoRotate = paintbrushEnableRotation.value && paintbrushAutoRotate.value;
     const existing = pendingTilePlacements.get(key);
     if (
       existing &&
       existing.brushAppearance === brushAppearance &&
-      existing.brushFeature === brushFeature
+      existing.brushFeature === brushFeature &&
+      (existing.imageRotation !== undefined) === autoRotate
     ) {
       return existing;
     }
@@ -486,6 +615,9 @@ export function useGmTools() {
           : undefined,
       featureKey:
         brushFeature !== undefined ? resolveFeatureKeyForPaint(brushFeature) : undefined,
+      imageRotation: autoRotate
+        ? TILE_IMAGE_ROTATIONS[Math.floor(Math.random() * TILE_IMAGE_ROTATIONS.length)]
+        : undefined,
     };
     pendingTilePlacements.set(key, placement);
     return placement;
@@ -517,6 +649,7 @@ export function useGmTools() {
       appearanceUrl:
         placement.appearanceKey !== undefined ? urlForKey(placement.appearanceKey) : null,
       featureUrl: placement.featureKey !== undefined ? urlForKey(placement.featureKey) : null,
+      imageRotation: placement.imageRotation,
     };
   }
 
@@ -526,6 +659,7 @@ export function useGmTools() {
       sel?.kind === "tiles" && sel.coords.some((c) => c.x === x && c.y === y)
         ? sel.coords
         : [{ x, y }];
+    const autoRotate = paintbrushEnableRotation.value && paintbrushAutoRotate.value;
     const shared: {
       elevation?: number;
       terrain?: TerrainType;
@@ -574,12 +708,13 @@ export function useGmTools() {
     }
 
     const needsPerTileResolve =
+      autoRotate ||
       (brushAppearance !== undefined &&
         brushAppearance !== null &&
         isAppearanceGroupKey(brushAppearance)) ||
       (brushFeature !== undefined && brushFeature !== null && isFeatureGroupKey(brushFeature));
 
-    // Per-tile resolve (groups + any cell with a pending hover pick) so preview matches paint.
+    // Per-tile resolve (groups + auto-rotate + any cell with a pending hover pick) so preview matches paint.
     if (needsPerTileResolve || coords.length === 1) {
       for (const coord of coords) {
         const placement = takePendingTilePlacement(coord.x, coord.y);
@@ -591,8 +726,10 @@ export function useGmTools() {
             ? { appearanceKey: placement.appearanceKey }
             : {}),
           ...(placement.featureKey !== undefined ? { featureKey: placement.featureKey } : {}),
+          ...(autoRotate ? { imageRotation: placement.imageRotation ?? null } : {}),
         });
       }
+      paintbrushSuppressPreviewKey.value = coordKey(x, y);
       return;
     }
 
@@ -607,6 +744,7 @@ export function useGmTools() {
         ? { featureKey: resolveFeatureKeyForPaint(brushFeature) }
         : {}),
     });
+    paintbrushSuppressPreviewKey.value = coordKey(x, y);
   }
 
   return {
@@ -630,6 +768,7 @@ export function useGmTools() {
     paintbrushFeaturePreviewUrl,
     paintbrushImageRotation,
     paintbrushImageFlip,
+    paintbrushAutoRotate,
     paintbrushEnableElevation,
     paintbrushEnableTerrain,
     paintbrushEnableEffect,
@@ -639,6 +778,7 @@ export function useGmTools() {
     paintbrushEnableFeature,
     paintbrushEnableRotation,
     paintbrushEnableFlip,
+    paintbrushSuppressPreviewKey,
     paintbrushPresets,
     paintbrushPresetLoadId,
     paintbrushPresetNames,
@@ -660,6 +800,7 @@ export function useGmTools() {
     cyclePaintbrushImageRotation,
     togglePaintbrushImageFlip,
     peekPaintbrushPlacement,
+    clearPaintbrushSuppressPreview,
     applyPaintbrushToTile,
     samplePaintbrushFromTile,
     setPaintbrushEyedropperActive,

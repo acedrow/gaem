@@ -29,6 +29,7 @@ const {
   paintbrushEnableFlip,
   paintbrushImageRotation,
   paintbrushImageFlip,
+  paintbrushAutoRotate,
   paintbrushPresetLoadId,
   paintbrushPresetNames,
   paintbrushPresetError,
@@ -374,7 +375,18 @@ function onFeatureSelected(e: Event) {
         class="option-enable"
         aria-label="Enable rotation"
       />
-      <span class="transform-value">{{ paintbrushImageRotation }}°</span>
+      <label class="auto-rotate">
+        <input
+          v-model="paintbrushAutoRotate"
+          type="checkbox"
+          :disabled="!paintbrushEnableRotation"
+          aria-label="Auto rotate"
+        />
+        Auto
+      </label>
+      <span class="transform-value">
+        {{ paintbrushAutoRotate ? "Random" : `${paintbrushImageRotation}°` }}
+      </span>
       <span class="transform-hint">R</span>
     </div>
     <div class="control-group">
@@ -688,6 +700,28 @@ function onFeatureSelected(e: Event) {
   font-size: 0.8rem;
   color: var(--color-text);
   min-width: 2.5rem;
+}
+
+.auto-rotate {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  user-select: none;
+}
+
+.auto-rotate input {
+  margin: 0;
+}
+
+.auto-rotate:has(input:disabled) {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .transform-hint {
