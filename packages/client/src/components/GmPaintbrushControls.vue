@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { TERRAIN_TYPES, TILE_EFFECTS, terrainTypeDisplayName } from "@gaem/shared";
-import { ref } from "vue";
+import { onUnmounted, ref, watch } from "vue";
 
 import {
   useGmTools,
@@ -44,6 +44,41 @@ const {
 } = useGmTools();
 
 const colorModalOpen = ref(false);
+const galleryOpen = ref(false);
+
+function closeGallery() {
+  galleryOpen.value = false;
+}
+
+function toggleGallery() {
+  galleryOpen.value = !galleryOpen.value;
+}
+
+function onSelectAppearance(key: string) {
+  selectBundledPaintbrushAppearance(key);
+  closeGallery();
+}
+
+function onGalleryKeydown(e: KeyboardEvent) {
+  if (e.key !== "Escape" || !galleryOpen.value) return;
+  e.preventDefault();
+  e.stopPropagation();
+  closeGallery();
+}
+
+watch(galleryOpen, (open) => {
+  if (open) {
+    document.addEventListener("keydown", onGalleryKeydown, true);
+  } else {
+    document.removeEventListener("keydown", onGalleryKeydown, true);
+  }
+});
+
+watch(paintbrushAppearanceSetId, closeGallery);
+
+onUnmounted(() => {
+  document.removeEventListener("keydown", onGalleryKeydown, true);
+});
 
 function onAppearanceSelected(e: Event) {
   const input = e.target as HTMLInputElement;
@@ -151,22 +186,35 @@ function onAppearanceSelected(e: Event) {
           {{ set.label }}
         </option>
       </select>
-      <details v-if="bundledTileAppearancesForSet.length" class="appearance-gallery">
-        <summary class="gallery-toggle">Gallery</summary>
-        <div class="gallery-menu">
-          <button
-            v-for="item in bundledTileAppearancesForSet"
-            :key="item.key"
-            type="button"
-            class="gallery-item"
-            :class="{ selected: paintbrushAppearanceKey === item.key }"
-            @click="selectBundledPaintbrushAppearance(item.key)"
-          >
-            <img :src="item.url" alt="" class="gallery-thumb tile-image" />
-            <span class="gallery-name">{{ item.name }}</span>
-          </button>
-        </div>
-      </details>
+      <div v-if="bundledTileAppearancesForSet.length" class="appearance-gallery">
+        <button
+          type="button"
+          class="gallery-toggle"
+          :aria-expanded="galleryOpen"
+          aria-haspopup="listbox"
+          @click="toggleGallery"
+        >
+          Gallery
+        </button>
+        <template v-if="galleryOpen">
+          <div class="gallery-backdrop" @click="closeGallery" />
+          <div class="gallery-menu" role="listbox" @click.stop>
+            <button
+              v-for="item in bundledTileAppearancesForSet"
+              :key="item.key"
+              type="button"
+              role="option"
+              class="gallery-item"
+              :class="{ selected: paintbrushAppearanceKey === item.key }"
+              :aria-selected="paintbrushAppearanceKey === item.key"
+              @click="onSelectAppearance(item.key)"
+            >
+              <img :src="item.url" alt="" class="gallery-thumb tile-image" />
+              <span class="gallery-name">{{ item.name }}</span>
+            </button>
+          </div>
+        </template>
+      </div>
       <label class="upload-btn" :class="{ uploading: paintbrushAppearanceUploading }">
         {{ paintbrushAppearanceUploading ? "Uploading…" : "Upload" }}
         <input
@@ -327,11 +375,17 @@ function onAppearanceSelected(e: Event) {
   font-family: inherit;
   padding: 0.2rem 0.45rem;
   cursor: pointer;
-  list-style: none;
 }
 
-.gallery-toggle::-webkit-details-marker {
-  display: none;
+.gallery-toggle[aria-expanded="true"] {
+  color: var(--color-text);
+  background: var(--color-surface-raised);
+}
+
+.gallery-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 19;
 }
 
 .gallery-menu {
@@ -349,7 +403,7 @@ function onAppearanceSelected(e: Event) {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   background: var(--color-surface);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+  box-shadow: var(--shadow-menu);
 }
 
 .gallery-item {
