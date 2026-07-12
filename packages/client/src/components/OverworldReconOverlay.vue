@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import { defaultOverworldParty, type RuleTermTooltip } from "@gaem/shared";
+import {
+  defaultOverworldParty,
+  RECON_MOVES,
+  type RuleTermTooltip,
+} from "@gaem/shared";
 import { computed } from "vue";
 
 import { useGameState } from "../composables/useGameState.js";
@@ -36,6 +40,17 @@ const REVELATIONS_TOOLTIP: RuleTermTooltip = {
   description:
     "Gain Revelation from Scavenge and similar moves; spend it on Scout and under-DIS exploration. Not spent on Travel.",
 };
+
+const reconMoveTooltips = RECON_MOVES.map(
+  (move): { name: string; tooltip: RuleTermTooltip } => ({
+    name: move.name,
+    tooltip: {
+      title: move.name,
+      summary: move.summary,
+      description: move.summary,
+    },
+  }),
+);
 
 const { gameState, send } = useGameState();
 
@@ -116,6 +131,18 @@ function onDisHellAction() {
     >
       {{ atDis ? "Deploy to Hell" : "Return to DIS" }}
     </button>
+    <div class="recon-moves-section">
+      <div class="recon-moves-heading">RECON moves</div>
+      <div class="recon-moves-tags">
+        <RuleTerm
+          v-for="move in reconMoveTooltips"
+          :key="move.name"
+          class="recon-move-tag"
+          :text="move.name"
+          :tooltip="move.tooltip"
+        />
+      </div>
+    </div>
   </div>
 </template>
 
@@ -129,6 +156,7 @@ function onDisHellAction() {
   border-radius: 8px;
   background: var(--color-surface);
   min-width: 11rem;
+  max-width: 16rem;
   box-shadow: var(--shadow-popover);
 }
 
@@ -159,5 +187,40 @@ function onDisHellAction() {
 .action-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.recon-moves-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.recon-moves-heading {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.recon-moves-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.recon-moves-tags :deep(.recon-move-tag) {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-muted);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 0.1rem 0.35rem;
+  background: var(--color-surface-raised);
+  text-decoration: none;
 }
 </style>

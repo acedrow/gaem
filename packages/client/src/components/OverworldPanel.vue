@@ -335,6 +335,15 @@ const {
   disconnect,
 } = useBoardViewport(viewportEl, contentWidthPx, contentHeightPx, isReady, viewportKey);
 
+function clearLocationSelection() {
+  if (selectedLocationId.value) selectedLocationId.value = null;
+}
+
+function onViewportWheel(e: WheelEvent) {
+  clearLocationSelection();
+  onWheel(e);
+}
+
 const showQuarters = computed(
   () =>
     travelMode.value ||
@@ -485,7 +494,8 @@ const gridCells = computed(() =>
     <div
       ref="viewportEl"
       class="overworld-viewport"
-      @wheel.prevent="onWheel"
+      @wheel.prevent="onViewportWheel"
+      @click="clearLocationSelection"
     >
       <div
         class="overworld-stage"

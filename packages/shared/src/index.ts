@@ -21,6 +21,7 @@ export * from "./base-upgrades-campaign.js";
 export * from "./base-upgrades-unlocks.js";
 export * from "./overworld.js";
 export * from "./patterns.js";
+export * from "./recon-moves-data.js";
 export * from "./recon-tables-data.js";
 export * from "./rule-text.js";
 export * from "./weapon-patterns.js";
