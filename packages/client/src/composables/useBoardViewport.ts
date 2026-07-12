@@ -153,6 +153,21 @@ export function useBoardViewport(
     animateViewportTo(nextScale, nextPanX, nextPanY);
   }
 
+  function panToRect(contentX: number, contentY: number, contentW: number, contentH: number) {
+    const el = viewportEl.value;
+    const size = el ? viewportSize(el) : null;
+    if (!el || !size || !isReady.value) return;
+    const s = scale.value;
+    const cx = contentX + contentW / 2;
+    const cy = contentY + contentH / 2;
+    let nextPanX = size.vw / 2 - cx * s;
+    let nextPanY = topInsetPx.value + (size.vh - topInsetPx.value) / 2 - cy * s;
+    const { w, h } = getContentSize();
+    nextPanX = clampPanAxis(nextPanX, w * s, el.clientWidth);
+    nextPanY = clampPanAxis(nextPanY, h * s, el.clientHeight);
+    animateViewportTo(s, nextPanX, nextPanY);
+  }
+
   function restoreOrFit() {
     const el = viewportEl.value;
     const key = viewportKey.value;
@@ -301,6 +316,7 @@ export function useBoardViewport(
     isTransformed,
     fitToView,
     focusOnRect,
+    panToRect,
     restoreOrFit,
     onWheel,
     observeViewport,

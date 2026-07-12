@@ -13,7 +13,9 @@ import {
 import { useApi } from "./useApi.js";
 import { useBoardActionMode } from "./useBoardActionMode.js";
 import { useEnemySpawnSelection } from "./useEnemySpawnSelection.js";
+import { activeTab } from "./useGameConsole.js";
 import { useGameState } from "./useGameState.js";
+import { activeMainTab } from "./useMainSectionTab.js";
 
 export type GmTool = "select" | "damageEffect" | "forceMove" | "paintbrush";
 export type GmSelectTargetKind = "tiles" | "enemies" | "players";
@@ -56,6 +58,10 @@ const paintbrushEyedropperActive = ref(false);
 export function clearActiveTool() {
   activeTool.value = null;
 }
+
+watch(activeMainTab, (tab) => {
+  if (tab !== "taccom") clearActiveTool();
+});
 
 export function useGmTools() {
   const { clearMode } = useBoardActionMode();
@@ -147,6 +153,7 @@ export function useGmTools() {
       effectId.value = GM_EFFECT_NONE;
     }
     activeTool.value = tool;
+    activeTab.value = "info";
   }
 
   function setBulkSelection(selection: GmBulkSelection | null) {

@@ -10,6 +10,7 @@ import { useFactionSelection } from "../composables/useFactionSelection.js";
 import { activeTab } from "../composables/useGameConsole.js";
 import type { DataCategory } from "../composables/useInfoDataSelection.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
+import { activeMainTab } from "../composables/useMainSectionTab.js";
 import { useMapSelection } from "../composables/useMapSelection.js";
 import { useSession } from "../composables/useSession.js";
 import { useTableSelection } from "../composables/useTableSelection.js";
@@ -264,7 +265,7 @@ watch(sheetsVersion, () => {
 
 <template>
   <nav class="side-nav">
-    <GmToolsToolbar v-if="hasGmCapabilities" />
+    <GmToolsToolbar v-if="hasGmCapabilities && activeMainTab === 'taccom'" />
 
     <template v-if="hasGmCapabilities">
       <button class="nav-link nav-toggle" :class="{ expanded: mapsExpanded }" type="button" @click="toggleMaps">

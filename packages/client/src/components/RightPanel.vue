@@ -9,6 +9,7 @@ import { useGameState } from "../composables/useGameState.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import { selectedMapId } from "../composables/useMapSelection.js";
 import { selectedTableId } from "../composables/useTableSelection.js";
+import { useGmTools } from "../composables/useGmTools.js";
 import AssistedActionPanel from "./AssistedActionPanel.vue";
 import CharacterSheetPanel from "./CharacterSheetPanel.vue";
 import EnemyInfoPanel from "./EnemyInfoPanel.vue";
@@ -17,6 +18,7 @@ import GameConsolePanel from "./GameConsolePanel.vue";
 import EffectsPanel from "./EffectsPanel.vue";
 import TerrainTypesPanel from "./TerrainTypesPanel.vue";
 import GameDataDetailPanel from "./GameDataDetailPanel.vue";
+import GmToolOptionsPanel from "./GmToolOptionsPanel.vue";
 import InfoSearchPanel from "./InfoSearchPanel.vue";
 import MapPanel from "./MapPanel.vue";
 import PlayerBoardPanel from "./PlayerBoardPanel.vue";
@@ -32,6 +34,7 @@ const { selectedSheetId, gearPickCategory } = useCharacterSheetSelection();
 const { boardSelection } = useBoardSelection();
 const { dataCategory, dataFocus, dataFocusReturnCategory } = useInfoDataSelection();
 const { gameState } = useGameState();
+const { activeTool } = useGmTools();
 
 const boardPlayerSheetId = computed(() => {
   if (boardSelection.value?.kind !== "player") return null;
@@ -115,8 +118,12 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
         <AssistedActionPanel v-if="activeTab === 'console'" />
         <GameConsolePanel v-if="activeTab === 'console'" />
         <div v-show="activeTab === 'info'" class="info-pane">
+          <GmToolOptionsPanel
+            v-if="activeTool"
+            :key="activeTool"
+          />
           <EnemyInfoPanel
-            v-if="boardSelection?.kind === 'enemy'"
+            v-else-if="boardSelection?.kind === 'enemy'"
             :key="`board:${boardSelection.id}`"
             :enemy-id="boardSelection.id"
           />
@@ -170,6 +177,7 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
           <FactionInfoPanel
             v-else-if="selectedFactionId"
             :key="selectedFactionId"
+            :faction-id="selectedFactionId"
           />
           <TableInfoPanel
             v-else-if="selectedTableId"

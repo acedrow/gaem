@@ -138,7 +138,7 @@ export async function closeGmTool(page: Page): Promise<void> {
 }
 
 export async function setDamageAmount(page: Page, amount: number): Promise<void> {
-  const stepper = page.locator(".gm-tools-overlay .stepper").first();
+  const stepper = page.locator(".info-pane .stepper").first();
   const input = stepper.locator(".step-input");
   const current = Number(await input.inputValue());
   const delta = amount - current;

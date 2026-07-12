@@ -19,6 +19,15 @@ export const selectedFactionId = ref<FactionId | null>(
 );
 export const factionsExpanded = ref(persisted.factionsExpanded);
 
+export type FactionLocationReveal = {
+  factionId: FactionId;
+  locationName: string;
+  section: "starting" | "unique";
+  token: number;
+};
+
+export const pendingFactionLocationReveal = ref<FactionLocationReveal | null>(null);
+
 export function useFactionSelection() {
   const { selectSheet } = useCharacterSheetSelection();
   const { clearDataCategory } = useInfoDataSelection();
@@ -35,6 +44,20 @@ export function useFactionSelection() {
     selectedFactionId.value = id;
   }
 
+  function revealFactionLocation(
+    factionId: FactionId,
+    locationName: string,
+    section: "starting" | "unique",
+  ) {
+    selectFaction(factionId);
+    pendingFactionLocationReveal.value = {
+      factionId,
+      locationName,
+      section,
+      token: Date.now(),
+    };
+  }
+
   function clearFaction() {
     selectedFactionId.value = null;
   }
@@ -42,7 +65,9 @@ export function useFactionSelection() {
   return {
     selectedFactionId,
     factionsExpanded,
+    pendingFactionLocationReveal,
     selectFaction,
+    revealFactionLocation,
     clearFaction,
   };
 }

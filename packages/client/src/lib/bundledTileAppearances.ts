@@ -27,10 +27,12 @@ export type TileAppearanceGalleryEntry = {
 const SET_LABELS: Record<string, string> = {
   basic: "Basic",
   paracletus: "Paracletus",
+  "paracletus-e-fields": "Paracletus E-Fields",
+  "paracletus-stain-springs": "Paracletus Stain Springs",
 };
 
 const appearanceModules = import.meta.glob(
-  "../../../assets/tiles/{basic,paracletus}/**/*.png",
+  "../../../assets/tiles/{basic,paracletus,paracletus-e-fields,paracletus-stain-springs}/**/*.png",
   { eager: true, query: "?url", import: "default" },
 ) as Record<string, string>;
 

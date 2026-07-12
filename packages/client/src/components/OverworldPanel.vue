@@ -47,7 +47,7 @@ const contentHeightPx = computed(() => boardHeightPx + DIS_GAP + DIS_NODE);
 const { gameState, send } = useGameState();
 const { hasGmCapabilities, isGm } = useSession();
 const { uploadRegionImage, fetchRegionImageUrl } = useApi();
-const { selectedFactionId, selectFaction } = useFactionSelection();
+const { selectedFactionId, selectFaction, revealFactionLocation } = useFactionSelection();
 
 const viewportEl = ref<HTMLElement | null>(null);
 const viewportKey = ref("overworld");
@@ -282,10 +282,9 @@ function formatLocationQuality(quality: Partial<FactionQualityDots> | undefined)
     .join(", ");
 }
 
-function locationMeta(loc: FactionLocation): string {
+function locationHoverMeta(loc: FactionLocation): string {
   const parts: string[] = [];
   if (loc.type) parts.push(loc.type);
-  if (loc.buildTime != null) parts.push(`Build ${"Θ".repeat(loc.buildTime)}`);
   const q = formatLocationQuality(loc.quality);
   if (q) parts.push(q);
   return parts.join(" · ");
@@ -296,22 +295,10 @@ const locationMarkers = computed(() =>
     const catalog = catalogLocation(loc);
     return {
       loc,
-      catalog,
-      meta: catalog ? locationMeta(catalog) : "",
+      hoverMeta: catalog ? locationHoverMeta(catalog) : "",
     };
   }),
 );
-
-function onLocationClick(loc: OverworldLocation) {
-  if (travelMode.value || deployMode.value) return;
-  if (selectedLocationId.value === loc.id) {
-    selectedLocationId.value = null;
-    fitToView(true);
-    return;
-  }
-  selectedLocationId.value = loc.id;
-  focusOnRect(loc.qx * QUARTER, loc.qy * QUARTER, QUARTER, QUARTER);
-}
 
 function onKeydown(e: KeyboardEvent) {
   if (e.key === "Escape") {
@@ -328,12 +315,37 @@ const {
   stageStyle,
   isTransformed,
   fitToView,
-  focusOnRect,
+  panToRect,
   restoreOrFit,
   onWheel,
   observeViewport,
   disconnect,
 } = useBoardViewport(viewportEl, contentWidthPx, contentHeightPx, isReady, viewportKey);
+
+function onLocationClick(loc: OverworldLocation) {
+  if (travelMode.value || deployMode.value) return;
+  if (selectedLocationId.value === loc.id) {
+    selectedLocationId.value = null;
+    return;
+  }
+  selectedLocationId.value = loc.id;
+  panToRect(loc.qx * QUARTER, loc.qy * QUARTER, QUARTER, QUARTER);
+
+  const faction = getFactionById(loc.factionId);
+  if (!faction) {
+    selectFaction(loc.factionId);
+    return;
+  }
+  if (faction.startingLocations.some((entry) => entry.name === loc.name)) {
+    revealFactionLocation(loc.factionId, loc.name, "starting");
+    return;
+  }
+  if (faction.uniqueLocations.some((entry) => entry.name === loc.name)) {
+    revealFactionLocation(loc.factionId, loc.name, "unique");
+    return;
+  }
+  selectFaction(loc.factionId);
+}
 
 function clearLocationSelection() {
   if (selectedLocationId.value) selectedLocationId.value = null;
@@ -626,24 +638,9 @@ const gridCells = computed(() =>
             <img class="location-marker-icon" :src="locationUrl" alt="" draggable="false" />
             <div class="location-tooltip popover-tooltip">
               <div class="location-tooltip-name">{{ marker.loc.name }}</div>
-              <template v-if="marker.catalog">
-                <div v-if="marker.meta" class="location-tooltip-meta">{{ marker.meta }}</div>
-                <p v-if="marker.catalog.description" class="location-tooltip-desc">
-                  {{ marker.catalog.description }}
-                </p>
-                <p v-if="marker.catalog.purpose" class="location-tooltip-detail">
-                  <span class="location-tooltip-label">Purpose</span> {{ marker.catalog.purpose }}
-                </p>
-                <p v-if="marker.catalog.terrain" class="location-tooltip-detail">
-                  <span class="location-tooltip-label">Terrain</span> {{ marker.catalog.terrain }}
-                </p>
-                <p v-if="marker.catalog.defenses" class="location-tooltip-detail">
-                  <span class="location-tooltip-label">Defenses</span> {{ marker.catalog.defenses }}
-                </p>
-                <p v-if="marker.catalog.requires" class="location-tooltip-detail">
-                  <span class="location-tooltip-label">Requires</span> {{ marker.catalog.requires }}
-                </p>
-              </template>
+              <div v-if="marker.hoverMeta" class="location-tooltip-meta">
+                {{ marker.hoverMeta }}
+              </div>
             </div>
           </div>
           <div
@@ -772,10 +769,11 @@ const gridCells = computed(() =>
 
 .overworld-board {
   position: relative;
+  z-index: 1;
   flex-shrink: 0;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .dis-spur {
@@ -833,6 +831,7 @@ const gridCells = computed(() =>
   position: relative;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
   border-right: 1px solid var(--color-border);
   background: var(--color-bg);
   cursor: pointer;
@@ -1045,8 +1044,7 @@ const gridCells = computed(() =>
 }
 
 .location-marker:hover .location-tooltip,
-.location-marker:focus-visible .location-tooltip,
-.location-marker--selected .location-tooltip {
+.location-marker:focus-visible .location-tooltip {
   opacity: 1;
 }
 
@@ -1060,25 +1058,6 @@ const gridCells = computed(() =>
   color: var(--color-text-secondary);
   font-size: 0.65rem;
   line-height: 1.3;
-}
-
-.location-tooltip-desc {
-  margin: 0.3rem 0 0;
-  color: var(--color-text);
-  font-size: 0.65rem;
-  line-height: 1.35;
-}
-
-.location-tooltip-detail {
-  margin: 0.2rem 0 0;
-  color: var(--color-text-secondary);
-  font-size: 0.65rem;
-  line-height: 1.3;
-}
-
-.location-tooltip-label {
-  color: var(--color-text);
-  font-weight: 600;
 }
 
 .party-token {

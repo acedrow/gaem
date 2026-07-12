@@ -108,7 +108,7 @@ function onAppearanceSelected(e: Event) {
         class="option-enable"
         aria-label="Enable terrain"
       />
-      <select v-model="paintbrushTerrain" class="effect-select terrain-select">
+      <select v-model="paintbrushTerrain" class="effect-select">
         <option v-for="terrain in TERRAIN_TYPES" :key="terrain" :value="terrain">
           {{ terrainTypeDisplayName(terrain) }}
         </option>
@@ -132,6 +132,7 @@ function onAppearanceSelected(e: Event) {
     </div>
     <div v-if="paintbrushEffectId" class="control-group">
       <span class="control-label">Stacks</span>
+      <span class="option-enable-spacer" aria-hidden="true" />
       <NumberStepper v-model="paintbrushEffectStacks" :min="-99" :max="99" />
     </div>
 
@@ -170,108 +171,119 @@ function onAppearanceSelected(e: Event) {
         class="option-enable"
         aria-label="Enable appearance"
       />
-      <select
-        v-if="bundledTileSets.length"
-        v-model="paintbrushAppearanceSetId"
-        class="effect-select set-select"
-        aria-label="Tile set"
-      >
-        <option v-for="set in bundledTileSets" :key="set.id" :value="set.id">
-          {{ set.label }}
-        </option>
-      </select>
-      <div v-if="bundledTileAppearancesForSet.length" class="appearance-gallery">
-        <button
-          type="button"
-          class="appearance-thumb-btn"
-          :aria-expanded="galleryOpen"
-          aria-haspopup="listbox"
-          aria-label="Choose tile appearance"
-          @click="toggleGallery"
+      <div class="appearance-controls">
+        <select
+          v-if="bundledTileSets.length"
+          v-model="paintbrushAppearanceSetId"
+          class="effect-select"
+          aria-label="Tile set"
         >
+          <option v-for="set in bundledTileSets" :key="set.id" :value="set.id">
+            {{ set.label }}
+          </option>
+        </select>
+        <div class="appearance-row">
+          <div v-if="bundledTileAppearancesForSet.length" class="appearance-gallery">
+            <button
+              type="button"
+              class="appearance-thumb-btn"
+              :aria-expanded="galleryOpen"
+              aria-haspopup="listbox"
+              aria-label="Choose tile appearance"
+              @click="toggleGallery"
+            >
+              <img
+                v-if="paintbrushAppearancePreviewUrl"
+                :src="paintbrushAppearancePreviewUrl"
+                alt=""
+                class="appearance-thumb tile-image"
+              />
+              <span v-else class="appearance-thumb-placeholder">—</span>
+            </button>
+            <template v-if="galleryOpen">
+              <div class="gallery-backdrop" @click="closeGallery" />
+              <div class="gallery-menu" role="listbox" @click.stop>
+                <button
+                  v-for="item in bundledTileAppearancesForSet"
+                  :key="item.key"
+                  type="button"
+                  role="option"
+                  class="gallery-item"
+                  :class="{ selected: paintbrushAppearanceKey === item.key }"
+                  :aria-selected="paintbrushAppearanceKey === item.key"
+                  :title="item.kind === 'group' ? `Random from ${item.name}/` : item.name"
+                  @click="onSelectAppearance(item.key)"
+                >
+                  <img :src="item.url" alt="" class="gallery-thumb tile-image" />
+                  <span class="gallery-name">{{ item.name }}</span>
+                </button>
+              </div>
+            </template>
+          </div>
           <img
-            v-if="paintbrushAppearancePreviewUrl"
+            v-else-if="paintbrushAppearancePreviewUrl"
             :src="paintbrushAppearancePreviewUrl"
             alt=""
             class="appearance-thumb tile-image"
           />
-          <span v-else class="appearance-thumb-placeholder">—</span>
-        </button>
-        <template v-if="galleryOpen">
-          <div class="gallery-backdrop" @click="closeGallery" />
-          <div class="gallery-menu" role="listbox" @click.stop>
-            <button
-              v-for="item in bundledTileAppearancesForSet"
-              :key="item.key"
-              type="button"
-              role="option"
-              class="gallery-item"
-              :class="{ selected: paintbrushAppearanceKey === item.key }"
-              :aria-selected="paintbrushAppearanceKey === item.key"
-              :title="item.kind === 'group' ? `Random from ${item.name}/` : item.name"
-              @click="onSelectAppearance(item.key)"
-            >
-              <img :src="item.url" alt="" class="gallery-thumb tile-image" />
-              <span class="gallery-name">{{ item.name }}</span>
-            </button>
-          </div>
-        </template>
+          <label class="upload-btn" :class="{ uploading: paintbrushAppearanceUploading }">
+            {{ paintbrushAppearanceUploading ? "Uploading…" : "Upload" }}
+            <input
+              type="file"
+              accept="image/png"
+              class="hidden-input"
+              :disabled="paintbrushAppearanceUploading"
+              @change="onAppearanceSelected"
+            />
+          </label>
+          <button
+            v-if="paintbrushAppearancePreviewUrl"
+            type="button"
+            class="mini-btn"
+            @click="clearPaintbrushAppearance"
+          >
+            Clear
+          </button>
+        </div>
       </div>
-      <img
-        v-else-if="paintbrushAppearancePreviewUrl"
-        :src="paintbrushAppearancePreviewUrl"
-        alt=""
-        class="appearance-thumb tile-image"
-      />
-      <label class="upload-btn" :class="{ uploading: paintbrushAppearanceUploading }">
-        {{ paintbrushAppearanceUploading ? "Uploading…" : "Upload" }}
-        <input
-          type="file"
-          accept="image/png"
-          class="hidden-input"
-          :disabled="paintbrushAppearanceUploading"
-          @change="onAppearanceSelected"
-        />
-      </label>
-      <button
-        v-if="paintbrushAppearancePreviewUrl"
-        type="button"
-        class="mini-btn"
-        @click="clearPaintbrushAppearance"
-      >
-        Clear
-      </button>
     </div>
 
     <div class="control-group preset-group">
       <span class="control-label">Preset</span>
-      <select v-model="paintbrushPresetLoadId" class="effect-select preset-select">
-        <option value="">Load…</option>
-        <option v-for="name in paintbrushPresetNames" :key="name" :value="name">
-          {{ name }}
-        </option>
-      </select>
-      <button type="button" class="mini-btn" :disabled="!paintbrushPresetLoadId" @click="loadSelectedPreset">
-        Load
-      </button>
-      <button type="button" class="mini-btn" @click="saveCurrentPreset">Save</button>
-      <button
-        type="button"
-        class="mini-btn"
-        :disabled="!paintbrushPresetLoadId"
-        @click="deleteSelectedPreset"
-      >
-        Delete
-      </button>
+      <span class="option-enable-spacer" aria-hidden="true" />
+      <div class="preset-controls">
+        <select v-model="paintbrushPresetLoadId" class="effect-select">
+          <option value="">Load…</option>
+          <option v-for="name in paintbrushPresetNames" :key="name" :value="name">
+            {{ name }}
+          </option>
+        </select>
+        <div class="preset-actions">
+          <button type="button" class="mini-btn" :disabled="!paintbrushPresetLoadId" @click="loadSelectedPreset">
+            Load
+          </button>
+          <button type="button" class="mini-btn" @click="saveCurrentPreset">Save</button>
+          <button
+            type="button"
+            class="mini-btn"
+            :disabled="!paintbrushPresetLoadId"
+            @click="deleteSelectedPreset"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
     </div>
 
-    <span v-if="paintbrushPresetError" class="preset-error">{{ paintbrushPresetError }}</span>
+    <p v-if="paintbrushPresetError" class="preset-error">{{ paintbrushPresetError }}</p>
 
-    <button type="button" class="mini-btn" @click="enableAllPaintbrushOptions">Enable all</button>
-    <button type="button" class="mini-btn" @click="disableAllPaintbrushOptions">Disable all</button>
-    <button type="button" class="reset-btn" @click="resetPaintbrushSettings">Reset</button>
+    <div class="action-row">
+      <button type="button" class="mini-btn" @click="enableAllPaintbrushOptions">Enable all</button>
+      <button type="button" class="mini-btn" @click="disableAllPaintbrushOptions">Disable all</button>
+      <button type="button" class="reset-btn" @click="resetPaintbrushSettings">Reset</button>
+    </div>
 
-    <span class="eyedropper-hint">Hold E to sample a tile</span>
+    <p class="eyedropper-hint">Hold E to sample a tile</p>
 
     <TileBaseColorModal v-model="paintbrushBaseColor" :open="colorModalOpen" @close="colorModalOpen = false" />
   </div>
@@ -280,18 +292,19 @@ function onAppearanceSelected(e: Event) {
 <style scoped>
 .paintbrush-controls {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.65rem;
 }
 
 .control-group {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.45rem;
+  flex-wrap: wrap;
 }
 
 .control-label {
+  flex: 0 0 5rem;
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--color-muted);
@@ -300,46 +313,31 @@ function onAppearanceSelected(e: Event) {
 }
 
 .option-enable {
+  flex-shrink: 0;
   margin: 0;
   cursor: pointer;
+}
+
+.option-enable-spacer {
+  width: 1rem;
+  flex-shrink: 0;
 }
 
 .effect-group {
   gap: 0.35rem;
 }
 
-.effect-select {
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-size: 0.8rem;
-  font-family: inherit;
-  padding: 0.15rem 0.35rem;
-  max-width: 8rem;
-}
-
-.terrain-select {
-  max-width: 9rem;
-}
-
-.set-select {
-  max-width: 8rem;
-}
-
-.preset-select {
-  max-width: 7rem;
-}
-
+.effect-select,
 .text-input {
+  flex: 1;
+  min-width: 0;
   border: 1px solid var(--color-border);
   border-radius: 6px;
   background: var(--color-surface);
   color: var(--color-text);
   font-size: 0.8rem;
   font-family: inherit;
-  padding: 0.15rem 0.35rem;
-  width: 7rem;
+  padding: 0.25rem 0.4rem;
 }
 
 .color-swatch-btn {
@@ -358,7 +356,22 @@ function onAppearanceSelected(e: Event) {
 }
 
 .appearance-group {
-  gap: 0.3rem;
+  align-items: flex-start;
+}
+
+.appearance-controls {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.appearance-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
 }
 
 .appearance-thumb {
@@ -485,6 +498,21 @@ function onAppearanceSelected(e: Event) {
   display: none;
 }
 
+.preset-controls {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.preset-actions,
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
 .mini-btn,
 .reset-btn {
   border: 1px solid var(--color-border);
@@ -510,17 +538,13 @@ function onAppearanceSelected(e: Event) {
 }
 
 .preset-error {
+  margin: 0;
   font-size: 0.75rem;
   color: var(--color-danger);
-  max-width: 12rem;
-}
-
-.preset-group {
-  flex-wrap: wrap;
 }
 
 .eyedropper-hint {
-  width: 100%;
+  margin: 0;
   font-size: 0.75rem;
   color: var(--color-text-muted);
 }

@@ -24,7 +24,6 @@ import ActionBar from "./ActionBar.vue";
 import BaseUpgradesPanel from "./BaseUpgradesPanel.vue";
 import OverworldPanel from "./OverworldPanel.vue";
 import GmActionBar from "./GmActionBar.vue";
-import GmToolsOverlay from "./GmToolsOverlay.vue";
 import ReversalPrompt from "./ReversalPrompt.vue";
 import ClassReactionPrompt from "./ClassReactionPrompt.vue";
 import GameBoard from "./GameBoard.vue";
@@ -333,7 +332,6 @@ function selectMainTab(tab: MainSectionTab) {
         <div ref="boardOverlaysEl" class="board-overlays">
           <ReversalPrompt />
           <ClassReactionPrompt />
-          <GmToolsOverlay v-if="hasGmCapabilities" />
           <ActionBar />
           <GmActionBar />
         </div>

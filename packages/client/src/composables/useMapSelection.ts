@@ -6,6 +6,7 @@ import { selectedFactionId } from "./useFactionSelection.js";
 import { activeTab } from "./useGameConsole.js";
 import { useCharacterSheetSelection } from "./useCharacterSheetSelection.js";
 import { useInfoDataSelection } from "./useInfoDataSelection.js";
+import { activeMainTab } from "./useMainSectionTab.js";
 import { selectedTableId } from "./useTableSelection.js";
 
 const persisted = readPersistedUi();
@@ -27,6 +28,7 @@ export function useMapSelection() {
     }
     selectedMapId.value = id;
     if (id) {
+      activeMainTab.value = "taccom";
       activeTab.value = "info";
     }
   }

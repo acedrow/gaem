@@ -12,5 +12,12 @@ export function useExpandableSet() {
     else expanded.value.add(key);
   }
 
-  return { expanded, isExpanded, toggle };
+  function expand(key: string) {
+    if (expanded.value.has(key)) return;
+    const next = new Set(expanded.value);
+    next.add(key);
+    expanded.value = next;
+  }
+
+  return { expanded, isExpanded, toggle, expand };
 }

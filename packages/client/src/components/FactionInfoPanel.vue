@@ -7,16 +7,17 @@ import {
   isFactionUniqueLocationUnlocked,
   isFactionUpgradeUnlocked,
   resolveRuleTermTooltip,
+  type FactionId,
   type FactionLocation,
   type FactionQualityDots,
   type FactionStratcomAction,
   type FactionUpgrade,
 } from "@gaem/shared";
-import { computed, ref } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 
 import { useBoardSelection } from "../composables/useBoardSelection.js";
 import { useExpandableSet } from "../composables/useExpandableSet.js";
-import { selectedFactionId } from "../composables/useFactionSelection.js";
+import { pendingFactionLocationReveal } from "../composables/useFactionSelection.js";
 import { useGameState } from "../composables/useGameState.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import { useSession } from "../composables/useSession.js";
@@ -30,28 +31,27 @@ type UnlockTarget =
   | { kind: "upgrade"; name: string }
   | { kind: "uniqueLocation"; name: string };
 
+const props = defineProps<{
+  factionId: FactionId;
+}>();
+
 const { closeRightPanel } = useBoardSelection();
-const { isExpanded, toggle } = useExpandableSet();
+const { isExpanded, toggle, expand } = useExpandableSet();
 const { gameState, send } = useGameState();
 const { selectDataCategory } = useInfoDataSelection();
 const { isGm } = useSession();
 
-const faction = computed(() => getFactionById(selectedFactionId.value));
+const panelScrollEl = ref<HTMLElement | null>(null);
+
+const faction = computed(() => getFactionById(props.factionId));
 
 const canTrackUnlocks = computed(
-  () => selectedFactionId.value === "paracletus" || selectedFactionId.value === "autophyes",
+  () => props.factionId === "paracletus" || props.factionId === "autophyes",
 );
 
-const hasEnemies = computed(() => {
-  const id = selectedFactionId.value;
-  return id != null && factionHasEnemyListings(id);
-});
+const hasEnemies = computed(() => factionHasEnemyListings(props.factionId));
 
-const liveState = computed(() => {
-  const id = selectedFactionId.value;
-  if (!id) return null;
-  return gameState.value?.factionStates?.[id] ?? null;
-});
+const liveState = computed(() => gameState.value?.factionStates?.[props.factionId] ?? null);
 
 const gmIchor = computed(() => gameState.value?.gmIchor ?? defaultGmIchor());
 
@@ -121,34 +121,34 @@ function isUniqueLocationUnlocked(name: string): boolean {
 }
 
 function onCrownAdjust(delta: number) {
-  const id = selectedFactionId.value;
-  if (!id || !isGm.value) return;
-  send({ type: "factionCampaignAction", action: { kind: "adjustCrown", factionId: id, delta } });
+  if (!isGm.value) return;
+  send({
+    type: "factionCampaignAction",
+    action: { kind: "adjustCrown", factionId: props.factionId, delta },
+  });
 }
 
 function onQualityAdjust(quality: keyof FactionQualityDots, delta: number) {
-  const id = selectedFactionId.value;
-  if (!id || !isGm.value) return;
+  if (!isGm.value) return;
   send({
     type: "factionCampaignAction",
-    action: { kind: "adjustQuality", factionId: id, quality, delta },
+    action: { kind: "adjustQuality", factionId: props.factionId, quality, delta },
   });
 }
 
 const isDefeated = computed(() => liveState.value?.defeated === true);
 
 function onDefeatedToggle(defeated: boolean) {
-  const id = selectedFactionId.value;
-  if (!id || !isGm.value) return;
+  if (!isGm.value) return;
   send({
     type: "factionCampaignAction",
-    action: { kind: "setDefeated", factionId: id, defeated },
+    action: { kind: "setDefeated", factionId: props.factionId, defeated },
   });
 }
 
 function openEnemies() {
-  const id = selectedFactionId.value;
-  if (!id || !factionHasEnemyListings(id)) return;
+  const id = props.factionId;
+  if (!factionHasEnemyListings(id)) return;
   if (id !== "autophyes" && id !== "paracletus") return;
   selectDataCategory(id, { returnToFaction: id });
 }
@@ -189,9 +189,9 @@ function onUniqueLocationContextMenu(e: MouseEvent, loc: FactionLocation) {
 
 function onContextMenuSelect(id: string) {
   const target = contextMenu.value.target;
-  const factionId = selectedFactionId.value;
+  const factionId = props.factionId;
   closeContextMenu();
-  if (!target || !factionId || !isGm.value) return;
+  if (!target || !isGm.value) return;
 
   if (target.kind === "upgrade") {
     const upgrade = faction.value?.upgrades.find((u) => u.name === target.name);
@@ -245,6 +245,26 @@ const qualitiesTooltip = resolveRuleTermTooltip("Qualities");
 const qualityTooltips = Object.fromEntries(
   FACTION_QUALITY_KEYS.map((key) => [key, resolveRuleTermTooltip(qualityLabel(key))]),
 ) as Record<keyof FactionQualityDots, ReturnType<typeof resolveRuleTermTooltip>>;
+
+watch(
+  pendingFactionLocationReveal,
+  async (reveal) => {
+    if (!reveal || reveal.factionId !== props.factionId) return;
+    const section = sectionKey(reveal.section);
+    const item = itemKey(reveal.section, reveal.locationName);
+    expand(section);
+    expand(item);
+    await nextTick();
+    const el = panelScrollEl.value?.querySelector<HTMLElement>(
+      `[data-location-key="${CSS.escape(item)}"]`,
+    );
+    el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    if (pendingFactionLocationReveal.value?.token === reveal.token) {
+      pendingFactionLocationReveal.value = null;
+    }
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -254,7 +274,7 @@ const qualityTooltips = Object.fromEntries(
     close-variant="ghost"
     @close="closeRightPanel"
   >
-    <div class="panel-scroll">
+    <div ref="panelScrollEl" class="panel-scroll">
       <header class="faction-header">
         <div class="crown-row">
           <div class="crown-text">
@@ -351,6 +371,7 @@ const qualityTooltips = Object.fromEntries(
             v-for="loc in faction.startingLocations"
             :key="loc.name"
             class="list-card"
+            :data-location-key="itemKey('starting', loc.name)"
           >
             <button
               type="button"
@@ -395,6 +416,7 @@ const qualityTooltips = Object.fromEntries(
             :key="loc.name"
             class="list-card"
             :class="{ 'list-card--unlocked': isUniqueLocationUnlocked(loc.name) }"
+            :data-location-key="itemKey('unique', loc.name)"
             @contextmenu="onUniqueLocationContextMenu($event, loc)"
           >
             <button
