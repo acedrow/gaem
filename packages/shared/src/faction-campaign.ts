@@ -196,6 +196,9 @@ export function validateFactionCampaignAction(
     const upgrade = findUpgrade(action.factionId, action.upgradeName);
     if (!upgrade) return "Unknown upgrade";
     if (isFactionUpgradeUnlocked(faction, action.upgradeName)) return "Upgrade already unlocked";
+    if (upgrade.requires && !isFactionUniqueLocationUnlocked(faction, upgrade.requires)) {
+      return `Requires ${upgrade.requires}`;
+    }
     if (state.gmIchor! < upgrade.ichorCost) return "Insufficient ichor";
     return null;
   }
@@ -208,9 +211,13 @@ export function validateFactionCampaignAction(
   }
 
   if (action.kind === "unlockUniqueLocation") {
-    if (!findUniqueLocation(action.factionId, action.locationName)) return "Unknown unique location";
+    const location = findUniqueLocation(action.factionId, action.locationName);
+    if (!location) return "Unknown unique location";
     if (isFactionUniqueLocationUnlocked(faction, action.locationName)) {
       return "Unique location already unlocked";
+    }
+    if (location.requires && !isFactionUpgradeUnlocked(faction, location.requires)) {
+      return `Requires ${location.requires}`;
     }
     return null;
   }

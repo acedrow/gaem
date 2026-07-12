@@ -21,6 +21,7 @@ const DATA_CATEGORIES = new Set<DataCategory>([
   "terrain",
   "patterns",
   "paracletus",
+  "autophyes",
 ]);
 
 const FACTION_IDS = new Set<FactionId>(["syncrasis", "autophyes", "paracletus"]);

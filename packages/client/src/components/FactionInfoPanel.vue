@@ -38,7 +38,9 @@ const { isGm } = useSession();
 
 const faction = computed(() => getFactionById(selectedFactionId.value));
 
-const canTrackUnlocks = computed(() => selectedFactionId.value === "paracletus");
+const canTrackUnlocks = computed(
+  () => selectedFactionId.value === "paracletus" || selectedFactionId.value === "autophyes",
+);
 
 const hasEnemies = computed(() => {
   const id = selectedFactionId.value;
@@ -85,6 +87,7 @@ function locationMeta(loc: FactionLocation): string {
   if (loc.buildTime != null) parts.push(`Build ${"Θ".repeat(loc.buildTime)}`);
   const q = formatQuality(loc.quality);
   if (q) parts.push(q);
+  if (loc.requires) parts.push(`Requires ${loc.requires}`);
   return parts.join(" · ");
 }
 
@@ -146,7 +149,8 @@ function onDefeatedToggle(defeated: boolean) {
 function openEnemies() {
   const id = selectedFactionId.value;
   if (!id || !factionHasEnemyListings(id)) return;
-  selectDataCategory("paracletus", { returnToFaction: id });
+  if (id !== "autophyes" && id !== "paracletus") return;
+  selectDataCategory(id, { returnToFaction: id });
 }
 
 function closeContextMenu() {
@@ -193,6 +197,10 @@ function onContextMenuSelect(id: string) {
     const upgrade = faction.value?.upgrades.find((u) => u.name === target.name);
     if (!upgrade) return;
     if (id === "unlock") {
+      if (upgrade.requires && !isUniqueLocationUnlocked(upgrade.requires)) {
+        showToast(`Requires ${upgrade.requires}`);
+        return;
+      }
       if (gmIchor.value < upgrade.ichorCost) {
         showToast("Insufficient ichor");
         return;
@@ -212,7 +220,12 @@ function onContextMenuSelect(id: string) {
     return;
   }
 
+  const loc = faction.value?.uniqueLocations.find((l) => l.name === target.name);
   if (id === "unlock") {
+    if (loc?.requires && !isUpgradeUnlocked(loc.requires)) {
+      showToast(`Requires ${loc.requires}`);
+      return;
+    }
     send({
       type: "factionCampaignAction",
       action: { kind: "unlockUniqueLocation", factionId, locationName: target.name },

@@ -401,6 +401,14 @@ watch(sheetsVersion, () => {
       </button>
       <button
         class="sheet-item"
+        :class="{ selected: dataCategory === 'autophyes' }"
+        type="button"
+        @click="onSelectData('autophyes')"
+      >
+        <span class="sheet-name">Enemies — Autophyes</span>
+      </button>
+      <button
+        class="sheet-item"
         :class="{ selected: dataCategory === 'paracletus' }"
         type="button"
         @click="onSelectData('paracletus')"

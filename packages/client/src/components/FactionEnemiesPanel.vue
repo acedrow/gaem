@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import {
+  getFactionById,
   isEnemyCrownGated,
   isEnemyUpgradeLocked,
-  listEnemyListings,
+  listEnemyListingsForFaction,
   type EnemyListing,
+  type FactionId,
 } from "@gaem/shared";
 import { computed } from "vue";
 
@@ -16,6 +18,10 @@ import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import { useSession } from "../composables/useSession.js";
 import PanelShell from "./PanelShell.vue";
 
+const props = defineProps<{
+  factionId: FactionId;
+}>();
+
 const { hasGmCapabilities } = useSession();
 const { closeRightPanel } = useBoardSelection();
 const { selectedSpawnEnemyName, selectSpawnEnemy } = useEnemySpawnSelection();
@@ -23,12 +29,13 @@ const { dataCategoryReturnFactionId, goBackFromDataCategory } = useInfoDataSelec
 const { enemyPortraitUrl } = useApi();
 const { gameState } = useGameState();
 
-const enemies = listEnemyListings();
+const enemies = computed(() => listEnemyListingsForFaction(props.factionId));
+const factionLabel = computed(() => getFactionById(props.factionId)?.name ?? props.factionId);
 const { isExpanded, toggle } = useExpandableSet();
 
 const showBack = computed(() => dataCategoryReturnFactionId.value != null);
 
-const factionState = computed(() => gameState.value?.factionStates?.paracletus ?? null);
+const factionState = computed(() => gameState.value?.factionStates?.[props.factionId] ?? null);
 const factionCrown = computed(() => factionState.value?.crown ?? 5);
 
 function showLockedTag(enemy: EnemyListing): boolean {
@@ -43,7 +50,7 @@ function crownGateLabel(enemy: EnemyListing): string | null {
 
 <template>
   <PanelShell
-    title="Enemies — Paracletus"
+    :title="`Enemies — ${factionLabel}`"
     close-variant="ghost"
     :show-back="showBack"
     @close="closeRightPanel"

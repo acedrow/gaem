@@ -189,6 +189,55 @@ describe("faction campaign ichor and unlocks", () => {
     ]);
   });
 
+  it("enforces Autophyes upgrade and location requires", () => {
+    const state = makeGameState();
+    ensureFactionStates(state);
+    ensureGmIchor(state);
+    state.gmIchor = 10;
+
+    expect(
+      validateFactionCampaignAction(state, {
+        kind: "unlockUpgrade",
+        factionId: "autophyes",
+        upgradeName: "Depleted Uranium Claws",
+      }),
+    ).toBe("Requires Boneyard");
+
+    applyFactionCampaignAction(state, {
+      kind: "unlockUniqueLocation",
+      factionId: "autophyes",
+      locationName: "Boneyard",
+    });
+    expect(
+      validateFactionCampaignAction(state, {
+        kind: "unlockUpgrade",
+        factionId: "autophyes",
+        upgradeName: "Depleted Uranium Claws",
+      }),
+    ).toBeNull();
+
+    expect(
+      validateFactionCampaignAction(state, {
+        kind: "unlockUniqueLocation",
+        factionId: "autophyes",
+        locationName: "Crooked Obelisk",
+      }),
+    ).toBe("Requires ANATHEMATIC Condensers");
+
+    applyFactionCampaignAction(state, {
+      kind: "unlockUpgrade",
+      factionId: "autophyes",
+      upgradeName: "ANATHEMATIC Condensers",
+    });
+    expect(
+      validateFactionCampaignAction(state, {
+        kind: "unlockUniqueLocation",
+        factionId: "autophyes",
+        locationName: "Crooked Obelisk",
+      }),
+    ).toBeNull();
+  });
+
   it("gates enemy upgrade and crown helpers", () => {
     const potagon = getEnemyListingByName("POTAGON")!;
     const bombardier = getEnemyListingByName("CHALAZAOR")!;
@@ -208,5 +257,29 @@ describe("faction campaign ichor and unlocks", () => {
     faction.unlockedUpgrades = ["Extrarterran Evolution"];
     expect(isEnemyUpgradeLocked(potagon, faction)).toBe(false);
     expect(isEnemyUpgradeLocked(bombardier, faction)).toBe(false);
+  });
+
+  it("gates Autophyes enemy upgrade helpers", () => {
+    const whaler = getEnemyListingByName("Whalers")!;
+    const scythe = getEnemyListingByName("Singing Scythe")!;
+    const engine = getEnemyListingByName("The Engine")!;
+    const harvester = getEnemyListingByName("Harvester")!;
+    const faction = {
+      ...ensureFactionStates(makeGameState()).autophyes,
+      crown: 5,
+      unlockedUpgrades: [] as string[],
+    };
+
+    expect(isEnemyUpgradeLocked(whaler, faction)).toBe(true);
+    expect(isEnemyUpgradeLocked(scythe, faction)).toBe(true);
+    expect(isEnemyUpgradeLocked(engine, faction)).toBe(true);
+    expect(isEnemyCrownGated(harvester, 5)).toBe(true);
+    expect(isEnemyCrownGated(harvester, 3)).toBe(false);
+    expect(isEnemyCrownGated(scythe, 2)).toBe(false);
+
+    faction.unlockedUpgrades = ["Cerebrospinal Propellants", "Skinweaver Looms", "Hematic Combustion"];
+    expect(isEnemyUpgradeLocked(whaler, faction)).toBe(false);
+    expect(isEnemyUpgradeLocked(scythe, faction)).toBe(false);
+    expect(isEnemyUpgradeLocked(engine, faction)).toBe(false);
   });
 });

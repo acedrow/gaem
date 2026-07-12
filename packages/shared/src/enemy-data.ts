@@ -1,3 +1,4 @@
+import autophyesJson from "./data/enemies/autophyes.json" with { type: "json" };
 import paracletusJson from "./data/enemies/paracletus.json" with { type: "json" };
 
 import type { FactionId } from "./faction-data.js";
@@ -30,9 +31,10 @@ type EnemyFaction = {
   enemies: EnemyListing[];
 };
 
-const ENEMY_FACTIONS = [paracletusJson] as EnemyFaction[];
+const ENEMY_FACTIONS = [autophyesJson, paracletusJson] as EnemyFaction[];
 
 const ENEMY_LISTING_BY_KEY = new Map<string, EnemyListing>();
+const ENEMY_FACTION_BY_KEY = new Map<string, FactionId>();
 const PORTRAIT_BG_EXCLUDE_HUES = new Map<string, [number, number][]>();
 const ENEMY_LISTINGS_BY_FACTION = new Map<FactionId, EnemyListing[]>();
 
@@ -40,9 +42,13 @@ for (const faction of ENEMY_FACTIONS) {
   const factionId = faction.name.trim().toLowerCase() as FactionId;
   ENEMY_LISTINGS_BY_FACTION.set(factionId, faction.enemies);
   for (const enemy of faction.enemies) {
-    ENEMY_LISTING_BY_KEY.set(enemy.name.trim().toLowerCase(), enemy);
+    const nameKey = enemy.name.trim().toLowerCase();
+    ENEMY_LISTING_BY_KEY.set(nameKey, enemy);
+    ENEMY_FACTION_BY_KEY.set(nameKey, factionId);
     if (enemy.codename) {
-      ENEMY_LISTING_BY_KEY.set(enemy.codename.trim().toLowerCase(), enemy);
+      const codeKey = enemy.codename.trim().toLowerCase();
+      ENEMY_LISTING_BY_KEY.set(codeKey, enemy);
+      ENEMY_FACTION_BY_KEY.set(codeKey, factionId);
     }
     if (enemy.portrait && enemy.portraitBgExcludeHues?.length) {
       PORTRAIT_BG_EXCLUDE_HUES.set(enemy.portrait, enemy.portraitBgExcludeHues);
@@ -71,9 +77,16 @@ export function getEnemyListingByName(name: string | undefined): EnemyListing | 
   return findEnemyListing(name);
 }
 
+export function getEnemyFactionId(name: string | undefined): FactionId | undefined {
+  if (!name) return undefined;
+  return ENEMY_FACTION_BY_KEY.get(name.trim().toLowerCase());
+}
+
 export function getEnemyPortraitUrl(listing: EnemyListing | undefined): string | null {
   if (!listing?.portrait) return null;
-  return `/enemies/paracletus/${listing.portrait}.png`;
+  const factionId = getEnemyFactionId(listing.name);
+  if (!factionId) return null;
+  return `/enemies/${factionId}/${listing.portrait}.png`;
 }
 
 export function getPortraitBgExcludeHues(portraitSlug: string | undefined): [number, number][] | undefined {

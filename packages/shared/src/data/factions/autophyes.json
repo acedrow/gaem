@@ -75,7 +75,8 @@
       "terrain": "Inscrutable sheer walls of polished obsidian which drain the life out of anyone who dares touch it without permission, shoulder-high barrier walls made of same arranged in geometric patterns",
       "defenses": "Bulwarks on constant patrol, occasional processions of worshippers and supplicants bringing meagre tributes and will hastily snap into violent rages if the Nihilith is attacked",
       "quality": { "subterfuge": 1 },
-      "buildTime": 2
+      "buildTime": 2,
+      "requires": "ANATHEMATIC Condensers"
     },
     {
       "name": "Boneyard",
@@ -95,7 +96,8 @@
       "terrain": "Tight, cramped corridors concealing pipes, compressors, and other machinery, an enormous onyx crystal called an ANATHEMATIC Focusing Iris installed at the top",
       "defenses": "Nuclear semiotic hellscape of smaller obsidian structures, high ground or otherwise defensible position, a defensive garrison, the Obelisk's ire",
       "quality": { "force": 1 },
-      "buildTime": 2
+      "buildTime": 2,
+      "requires": "ANATHEMATIC Condensers"
     },
     {
       "name": "Abyssal Exsanguinator",
@@ -115,7 +117,8 @@
       "terrain": "Lobbies of marble and gold concealing defenses, crystal tesseract chandeliers and other ostentatious wealth beyond measuring sat out to gawk at, enormous vaults the size of houses. Deeper in, cracks in the walls have let black ooze seep in.",
       "defenses": "This building is defended as if it is a literal death trap. Which it is. Nesting, interconnected defense in depth manned with every possible demonic minion. If all the forces currently deployed to guard this Vault were to assault DIS, the city would fall.",
       "quality": { "assets": 1 },
-      "buildTime": 3
+      "buildTime": 3,
+      "requires": "Apotheotic Avarice"
     }
   ],
   "stratcomActions": [

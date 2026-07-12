@@ -21,7 +21,7 @@ import InfoSearchPanel from "./InfoSearchPanel.vue";
 import MapPanel from "./MapPanel.vue";
 import PlayerBoardPanel from "./PlayerBoardPanel.vue";
 import PlayerDataPanel from "./PlayerDataPanel.vue";
-import ParacletusEnemiesPanel from "./ParacletusEnemiesPanel.vue";
+import FactionEnemiesPanel from "./FactionEnemiesPanel.vue";
 import PartyResourcesPanel from "./PartyResourcesPanel.vue";
 import PatternsPanel from "./PatternsPanel.vue";
 import SettingsPanel from "./SettingsPanel.vue";
@@ -129,7 +129,7 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
             v-else-if="dataFocus?.kind === 'enemy'"
             :key="`bestiary:${dataFocus.name}`"
             :enemy-name="dataFocus.name"
-            :show-back="dataFocusReturnCategory === 'paracletus'"
+            :show-back="dataFocusReturnCategory === 'paracletus' || dataFocusReturnCategory === 'autophyes'"
           />
           <GameDataDetailPanel
             v-else-if="dataFocus"
@@ -140,9 +140,10 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
             v-else-if="dataCategory === 'patterns'"
             key="patterns"
           />
-          <ParacletusEnemiesPanel
-            v-else-if="dataCategory === 'paracletus'"
-            key="paracletus"
+          <FactionEnemiesPanel
+            v-else-if="dataCategory === 'paracletus' || dataCategory === 'autophyes'"
+            :key="dataCategory"
+            :faction-id="dataCategory"
           />
           <EffectsPanel
             v-else-if="dataCategory === 'effects'"

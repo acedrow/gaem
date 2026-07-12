@@ -8,13 +8,15 @@ import { activeTab } from "./useGameConsole.js";
 import { usePatternSelection } from "./usePatternSelection.js";
 import { selectedTableId } from "./useTableSelection.js";
 
-export type DataCategory = "armor" | "classes" | "weapons" | "equipment" | "gear" | "resources" | "effects" | "terrain" | "patterns" | "paracletus";
+export type DataCategory = "armor" | "classes" | "weapons" | "equipment" | "gear" | "resources" | "effects" | "terrain" | "patterns" | "paracletus" | "autophyes";
 export type DataFocusKind = DataCategory | "enemy";
 
 export type DataFocus = {
   kind: DataFocusKind;
   name: string;
 };
+
+const ENEMY_DATA_CATEGORIES = new Set<DataCategory>(["paracletus", "autophyes"]);
 
 const persisted = readPersistedUi();
 const dataCategory = ref<DataCategory | null>(persisted.dataCategory);
@@ -29,7 +31,7 @@ export function useInfoDataSelection() {
 
   function selectDataCategory(category: DataCategory, options?: { returnToFaction?: FactionId }) {
     if (category !== "patterns") clearPatternSelection();
-    if (category !== "paracletus") clearSpawnEnemySelection();
+    if (!ENEMY_DATA_CATEGORIES.has(category)) clearSpawnEnemySelection();
     selectedFactionId.value = null;
     selectedTableId.value = null;
     dataCategory.value = category;

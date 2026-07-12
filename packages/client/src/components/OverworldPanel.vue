@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import {
   defaultOverworldParty,
+  FACTION_QUALITY_KEYS,
+  getFactionById,
   getFactionForRegion,
   listOverworldDeployDestinations,
   listOverworldTravelDestinations,
@@ -10,6 +12,8 @@ import {
   OVERWORLD_REGION_FACTIONS,
   OVERWORLD_TRAVEL_FUEL_COST,
   OVERWORLD_WIDTH,
+  type FactionLocation,
+  type FactionQualityDots,
   type OverworldLocation,
   type OverworldRegion,
   type OverworldRegionId,
@@ -53,6 +57,7 @@ const fileInputEl = ref<HTMLInputElement | null>(null);
 const pendingUploadRegionId = ref<OverworldRegionId | null>(null);
 const travelMode = ref(false);
 const deployMode = ref(false);
+const selectedLocationId = ref<string | null>(null);
 
 const contextMenu = ref<{
   open: boolean;
@@ -262,11 +267,58 @@ function locationMarkerStyle(loc: OverworldLocation) {
   };
 }
 
+function catalogLocation(loc: OverworldLocation): FactionLocation | undefined {
+  const faction = getFactionById(loc.factionId);
+  if (!faction) return undefined;
+  return [...faction.startingLocations, ...faction.uniqueLocations].find(
+    (entry) => entry.name === loc.name,
+  );
+}
+
+function formatLocationQuality(quality: Partial<FactionQualityDots> | undefined): string {
+  if (!quality) return "";
+  return FACTION_QUALITY_KEYS.filter((key) => quality[key] != null)
+    .map((key) => `${key.charAt(0).toUpperCase() + key.slice(1)} ${quality[key]}`)
+    .join(", ");
+}
+
+function locationMeta(loc: FactionLocation): string {
+  const parts: string[] = [];
+  if (loc.type) parts.push(loc.type);
+  if (loc.buildTime != null) parts.push(`Build ${"Θ".repeat(loc.buildTime)}`);
+  const q = formatLocationQuality(loc.quality);
+  if (q) parts.push(q);
+  return parts.join(" · ");
+}
+
+const locationMarkers = computed(() =>
+  locations.value.map((loc) => {
+    const catalog = catalogLocation(loc);
+    return {
+      loc,
+      catalog,
+      meta: catalog ? locationMeta(catalog) : "",
+    };
+  }),
+);
+
+function onLocationClick(loc: OverworldLocation) {
+  if (travelMode.value || deployMode.value) return;
+  if (selectedLocationId.value === loc.id) {
+    selectedLocationId.value = null;
+    fitToView(true);
+    return;
+  }
+  selectedLocationId.value = loc.id;
+  focusOnRect(loc.qx * QUARTER, loc.qy * QUARTER, QUARTER, QUARTER);
+}
+
 function onKeydown(e: KeyboardEvent) {
   if (e.key === "Escape") {
     if (travelMode.value) travelMode.value = false;
     if (deployMode.value) deployMode.value = false;
     if (contextMenu.value.open) closeContextMenu();
+    if (selectedLocationId.value) selectedLocationId.value = null;
   }
 }
 
@@ -276,6 +328,7 @@ const {
   stageStyle,
   isTransformed,
   fitToView,
+  focusOnRect,
   restoreOrFit,
   onWheel,
   observeViewport,
@@ -300,9 +353,20 @@ watch(
     else {
       travelMode.value = false;
       deployMode.value = false;
+      selectedLocationId.value = null;
     }
   },
 );
+
+watch([travelMode, deployMode], ([travel, deploy]) => {
+  if (travel || deploy) selectedLocationId.value = null;
+});
+
+watch(locations, (list) => {
+  if (selectedLocationId.value && !list.some((loc) => loc.id === selectedLocationId.value)) {
+    selectedLocationId.value = null;
+  }
+});
 
 watch(atDis, (inDis) => {
   if (inDis) travelMode.value = false;
@@ -369,6 +433,7 @@ onUnmounted(() => {
 });
 
 function resetZoom() {
+  selectedLocationId.value = null;
   fitToView(true);
 }
 
@@ -532,14 +597,44 @@ const gridCells = computed(() =>
             />
           </div>
           <div
-            v-for="loc in locations"
-            :key="loc.id"
+            v-for="marker in locationMarkers"
+            :key="marker.loc.id"
             class="location-marker"
-            :style="locationMarkerStyle(loc)"
-            :aria-label="loc.name"
+            :class="{
+              'location-marker--selected': selectedLocationId === marker.loc.id,
+              'location-marker--inert': travelMode || deployMode,
+            }"
+            :style="locationMarkerStyle(marker.loc)"
+            role="button"
+            tabindex="0"
+            :aria-label="marker.loc.name"
+            :aria-pressed="selectedLocationId === marker.loc.id"
+            @click.stop="onLocationClick(marker.loc)"
+            @keydown.enter.prevent="onLocationClick(marker.loc)"
+            @keydown.space.prevent="onLocationClick(marker.loc)"
           >
             <img class="location-marker-icon" :src="locationUrl" alt="" draggable="false" />
-            <span class="location-tooltip popover-tooltip">{{ loc.name }}</span>
+            <div class="location-tooltip popover-tooltip">
+              <div class="location-tooltip-name">{{ marker.loc.name }}</div>
+              <template v-if="marker.catalog">
+                <div v-if="marker.meta" class="location-tooltip-meta">{{ marker.meta }}</div>
+                <p v-if="marker.catalog.description" class="location-tooltip-desc">
+                  {{ marker.catalog.description }}
+                </p>
+                <p v-if="marker.catalog.purpose" class="location-tooltip-detail">
+                  <span class="location-tooltip-label">Purpose</span> {{ marker.catalog.purpose }}
+                </p>
+                <p v-if="marker.catalog.terrain" class="location-tooltip-detail">
+                  <span class="location-tooltip-label">Terrain</span> {{ marker.catalog.terrain }}
+                </p>
+                <p v-if="marker.catalog.defenses" class="location-tooltip-detail">
+                  <span class="location-tooltip-label">Defenses</span> {{ marker.catalog.defenses }}
+                </p>
+                <p v-if="marker.catalog.requires" class="location-tooltip-detail">
+                  <span class="location-tooltip-label">Requires</span> {{ marker.catalog.requires }}
+                </p>
+              </template>
+            </div>
           </div>
           <div
             v-if="!atDis"
@@ -900,9 +995,21 @@ const gridCells = computed(() =>
   align-items: center;
   justify-content: center;
   pointer-events: auto;
-  cursor: default;
+  cursor: pointer;
   transform: scale(calc(2 * var(--board-fit-scale, 1) / var(--board-scale, 1)));
   transform-origin: center;
+}
+
+.location-marker--inert {
+  pointer-events: none;
+  cursor: default;
+}
+
+.location-marker--selected .location-marker-icon {
+  filter:
+    drop-shadow(0 0 1.5px var(--color-accent))
+    drop-shadow(0 0 3px var(--color-accent-bright))
+    drop-shadow(0 1px 2px rgba(0, 0, 0, 0.75));
 }
 
 .location-marker-icon {
@@ -918,15 +1025,50 @@ const gridCells = computed(() =>
   top: calc(100% + 4px);
   left: 50%;
   transform: translateX(-50%);
-  white-space: nowrap;
   z-index: 5;
   opacity: 0;
   transition: opacity 0.12s ease;
+  white-space: normal;
+  min-width: 140px;
+  max-width: 240px;
+  text-align: left;
 }
 
 .location-marker:hover .location-tooltip,
-.location-marker:focus-visible .location-tooltip {
+.location-marker:focus-visible .location-tooltip,
+.location-marker--selected .location-tooltip {
   opacity: 1;
+}
+
+.location-tooltip-name {
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.location-tooltip-meta {
+  margin-top: 0.15rem;
+  color: var(--color-text-secondary);
+  font-size: 0.65rem;
+  line-height: 1.3;
+}
+
+.location-tooltip-desc {
+  margin: 0.3rem 0 0;
+  color: var(--color-text);
+  font-size: 0.65rem;
+  line-height: 1.35;
+}
+
+.location-tooltip-detail {
+  margin: 0.2rem 0 0;
+  color: var(--color-text-secondary);
+  font-size: 0.65rem;
+  line-height: 1.3;
+}
+
+.location-tooltip-label {
+  color: var(--color-text);
+  font-weight: 600;
 }
 
 .party-token {
