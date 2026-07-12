@@ -5,6 +5,7 @@ import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprint
 import { defaultOverworldParty } from "./overworld.js";
 import {
   isValidTileBaseColor,
+  isValidTileImageRotation,
   normalizeTileName,
   parseTilePresets,
   TILE_NAME_MAX_LENGTH,
@@ -198,6 +199,30 @@ export function parseGameMap(raw: unknown): GameMap {
       tile.appearanceKey = appearanceKey.trim();
     }
 
+    const featureKey = t.featureKey;
+    if (featureKey !== undefined) {
+      if (typeof featureKey !== "string" || !featureKey.trim()) {
+        throw new Error(`Tile (${x}, ${y}) featureKey must be a non-empty string`);
+      }
+      tile.featureKey = featureKey.trim();
+    }
+
+    const imageRotation = t.imageRotation;
+    if (imageRotation !== undefined) {
+      if (!isValidTileImageRotation(imageRotation)) {
+        throw new Error(`Tile (${x}, ${y}) imageRotation must be 0, 90, 180, or 270`);
+      }
+      if (imageRotation !== 0) tile.imageRotation = imageRotation;
+    }
+
+    const imageFlip = t.imageFlip;
+    if (imageFlip !== undefined) {
+      if (typeof imageFlip !== "boolean") {
+        throw new Error(`Tile (${x}, ${y}) imageFlip must be a boolean`);
+      }
+      if (imageFlip) tile.imageFlip = true;
+    }
+
     tile.walkable = computeWalkable(tile);
     tiles.push(tile);
   }
@@ -324,6 +349,9 @@ export function cloneMapTile(tile: MapTile): MapTile {
     ...(tile.name ? { name: tile.name } : {}),
     ...(tile.baseColor ? { baseColor: tile.baseColor } : {}),
     ...(tile.appearanceKey ? { appearanceKey: tile.appearanceKey } : {}),
+    ...(tile.featureKey ? { featureKey: tile.featureKey } : {}),
+    ...(tile.imageRotation ? { imageRotation: tile.imageRotation } : {}),
+    ...(tile.imageFlip ? { imageFlip: true } : {}),
   };
 }
 
@@ -382,6 +410,12 @@ export function persistMapTileFromState(map: GameMap, source: MapTile): void {
   else delete mapTile.baseColor;
   if (source.appearanceKey) mapTile.appearanceKey = source.appearanceKey;
   else delete mapTile.appearanceKey;
+  if (source.featureKey) mapTile.featureKey = source.featureKey;
+  else delete mapTile.featureKey;
+  if (source.imageRotation) mapTile.imageRotation = source.imageRotation;
+  else delete mapTile.imageRotation;
+  if (source.imageFlip) mapTile.imageFlip = true;
+  else delete mapTile.imageFlip;
   delete mapTile.tileEffects;
 }
 

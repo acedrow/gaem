@@ -6,6 +6,10 @@ import {
   bundledTileAppearanceUrl,
   isBundledTileAppearanceKey,
 } from "../lib/bundledTileAppearances.js";
+import {
+  bundledTileFeatureUrl,
+  isBundledTileFeatureKey,
+} from "../lib/bundledTileFeatures.js";
 import { useSession } from "./useSession.js";
 
 type PlayerProfileOption = PlayerProfile & { isActive?: boolean };
@@ -77,6 +81,9 @@ export function useApi() {
   async function fetchTileAppearanceUrl(key: string): Promise<string | null> {
     if (isBundledTileAppearanceKey(key)) {
       return bundledTileAppearanceUrl(key);
+    }
+    if (isBundledTileFeatureKey(key)) {
+      return bundledTileFeatureUrl(key);
     }
     const res = await apiFetch(tileAppearanceApiPath(key));
     if (!res.ok) return null;

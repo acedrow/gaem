@@ -215,6 +215,17 @@ const {
   samplePaintbrushFromTile,
   paintbrushEyedropperActive,
   setPaintbrushEyedropperActive,
+  cyclePaintbrushImageRotation,
+  togglePaintbrushImageFlip,
+  paintbrushEnableColor,
+  paintbrushEnableAppearance,
+  paintbrushEnableFeature,
+  paintbrushEnableRotation,
+  paintbrushEnableFlip,
+  paintbrushBaseColor,
+  paintbrushImageRotation,
+  paintbrushImageFlip,
+  peekPaintbrushPlacement,
 } = useGmTools();
 
 const gmViewportCursor = computed(() => {
@@ -2086,9 +2097,52 @@ const cellStateByKey = computed(() => {
       tileEffects: tile?.tileEffects,
       outOfLineOfSight: outOfLineOfSightKeys.value.has(ck),
       tileAppearanceUrl: tile?.appearanceKey ? tileAppearanceUrlFor(tile.appearanceKey) : null,
+      tileFeatureUrl: tile?.featureKey ? tileAppearanceUrlFor(tile.featureKey) : null,
       tileBaseColor: tile?.baseColor ?? null,
+      imageRotation: tile?.imageRotation,
+      imageFlip: tile?.imageFlip,
+      paintbrushPreview: null,
     });
   }
+
+  if (
+    canUseGmTools.value &&
+    gmActiveTool.value === "paintbrush" &&
+    !paintbrushEyedropperActive.value &&
+    hoveredCell.value
+  ) {
+    const { x, y } = hoveredCell.value;
+    const previewCell = map.get(boardCellKey(x, y));
+    if (previewCell) {
+      const tile = previewCell.tile;
+      const showColor = paintbrushEnableColor.value;
+      const showAppearance = paintbrushEnableAppearance.value;
+      const showFeature = paintbrushEnableFeature.value;
+      const showRotation = paintbrushEnableRotation.value;
+      const showFlip = paintbrushEnableFlip.value;
+      if (showColor || showAppearance || showFeature || showRotation || showFlip) {
+        const placement = peekPaintbrushPlacement(x, y);
+        const imageRotation = showRotation
+          ? paintbrushImageRotation.value
+          : (tile?.imageRotation ?? 0);
+        const imageFlip = showFlip ? paintbrushImageFlip.value : !!tile?.imageFlip;
+        const previewBaseColor = showColor ? paintbrushBaseColor.value : null;
+        const previewAppearanceUrl = showAppearance ? placement.appearanceUrl : null;
+        const previewFeatureUrl = showFeature ? placement.featureUrl : null;
+        // Full cosmetic composite so we can hide the live layers under the preview;
+        // fall back to the tile's real cosmetics when the brush has nothing to paint
+        // for that layer, so hovering doesn't blank out the tile's existing look.
+        previewCell.paintbrushPreview = {
+          imageRotation,
+          imageFlip,
+          baseColor: previewBaseColor ?? tile?.baseColor ?? null,
+          appearanceUrl: previewAppearanceUrl ?? previewCell.tileAppearanceUrl,
+          featureUrl: previewFeatureUrl ?? previewCell.tileFeatureUrl,
+        };
+      }
+    }
+  }
+
   return map;
 });
 
@@ -4314,6 +4368,25 @@ function onKeydown(e: KeyboardEvent) {
     return;
   }
 
+  if (
+    canUseGmTools.value &&
+    gmActiveTool.value === "paintbrush" &&
+    !e.metaKey &&
+    !e.ctrlKey &&
+    !e.altKey
+  ) {
+    if (e.key === "r" || e.key === "R") {
+      e.preventDefault();
+      cyclePaintbrushImageRotation();
+      return;
+    }
+    if (e.key === "f" || e.key === "F") {
+      e.preventDefault();
+      togglePaintbrushImageFlip();
+      return;
+    }
+  }
+
   if (e.key === "e" && e.ctrlKey && !e.metaKey && !e.altKey) {
     if (canUseGmTools.value && tryEndGmTokenTurn()) {
       e.preventDefault();
@@ -4505,6 +4578,10 @@ onUnmounted(() => {
                   row.cell.tileBaseColor,
                   row.cell.tile?.name,
                   row.cell.tileAppearanceUrl,
+                  row.cell.tileFeatureUrl,
+                  row.cell.imageRotation,
+                  row.cell.imageFlip,
+                  row.cell.paintbrushPreview,
                   row.isHovered,
                   draggingDeploy,
                   row.isPlayerSelected,

@@ -9,10 +9,11 @@ export function useTileAppearanceCache(gameState: Ref<GameState | null>) {
   const urls = ref<Record<string, string>>({});
   let loadGen = 0;
 
-  const appearanceKeys = computed(() => {
+  const imageKeys = computed(() => {
     const keys = new Set<string>();
     for (const tile of gameState.value?.tiles ?? []) {
       if (tile.appearanceKey) keys.add(tile.appearanceKey);
+      if (tile.featureKey) keys.add(tile.featureKey);
     }
     return [...keys].sort().join("|");
   });
@@ -22,6 +23,7 @@ export function useTileAppearanceCache(gameState: Ref<GameState | null>) {
     const needed = new Set<string>();
     for (const tile of gameState.value?.tiles ?? []) {
       if (tile.appearanceKey) needed.add(tile.appearanceKey);
+      if (tile.featureKey) needed.add(tile.featureKey);
     }
 
     const next: Record<string, string> = {};
@@ -41,7 +43,7 @@ export function useTileAppearanceCache(gameState: Ref<GameState | null>) {
     urls.value = next;
   }
 
-  watch(appearanceKeys, () => void refresh(), { immediate: true });
+  watch(imageKeys, () => void refresh(), { immediate: true });
 
   onUnmounted(() => {
     for (const url of Object.values(urls.value)) {

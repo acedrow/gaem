@@ -32,11 +32,17 @@ describe("gmPaintTile", () => {
       tileName: "Forest",
       baseColor: "#aabbcc",
       appearanceKey: "tile-appearances/abc.png",
+      featureKey: "tiles/features/rock.png",
+      imageRotation: 90,
+      imageFlip: true,
     });
     const tile = tileAt(state.tiles, 1, 1)!;
     expect(tile.name).toBe("Forest");
     expect(tile.baseColor).toBe("#aabbcc");
     expect(tile.appearanceKey).toBe("tile-appearances/abc.png");
+    expect(tile.featureKey).toBe("tiles/features/rock.png");
+    expect(tile.imageRotation).toBe(90);
+    expect(tile.imageFlip).toBe(true);
   });
 
   it("clears cosmetic tile fields", () => {
@@ -48,6 +54,9 @@ describe("gmPaintTile", () => {
       tileName: "Named",
       baseColor: "#fff",
       appearanceKey: "key",
+      featureKey: "feature-key",
+      imageRotation: 180,
+      imageFlip: true,
     });
     applyGmPaintTile(state, 0, 0, {
       elevation: 0,
@@ -56,11 +65,17 @@ describe("gmPaintTile", () => {
       tileName: "",
       baseColor: null,
       appearanceKey: null,
+      featureKey: null,
+      imageRotation: null,
+      imageFlip: null,
     });
     const tile = tileAt(state.tiles, 0, 0)!;
     expect(tile.name).toBeUndefined();
     expect(tile.baseColor).toBeUndefined();
     expect(tile.appearanceKey).toBeUndefined();
+    expect(tile.featureKey).toBeUndefined();
+    expect(tile.imageRotation).toBeUndefined();
+    expect(tile.imageFlip).toBeUndefined();
   });
 
   it("replaces existing tile effects", () => {
@@ -171,6 +186,9 @@ describe("gmPaintTile", () => {
       tileName: "Keep",
       baseColor: "#112233",
       appearanceKey: "keep.png",
+      featureKey: "feature.png",
+      imageRotation: 270,
+      imageFlip: true,
     });
     applyGmPaintTile(state, 1, 1, { terrain: "obstacle" });
     const tile = tileAt(state.tiles, 1, 1)!;
@@ -180,6 +198,9 @@ describe("gmPaintTile", () => {
     expect(tile.name).toBe("Keep");
     expect(tile.baseColor).toBe("#112233");
     expect(tile.appearanceKey).toBe("keep.png");
+    expect(tile.featureKey).toBe("feature.png");
+    expect(tile.imageRotation).toBe(270);
+    expect(tile.imageFlip).toBe(true);
   });
 
   it("rejects a message with no paint fields", () => {

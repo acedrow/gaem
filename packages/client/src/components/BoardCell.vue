@@ -53,7 +53,17 @@ export type CellRenderState = {
   tileEffects?: EffectStacks;
   outOfLineOfSight?: boolean;
   tileAppearanceUrl?: string | null;
+  tileFeatureUrl?: string | null;
   tileBaseColor?: string | null;
+  imageRotation?: 0 | 90 | 180 | 270;
+  imageFlip?: boolean;
+  paintbrushPreview?: {
+    baseColor?: string | null;
+    appearanceUrl?: string | null;
+    featureUrl?: string | null;
+    imageRotation: 0 | 90 | 180 | 270;
+    imageFlip: boolean;
+  } | null;
 };
 
 const MAX_VISIBLE_EFFECTS = 4;
@@ -206,6 +216,23 @@ const primaryTerrainIcon = computed(() =>
   primaryTerrainTypeForIcon(props.cell.tile?.terrain ?? []),
 );
 
+function tileImageTransform(rotation?: 0 | 90 | 180 | 270, flip?: boolean): string | undefined {
+  const deg = rotation ?? 0;
+  const scaleX = flip ? -1 : 1;
+  if (!deg && scaleX === 1) return undefined;
+  return `rotate(${deg}deg) scaleX(${scaleX})`;
+}
+
+const tileImageTransformStyle = computed(() =>
+  tileImageTransform(props.cell.imageRotation, props.cell.imageFlip),
+);
+
+const previewImageTransformStyle = computed(() => {
+  const preview = props.cell.paintbrushPreview;
+  if (!preview) return undefined;
+  return tileImageTransform(preview.imageRotation, preview.imageFlip);
+});
+
 const tileEffectImageOverlays = computed(() =>
   tileEffectEntries.value
     .filter((effect) => TILE_EFFECT_IMAGE_URLS[effect.id])
@@ -264,7 +291,7 @@ const terrainImageUrl = computed(() => {
     @mouseleave="emit('unhover')"
   >
     <span
-      v-if="cell.tileBaseColor"
+      v-if="cell.tileBaseColor && !cell.paintbrushPreview"
       class="tile-base-color"
       :style="{ backgroundColor: cell.tileBaseColor }"
       aria-hidden="true"
@@ -292,12 +319,49 @@ const terrainImageUrl = computed(() => {
       aria-hidden="true"
     />
     <span v-if="cell.hasSeed" class="seed-marker" title="Seed" />
-    <span
-      v-if="cell.tileAppearanceUrl"
-      class="board-overlay tile-appearance-image tile-image"
-      :style="{ backgroundImage: `url(${cell.tileAppearanceUrl})` }"
+    <div
+      v-if="!cell.paintbrushPreview && (cell.tileAppearanceUrl || cell.tileFeatureUrl)"
+      class="tile-image-stack"
+      :style="{ transform: tileImageTransformStyle }"
       aria-hidden="true"
-    />
+    >
+      <span
+        v-if="cell.tileAppearanceUrl"
+        class="board-overlay tile-appearance-image tile-image"
+        :style="{ backgroundImage: `url(${cell.tileAppearanceUrl})` }"
+      />
+      <span
+        v-if="cell.tileFeatureUrl"
+        class="board-overlay tile-feature-image tile-image"
+        :style="{ backgroundImage: `url(${cell.tileFeatureUrl})` }"
+      />
+    </div>
+    <div
+      v-if="cell.paintbrushPreview"
+      class="paintbrush-preview"
+      aria-hidden="true"
+    >
+      <span
+        v-if="cell.paintbrushPreview.baseColor"
+        class="tile-base-color"
+        :style="{ backgroundColor: cell.paintbrushPreview.baseColor }"
+      />
+      <div
+        class="tile-image-stack"
+        :style="{ transform: previewImageTransformStyle }"
+      >
+        <span
+          v-if="cell.paintbrushPreview.appearanceUrl"
+          class="board-overlay tile-appearance-image tile-image"
+          :style="{ backgroundImage: `url(${cell.paintbrushPreview.appearanceUrl})` }"
+        />
+        <span
+          v-if="cell.paintbrushPreview.featureUrl"
+          class="board-overlay tile-feature-image tile-image"
+          :style="{ backgroundImage: `url(${cell.paintbrushPreview.featureUrl})` }"
+        />
+      </div>
+    </div>
     <span
       v-if="terrainImageUrl"
       class="board-overlay terrain-tile-image tile-image"
@@ -874,11 +938,40 @@ const terrainImageUrl = computed(() => {
   pointer-events: none;
 }
 
+.tile-image-stack {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  transform-origin: center;
+}
+
 .tile-appearance-image {
   inset: 0;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+  z-index: 0;
+}
+
+.tile-feature-image {
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  z-index: 0;
+}
+
+.paintbrush-preview {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  opacity: 0.75;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.paintbrush-preview .tile-image-stack {
   z-index: 0;
 }
 

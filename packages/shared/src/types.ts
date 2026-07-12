@@ -30,6 +30,9 @@ export const TERRAIN_TYPES = [
 
 export type TerrainType = (typeof TERRAIN_TYPES)[number];
 
+export const TILE_IMAGE_ROTATIONS = [0, 90, 180, 270] as const;
+export type TileImageRotation = (typeof TILE_IMAGE_ROTATIONS)[number];
+
 export type MapTile = {
   x: number;
   y: number;
@@ -40,6 +43,9 @@ export type MapTile = {
   name?: string;
   baseColor?: string;
   appearanceKey?: string;
+  featureKey?: string;
+  imageRotation?: TileImageRotation;
+  imageFlip?: boolean;
 };
 
 export type TilePaintPreset = {
@@ -50,6 +56,9 @@ export type TilePaintPreset = {
   tileName: string;
   baseColor?: string;
   appearanceKey?: string;
+  featureKey?: string;
+  imageRotation?: TileImageRotation;
+  imageFlip?: boolean;
 };
 
 export type Enemy = {
@@ -397,6 +406,9 @@ export type ClientMessage =
       tileName?: string;
       baseColor?: string | null;
       appearanceKey?: string | null;
+      featureKey?: string | null;
+      imageRotation?: TileImageRotation | null;
+      imageFlip?: boolean | null;
     }
   | { type: "removeAttractor"; x: number; y: number }
   | { type: "phaseAction"; action: PhaseAction }

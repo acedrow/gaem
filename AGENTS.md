@@ -188,7 +188,7 @@ When adding a client message or game action, update `types.ts`, shared validator
 
 ## Importing board tile appearances
 
-GM paintbrush sets are PNGs under `packages/assets/tiles/{setId}/` (e.g. `basic/`, `paracletus/`). `bundledTileAppearances.ts` glob-discovers them (`**/*.png` under each set); `public/tiles/` is a sync copy (`predev` / `prebuild` / `npm run sync-tile-assets -w @gaem/client`).
+GM paintbrush sets are PNGs under `packages/assets/tiles/{setId}/` (e.g. `basic/`, `paracletus/`). `bundledTileAppearances.ts` glob-discovers them (`**/*.png` under each set); `public/tiles/` is a mirror of assets (`rsync --delete` via `predev` / `prebuild` / `npm run sync-tile-assets -w @gaem/client`), so removals in assets prune public too.
 
 **All imported tile images must be exactly 32×32 pixels.** Upscale or downscale with nearest-neighbor (`Image.Resampling.NEAREST`) so pixel art stays crisp. Do not leave source sheets or other resolutions in the assets folders.
 

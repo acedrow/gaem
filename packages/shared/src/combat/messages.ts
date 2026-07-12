@@ -6,7 +6,7 @@ import type {
   GmEnemyAction,
   PlayerAction,
 } from "./types.js";
-import type { ClientMessage, Enemy, GameState, Player, TerrainType } from "../types.js";
+import type { ClientMessage, Enemy, GameState, Player, TerrainType, TileImageRotation } from "../types.js";
 import { hasGmCapabilities, type AuthCapabilities } from "../auth-capabilities.js";
 import {
   canGmMoveEnemies,
@@ -27,6 +27,7 @@ import { buildBoardOccupancy } from "../game.js";
 import { coordKey, isInBounds, isTerrainType, setTileTerrain, tileAt } from "../map.js";
 import {
   isValidTileBaseColor,
+  isValidTileImageRotation,
   normalizeTileName,
   TILE_NAME_MAX_LENGTH,
 } from "../tile-cosmetics.js";
@@ -1336,6 +1337,9 @@ export type GmPaintTileFields = {
   tileName?: string;
   baseColor?: string | null;
   appearanceKey?: string | null;
+  featureKey?: string | null;
+  imageRotation?: TileImageRotation | null;
+  imageFlip?: boolean | null;
 };
 
 function hasGmPaintTileFields(fields: GmPaintTileFields): boolean {
@@ -1345,7 +1349,10 @@ function hasGmPaintTileFields(fields: GmPaintTileFields): boolean {
     fields.tileEffects !== undefined ||
     fields.tileName !== undefined ||
     fields.baseColor !== undefined ||
-    fields.appearanceKey !== undefined
+    fields.appearanceKey !== undefined ||
+    fields.featureKey !== undefined ||
+    fields.imageRotation !== undefined ||
+    fields.imageFlip !== undefined
   );
 }
 
@@ -1387,6 +1394,23 @@ export function validateGmPaintTile(
   ) {
     return "appearanceKey must be a non-empty string";
   }
+  if (
+    fields.featureKey !== undefined &&
+    fields.featureKey != null &&
+    (typeof fields.featureKey !== "string" || !fields.featureKey.trim())
+  ) {
+    return "featureKey must be a non-empty string";
+  }
+  if (
+    fields.imageRotation !== undefined &&
+    fields.imageRotation != null &&
+    !isValidTileImageRotation(fields.imageRotation)
+  ) {
+    return "imageRotation must be 0, 90, 180, or 270";
+  }
+  if (fields.imageFlip !== undefined && fields.imageFlip != null && typeof fields.imageFlip !== "boolean") {
+    return "imageFlip must be a boolean";
+  }
   return null;
 }
 
@@ -1415,6 +1439,24 @@ export function applyGmPaintTile(
   if (fields.appearanceKey !== undefined) {
     if (fields.appearanceKey?.trim()) tile.appearanceKey = fields.appearanceKey.trim();
     else delete tile.appearanceKey;
+  }
+
+  if (fields.featureKey !== undefined) {
+    if (fields.featureKey?.trim()) tile.featureKey = fields.featureKey.trim();
+    else delete tile.featureKey;
+  }
+
+  if (fields.imageRotation !== undefined) {
+    if (fields.imageRotation != null && fields.imageRotation !== 0) {
+      tile.imageRotation = fields.imageRotation;
+    } else {
+      delete tile.imageRotation;
+    }
+  }
+
+  if (fields.imageFlip !== undefined) {
+    if (fields.imageFlip) tile.imageFlip = true;
+    else delete tile.imageFlip;
   }
 
   return `Painted (${x}, ${y})`;
@@ -1642,6 +1684,9 @@ export function handleCombatMessage(
         ...(parsed.tileName !== undefined ? { tileName: parsed.tileName } : {}),
         ...(parsed.baseColor !== undefined ? { baseColor: parsed.baseColor } : {}),
         ...(parsed.appearanceKey !== undefined ? { appearanceKey: parsed.appearanceKey } : {}),
+        ...(parsed.featureKey !== undefined ? { featureKey: parsed.featureKey } : {}),
+        ...(parsed.imageRotation !== undefined ? { imageRotation: parsed.imageRotation } : {}),
+        ...(parsed.imageFlip !== undefined ? { imageFlip: parsed.imageFlip } : {}),
       };
       for (const { x, y } of parsed.coords) {
         const err = validateGmPaintTile(state, x, y, fields);

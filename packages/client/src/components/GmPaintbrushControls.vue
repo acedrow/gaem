@@ -24,10 +24,17 @@ const {
   paintbrushEnableName,
   paintbrushEnableColor,
   paintbrushEnableAppearance,
+  paintbrushEnableFeature,
+  paintbrushEnableRotation,
+  paintbrushEnableFlip,
+  paintbrushImageRotation,
+  paintbrushImageFlip,
   paintbrushPresetLoadId,
   paintbrushPresetNames,
   paintbrushPresetError,
   paintbrushAppearanceUploading,
+  paintbrushFeatureUploading,
+  paintbrushFeaturePreviewUrl,
   resetPaintbrushSettings,
   enableAllPaintbrushOptions,
   disableAllPaintbrushOptions,
@@ -37,14 +44,20 @@ const {
   uploadPaintbrushAppearance,
   clearPaintbrushAppearance,
   selectBundledPaintbrushAppearance,
+  uploadPaintbrushFeature,
+  clearPaintbrushFeature,
+  selectBundledPaintbrushFeature,
   bundledTileSets,
   bundledTileAppearancesForSet,
+  bundledTileFeatures,
   paintbrushAppearanceKey,
   paintbrushAppearanceSetId,
+  paintbrushFeatureKey,
 } = useGmTools();
 
 const colorModalOpen = ref(false);
 const galleryOpen = ref(false);
+const featureGalleryOpen = ref(false);
 
 function closeGallery() {
   galleryOpen.value = false;
@@ -52,6 +65,7 @@ function closeGallery() {
 
 function toggleGallery() {
   galleryOpen.value = !galleryOpen.value;
+  if (galleryOpen.value) featureGalleryOpen.value = false;
 }
 
 function onSelectAppearance(key: string) {
@@ -59,15 +73,31 @@ function onSelectAppearance(key: string) {
   closeGallery();
 }
 
+function closeFeatureGallery() {
+  featureGalleryOpen.value = false;
+}
+
+function toggleFeatureGallery() {
+  featureGalleryOpen.value = !featureGalleryOpen.value;
+  if (featureGalleryOpen.value) galleryOpen.value = false;
+}
+
+function onSelectFeature(key: string) {
+  selectBundledPaintbrushFeature(key);
+  closeFeatureGallery();
+}
+
 function onGalleryKeydown(e: KeyboardEvent) {
-  if (e.key !== "Escape" || !galleryOpen.value) return;
+  if (e.key !== "Escape") return;
+  if (!galleryOpen.value && !featureGalleryOpen.value) return;
   e.preventDefault();
   e.stopPropagation();
   closeGallery();
+  closeFeatureGallery();
 }
 
-watch(galleryOpen, (open) => {
-  if (open) {
+watch([galleryOpen, featureGalleryOpen], ([appearanceOpen, featureOpen]) => {
+  if (appearanceOpen || featureOpen) {
     document.addEventListener("keydown", onGalleryKeydown, true);
   } else {
     document.removeEventListener("keydown", onGalleryKeydown, true);
@@ -85,6 +115,13 @@ function onAppearanceSelected(e: Event) {
   const file = input.files?.[0];
   input.value = "";
   if (file) void uploadPaintbrushAppearance(file);
+}
+
+function onFeatureSelected(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = "";
+  if (file) void uploadPaintbrushFeature(file);
 }
 </script>
 
@@ -254,6 +291,104 @@ function onAppearanceSelected(e: Event) {
       </div>
     </div>
 
+    <div class="control-group appearance-group">
+      <span class="control-label">Feature</span>
+      <input
+        v-model="paintbrushEnableFeature"
+        type="checkbox"
+        class="option-enable"
+        aria-label="Enable feature"
+      />
+      <div class="appearance-controls">
+        <div class="appearance-row">
+          <div v-if="bundledTileFeatures.length" class="appearance-gallery">
+            <button
+              type="button"
+              class="appearance-thumb-btn"
+              :aria-expanded="featureGalleryOpen"
+              aria-haspopup="listbox"
+              aria-label="Choose tile feature"
+              @click="toggleFeatureGallery"
+            >
+              <img
+                v-if="paintbrushFeaturePreviewUrl"
+                :src="paintbrushFeaturePreviewUrl"
+                alt=""
+                class="appearance-thumb tile-image"
+              />
+              <span v-else class="appearance-thumb-placeholder">—</span>
+            </button>
+            <template v-if="featureGalleryOpen">
+              <div class="gallery-backdrop" @click="closeFeatureGallery" />
+              <div class="gallery-menu" role="listbox" @click.stop>
+                <button
+                  v-for="item in bundledTileFeatures"
+                  :key="item.key"
+                  type="button"
+                  role="option"
+                  class="gallery-item"
+                  :class="{ selected: paintbrushFeatureKey === item.key }"
+                  :aria-selected="paintbrushFeatureKey === item.key"
+                  :title="item.kind === 'group' ? `Random from ${item.name}/` : item.name"
+                  @click="onSelectFeature(item.key)"
+                >
+                  <img :src="item.url" alt="" class="gallery-thumb tile-image" />
+                  <span class="gallery-name">{{ item.name }}</span>
+                </button>
+              </div>
+            </template>
+          </div>
+          <img
+            v-else-if="paintbrushFeaturePreviewUrl"
+            :src="paintbrushFeaturePreviewUrl"
+            alt=""
+            class="appearance-thumb tile-image"
+          />
+          <label class="upload-btn" :class="{ uploading: paintbrushFeatureUploading }">
+            {{ paintbrushFeatureUploading ? "Uploading…" : "Upload" }}
+            <input
+              type="file"
+              accept="image/png"
+              class="hidden-input"
+              :disabled="paintbrushFeatureUploading"
+              @change="onFeatureSelected"
+            />
+          </label>
+          <button
+            v-if="paintbrushFeaturePreviewUrl"
+            type="button"
+            class="mini-btn"
+            @click="clearPaintbrushFeature"
+          >
+            Clear
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <span class="control-label">Rotate</span>
+      <input
+        v-model="paintbrushEnableRotation"
+        type="checkbox"
+        class="option-enable"
+        aria-label="Enable rotation"
+      />
+      <span class="transform-value">{{ paintbrushImageRotation }}°</span>
+      <span class="transform-hint">R</span>
+    </div>
+    <div class="control-group">
+      <span class="control-label">Flip</span>
+      <input
+        v-model="paintbrushEnableFlip"
+        type="checkbox"
+        class="option-enable"
+        aria-label="Enable flip"
+      />
+      <span class="transform-value">{{ paintbrushImageFlip ? "On" : "Off" }}</span>
+      <span class="transform-hint">F</span>
+    </div>
+
     <div class="control-group preset-group">
       <span class="control-label">Preset</span>
       <span class="option-enable-spacer" aria-hidden="true" />
@@ -283,7 +418,7 @@ function onAppearanceSelected(e: Event) {
 
     <p v-if="paintbrushPresetError" class="preset-error">{{ paintbrushPresetError }}</p>
 
-    <p class="eyedropper-hint">Hold E to sample a tile</p>
+    <p class="eyedropper-hint">Hold E to sample · R rotate · F flip</p>
 
     <TileBaseColorModal v-model="paintbrushBaseColor" :open="colorModalOpen" @close="colorModalOpen = false" />
   </div>
@@ -547,5 +682,19 @@ function onAppearanceSelected(e: Event) {
   margin: 0;
   font-size: 0.75rem;
   color: var(--color-text-muted);
+}
+
+.transform-value {
+  font-size: 0.8rem;
+  color: var(--color-text);
+  min-width: 2.5rem;
+}
+
+.transform-hint {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 </style>

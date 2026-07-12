@@ -1,4 +1,4 @@
-import { coordKey, tileAt, type MapTile, type TerrainType, type TilePaintPreset } from "@gaem/shared";
+import { coordKey, tileAt, type MapTile, type TerrainType, type TileImageRotation, type TilePaintPreset } from "@gaem/shared";
 import { computed, ref, watch } from "vue";
 
 import {
@@ -10,6 +10,13 @@ import {
   resolveAppearanceKeyForPaint,
   setIdFromAppearanceKey,
 } from "../lib/bundledTileAppearances.js";
+import {
+  bundledTileFeatureUrl,
+  featureGalleryEntries,
+  isBundledTileFeatureKey,
+  isFeatureGroupKey,
+  resolveFeatureKeyForPaint,
+} from "../lib/bundledTileFeatures.js";
 import { useApi } from "./useApi.js";
 import { useBoardActionMode } from "./useBoardActionMode.js";
 import { useEnemySpawnSelection } from "./useEnemySpawnSelection.js";
@@ -43,17 +50,38 @@ const paintbrushBaseColor = ref<string | null>(null);
 const paintbrushAppearanceKey = ref<string | null>(null);
 const paintbrushAppearancePreviewUrl = ref<string | null>(null);
 const paintbrushAppearanceSetId = ref(BUNDLED_TILE_SETS[0]?.id ?? "basic");
+const paintbrushFeatureKey = ref<string | null>(null);
+const paintbrushFeaturePreviewUrl = ref<string | null>(null);
 const paintbrushEnableElevation = ref(true);
 const paintbrushEnableTerrain = ref(true);
 const paintbrushEnableEffect = ref(true);
 const paintbrushEnableName = ref(true);
 const paintbrushEnableColor = ref(true);
 const paintbrushEnableAppearance = ref(true);
+const paintbrushEnableFeature = ref(true);
+const paintbrushImageRotation = ref<TileImageRotation>(0);
+const paintbrushImageFlip = ref(false);
+const paintbrushEnableRotation = ref(true);
+const paintbrushEnableFlip = ref(true);
 const paintbrushPresets = ref<Record<string, TilePaintPreset>>({});
 const paintbrushPresetLoadId = ref("");
 const paintbrushPresetError = ref("");
 const paintbrushAppearanceUploading = ref(false);
+const paintbrushFeatureUploading = ref(false);
 const paintbrushEyedropperActive = ref(false);
+
+type PendingTilePlacement = {
+  brushAppearance: string | null | undefined;
+  brushFeature: string | null | undefined;
+  appearanceKey: string | null | undefined;
+  featureKey: string | null | undefined;
+};
+
+const pendingTilePlacements = new Map<string, PendingTilePlacement>();
+
+function clearPendingTilePlacements() {
+  pendingTilePlacements.clear();
+}
 
 export function clearActiveTool() {
   activeTool.value = null;
@@ -90,6 +118,8 @@ export function useGmTools() {
     galleryEntriesForSet(paintbrushAppearanceSetId.value),
   );
 
+  const bundledTileFeatures = computed(() => featureGalleryEntries());
+
   function syncPaintbrushAppearanceSetFromKey(key: string | null | undefined) {
     if (!key) return;
     const setId = setIdFromAppearanceKey(key);
@@ -107,8 +137,13 @@ export function useGmTools() {
 
   watch(activeTool, (tool) => {
     if (tool === "paintbrush") void refreshPaintbrushPresets();
-    if (tool !== "paintbrush") paintbrushEyedropperActive.value = false;
+    if (tool !== "paintbrush") {
+      paintbrushEyedropperActive.value = false;
+      clearPendingTilePlacements();
+    }
   });
+
+  watch([paintbrushAppearanceKey, paintbrushFeatureKey], clearPendingTilePlacements);
 
   function setPaintbrushEyedropperActive(active: boolean) {
     if (activeTool.value !== "paintbrush") {
@@ -131,6 +166,9 @@ export function useGmTools() {
       tileName: tile.name ?? "",
       ...(tile.baseColor ? { baseColor: tile.baseColor } : {}),
       ...(tile.appearanceKey ? { appearanceKey: tile.appearanceKey } : {}),
+      ...(tile.featureKey ? { featureKey: tile.featureKey } : {}),
+      ...(tile.imageRotation ? { imageRotation: tile.imageRotation } : {}),
+      ...(tile.imageFlip ? { imageFlip: true } : {}),
     };
   }
 
@@ -230,6 +268,23 @@ export function useGmTools() {
     });
   }
 
+  function clearPaintbrushFeaturePreview() {
+    const url = paintbrushFeaturePreviewUrl.value;
+    if (url?.startsWith("blob:")) URL.revokeObjectURL(url);
+    paintbrushFeaturePreviewUrl.value = null;
+  }
+
+  function setPaintbrushFeaturePreview(key: string) {
+    clearPaintbrushFeaturePreview();
+    if (isBundledTileFeatureKey(key)) {
+      paintbrushFeaturePreviewUrl.value = bundledTileFeatureUrl(key);
+      return;
+    }
+    void fetchTileAppearanceUrl(key).then((url) => {
+      if (url) paintbrushFeaturePreviewUrl.value = url;
+    });
+  }
+
   function resetPaintbrushSettings() {
     paintbrushElevation.value = 0;
     paintbrushTerrain.value = "standard";
@@ -239,6 +294,10 @@ export function useGmTools() {
     paintbrushBaseColor.value = null;
     paintbrushAppearanceKey.value = null;
     clearPaintbrushAppearancePreview();
+    paintbrushFeatureKey.value = null;
+    clearPaintbrushFeaturePreview();
+    paintbrushImageRotation.value = 0;
+    paintbrushImageFlip.value = false;
     paintbrushPresetLoadId.value = "";
     paintbrushPresetError.value = "";
   }
@@ -252,6 +311,9 @@ export function useGmTools() {
       tileName: paintbrushTileName.value.trim(),
       ...(paintbrushBaseColor.value ? { baseColor: paintbrushBaseColor.value } : {}),
       ...(paintbrushAppearanceKey.value ? { appearanceKey: paintbrushAppearanceKey.value } : {}),
+      ...(paintbrushFeatureKey.value ? { featureKey: paintbrushFeatureKey.value } : {}),
+      ...(paintbrushImageRotation.value ? { imageRotation: paintbrushImageRotation.value } : {}),
+      ...(paintbrushImageFlip.value ? { imageFlip: true } : {}),
     };
   }
 
@@ -266,12 +328,22 @@ export function useGmTools() {
     syncPaintbrushAppearanceSetFromKey(preset.appearanceKey);
     if (preset.appearanceKey) setPaintbrushAppearancePreview(preset.appearanceKey);
     else clearPaintbrushAppearancePreview();
+    paintbrushFeatureKey.value = preset.featureKey ?? null;
+    if (preset.featureKey) setPaintbrushFeaturePreview(preset.featureKey);
+    else clearPaintbrushFeaturePreview();
+    paintbrushImageRotation.value = preset.imageRotation ?? 0;
+    paintbrushImageFlip.value = preset.imageFlip ?? false;
   }
 
   function selectBundledPaintbrushAppearance(key: string) {
     paintbrushAppearanceKey.value = key;
     syncPaintbrushAppearanceSetFromKey(key);
     setPaintbrushAppearancePreview(key);
+  }
+
+  function selectBundledPaintbrushFeature(key: string) {
+    paintbrushFeatureKey.value = key;
+    setPaintbrushFeaturePreview(key);
   }
 
   function loadSelectedPreset() {
@@ -330,9 +402,35 @@ export function useGmTools() {
     }
   }
 
+  async function uploadPaintbrushFeature(file: File) {
+    if (file.type !== "image/png") {
+      paintbrushPresetError.value = "Feature must be a PNG file";
+      return;
+    }
+    paintbrushFeatureUploading.value = true;
+    paintbrushPresetError.value = "";
+    try {
+      const key = await uploadTileAppearance(file);
+      if (!key) {
+        paintbrushPresetError.value = "Failed to upload feature";
+        return;
+      }
+      paintbrushFeatureKey.value = key;
+      clearPaintbrushFeaturePreview();
+      paintbrushFeaturePreviewUrl.value = URL.createObjectURL(file);
+    } finally {
+      paintbrushFeatureUploading.value = false;
+    }
+  }
+
   function clearPaintbrushAppearance() {
     paintbrushAppearanceKey.value = null;
     clearPaintbrushAppearancePreview();
+  }
+
+  function clearPaintbrushFeature() {
+    paintbrushFeatureKey.value = null;
+    clearPaintbrushFeaturePreview();
   }
 
   function setAllPaintbrushOptionsEnabled(enabled: boolean) {
@@ -342,6 +440,9 @@ export function useGmTools() {
     paintbrushEnableName.value = enabled;
     paintbrushEnableColor.value = enabled;
     paintbrushEnableAppearance.value = enabled;
+    paintbrushEnableFeature.value = enabled;
+    paintbrushEnableRotation.value = enabled;
+    paintbrushEnableFlip.value = enabled;
   }
 
   function enableAllPaintbrushOptions() {
@@ -350,6 +451,73 @@ export function useGmTools() {
 
   function disableAllPaintbrushOptions() {
     setAllPaintbrushOptionsEnabled(false);
+  }
+
+  function cyclePaintbrushImageRotation() {
+    paintbrushImageRotation.value = ((paintbrushImageRotation.value + 90) % 360) as TileImageRotation;
+  }
+
+  function togglePaintbrushImageFlip() {
+    paintbrushImageFlip.value = !paintbrushImageFlip.value;
+  }
+
+  function ensurePendingTilePlacement(x: number, y: number): PendingTilePlacement {
+    const key = coordKey(x, y);
+    const brushAppearance = paintbrushEnableAppearance.value
+      ? paintbrushAppearanceKey.value
+      : undefined;
+    const brushFeature = paintbrushEnableFeature.value
+      ? paintbrushFeatureKey.value
+      : undefined;
+    const existing = pendingTilePlacements.get(key);
+    if (
+      existing &&
+      existing.brushAppearance === brushAppearance &&
+      existing.brushFeature === brushFeature
+    ) {
+      return existing;
+    }
+    const placement: PendingTilePlacement = {
+      brushAppearance,
+      brushFeature,
+      appearanceKey:
+        brushAppearance !== undefined
+          ? resolveAppearanceKeyForPaint(brushAppearance)
+          : undefined,
+      featureKey:
+        brushFeature !== undefined ? resolveFeatureKeyForPaint(brushFeature) : undefined,
+    };
+    pendingTilePlacements.set(key, placement);
+    return placement;
+  }
+
+  function takePendingTilePlacement(x: number, y: number): PendingTilePlacement {
+    const placement = ensurePendingTilePlacement(x, y);
+    pendingTilePlacements.delete(coordKey(x, y));
+    return placement;
+  }
+
+  /** Resolved placement for hover preview — matches the next paint on this cell. */
+  function peekPaintbrushPlacement(x: number, y: number) {
+    const placement = ensurePendingTilePlacement(x, y);
+
+    function urlForKey(key: string | null | undefined): string | null {
+      if (!key) return null;
+      if (isBundledTileFeatureKey(key)) return bundledTileFeatureUrl(key);
+      if (isBundledTileAppearanceKey(key)) return bundledTileAppearanceUrl(key);
+      if (key.startsWith("tiles/")) return `/${key}`;
+      if (key === paintbrushAppearanceKey.value) return paintbrushAppearancePreviewUrl.value;
+      if (key === paintbrushFeatureKey.value) return paintbrushFeaturePreviewUrl.value;
+      return null;
+    }
+
+    return {
+      appearanceKey: placement.appearanceKey,
+      featureKey: placement.featureKey,
+      appearanceUrl:
+        placement.appearanceKey !== undefined ? urlForKey(placement.appearanceKey) : null,
+      featureUrl: placement.featureKey !== undefined ? urlForKey(placement.featureKey) : null,
+    };
   }
 
   function applyPaintbrushToTile(x: number, y: number) {
@@ -364,6 +532,8 @@ export function useGmTools() {
       tileEffects?: string[];
       tileName?: string;
       baseColor?: string | null;
+      imageRotation?: TileImageRotation | null;
+      imageFlip?: boolean | null;
     } = {};
     if (paintbrushEnableElevation.value) shared.elevation = paintbrushElevation.value;
     if (paintbrushEnableTerrain.value) shared.terrain = paintbrushTerrain.value;
@@ -375,14 +545,19 @@ export function useGmTools() {
     }
     if (paintbrushEnableName.value) shared.tileName = paintbrushTileName.value;
     if (paintbrushEnableColor.value) shared.baseColor = paintbrushBaseColor.value;
+    if (paintbrushEnableRotation.value) {
+      shared.imageRotation = paintbrushImageRotation.value || null;
+    }
+    if (paintbrushEnableFlip.value) {
+      shared.imageFlip = paintbrushImageFlip.value || null;
+    }
 
     const brushAppearance = paintbrushEnableAppearance.value
       ? paintbrushAppearanceKey.value
       : undefined;
-    const randomizePerTile =
-      brushAppearance !== undefined &&
-      brushAppearance !== null &&
-      isAppearanceGroupKey(brushAppearance);
+    const brushFeature = paintbrushEnableFeature.value
+      ? paintbrushFeatureKey.value
+      : undefined;
 
     if (
       shared.elevation === undefined &&
@@ -390,19 +565,32 @@ export function useGmTools() {
       shared.tileEffects === undefined &&
       shared.tileName === undefined &&
       shared.baseColor === undefined &&
-      brushAppearance === undefined
+      shared.imageRotation === undefined &&
+      shared.imageFlip === undefined &&
+      brushAppearance === undefined &&
+      brushFeature === undefined
     ) {
       return;
     }
 
-    // Folder groups: pick a random member per tile so bulk/drag paint varies.
-    if (randomizePerTile) {
+    const needsPerTileResolve =
+      (brushAppearance !== undefined &&
+        brushAppearance !== null &&
+        isAppearanceGroupKey(brushAppearance)) ||
+      (brushFeature !== undefined && brushFeature !== null && isFeatureGroupKey(brushFeature));
+
+    // Per-tile resolve (groups + any cell with a pending hover pick) so preview matches paint.
+    if (needsPerTileResolve || coords.length === 1) {
       for (const coord of coords) {
+        const placement = takePendingTilePlacement(coord.x, coord.y);
         send({
           type: "gmPaintTile",
           coords: [coord],
           ...shared,
-          appearanceKey: resolveAppearanceKeyForPaint(brushAppearance),
+          ...(placement.appearanceKey !== undefined
+            ? { appearanceKey: placement.appearanceKey }
+            : {}),
+          ...(placement.featureKey !== undefined ? { featureKey: placement.featureKey } : {}),
         });
       }
       return;
@@ -414,6 +602,9 @@ export function useGmTools() {
       ...shared,
       ...(brushAppearance !== undefined
         ? { appearanceKey: resolveAppearanceKeyForPaint(brushAppearance) }
+        : {}),
+      ...(brushFeature !== undefined
+        ? { featureKey: resolveFeatureKeyForPaint(brushFeature) }
         : {}),
     });
   }
@@ -435,17 +626,25 @@ export function useGmTools() {
     paintbrushAppearanceKey,
     paintbrushAppearancePreviewUrl,
     paintbrushAppearanceSetId,
+    paintbrushFeatureKey,
+    paintbrushFeaturePreviewUrl,
+    paintbrushImageRotation,
+    paintbrushImageFlip,
     paintbrushEnableElevation,
     paintbrushEnableTerrain,
     paintbrushEnableEffect,
     paintbrushEnableName,
     paintbrushEnableColor,
     paintbrushEnableAppearance,
+    paintbrushEnableFeature,
+    paintbrushEnableRotation,
+    paintbrushEnableFlip,
     paintbrushPresets,
     paintbrushPresetLoadId,
     paintbrushPresetNames,
     paintbrushPresetError,
     paintbrushAppearanceUploading,
+    paintbrushFeatureUploading,
     paintbrushEyedropperActive,
     setActiveTool,
     setBulkSelection,
@@ -458,6 +657,9 @@ export function useGmTools() {
     resetPaintbrushSettings,
     enableAllPaintbrushOptions,
     disableAllPaintbrushOptions,
+    cyclePaintbrushImageRotation,
+    togglePaintbrushImageFlip,
+    peekPaintbrushPlacement,
     applyPaintbrushToTile,
     samplePaintbrushFromTile,
     setPaintbrushEyedropperActive,
@@ -467,8 +669,12 @@ export function useGmTools() {
     uploadPaintbrushAppearance,
     clearPaintbrushAppearance,
     selectBundledPaintbrushAppearance,
+    uploadPaintbrushFeature,
+    clearPaintbrushFeature,
+    selectBundledPaintbrushFeature,
     bundledTileSets: BUNDLED_TILE_SETS,
     bundledTileAppearancesForSet,
+    bundledTileFeatures,
     refreshPaintbrushPresets,
   };
 }
