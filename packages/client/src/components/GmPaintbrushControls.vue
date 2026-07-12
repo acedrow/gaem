@@ -74,6 +74,11 @@ function onSelectAppearance(key: string) {
   closeGallery();
 }
 
+function onSelectAppearanceNone() {
+  clearPaintbrushAppearance();
+  closeGallery();
+}
+
 function closeFeatureGallery() {
   featureGalleryOpen.value = false;
 }
@@ -85,6 +90,11 @@ function toggleFeatureGallery() {
 
 function onSelectFeature(key: string) {
   selectBundledPaintbrushFeature(key);
+  closeFeatureGallery();
+}
+
+function onSelectFeatureNone() {
+  clearPaintbrushFeature();
   closeFeatureGallery();
 }
 
@@ -248,6 +258,18 @@ function onFeatureSelected(e: Event) {
               <div class="gallery-backdrop" @click="closeGallery" />
               <div class="gallery-menu" role="listbox" @click.stop>
                 <button
+                  type="button"
+                  role="option"
+                  class="gallery-item"
+                  :class="{ selected: paintbrushAppearanceKey == null }"
+                  :aria-selected="paintbrushAppearanceKey == null"
+                  title="None"
+                  @click="onSelectAppearanceNone"
+                >
+                  <span class="gallery-thumb gallery-thumb-none" aria-hidden="true">—</span>
+                  <span class="gallery-name">None</span>
+                </button>
+                <button
                   v-for="item in bundledTileAppearancesForSet"
                   :key="item.key"
                   type="button"
@@ -322,6 +344,18 @@ function onFeatureSelected(e: Event) {
             <template v-if="featureGalleryOpen">
               <div class="gallery-backdrop" @click="closeFeatureGallery" />
               <div class="gallery-menu" role="listbox" @click.stop>
+                <button
+                  type="button"
+                  role="option"
+                  class="gallery-item"
+                  :class="{ selected: paintbrushFeatureKey == null }"
+                  :aria-selected="paintbrushFeatureKey == null"
+                  title="None"
+                  @click="onSelectFeatureNone"
+                >
+                  <span class="gallery-thumb gallery-thumb-none" aria-hidden="true">—</span>
+                  <span class="gallery-name">None</span>
+                </button>
                 <button
                   v-for="item in bundledTileFeatures"
                   :key="item.key"
@@ -616,6 +650,15 @@ function onFeatureSelected(e: Event) {
   border-radius: 4px;
   border: 1px solid var(--color-border);
   flex-shrink: 0;
+}
+
+.gallery-thumb-none {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  background: var(--color-bg-elevated, transparent);
 }
 
 .gallery-name {

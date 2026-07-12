@@ -245,7 +245,17 @@ function isTypingTarget(el: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
 }
 
+// The paintbrush pointerdown handler already paints the start cell (and handles
+// drag-paint); the trailing native click on that same cell would otherwise paint
+// it again, re-resolving a new random pick/rotation that no longer matches the
+// preview. Suppress that trailing click.
+let suppressPaintbrushClickAfterPointerDown = false;
+
 function handlePaintbrushCellAction(x: number, y: number) {
+  if (suppressPaintbrushClickAfterPointerDown) {
+    suppressPaintbrushClickAfterPointerDown = false;
+    return;
+  }
   if (paintbrushEyedropperActive.value) samplePaintbrushFromTile(x, y);
   else applyPaintbrushToTile(x, y);
 }
@@ -2136,15 +2146,22 @@ const cellStateByKey = computed(() => {
         const previewBaseColor = showColor ? paintbrushBaseColor.value : null;
         const previewAppearanceUrl = showAppearance ? placement.appearanceUrl : null;
         const previewFeatureUrl = showFeature ? placement.featureUrl : null;
-        // Full cosmetic composite so we can hide the live layers under the preview;
-        // fall back to the tile's real cosmetics when the brush has nothing to paint
-        // for that layer, so hovering doesn't blank out the tile's existing look.
+        // Full cosmetic composite so we can hide the live layers under the preview.
+        // When a layer is enabled and the brush has an explicit value (including null =
+        // clear), use that. Fall back to the live tile only when the brush leaves the
+        // layer untouched (undefined / enable off).
         previewCell.paintbrushPreview = {
           imageRotation,
           imageFlip,
           baseColor: previewBaseColor ?? tile?.baseColor ?? null,
-          appearanceUrl: previewAppearanceUrl ?? previewCell.tileAppearanceUrl,
-          featureUrl: previewFeatureUrl ?? previewCell.tileFeatureUrl,
+          appearanceUrl:
+            showAppearance && placement.appearanceKey !== undefined
+              ? previewAppearanceUrl
+              : previewCell.tileAppearanceUrl,
+          featureUrl:
+            showFeature && placement.featureKey !== undefined
+              ? previewFeatureUrl
+              : previewCell.tileFeatureUrl,
         };
       }
     }
@@ -3837,6 +3854,7 @@ function onPaintbrushPointerDown(e: PointerEvent) {
   const startCell = cellFromClientPoint(e.clientX, e.clientY);
   if (!startCell) return;
   e.preventDefault();
+  suppressPaintbrushClickAfterPointerDown = true;
 
   if (paintbrushEyedropperActive.value) {
     samplePaintbrushFromTile(startCell.x, startCell.y);
@@ -3882,6 +3900,7 @@ function onPaintbrushPointerDown(e: PointerEvent) {
 
 function onViewportPointerDown(e: PointerEvent) {
   suppressViewportClickAfterMarquee = false;
+  suppressPaintbrushClickAfterPointerDown = false;
   onMarqueePointerDown(e);
   onPaintbrushPointerDown(e);
 }

@@ -593,8 +593,10 @@ export function useGmTools() {
     const brushAppearance = paintbrushEnableAppearance.value
       ? paintbrushAppearanceKey.value
       : undefined;
+    // Enabled + no selection clears existing features (null), unlike appearance which
+    // leaves the tile unchanged when unset (undefined).
     const brushFeature = paintbrushEnableFeature.value
-      ? paintbrushFeatureKey.value
+      ? (paintbrushFeatureKey.value ?? null)
       : undefined;
     const autoRotate = paintbrushEnableRotation.value && paintbrushAutoRotate.value;
     const existing = pendingTilePlacements.get(key);
@@ -689,8 +691,10 @@ export function useGmTools() {
     const brushAppearance = paintbrushEnableAppearance.value
       ? paintbrushAppearanceKey.value
       : undefined;
+    // Enabled + no selection clears existing features (null), unlike appearance which
+    // leaves the tile unchanged when unset (undefined).
     const brushFeature = paintbrushEnableFeature.value
-      ? paintbrushFeatureKey.value
+      ? (paintbrushFeatureKey.value ?? null)
       : undefined;
 
     if (
