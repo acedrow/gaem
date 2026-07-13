@@ -64,7 +64,7 @@ npm run test:e2e
 - **`npm run build`** — mandatory. Shared type errors block client and server; client imports `@gaem/shared` from `dist/`.
 - **`npm run test`** — mandatory when tests exist for the code you touched. If you add or change shared game logic, add or update tests in `packages/shared` when the behavior is worth guarding (see Code style). Run the full root `npm run test` at minimum; re-run focused suites while iterating if helpful.
 - **`npm run lint`** — mandatory. Runs ESLint, then client `vue-tsc` (`npm run typecheck`). Must report **0 errors** (ESLint warnings are pre-existing cleanup backlog; do not add new ones). The config (`eslint.config.mjs`, flat) is tuned to catch real defects, not formatting. Do not silence a rule to make a change pass — fix the code, or add a scoped `// eslint-disable-next-line <rule>` with a one-line justification only when the code is genuinely intentional. Type-aware ESLint rules on the backends and client `vue-tsc` both need `@gaem/shared` built first (`npm run build`), since they resolve types from `dist/`. A husky pre-commit hook runs `npm run lint` so IDE-only TS errors cannot slip into commits.
-- **`npm run test:e2e`** — mandatory. Playwright headless browser tests for combat UI wiring (`packages/e2e`). **Always use the npm script** (never bare `npx playwright test` / `npx playwright install`). One-time setup: `npm run e2e:setup` (creates `.env.e2e` from `.env.e2e.example` if missing, installs Chromium into `packages/e2e/.playwright-browsers`). Re-run `e2e:setup` after Playwright version bumps or if browsers are missing. Cursor's agent sandbox pre-sets `PLAYWRIGHT_BROWSERS_PATH` to a wiped temp cache — our npm scripts and `playwright.config.ts` always override that to the in-repo directory.
+- **`npm run test:e2e`** — mandatory for code changes. Skip when the diff **only** adds or updates assets (e.g. PNGs under `packages/assets/`, synced `public/` mirrors, portraits) with no logic, config, or UI behavior changes — including wire-up edits that only register a new tile set/label/glob so the assets appear in the gallery. Playwright headless browser tests for combat UI wiring (`packages/e2e`). **Always use the npm script** (never bare `npx playwright test` / `npx playwright install`). One-time setup: `npm run e2e:setup` (creates `.env.e2e` from `.env.e2e.example` if missing, installs Chromium into `packages/e2e/.playwright-browsers`). Re-run `e2e:setup` after Playwright version bumps or if browsers are missing. Cursor's agent sandbox pre-sets `PLAYWRIGHT_BROWSERS_PATH` to a wiped temp cache — our npm scripts and `playwright.config.ts` always override that to the in-repo directory.
 
   **Ports:** assume `npm run dev:cf` (or `npm run dev`) is already using the default ports (`:5173` client, `:8787` wrangler / `:3001` Express). E2e always binds **dedicated** ports so it can run in parallel:
   - client — `http://localhost:5174` (`E2E_CLIENT_URL`)
@@ -72,7 +72,7 @@ npm run test:e2e
 
   Do **not** point e2e at `:5173` / `:3001`. The root `test:e2e` script and `@gaem/e2e` defaults already set these; Playwright starts a fresh Express + Vite stack (`reuseExistingServer: false`) with `VITE_API_BASE` / `VITE_WS_URL` so the browser client talks to `:3002`. CI runs the same script after unit tests pass.
 
-Do not skip verification because a change "looks small" or "only touches the client." Export omissions, missing shared rebuilds, and broken imports often surface only at build time.
+Do not skip verification because a change "looks small" or "only touches the client." Export omissions, missing shared rebuilds, and broken imports often surface only at build time. Asset-only imports (above) may skip `test:e2e`; still run `build` / `lint` if you touched TypeScript that registers those assets.
 
 After fixing a build, test, lint, or e2e failure, re-run all four commands to confirm nothing else regressed.
 
@@ -258,7 +258,7 @@ Many panels branch on `useSession().isGm`. Players see reduced enemy/sheet detai
 - [ ] `npm run build` passes (run it; do not assume)
 - [ ] `npm run test` passes (run it; fix or add tests for changed behavior)
 - [ ] `npm run lint` reports 0 errors and no new warnings
-- [ ] `npm run test:e2e` passes (run it; do not assume)
+- [ ] `npm run test:e2e` passes (run it; do not assume) — skip for asset-only changes (see Verification)
 - [ ] Shared game logic updated if behavior changed
 - [ ] Server and cf-worker stay in sync for WS/REST changes
 - [ ] No secrets committed (`.env`, `.dev.vars`)
