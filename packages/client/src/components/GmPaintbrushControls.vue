@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { TERRAIN_TYPES, TILE_EFFECTS, terrainTypeDisplayName } from "@gaem/shared";
-import { onUnmounted, ref, watch } from "vue";
+import { ref } from "vue";
 
 import {
   useGmTools,
   GM_TILE_EFFECT_NONE,
 } from "../composables/useGmTools.js";
+import { useTileBrushGalleryUi } from "../composables/useTileBrushGalleryUi.js";
 import EffectIcon from "./EffectIcon.vue";
 import NumberStepper from "./NumberStepper.vue";
 import TileBaseColorModal from "./TileBaseColorModal.vue";
@@ -44,85 +45,26 @@ const {
   deleteSelectedPreset,
   uploadPaintbrushAppearance,
   clearPaintbrushAppearance,
-  selectBundledPaintbrushAppearance,
   uploadPaintbrushFeature,
   clearPaintbrushFeature,
-  selectBundledPaintbrushFeature,
   bundledTileSets,
   bundledTileAppearancesForSet,
   bundledTileFeatureSets,
   bundledTileFeaturesForSet,
-  paintbrushAppearanceKey,
   paintbrushAppearanceSetId,
-  paintbrushFeatureKey,
   paintbrushFeatureSetId,
 } = useGmTools();
 
+const {
+  appearanceGalleryOpen,
+  featureGalleryOpen,
+  openAppearanceGallery,
+  openFeatureGallery,
+  toggleAppearanceGallery,
+  toggleFeatureGallery,
+} = useTileBrushGalleryUi();
+
 const colorModalOpen = ref(false);
-const galleryOpen = ref(false);
-const featureGalleryOpen = ref(false);
-
-function closeGallery() {
-  galleryOpen.value = false;
-}
-
-function toggleGallery() {
-  galleryOpen.value = !galleryOpen.value;
-  if (galleryOpen.value) featureGalleryOpen.value = false;
-}
-
-function onSelectAppearance(key: string) {
-  selectBundledPaintbrushAppearance(key);
-  closeGallery();
-}
-
-function onSelectAppearanceNone() {
-  clearPaintbrushAppearance();
-  closeGallery();
-}
-
-function closeFeatureGallery() {
-  featureGalleryOpen.value = false;
-}
-
-function toggleFeatureGallery() {
-  featureGalleryOpen.value = !featureGalleryOpen.value;
-  if (featureGalleryOpen.value) galleryOpen.value = false;
-}
-
-function onSelectFeature(key: string) {
-  selectBundledPaintbrushFeature(key);
-  closeFeatureGallery();
-}
-
-function onSelectFeatureNone() {
-  clearPaintbrushFeature();
-  closeFeatureGallery();
-}
-
-function onGalleryKeydown(e: KeyboardEvent) {
-  if (e.key !== "Escape") return;
-  if (!galleryOpen.value && !featureGalleryOpen.value) return;
-  e.preventDefault();
-  e.stopPropagation();
-  closeGallery();
-  closeFeatureGallery();
-}
-
-watch([galleryOpen, featureGalleryOpen], ([appearanceOpen, featureOpen]) => {
-  if (appearanceOpen || featureOpen) {
-    document.addEventListener("keydown", onGalleryKeydown, true);
-  } else {
-    document.removeEventListener("keydown", onGalleryKeydown, true);
-  }
-});
-
-watch(paintbrushAppearanceSetId, closeGallery);
-watch(paintbrushFeatureSetId, closeFeatureGallery);
-
-onUnmounted(() => {
-  document.removeEventListener("keydown", onGalleryKeydown, true);
-});
 
 function onAppearanceSelected(e: Event) {
   const input = e.target as HTMLInputElement;
@@ -234,6 +176,7 @@ function onFeatureSelected(e: Event) {
           v-model="paintbrushAppearanceSetId"
           class="effect-select"
           aria-label="Tile set"
+          @change="openAppearanceGallery"
         >
           <option v-for="set in bundledTileSets" :key="set.id" :value="set.id">
             {{ set.label }}
@@ -244,10 +187,10 @@ function onFeatureSelected(e: Event) {
             <button
               type="button"
               class="appearance-thumb-btn"
-              :aria-expanded="galleryOpen"
+              :aria-expanded="appearanceGalleryOpen"
               aria-haspopup="listbox"
               aria-label="Choose tile appearance"
-              @click="toggleGallery"
+              @click="toggleAppearanceGallery"
             >
               <img
                 v-if="paintbrushAppearancePreviewUrl"
@@ -257,37 +200,6 @@ function onFeatureSelected(e: Event) {
               />
               <span v-else class="appearance-thumb-placeholder">—</span>
             </button>
-            <template v-if="galleryOpen">
-              <div class="gallery-backdrop" @click="closeGallery" />
-              <div class="gallery-menu" role="listbox" @click.stop>
-                <button
-                  type="button"
-                  role="option"
-                  class="gallery-item"
-                  :class="{ selected: paintbrushAppearanceKey == null }"
-                  :aria-selected="paintbrushAppearanceKey == null"
-                  title="None"
-                  @click="onSelectAppearanceNone"
-                >
-                  <span class="gallery-thumb gallery-thumb-none" aria-hidden="true">—</span>
-                  <span class="gallery-name">None</span>
-                </button>
-                <button
-                  v-for="item in bundledTileAppearancesForSet"
-                  :key="item.key"
-                  type="button"
-                  role="option"
-                  class="gallery-item"
-                  :class="{ selected: paintbrushAppearanceKey === item.key }"
-                  :aria-selected="paintbrushAppearanceKey === item.key"
-                  :title="item.kind === 'group' ? `Random from ${item.name}/` : item.name"
-                  @click="onSelectAppearance(item.key)"
-                >
-                  <img :src="item.url" alt="" class="gallery-thumb tile-image" />
-                  <span class="gallery-name">{{ item.name }}</span>
-                </button>
-              </div>
-            </template>
           </div>
           <img
             v-else-if="paintbrushAppearancePreviewUrl"
@@ -331,6 +243,7 @@ function onFeatureSelected(e: Event) {
           v-model="paintbrushFeatureSetId"
           class="effect-select"
           aria-label="Feature set"
+          @change="openFeatureGallery"
         >
           <option v-for="set in bundledTileFeatureSets" :key="set.id" :value="set.id">
             {{ set.label }}
@@ -354,37 +267,6 @@ function onFeatureSelected(e: Event) {
               />
               <span v-else class="appearance-thumb-placeholder">—</span>
             </button>
-            <template v-if="featureGalleryOpen">
-              <div class="gallery-backdrop" @click="closeFeatureGallery" />
-              <div class="gallery-menu" role="listbox" @click.stop>
-                <button
-                  type="button"
-                  role="option"
-                  class="gallery-item"
-                  :class="{ selected: paintbrushFeatureKey == null }"
-                  :aria-selected="paintbrushFeatureKey == null"
-                  title="None"
-                  @click="onSelectFeatureNone"
-                >
-                  <span class="gallery-thumb gallery-thumb-none" aria-hidden="true">—</span>
-                  <span class="gallery-name">None</span>
-                </button>
-                <button
-                  v-for="item in bundledTileFeaturesForSet"
-                  :key="item.key"
-                  type="button"
-                  role="option"
-                  class="gallery-item"
-                  :class="{ selected: paintbrushFeatureKey === item.key }"
-                  :aria-selected="paintbrushFeatureKey === item.key"
-                  :title="item.kind === 'group' ? `Random from ${item.name}/` : item.name"
-                  @click="onSelectFeature(item.key)"
-                >
-                  <img :src="item.url" alt="" class="gallery-thumb tile-image" />
-                  <span class="gallery-name">{{ item.name }}</span>
-                </button>
-              </div>
-            </template>
           </div>
           <img
             v-else-if="paintbrushFeaturePreviewUrl"
@@ -604,80 +486,6 @@ function onFeatureSelected(e: Event) {
   font-size: 0.75rem;
   color: var(--color-muted);
   line-height: 1;
-}
-
-.appearance-gallery {
-  position: relative;
-}
-
-.gallery-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 19;
-}
-
-.gallery-menu {
-  position: absolute;
-  top: calc(100% + 0.25rem);
-  left: 0;
-  z-index: 20;
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  min-width: 9rem;
-  max-height: 12rem;
-  overflow-y: auto;
-  padding: 0.35rem;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-surface);
-  box-shadow: var(--shadow-menu);
-}
-
-.gallery-item {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  width: 100%;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--color-text);
-  font-size: 0.78rem;
-  font-family: inherit;
-  padding: 0.25rem 0.35rem;
-  cursor: pointer;
-  text-align: left;
-}
-
-.gallery-item:hover,
-.gallery-item.selected {
-  background: var(--color-surface-raised);
-  border-color: var(--color-border);
-}
-
-.gallery-thumb {
-  width: 1.4rem;
-  height: 1.4rem;
-  object-fit: cover;
-  border-radius: 4px;
-  border: 1px solid var(--color-border);
-  flex-shrink: 0;
-}
-
-.gallery-thumb-none {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.75rem;
-  color: var(--color-muted);
-  background: var(--color-bg-elevated, transparent);
-}
-
-.gallery-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .upload-btn {

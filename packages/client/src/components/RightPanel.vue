@@ -28,6 +28,7 @@ import PartyResourcesPanel from "./PartyResourcesPanel.vue";
 import PatternsPanel from "./PatternsPanel.vue";
 import SettingsPanel from "./SettingsPanel.vue";
 import TableInfoPanel from "./TableInfoPanel.vue";
+import TileBrushGalleryOverlay from "./TileBrushGalleryOverlay.vue";
 import TurnOrderPanel from "./TurnOrderPanel.vue";
 
 const { selectedSheetId, gearPickCategory } = useCharacterSheetSelection();
@@ -117,7 +118,8 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
       <div class="tab-body">
         <AssistedActionPanel v-if="activeTab === 'console'" />
         <GameConsolePanel v-if="activeTab === 'console'" />
-        <div v-show="activeTab === 'info'" class="info-pane">
+        <div v-show="activeTab === 'info'" id="info-pane" class="info-pane">
+          <TileBrushGalleryOverlay />
           <GmToolOptionsPanel
             v-if="activeTool"
             :key="activeTool"
@@ -238,6 +240,7 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
 }
 
 .info-pane {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;

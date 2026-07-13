@@ -31,12 +31,13 @@ const SET_LABELS: Record<string, string> = {
   "paracletus-e-fields": "Paracletus E-Fields",
   "paracletus-stain-springs": "Paracletus Stain Springs",
   "paracletus-stygian-reef": "Paracletus Stygian Reef",
+  "paracletus-teethlands": "Paracletus Teethlands",
   "paracletus-v-nimbus": "Paracletus V-Nimbus",
   "rose-quartz": "Rose Quartz",
 };
 
 const appearanceModules = import.meta.glob(
-  "../../../assets/tiles/{basic,black-tile,paracletus,paracletus-e-fields,paracletus-stain-springs,paracletus-stygian-reef,paracletus-v-nimbus,rose-quartz}/**/*.jpg",
+  "../../../assets/tiles/{basic,black-tile,paracletus,paracletus-e-fields,paracletus-stain-springs,paracletus-stygian-reef,paracletus-teethlands,paracletus-v-nimbus,rose-quartz}/**/*.jpg",
   { eager: true, query: "?url", import: "default" },
 ) as Record<string, string>;
 
