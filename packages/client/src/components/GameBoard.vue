@@ -241,8 +241,19 @@ const gmViewportCursor = computed(() => {
 
 function isTypingTarget(el: EventTarget | null): boolean {
   if (!(el instanceof HTMLElement)) return false;
+  if (el.isContentEditable) return true;
   const tag = el.tagName;
-  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
+  if (tag === "TEXTAREA" || tag === "SELECT") return true;
+  if (tag !== "INPUT") return false;
+  const type = (el as HTMLInputElement).type;
+  return (
+    type !== "checkbox" &&
+    type !== "radio" &&
+    type !== "button" &&
+    type !== "submit" &&
+    type !== "reset" &&
+    type !== "file"
+  );
 }
 
 // The paintbrush pointerdown handler already paints the start cell (and handles
@@ -2141,8 +2152,8 @@ const cellStateByKey = computed(() => {
           ? paintbrushAutoRotate.value
             ? (placement.imageRotation ?? 0)
             : paintbrushImageRotation.value
-          : (tile?.imageRotation ?? 0);
-        const imageFlip = showFlip ? paintbrushImageFlip.value : !!tile?.imageFlip;
+          : 0;
+        const imageFlip = showFlip ? paintbrushImageFlip.value : false;
         const previewBaseColor = showColor ? paintbrushBaseColor.value : null;
         const previewAppearanceUrl = showAppearance ? placement.appearanceUrl : null;
         const previewFeatureUrl = showFeature ? placement.featureUrl : null;

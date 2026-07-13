@@ -19,11 +19,13 @@ import {
   setIdFromAppearanceKey,
 } from "../lib/bundledTileAppearances.js";
 import {
+  BUNDLED_TILE_FEATURE_SETS,
   bundledTileFeatureUrl,
-  featureGalleryEntries,
+  galleryEntriesForFeatureSet,
   isBundledTileFeatureKey,
   isFeatureGroupKey,
   resolveFeatureKeyForPaint,
+  setIdFromFeatureKey,
 } from "../lib/bundledTileFeatures.js";
 import { useApi } from "./useApi.js";
 import { useBoardActionMode } from "./useBoardActionMode.js";
@@ -63,6 +65,7 @@ const paintbrushAppearancePreviewUrl = ref<string | null>(null);
 const paintbrushAppearanceSetId = ref(persistedGm.paintbrushAppearanceSetId);
 const paintbrushFeatureKey = ref<string | null | undefined>(persistedGm.paintbrushFeatureKey);
 const paintbrushFeaturePreviewUrl = ref<string | null>(null);
+const paintbrushFeatureSetId = ref(persistedGm.paintbrushFeatureSetId);
 const paintbrushEnableElevation = ref(persistedGm.paintbrushEnableElevation);
 const paintbrushEnableTerrain = ref(persistedGm.paintbrushEnableTerrain);
 const paintbrushEnableEffect = ref(persistedGm.paintbrushEnableEffect);
@@ -117,6 +120,7 @@ export function snapshotGmTools(): PersistedGmTools {
     paintbrushAppearanceKey: paintbrushAppearanceKey.value,
     paintbrushAppearanceSetId: paintbrushAppearanceSetId.value,
     paintbrushFeatureKey: paintbrushFeatureKey.value,
+    paintbrushFeatureSetId: paintbrushFeatureSetId.value,
     paintbrushImageRotation: paintbrushImageRotation.value,
     paintbrushImageFlip: paintbrushImageFlip.value,
     paintbrushAutoRotate: paintbrushAutoRotate.value,
@@ -147,6 +151,7 @@ export const gmToolsWatchSources = [
   paintbrushAppearanceKey,
   paintbrushAppearanceSetId,
   paintbrushFeatureKey,
+  paintbrushFeatureSetId,
   paintbrushImageRotation,
   paintbrushImageFlip,
   paintbrushAutoRotate,
@@ -186,6 +191,7 @@ export function applyPersistedGmTools(gm: PersistedGmTools) {
   paintbrushAppearanceKey.value = gm.paintbrushAppearanceKey;
   paintbrushAppearanceSetId.value = gm.paintbrushAppearanceSetId;
   paintbrushFeatureKey.value = gm.paintbrushFeatureKey;
+  paintbrushFeatureSetId.value = gm.paintbrushFeatureSetId;
   paintbrushImageRotation.value = gm.paintbrushImageRotation;
   paintbrushImageFlip.value = gm.paintbrushImageFlip;
   paintbrushAutoRotate.value = gm.paintbrushAutoRotate;
@@ -228,12 +234,20 @@ export function useGmTools() {
     galleryEntriesForSet(paintbrushAppearanceSetId.value),
   );
 
-  const bundledTileFeatures = computed(() => featureGalleryEntries());
+  const bundledTileFeaturesForSet = computed(() =>
+    galleryEntriesForFeatureSet(paintbrushFeatureSetId.value),
+  );
 
   function syncPaintbrushAppearanceSetFromKey(key: string | null | undefined) {
     if (!key) return;
     const setId = setIdFromAppearanceKey(key);
     if (setId) paintbrushAppearanceSetId.value = setId;
+  }
+
+  function syncPaintbrushFeatureSetFromKey(key: string | null | undefined) {
+    if (!key) return;
+    const setId = setIdFromFeatureKey(key);
+    if (setId) paintbrushFeatureSetId.value = setId;
   }
 
   async function refreshPaintbrushPresets() {
@@ -456,6 +470,7 @@ export function useGmTools() {
     if (preset.appearanceKey) setPaintbrushAppearancePreview(preset.appearanceKey);
     else clearPaintbrushAppearancePreview();
     paintbrushFeatureKey.value = preset.featureKey ?? null;
+    syncPaintbrushFeatureSetFromKey(preset.featureKey);
     if (preset.featureKey) setPaintbrushFeaturePreview(preset.featureKey);
     else clearPaintbrushFeaturePreview();
     paintbrushImageRotation.value = preset.imageRotation ?? 0;
@@ -470,6 +485,7 @@ export function useGmTools() {
 
   function selectBundledPaintbrushFeature(key: string) {
     paintbrushFeatureKey.value = key;
+    syncPaintbrushFeatureSetFromKey(key);
     setPaintbrushFeaturePreview(key);
   }
 
@@ -581,10 +597,12 @@ export function useGmTools() {
   }
 
   function cyclePaintbrushImageRotation() {
+    if (!paintbrushEnableRotation.value) paintbrushEnableRotation.value = true;
     paintbrushImageRotation.value = ((paintbrushImageRotation.value + 90) % 360) as TileImageRotation;
   }
 
   function togglePaintbrushImageFlip() {
+    if (!paintbrushEnableFlip.value) paintbrushEnableFlip.value = true;
     paintbrushImageFlip.value = !paintbrushImageFlip.value;
   }
 
@@ -770,6 +788,7 @@ export function useGmTools() {
     paintbrushAppearanceSetId,
     paintbrushFeatureKey,
     paintbrushFeaturePreviewUrl,
+    paintbrushFeatureSetId,
     paintbrushImageRotation,
     paintbrushImageFlip,
     paintbrushAutoRotate,
@@ -819,7 +838,8 @@ export function useGmTools() {
     selectBundledPaintbrushFeature,
     bundledTileSets: BUNDLED_TILE_SETS,
     bundledTileAppearancesForSet,
-    bundledTileFeatures,
+    bundledTileFeatureSets: BUNDLED_TILE_FEATURE_SETS,
+    bundledTileFeaturesForSet,
     refreshPaintbrushPresets,
   };
 }

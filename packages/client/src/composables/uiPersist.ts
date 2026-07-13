@@ -53,6 +53,7 @@ export type PersistedGmTools = {
   paintbrushAppearanceKey: string | null | undefined;
   paintbrushAppearanceSetId: string;
   paintbrushFeatureKey: string | null | undefined;
+  paintbrushFeatureSetId: string;
   paintbrushImageRotation: TileImageRotation;
   paintbrushImageFlip: boolean;
   paintbrushAutoRotate: boolean;
@@ -110,6 +111,7 @@ export const DEFAULT_GM_TOOLS: PersistedGmTools = {
   paintbrushAppearanceKey: undefined,
   paintbrushAppearanceSetId: "basic",
   paintbrushFeatureKey: undefined,
+  paintbrushFeatureSetId: "base",
   paintbrushImageRotation: 0,
   paintbrushImageFlip: false,
   paintbrushAutoRotate: false,
@@ -237,6 +239,10 @@ export function parsePersistedGmTools(raw: unknown): PersistedGmTools {
     typeof g.paintbrushAppearanceSetId === "string" && g.paintbrushAppearanceSetId.length > 0
       ? g.paintbrushAppearanceSetId
       : DEFAULT_GM_TOOLS.paintbrushAppearanceSetId;
+  const paintbrushFeatureSetId =
+    typeof g.paintbrushFeatureSetId === "string" && g.paintbrushFeatureSetId.length > 0
+      ? g.paintbrushFeatureSetId
+      : DEFAULT_GM_TOOLS.paintbrushFeatureSetId;
   const paintbrushImageRotation =
     typeof g.paintbrushImageRotation === "number" &&
     TILE_ROTATION_SET.has(g.paintbrushImageRotation)
@@ -258,6 +264,7 @@ export function parsePersistedGmTools(raw: unknown): PersistedGmTools {
     paintbrushAppearanceKey: parseOptionalStringKey(g.paintbrushAppearanceKey),
     paintbrushAppearanceSetId,
     paintbrushFeatureKey: parseOptionalStringKey(g.paintbrushFeatureKey),
+    paintbrushFeatureSetId,
     paintbrushImageRotation,
     paintbrushImageFlip: g.paintbrushImageFlip === true,
     paintbrushAutoRotate: g.paintbrushAutoRotate === true,

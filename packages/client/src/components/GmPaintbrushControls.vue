@@ -50,10 +50,12 @@ const {
   selectBundledPaintbrushFeature,
   bundledTileSets,
   bundledTileAppearancesForSet,
-  bundledTileFeatures,
+  bundledTileFeatureSets,
+  bundledTileFeaturesForSet,
   paintbrushAppearanceKey,
   paintbrushAppearanceSetId,
   paintbrushFeatureKey,
+  paintbrushFeatureSetId,
 } = useGmTools();
 
 const colorModalOpen = ref(false);
@@ -116,6 +118,7 @@ watch([galleryOpen, featureGalleryOpen], ([appearanceOpen, featureOpen]) => {
 });
 
 watch(paintbrushAppearanceSetId, closeGallery);
+watch(paintbrushFeatureSetId, closeFeatureGallery);
 
 onUnmounted(() => {
   document.removeEventListener("keydown", onGalleryKeydown, true);
@@ -323,8 +326,18 @@ function onFeatureSelected(e: Event) {
         aria-label="Enable feature"
       />
       <div class="appearance-controls">
+        <select
+          v-if="bundledTileFeatureSets.length"
+          v-model="paintbrushFeatureSetId"
+          class="effect-select"
+          aria-label="Feature set"
+        >
+          <option v-for="set in bundledTileFeatureSets" :key="set.id" :value="set.id">
+            {{ set.label }}
+          </option>
+        </select>
         <div class="appearance-row">
-          <div v-if="bundledTileFeatures.length" class="appearance-gallery">
+          <div v-if="bundledTileFeaturesForSet.length" class="appearance-gallery">
             <button
               type="button"
               class="appearance-thumb-btn"
@@ -357,7 +370,7 @@ function onFeatureSelected(e: Event) {
                   <span class="gallery-name">None</span>
                 </button>
                 <button
-                  v-for="item in bundledTileFeatures"
+                  v-for="item in bundledTileFeaturesForSet"
                   :key="item.key"
                   type="button"
                   role="option"

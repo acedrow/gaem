@@ -241,7 +241,7 @@ describe("map", () => {
       tileName: "Rock",
       baseColor: "#112233",
       appearanceKey: "tile-appearances/x.png",
-      featureKey: "tiles/features/rock.png",
+      featureKey: "tiles/features/base/rock.png",
       imageRotation: 90,
       imageFlip: true,
     });
@@ -252,7 +252,7 @@ describe("map", () => {
     expect(saved.name).toBe("Rock");
     expect(saved.baseColor).toBe("#112233");
     expect(saved.appearanceKey).toBe("tile-appearances/x.png");
-    expect(saved.featureKey).toBe("tiles/features/rock.png");
+    expect(saved.featureKey).toBe("tiles/features/base/rock.png");
     expect(saved.imageRotation).toBe(90);
     expect(saved.imageFlip).toBe(true);
     expect(saved.tileEffects).toBeUndefined();
@@ -267,7 +267,7 @@ describe("map", () => {
             name: "Start",
             baseColor: "#abc",
             appearanceKey: "tile-appearances/test.png",
-            featureKey: "tiles/features/rock.png",
+            featureKey: "tiles/features/base/rock.png",
             imageRotation: 180,
             imageFlip: true,
           }
@@ -286,7 +286,7 @@ describe("map", () => {
           tileEffectStacks: 2,
           tileName: "Forest",
           baseColor: "#112233",
-          featureKey: "tiles/features/tree.png",
+          featureKey: "tiles/features/base/tree.png",
           imageRotation: 90,
           imageFlip: true,
         },
@@ -295,11 +295,11 @@ describe("map", () => {
     expect(map.tiles[0]!.name).toBe("Start");
     expect(map.tiles[0]!.baseColor).toBe("#abc");
     expect(map.tiles[0]!.appearanceKey).toBe("tile-appearances/test.png");
-    expect(map.tiles[0]!.featureKey).toBe("tiles/features/rock.png");
+    expect(map.tiles[0]!.featureKey).toBe("tiles/features/base/rock.png");
     expect(map.tiles[0]!.imageRotation).toBe(180);
     expect(map.tiles[0]!.imageFlip).toBe(true);
     expect(map.tilePresets?.Forest?.terrain).toBe("cover");
-    expect(map.tilePresets?.Forest?.featureKey).toBe("tiles/features/tree.png");
+    expect(map.tilePresets?.Forest?.featureKey).toBe("tiles/features/base/tree.png");
     expect(map.tilePresets?.Forest?.imageRotation).toBe(90);
     expect(map.tilePresets?.Forest?.imageFlip).toBe(true);
   });

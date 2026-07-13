@@ -176,7 +176,8 @@ scripts/rulebook/.venv/bin/python scripts/rulebook/extract.py --page 200
 |------|----------|
 | Move validation, phases, HP, occupancy | `packages/shared/src/game.ts` |
 | Map tiles, walkability, spawn | `packages/shared/src/map.ts` |
-| Bundled tile appearance PNGs | `packages/assets/tiles/{basic,paracletus}/` then `npm run sync-tile-assets -w @gaem/client` |
+| Bundled tile appearance PNGs | `packages/assets/tiles/{setId}/` then `npm run sync-tile-assets -w @gaem/client` |
+| Bundled tile feature PNGs | `packages/assets/tiles/features/{setId}/` then sync (same command) |
 | Enemy/class/weapon definitions | `packages/shared/src/data/` + `*-data.ts` loaders |
 | Board rendering, input | `packages/client/src/components/GameBoard.vue`, `BoardCell.vue` |
 | UI panels | `packages/client/src/components/` |
@@ -216,6 +217,10 @@ ChatGPT / similar generators often produce a single square sheet (e.g. ~1254×12
 7. Run `npm run sync-tile-assets -w @gaem/client` so `public/tiles/` matches (or rely on the next `dev`/`build` `pre*` hook).
 
 No code change is needed for new files in an existing set or group — the glob picks them up. Adding a **new set folder** also requires a label in `SET_LABELS` in `packages/client/src/lib/bundledTileAppearances.ts` and including that folder in the glob.
+
+### Feature sets
+
+Feature overlays (trenches, ruins, etc.) live under `packages/assets/tiles/features/{setId}/` with the same single/group layout as appearances. Keys are `tiles/features/{setId}/...`. `bundledTileFeatures.ts` uses `FEATURE_SET_LABELS` + a set glob; new feature sets need both updated. The paintbrush Feature dropdown filters the feature gallery per set.
 
 ## Client conventions
 

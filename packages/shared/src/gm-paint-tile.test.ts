@@ -32,7 +32,7 @@ describe("gmPaintTile", () => {
       tileName: "Forest",
       baseColor: "#aabbcc",
       appearanceKey: "tile-appearances/abc.png",
-      featureKey: "tiles/features/rock.png",
+      featureKey: "tiles/features/base/rock.png",
       imageRotation: 90,
       imageFlip: true,
     });
@@ -40,7 +40,7 @@ describe("gmPaintTile", () => {
     expect(tile.name).toBe("Forest");
     expect(tile.baseColor).toBe("#aabbcc");
     expect(tile.appearanceKey).toBe("tile-appearances/abc.png");
-    expect(tile.featureKey).toBe("tiles/features/rock.png");
+    expect(tile.featureKey).toBe("tiles/features/base/rock.png");
     expect(tile.imageRotation).toBe(90);
     expect(tile.imageFlip).toBe(true);
   });
