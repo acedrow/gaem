@@ -9,10 +9,12 @@ import {
   advancePastDeployment,
   cleanupCombat,
   enableSandbox,
+  ensureTaccomNotStarted,
   playerAttackButton,
   spawnEnemy,
   spawnPlayerToken,
   waitForBoard,
+  waitForTaccomWaiting,
   type CellCoord,
 } from "../pages/game.js";
 
@@ -42,15 +44,17 @@ async function openCombatSession(
   gmPage.on("dialog", (dialog) => void dialog.accept());
 
   await loginAsGm(gmPage);
-  await loginAsPlayer(playerPage, profile.name);
   await waitForBoard(gmPage);
-  await waitForBoard(playerPage);
+  await ensureTaccomNotStarted(gmPage);
+
+  await loginAsPlayer(playerPage, profile.name);
+  await waitForTaccomWaiting(playerPage);
 
   const playerCell = await spawnPlayerToken(gmPage, sheet.name);
   await advancePastDeployment(gmPage);
   await enableSandbox(gmPage);
   await waitForBoard(playerPage);
-  await playerPage.getByRole("button", { name: "TACCOM" }).click();
+  await playerPage.getByRole("button", { name: "TACCOM", exact: true }).click();
   await expect(playerAttackButton(playerPage)).toBeVisible();
 
   return {

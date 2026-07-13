@@ -133,6 +133,9 @@ const phaseAction = computed((): { label: string; action: PhaseAction } | null =
   const s = gameState.value;
   if (!s || !role.value || isSandboxMode(s)) return null;
 
+  if (s.roundPhase === "taccomNotStarted" && hasGmCapabilities.value) {
+    return { label: "Start TACCOM", action: "startTaccom" };
+  }
   if (s.roundPhase === "deployment" && hasGmCapabilities.value) {
     return { label: "End deployment", action: "endDeployment" };
   }
@@ -169,6 +172,12 @@ const phaseAction = computed((): { label: string; action: PhaseAction } | null =
   }
   return null;
 });
+
+const showTaccomWaiting = computed(
+  () =>
+    !hasGmCapabilities.value &&
+    gameState.value?.roundPhase === "taccomNotStarted",
+);
 
 function leave() {
   clearSession();
@@ -340,18 +349,23 @@ function selectMainTab(tab: MainSectionTab) {
         </button>
       </header>
       <div v-if="role && activeMainTab === 'taccom'" class="board-area">
-        <GameBoard
-          :role="role"
-          :gm-capabilities="hasGmCapabilities"
-          :player-profile="playerProfile"
-          :overlay-el="boardOverlaysEl"
-        />
-        <div ref="boardOverlaysEl" class="board-overlays">
-          <ReversalPrompt />
-          <ClassReactionPrompt />
-          <ActionBar />
-          <GmActionBar />
-        </div>
+        <p v-if="showTaccomWaiting" class="taccom-waiting">
+          Waiting for the GM to start TACCOM.
+        </p>
+        <template v-else>
+          <GameBoard
+            :role="role"
+            :gm-capabilities="hasGmCapabilities"
+            :player-profile="playerProfile"
+            :overlay-el="boardOverlaysEl"
+          />
+          <div ref="boardOverlaysEl" class="board-overlays">
+            <ReversalPrompt />
+            <ClassReactionPrompt />
+            <ActionBar />
+            <GmActionBar />
+          </div>
+        </template>
       </div>
       <BaseUpgradesPanel v-show="activeMainTab === 'baseUpgrades'" />
       <OverworldPanel v-show="activeMainTab === 'overworld'" />
@@ -546,6 +560,18 @@ function selectMainTab(tab: MainSectionTab) {
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+.taccom-waiting {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 1.5rem;
+  color: var(--color-muted);
+  font-size: 1.05rem;
+  text-align: center;
 }
 
 .board-overlays {

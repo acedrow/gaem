@@ -71,7 +71,7 @@ describe("map", () => {
     expect(state.mapName).toBe("Arena");
     expect(state.width).toBe(6);
     expect(state.height).toBe(6);
-    expect(state.roundPhase).toBe("deployment");
+    expect(state.roundPhase).toBe("taccomNotStarted");
     expect(state.turn).toEqual({ role: "gm" });
     expect(state.players).toEqual([]);
     expect(state.enemies).toHaveLength(1);
@@ -176,7 +176,7 @@ describe("map", () => {
     expect(state.width).toBe(6);
     expect(state.players).toEqual([]);
     expect(state.enemies).toHaveLength(1);
-    expect(state.roundPhase).toBe("deployment");
+    expect(state.roundPhase).toBe("taccomNotStarted");
     expect(state.partyResources).toEqual({ hellsteel: 5, soulfire: 2, brimstone: 1 });
     expect(state.constructedBaseUpgrades).toEqual(["upgrade-a"]);
     expect(state.overworldRegions).toEqual([

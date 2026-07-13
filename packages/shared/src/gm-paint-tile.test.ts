@@ -287,7 +287,7 @@ describe("gmPaintTile", () => {
       },
       { role: "gm", playerId: null },
     );
-    expect(result).toEqual({ handled: true, message: "Painted 3 tiles" });
+    expect(result).toEqual({ handled: true, message: "", silent: true });
     for (const { x, y } of [{ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 2 }]) {
       const tile = tileAt(state.tiles, x, y)!;
       expect(tile.elevation).toBe(2);

@@ -57,7 +57,11 @@ export function useCombatActions(playerId?: () => string | null) {
 
   const combatUiUnlocked = computed(() => {
     const s = gameState.value;
-    return s != null && s.roundPhase !== "deployment";
+    return (
+      s != null &&
+      s.roundPhase !== "deployment" &&
+      s.roundPhase !== "taccomNotStarted"
+    );
   });
 
   const showPlayerActionBar = computed(() => {

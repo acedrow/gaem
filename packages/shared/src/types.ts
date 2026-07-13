@@ -139,6 +139,7 @@ export type Player = {
 };
 
 export const ROUND_PHASES = [
+  "taccomNotStarted",
   "deployment",
   "startRoundEffects",
   "playersChoice",
@@ -163,6 +164,7 @@ export type PhaseAction =
   | "resetRound"
   | "gmEndRound"
   | "gmEndTurn"
+  | "startTaccom"
   | "endDeployment"
   | "resetCombat"
   | "endCombat"

@@ -92,7 +92,7 @@ export function createInitialRoundState(): Pick<
 > {
   return {
     round: 1,
-    roundPhase: "deployment",
+    roundPhase: "taccomNotStarted",
     turn: { role: "gm" },
     actedPlayerIds: [],
     turnLog: [],
@@ -153,7 +153,7 @@ function rewindToPlayerTurn(state: GameState, playerId: string): string {
 }
 
 export function canRewindPhase(state: GameState): boolean {
-  if (state.round === 1 && state.roundPhase === "deployment") return false;
+  if (state.round === 1 && state.roundPhase === "taccomNotStarted") return false;
   if (state.round > 1 && state.roundPhase === "startRoundEffects") return false;
   return true;
 }
@@ -164,7 +164,7 @@ export function canResetPhase(state: GameState): boolean {
 }
 
 function resetToRoundStart(state: GameState): void {
-  state.roundPhase = state.round === 1 ? "deployment" : "startRoundEffects";
+  state.roundPhase = state.round === 1 ? "taccomNotStarted" : "startRoundEffects";
   state.turn = { role: "gm" };
   state.actedPlayerIds = [];
 }
@@ -393,6 +393,10 @@ export function validatePhaseAction(
       if (state.roundPhase !== "deployment") return "Wrong phase";
       if (state.round !== 1) return "Deployment only happens at the start of round 1";
       return null;
+    case "startTaccom":
+      if (!hasGmCapabilities(ctx)) return "Only the game master can do that";
+      if (state.roundPhase !== "taccomNotStarted") return "Wrong phase";
+      return null;
     case "rewindPhase":
       if (!hasGmCapabilities(ctx)) return "Only the game master can do that";
       if (!canRewindPhase(state)) return "Already at the first phase of the round";
@@ -440,6 +444,8 @@ export function applyPhaseAction(
     }
     case "gmEndTurn": {
       switch (state.roundPhase) {
+        case "taccomNotStarted":
+          return "TACCOM not started";
         case "deployment":
           return "Deployment in progress";
         case "startRoundEffects": {
@@ -472,6 +478,11 @@ export function applyPhaseAction(
           return "Countdown tags in progress";
       }
     }
+    case "startTaccom": {
+      state.roundPhase = "deployment";
+      state.turn = { role: "gm" };
+      return "TACCOM started — deployment";
+    }
     case "endDeployment": {
       enterTaccom(state);
       state.roundPhase = "startRoundEffects";
@@ -480,11 +491,11 @@ export function applyPhaseAction(
     }
     case "endCombat": {
       exitTaccom(state, { removeEnemies: false });
-      return "Combat ended — players reset, deployment";
+      return "Combat ended — players reset, TACCOM not started";
     }
     case "resetCombat": {
       resetTaccomEncounter(state);
-      return "Combat reset — deployment";
+      return "Combat reset — TACCOM not started";
     }
     case "removeAllEnemies": {
       const count = removeAllEnemies(state);
@@ -557,7 +568,12 @@ export function applyPhaseAction(
           state.turn = { role: "gm" };
           return "Stepped back to deployment";
         }
-        case "deployment":
+        case "deployment": {
+          state.roundPhase = "taccomNotStarted";
+          state.turn = { role: "gm" };
+          return "Stepped back to TACCOM not started";
+        }
+        case "taccomNotStarted":
           return "Already at the first phase of the round";
       }
     }
@@ -592,6 +608,8 @@ export function formatTurnHolder(state: GameState, holder: TurnHolder): string {
 
 export function roundPhaseLabel(phase: GameState["roundPhase"]): string {
   switch (phase) {
+    case "taccomNotStarted":
+      return "TACCOM Not Started";
     case "deployment":
       return "Deployment";
     case "startRoundEffects":
@@ -1294,7 +1312,7 @@ export function normalizeGameState(state: GameState, map?: GameMap): GameState {
     state.round = 1;
   }
   if (!state.roundPhase) {
-    state.roundPhase = state.round === 1 ? "deployment" : "startRoundEffects";
+    state.roundPhase = state.round === 1 ? "taccomNotStarted" : "startRoundEffects";
   }
   if (state.turn === undefined) {
     state.turn = { role: "gm" };
@@ -1331,7 +1349,11 @@ export function normalizeGameState(state: GameState, map?: GameMap): GameState {
   ensureOverworldParty(state);
   ensureOverworldLocations(state);
   ensureFactionStates(state);
-  if (!state.combat && state.roundPhase !== "deployment") {
+  if (
+    !state.combat &&
+    state.roundPhase !== "deployment" &&
+    state.roundPhase !== "taccomNotStarted"
+  ) {
     state.combat = createDefaultCombatState(state.players.length);
   }
   if (state.combat && !state.combat.swarmChipResolvedIds) {

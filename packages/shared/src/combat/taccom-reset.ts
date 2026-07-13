@@ -76,7 +76,7 @@ export function exitTaccom(state: GameState, opts?: { removeEnemies?: boolean })
   clearAnnihilationCorridorTileEffects(state);
   clearEquipmentTerrainSnapshots(state);
   state.round = 1;
-  state.roundPhase = "deployment";
+  state.roundPhase = "taccomNotStarted";
   state.turn = { role: "gm" };
   state.actedPlayerIds = [];
   state.turnLog = [];

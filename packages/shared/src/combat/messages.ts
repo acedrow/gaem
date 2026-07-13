@@ -1734,11 +1734,7 @@ export function handleCombatMessage(
       for (const { x, y } of parsed.coords) {
         applyGmPaintTile(state, x, y, fields);
       }
-      const message =
-        parsed.coords.length === 1
-          ? `Painted (${parsed.coords[0]!.x}, ${parsed.coords[0]!.y})`
-          : `Painted ${parsed.coords.length} tiles`;
-      return { handled: true, message };
+      return { handled: true, message: "", silent: true };
     }
     case "removeAttractor": {
       const err = validateRemoveAttractor(state, parsed.x, parsed.y, ctx);

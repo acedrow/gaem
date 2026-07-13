@@ -41,26 +41,27 @@ describe("game", () => {
 
   describe("validateMove / applyMove", () => {
     it("rejects invalid moves during deployment", () => {
-      const state = makeGameState();
+      const state = makeGameState({ roundPhase: "deployment" });
       addTestPlayer(state, "p1", { x: 2, y: 2 });
 
       expect(validateMove(state, "p1", 9, 2)).toBe("Out of bounds");
       expect(validateMove(state, "unknown", 3, 2)).toBe("Unknown player");
 
       const blocked = makeGameState({
+        roundPhase: "deployment",
         tiles: makeTiles(8, 8, new Set([coordKey(3, 2)])),
       });
       addTestPlayer(blocked, "p1", { x: 2, y: 2 });
       expect(validateMove(blocked, "p1", 3, 2)).toBe("Blocked");
 
-      const occupied = makeGameState();
+      const occupied = makeGameState({ roundPhase: "deployment" });
       addTestPlayer(occupied, "p1", { x: 2, y: 2 });
       addTestPlayer(occupied, "p2", { x: 4, y: 2 });
       expect(validateMove(occupied, "p1", 4, 2)).toBe("Tile occupied");
     });
 
     it("allows non-adjacent moves during deployment", () => {
-      const state = makeGameState();
+      const state = makeGameState({ roundPhase: "deployment" });
       addTestPlayer(state, "p1", { x: 2, y: 2 });
       expect(validateMove(state, "p1", 5, 5)).toBeNull();
       applyMove(state, "p1", 5, 5);

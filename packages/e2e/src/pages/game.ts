@@ -10,13 +10,51 @@ export async function waitForBoard(page: Page): Promise<void> {
   await expect(page.locator("[data-cell-x]").first()).toBeVisible();
 }
 
-export async function advancePastDeployment(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "TACCOM" }).click();
-  const endDeployment = page.getByRole("button", { name: "End deployment" });
-  if (await endDeployment.isVisible().catch(() => false)) {
-    await endDeployment.click();
-    await page.getByRole("button", { name: "Do effects" }).click();
+export async function waitForTaccomWaiting(page: Page): Promise<void> {
+  await expect(page.getByText("Waiting for the GM to start TACCOM.")).toBeVisible();
+}
+
+export async function ensureTaccomNotStarted(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "TACCOM", exact: true }).click();
+  await openTurnOrderTab(page);
+  const toggle = page.getByRole("switch");
+  if ((await toggle.getAttribute("aria-checked")) === "true") {
+    await toggle.click();
   }
+  const startTaccom = page.getByRole("button", { name: "Start TACCOM" });
+  if (await startTaccom.isVisible().catch(() => false)) {
+    return;
+  }
+  const resetCombat = page.getByRole("button", { name: "Reset combat" });
+  if (await resetCombat.isVisible().catch(() => false)) {
+    await resetCombat.click();
+  } else {
+    const endCombat = page.getByRole("button", { name: "End combat" });
+    if (await endCombat.isEnabled().catch(() => false)) {
+      await endCombat.click();
+    }
+  }
+  await expect(page.getByRole("button", { name: "Start TACCOM" })).toBeVisible();
+}
+
+export async function advancePastDeployment(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "TACCOM", exact: true }).click();
+  await openTurnOrderTab(page);
+  const toggle = page.getByRole("switch");
+  if ((await toggle.getAttribute("aria-checked")) === "true") {
+    await toggle.click();
+  }
+
+  const startTaccom = page.getByRole("button", { name: "Start TACCOM" });
+  if (await startTaccom.isVisible().catch(() => false)) {
+    await startTaccom.click();
+  }
+  const endDeployment = page.getByRole("button", { name: "End deployment" });
+  await expect(endDeployment).toBeVisible();
+  await endDeployment.click();
+  const doEffects = page.getByRole("button", { name: "Do effects" });
+  await expect(doEffects).toBeVisible();
+  await doEffects.click();
 }
 
 export async function openTurnOrderTab(page: Page): Promise<void> {

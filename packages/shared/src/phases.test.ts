@@ -17,16 +17,21 @@ describe("phases", () => {
 
   it("rejects wrong role and phase", () => {
     const state = twoPlayerState();
-    expect(validatePhaseAction(state, "endDeployment", playerCtx("p1"))).toBe(
+    expect(validatePhaseAction(state, "startTaccom", playerCtx("p1"))).toBe(
       "Only the game master can do that",
     );
+    expect(validatePhaseAction(state, "endDeployment", gmCtx())).toBe("Wrong phase");
     expect(validatePhaseAction(state, "takeTurn", playerCtx("p1"))).toBe("Wrong phase");
     expect(validatePhaseAction(state, "doEffects", gmCtx())).toBe("Wrong phase");
   });
 
   it("canRewindPhase and canResetPhase at boundaries", () => {
-    const deployment = makeGameState();
-    expect(canRewindPhase(deployment)).toBe(false);
+    const notStarted = makeGameState();
+    expect(canRewindPhase(notStarted)).toBe(false);
+    expect(canResetPhase(notStarted)).toBe(false);
+
+    const deployment = makeGameState({ roundPhase: "deployment" });
+    expect(canRewindPhase(deployment)).toBe(true);
     expect(canResetPhase(deployment)).toBe(false);
 
     const playerTurn = makeGameState({
@@ -36,8 +41,13 @@ describe("phases", () => {
     expect(canResetPhase(playerTurn)).toBe(true);
   });
 
-  it("runs deployment through end of round 1", () => {
+  it("runs TACCOM not started through end of round 1", () => {
     const state = twoPlayerState();
+
+    expect(validatePhaseAction(state, "startTaccom", gmCtx())).toBeNull();
+    applyPhaseAction(state, "startTaccom", gmCtx());
+    expect(state.roundPhase).toBe("deployment");
+    expect(state.turn).toEqual({ role: "gm" });
 
     expect(validatePhaseAction(state, "endDeployment", gmCtx())).toBeNull();
     applyPhaseAction(state, "endDeployment", gmCtx());
@@ -79,5 +89,16 @@ describe("phases", () => {
     expect(state.round).toBe(2);
     expect(state.roundPhase).toBe("startRoundEffects");
     expect(state.actedPlayerIds).toEqual([]);
+  });
+
+  it("resetRound on round 1 returns to TACCOM not started", () => {
+    const state = twoPlayerState();
+    applyPhaseAction(state, "startTaccom", gmCtx());
+    applyPhaseAction(state, "endDeployment", gmCtx());
+    expect(state.roundPhase).toBe("startRoundEffects");
+
+    applyPhaseAction(state, "resetRound", gmCtx());
+    expect(state.round).toBe(1);
+    expect(state.roundPhase).toBe("taccomNotStarted");
   });
 });

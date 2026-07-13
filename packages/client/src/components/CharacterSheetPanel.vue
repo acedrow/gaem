@@ -179,7 +179,10 @@ const showArmorGearRow = computed(() => classGrantsDualGear(form.value.class));
 const showYadathanTowerPick = computed(() => form.value.armor === YADATHAN_ARMOR_NAME);
 
 const combatUiUnlocked = computed(
-  () => gameState.value != null && gameState.value.roundPhase !== "deployment",
+  () =>
+    gameState.value != null &&
+    gameState.value.roundPhase !== "deployment" &&
+    gameState.value.roundPhase !== "taccomNotStarted",
 );
 
 const canUseEquipmentCharge = computed(() => {

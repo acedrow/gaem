@@ -43,7 +43,7 @@ describe("TACCOM phase actions", () => {
     expect(player.effects).toBeUndefined();
   });
 
-  it("endCombat exits to deployment and resets players", () => {
+  it("endCombat exits to TACCOM not started and resets players", () => {
     const state = makeGameState({
       round: 2,
       roundPhase: "gmTurn",
@@ -57,9 +57,22 @@ describe("TACCOM phase actions", () => {
       effects: { Pin: 1 },
     });
     applyPhaseAction(state, "endCombat", gmCtx());
-    expect(state.roundPhase).toBe("deployment");
+    expect(state.roundPhase).toBe("taccomNotStarted");
     expect(state.round).toBe(1);
     expect(player.hp).toBe(getPlayerMaxHp(player));
     expect(player.effects).toBeUndefined();
+  });
+
+  it("resetCombat exits to TACCOM not started", () => {
+    const state = makeGameState({
+      round: 2,
+      roundPhase: "gmTurn",
+      combat: createDefaultCombatState(1),
+    });
+    addTestPlayer(state, "p1", { x: 2, y: 2, class: "HARPE" });
+    applyPhaseAction(state, "resetCombat", gmCtx());
+    expect(state.roundPhase).toBe("taccomNotStarted");
+    expect(state.round).toBe(1);
+    expect(state.combat).toBeDefined();
   });
 });

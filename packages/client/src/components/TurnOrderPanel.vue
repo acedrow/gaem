@@ -25,8 +25,8 @@ const roundGroups = computed(() => {
 });
 
 const gmActionConfirm: Partial<Record<PhaseAction, string>> = {
-  endCombat: "End combat? Player HP, effects, and currencies reset to deployment.",
-  resetCombat: "Reset combat? This clears turn history and returns to deployment.",
+  endCombat: "End combat? Player HP, effects, and currencies reset to TACCOM Not Started.",
+  resetCombat: "Reset combat? This clears turn history and returns to TACCOM Not Started.",
   resetRound: "Reset the current round to its start?",
   gmEndRound: "End the current round and start the next one?",
   gmEndTurn: "End the current turn?",

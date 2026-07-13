@@ -105,7 +105,7 @@ describe("movement", () => {
     expect(player.y).toBe(2);
     expect(player.actionBudget!.movementRemaining).toBe(5);
 
-    const deployment = makeGameState();
+    const deployment = makeGameState({ roundPhase: "deployment" });
     addTestPlayer(deployment, "p1", { x: 2, y: 2 });
     expect(validateResetMovement(deployment, "p1")).toBe("Wrong phase");
   });

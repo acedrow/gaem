@@ -393,7 +393,7 @@ export function createInitialStateFromMap(map: GameMap): GameState {
     players: [],
     enemies,
     round: 1,
-    roundPhase: "deployment",
+    roundPhase: "taccomNotStarted",
     turn: { role: "gm" },
     actedPlayerIds: [],
     turnLog: [],
