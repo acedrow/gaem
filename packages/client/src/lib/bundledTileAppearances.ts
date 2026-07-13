@@ -3,7 +3,7 @@ export type BundledTileAppearance = {
   key: string;
   url: string;
   setId: string;
-  /** Subfolder under the set, if this PNG is a randomized group member. */
+  /** Subfolder under the set, if this JPG is a randomized group member. */
   groupId?: string;
 };
 
@@ -13,11 +13,11 @@ export type BundledTileSet = {
   appearances: BundledTileAppearance[];
 };
 
-/** Gallery row: a single PNG, or a folder of variants painted at random. */
+/** Gallery row: a single JPG, or a folder of variants painted at random. */
 export type TileAppearanceGalleryEntry = {
   kind: "single" | "group";
   name: string;
-  /** Brush key — concrete PNG key, or `tiles/{setId}/{groupId}` for groups. */
+  /** Brush key — concrete JPG key, or `tiles/{setId}/{groupId}` for groups. */
   key: string;
   url: string;
   setId: string;
@@ -36,37 +36,37 @@ const SET_LABELS: Record<string, string> = {
 };
 
 const appearanceModules = import.meta.glob(
-  "../../../assets/tiles/{basic,black-tile,paracletus,paracletus-e-fields,paracletus-stain-springs,paracletus-stygian-reef,paracletus-v-nimbus,rose-quartz}/**/*.png",
+  "../../../assets/tiles/{basic,black-tile,paracletus,paracletus-e-fields,paracletus-stain-springs,paracletus-stygian-reef,paracletus-v-nimbus,rose-quartz}/**/*.jpg",
   { eager: true, query: "?url", import: "default" },
 ) as Record<string, string>;
 
 function fileBaseName(path: string): string {
   const file = path.split("/").pop() ?? path;
-  return file.replace(/\.png$/i, "");
+  return file.replace(/\.jpe?g$/i, "");
 }
 
 function setLabel(id: string): string {
   return SET_LABELS[id] ?? id.charAt(0).toUpperCase() + id.slice(1);
 }
 
-/** Parse `.../assets/tiles/{setId}/{file}.png` or `.../tiles/{setId}/{groupId}/{file}.png`. */
+/** Parse `.../assets/tiles/{setId}/{file}.jpg` or `.../tiles/{setId}/{groupId}/{file}.jpg`. */
 function appearanceFromModulePath(path: string): BundledTileAppearance | null {
   const marker = "/assets/tiles/";
   const idx = path.replace(/\\/g, "/").lastIndexOf(marker);
   if (idx < 0) return null;
   const rel = path.slice(idx + marker.length);
   const parts = rel.split("/");
-  if (parts.length === 2 && parts[1]?.toLowerCase().endsWith(".png")) {
+  if (parts.length === 2 && parts[1]?.toLowerCase().endsWith(".jpg")) {
     const setId = parts[0]!;
     const name = fileBaseName(parts[1]!);
     return {
       name,
       setId,
-      key: `tiles/${setId}/${name}.png`,
-      url: `/tiles/${setId}/${name}.png`,
+      key: `tiles/${setId}/${name}.jpg`,
+      url: `/tiles/${setId}/${name}.jpg`,
     };
   }
-  if (parts.length === 3 && parts[2]?.toLowerCase().endsWith(".png")) {
+  if (parts.length === 3 && parts[2]?.toLowerCase().endsWith(".jpg")) {
     const setId = parts[0]!;
     const groupId = parts[1]!;
     const name = fileBaseName(parts[2]!);
@@ -74,8 +74,8 @@ function appearanceFromModulePath(path: string): BundledTileAppearance | null {
       name,
       setId,
       groupId,
-      key: `tiles/${setId}/${groupId}/${name}.png`,
-      url: `/tiles/${setId}/${groupId}/${name}.png`,
+      key: `tiles/${setId}/${groupId}/${name}.jpg`,
+      url: `/tiles/${setId}/${groupId}/${name}.jpg`,
     };
   }
   return null;
@@ -114,6 +114,15 @@ for (const appearance of BUNDLED_TILE_APPEARANCES) {
 }
 for (const list of groupsByKey.values()) {
   list.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+}
+
+/** Maps may still store legacy `.png` appearance keys; prefer the `.jpg` twin when present. */
+function canonicalAppearanceKey(key: string): string {
+  if (/\.png$/i.test(key) && !key.includes("/features/")) {
+    const jpgKey = key.replace(/\.png$/i, ".jpg");
+    if (appearanceByKey.has(jpgKey)) return jpgKey;
+  }
+  return key;
 }
 
 export function galleryEntriesForSet(setId: string): TileAppearanceGalleryEntry[] {
@@ -168,16 +177,17 @@ export function pickRandomAppearanceFromGroup(groupKey: string): string | null {
   return pick.key;
 }
 
-/** Resolve brush key to a concrete PNG key for paint (groups → random member). */
+/** Resolve brush key to a concrete JPG key for paint (groups → random member). */
 export function resolveAppearanceKeyForPaint(key: string | null): string | null {
   if (!key) return null;
   if (isAppearanceGroupKey(key)) return pickRandomAppearanceFromGroup(key);
-  return key;
+  return canonicalAppearanceKey(key);
 }
 
 export function isBundledTileAppearanceKey(key: string): boolean {
   if (key.startsWith(LEGACY_APPEARANCE_PREFIX)) return true;
-  if (appearanceByKey.has(key) || groupsByKey.has(key)) return true;
+  const canonical = canonicalAppearanceKey(key);
+  if (appearanceByKey.has(canonical) || groupsByKey.has(canonical)) return true;
   return BUNDLED_TILE_SETS.some((set) => key.startsWith(`tiles/${set.id}/`));
 }
 
@@ -194,9 +204,12 @@ export function bundledTileAppearanceUrl(key: string): string {
     const name = key.slice(LEGACY_APPEARANCE_PREFIX.length);
     return `/tiles/basic/${name}`;
   }
-  if (isAppearanceGroupKey(key)) {
-    const preview = groupsByKey.get(key)?.[0];
+  const canonical = canonicalAppearanceKey(key);
+  if (isAppearanceGroupKey(canonical)) {
+    const preview = groupsByKey.get(canonical)?.[0];
     if (preview) return preview.url;
   }
-  return `/${key}`;
+  const bundled = appearanceByKey.get(canonical);
+  if (bundled) return bundled.url;
+  return `/${canonical}`;
 }

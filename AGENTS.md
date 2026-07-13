@@ -64,7 +64,7 @@ npm run test:e2e
 - **`npm run build`** — mandatory. Shared type errors block client and server; client imports `@gaem/shared` from `dist/`.
 - **`npm run test`** — mandatory when tests exist for the code you touched. If you add or change shared game logic, add or update tests in `packages/shared` when the behavior is worth guarding (see Code style). Run the full root `npm run test` at minimum; re-run focused suites while iterating if helpful.
 - **`npm run lint`** — mandatory. Runs ESLint, then client `vue-tsc` (`npm run typecheck`). Must report **0 errors** (ESLint warnings are pre-existing cleanup backlog; do not add new ones). The config (`eslint.config.mjs`, flat) is tuned to catch real defects, not formatting. Do not silence a rule to make a change pass — fix the code, or add a scoped `// eslint-disable-next-line <rule>` with a one-line justification only when the code is genuinely intentional. Type-aware ESLint rules on the backends and client `vue-tsc` both need `@gaem/shared` built first (`npm run build`), since they resolve types from `dist/`. A husky pre-commit hook runs `npm run lint` so IDE-only TS errors cannot slip into commits.
-- **`npm run test:e2e`** — mandatory for code changes. Skip when the diff **only** adds or updates assets (e.g. PNGs under `packages/assets/`, synced `public/` mirrors, portraits) with no logic, config, or UI behavior changes — including wire-up edits that only register a new tile set/label/glob so the assets appear in the gallery. Playwright headless browser tests for combat UI wiring (`packages/e2e`). **Always use the npm script** (never bare `npx playwright test` / `npx playwright install`). One-time setup: `npm run e2e:setup` (creates `.env.e2e` from `.env.e2e.example` if missing, installs Chromium into `packages/e2e/.playwright-browsers`). Re-run `e2e:setup` after Playwright version bumps or if browsers are missing. Cursor's agent sandbox pre-sets `PLAYWRIGHT_BROWSERS_PATH` to a wiped temp cache — our npm scripts and `playwright.config.ts` always override that to the in-repo directory.
+- **`npm run test:e2e`** — mandatory for code changes. Skip when the diff **only** adds or updates assets (e.g. JPGs/PNGs under `packages/assets/`, synced `public/` mirrors, portraits) with no logic, config, or UI behavior changes — including wire-up edits that only register a new tile set/label/glob so the assets appear in the gallery. Playwright headless browser tests for combat UI wiring (`packages/e2e`). **Always use the npm script** (never bare `npx playwright test` / `npx playwright install`). One-time setup: `npm run e2e:setup` (creates `.env.e2e` from `.env.e2e.example` if missing, installs Chromium into `packages/e2e/.playwright-browsers`). Re-run `e2e:setup` after Playwright version bumps or if browsers are missing. Cursor's agent sandbox pre-sets `PLAYWRIGHT_BROWSERS_PATH` to a wiped temp cache — our npm scripts and `playwright.config.ts` always override that to the in-repo directory.
 
   **Ports:** assume `npm run dev:cf` (or `npm run dev`) is already using the default ports (`:5173` client, `:8787` wrangler / `:3001` Express). E2e always binds **dedicated** ports so it can run in parallel:
   - client — `http://localhost:5174` (`E2E_CLIENT_URL`)
@@ -176,7 +176,7 @@ scripts/rulebook/.venv/bin/python scripts/rulebook/extract.py --page 200
 |------|----------|
 | Move validation, phases, HP, occupancy | `packages/shared/src/game.ts` |
 | Map tiles, walkability, spawn | `packages/shared/src/map.ts` |
-| Bundled tile appearance PNGs | `packages/assets/tiles/{setId}/` then `npm run sync-tile-assets -w @gaem/client` |
+| Bundled tile appearance JPGs | `packages/assets/tiles/{setId}/` then `npm run sync-tile-assets -w @gaem/client` |
 | Bundled tile feature PNGs | `packages/assets/tiles/features/{setId}/` then sync (same command) |
 | Enemy/class/weapon definitions | `packages/shared/src/data/` + `*-data.ts` loaders |
 | Board rendering, input | `packages/client/src/components/GameBoard.vue`, `BoardCell.vue` |
@@ -189,20 +189,20 @@ When adding a client message or game action, update `types.ts`, shared validator
 
 ## Importing board tile appearances
 
-GM paintbrush sets are PNGs under `packages/assets/tiles/{setId}/` (e.g. `basic/`, `paracletus/`). `bundledTileAppearances.ts` glob-discovers them (`**/*.png` under each set); `public/tiles/` is a mirror of assets (`rsync --delete` via `predev` / `prebuild` / `npm run sync-tile-assets -w @gaem/client`), so removals in assets prune public too.
+GM paintbrush **appearances** are **JPG** under `packages/assets/tiles/{setId}/` (e.g. `basic/`, `paracletus/`). Do **not** commit appearance PNGs — JPG only. `bundledTileAppearances.ts` glob-discovers them (`**/*.jpg` under each set); `public/tiles/` is a mirror of assets (`rsync --delete` via `predev` / `prebuild` / `npm run sync-tile-assets -w @gaem/client`), so removals in assets prune public too.
 
-**All imported tile images must be exactly 32×32 pixels.** Upscale or downscale with nearest-neighbor (`Image.Resampling.NEAREST`) so pixel art stays crisp. Do not leave source sheets or other resolutions in the assets folders.
+**All imported appearance tiles must be exactly 32×32 JPG.** Upscale or downscale with nearest-neighbor (`Image.Resampling.NEAREST`) so pixel art stays crisp. Save with high JPEG quality and `subsampling=0` (e.g. Pillow `quality=95, subsampling=0`). JPG has no alpha — matte gutters/rounded corners to black (or leave sheet black) before save. Do not leave source sheets or other resolutions in the assets folders.
 
 ### Layout
 
 | Path | Gallery | Paint behavior |
 |------|---------|----------------|
-| `tiles/{setId}/{name}.png` | One entry named `{name}` | Places that exact PNG |
-| `tiles/{setId}/{groupId}/*.png` | One entry named `{groupId}` | Each paint picks a **random** member PNG |
+| `tiles/{setId}/{name}.jpg` | One entry named `{name}` | Places that exact JPG |
+| `tiles/{setId}/{groupId}/*.jpg` | One entry named `{groupId}` | Each paint picks a **random** member JPG |
 
-Example: `packages/assets/tiles/paracletus/sand-light/1.png` … `16.png` → gallery shows **sand-light**; placed tiles store concrete keys like `tiles/paracletus/sand-light/7.png`.
+Example: `packages/assets/tiles/paracletus/sand-light/1.jpg` … `16.jpg` → gallery shows **sand-light**; placed tiles store concrete keys like `tiles/paracletus/sand-light/7.jpg`.
 
-Brush group keys are `tiles/{setId}/{groupId}` (no `.png`). They are never persisted on map tiles — only resolved member keys are.
+Brush group keys are `tiles/{setId}/{groupId}` (no extension). They are never persisted on map tiles — only resolved member keys are.
 
 ### Splitting AI tileset sheets
 
@@ -211,16 +211,16 @@ ChatGPT / similar generators often produce a single square sheet (e.g. ~1254×12
 1. Save the source sheet under `tmp/` (gitignored preferred) — do not commit the sheet.
 2. Use Pillow from the rulebook venv (`npm run rulebook:setup` if missing): `scripts/rulebook/.venv/bin/python`.
 3. Detect content runs on non-black rows/cols (ignore noise runs shorter than ~40px). Expect equal-sized cells and consistent gutters.
-4. Crop each cell; convert near-black pixels (e.g. RGB channels below 18) to **transparent** so gutters and rounded corners do not show on the board.
+4. Crop each cell; force near-black gutters/rounded-corner pixels (e.g. RGB channels below 18) to **black** (JPG has no transparency).
 5. Resize each crop to **32×32** with nearest-neighbor.
-6. Write into the set folder (single) or a **group subfolder** (randomized): e.g. `packages/assets/tiles/paracletus/sand-dark/1.png` … `16.png`.
+6. Write **`.jpg`** into the set folder (single) or a **group subfolder** (randomized): e.g. `packages/assets/tiles/paracletus/sand-dark/1.jpg` … `16.jpg` (`quality=95, subsampling=0`).
 7. Run `npm run sync-tile-assets -w @gaem/client` so `public/tiles/` matches (or rely on the next `dev`/`build` `pre*` hook).
 
 No code change is needed for new files in an existing set or group — the glob picks them up. Adding a **new set folder** also requires a label in `SET_LABELS` in `packages/client/src/lib/bundledTileAppearances.ts` and including that folder in the glob.
 
 ### Feature sets
 
-Feature overlays (trenches, ruins, etc.) live under `packages/assets/tiles/features/{setId}/` with the same single/group layout as appearances. Keys are `tiles/features/{setId}/...`. `bundledTileFeatures.ts` uses `FEATURE_SET_LABELS` + a set glob; new feature sets need both updated. The paintbrush Feature dropdown filters the feature gallery per set.
+Feature overlays (trenches, ruins, etc.) stay **PNG** (alpha) under `packages/assets/tiles/features/{setId}/` with the same single/group layout as appearances. Keys are `tiles/features/{setId}/...`. `bundledTileFeatures.ts` uses `FEATURE_SET_LABELS` + a set glob; new feature sets need both updated. The paintbrush Viewer dropdown filters the feature gallery per set.
 
 ## Client conventions
 
@@ -231,7 +231,7 @@ Feature overlays (trenches, ruins, etc.) live under `packages/assets/tiles/featu
 - CSS design tokens and utilities live in `packages/client/src/style.css` (`var(--color-*)`, `.panel`, `.list-card`, `.stepper`, etc.). Avoid hardcoding `#30363d`-style palette in new scoped styles.
 - `GameBoard` is performance-sensitive: precompute cell state, avoid per-cell scans in templates, use `BoardCell` + `v-memo`.
 - **Tile tooltips** — show effect name (and stack count only when stacks matter). Never append `summary` or `description` text in board tile tooltips. Presence-only tile effects (e.g. Stained, Annihilation Corridor) use a display name with no stack value. Prefer `TILE_EFFECT_IMAGE_URLS` overlays for board markers when an icon asset exists.
-- **Bundled tile PNGs** — every appearance under `packages/assets/tiles/` must be **32×32** (see Importing board tile appearances).
+- **Bundled tile appearances** — every appearance under `packages/assets/tiles/{setId}/` must be **32×32 JPG** (features under `features/` stay PNG; see Importing board tile appearances).
 
 ## Code style
 
