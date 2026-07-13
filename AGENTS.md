@@ -189,7 +189,7 @@ When adding a client message or game action, update `types.ts`, shared validator
 
 ## Importing board tile appearances
 
-GM paintbrush **appearances** are **JPG** under `packages/assets/tiles/{setId}/` (e.g. `basic/`, `paracletus/`). Do **not** commit appearance PNGs — JPG only. `bundledTileAppearances.ts` glob-discovers them (`**/*.jpg` under each set); `public/tiles/` is a mirror of assets (`rsync --delete` via `predev` / `prebuild` / `npm run sync-tile-assets -w @gaem/client`), so removals in assets prune public too.
+GM paintbrush **appearances** are **JPG** under `packages/assets/tiles/{setId}/` (e.g. `basic/`, `paracletus/`). Do **not** commit appearance PNGs — JPG only. `bundledTileAppearances.ts` glob-discovers them (`**/*.jpg` under each set); `public/tiles/` is a mirror of assets (`cp -a` after wipe via `predev` / `prebuild` / `npm run sync-tile-assets -w @gaem/client`), so removals in assets prune public too.
 
 **All imported appearance tiles must be exactly 32×32 JPG.** Upscale or downscale with nearest-neighbor (`Image.Resampling.NEAREST`) so pixel art stays crisp. Save with high JPEG quality and `subsampling=0` (e.g. Pillow `quality=95, subsampling=0`). JPG has no alpha — matte gutters/rounded corners to black (or leave sheet black) before save. Do not leave source sheets or other resolutions in the assets folders.
 

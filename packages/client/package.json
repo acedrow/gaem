@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "sync-enemy-portraits": "mkdir -p public/enemies && cp -r ../assets/enemies public/",
-    "sync-tile-assets": "mkdir -p public/tiles && rsync -a --delete ../assets/tiles/ public/tiles/",
+    "sync-tile-assets": "rm -rf public/tiles && mkdir -p public/tiles && cp -a ../assets/tiles/. public/tiles/",
     "sync-assets": "npm run sync-enemy-portraits && npm run sync-tile-assets",
     "predev": "npm run sync-assets",
     "prebuild": "npm run sync-assets",
