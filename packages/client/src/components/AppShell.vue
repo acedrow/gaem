@@ -33,6 +33,7 @@ import GmActionBar from "./GmActionBar.vue";
 import ReversalPrompt from "./ReversalPrompt.vue";
 import ClassReactionPrompt from "./ClassReactionPrompt.vue";
 import GameBoard from "./GameBoard.vue";
+import GmToolsToolbar from "./GmToolsToolbar.vue";
 import RightPanel from "./RightPanel.vue";
 import SideNav from "./SideNav.vue";
 
@@ -235,6 +236,12 @@ function selectMainTab(tab: MainSectionTab) {
   <div class="app-shell">
     <aside class="sidebar">
       <div class="sidebar-content">
+        <div
+          v-if="hasGmCapabilities && activeMainTab === 'taccom'"
+          class="sidebar-gm-tools"
+        >
+          <GmToolsToolbar />
+        </div>
         <div class="sidebar-nav">
           <SideNav />
         </div>
@@ -379,6 +386,10 @@ function selectMainTab(tab: MainSectionTab) {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+
+.sidebar-gm-tools {
+  flex-shrink: 0;
 }
 
 .sidebar-nav {

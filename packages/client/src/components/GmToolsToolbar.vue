@@ -52,7 +52,6 @@ const { activeTool, setActiveTool } = useGmTools();
 
 <style scoped>
 .gm-tools-toolbar {
-  margin: 0 -0.75rem;
   padding: 0 0.75rem;
   border-bottom: 1px solid var(--color-border);
 }
