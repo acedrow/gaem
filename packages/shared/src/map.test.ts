@@ -242,8 +242,10 @@ describe("map", () => {
       baseColor: "#112233",
       appearanceKey: "tile-appearances/x.png",
       featureKey: "tiles/features/base/rock.png",
-      imageRotation: 90,
-      imageFlip: true,
+      appearanceRotation: 90,
+      appearanceFlip: true,
+      featureRotation: 180,
+      featureFlip: true,
     });
     persistMapTileAt(state, map, 0, 0);
     const saved = tileAt(map.tiles, 0, 0)!;
@@ -253,8 +255,10 @@ describe("map", () => {
     expect(saved.baseColor).toBe("#112233");
     expect(saved.appearanceKey).toBe("tile-appearances/x.png");
     expect(saved.featureKey).toBe("tiles/features/base/rock.png");
-    expect(saved.imageRotation).toBe(90);
-    expect(saved.imageFlip).toBe(true);
+    expect(saved.appearanceRotation).toBe(90);
+    expect(saved.appearanceFlip).toBe(true);
+    expect(saved.featureRotation).toBe(180);
+    expect(saved.featureFlip).toBe(true);
     expect(saved.tileEffects).toBeUndefined();
     expect(tileAt(state.tiles, 0, 0)!.tileEffects).toEqual({ Fortified: 1 });
   });
@@ -268,8 +272,10 @@ describe("map", () => {
             baseColor: "#abc",
             appearanceKey: "tile-appearances/test.png",
             featureKey: "tiles/features/base/rock.png",
-            imageRotation: 180,
-            imageFlip: true,
+            appearanceRotation: 180,
+            appearanceFlip: true,
+            featureRotation: 90,
+            featureFlip: true,
           }
         : tile,
     );
@@ -287,8 +293,10 @@ describe("map", () => {
           tileName: "Forest",
           baseColor: "#112233",
           featureKey: "tiles/features/base/tree.png",
-          imageRotation: 90,
-          imageFlip: true,
+          appearanceRotation: 90,
+          appearanceFlip: true,
+          featureRotation: 270,
+          featureFlip: true,
         },
       },
     });
@@ -296,11 +304,30 @@ describe("map", () => {
     expect(map.tiles[0]!.baseColor).toBe("#abc");
     expect(map.tiles[0]!.appearanceKey).toBe("tile-appearances/test.png");
     expect(map.tiles[0]!.featureKey).toBe("tiles/features/base/rock.png");
-    expect(map.tiles[0]!.imageRotation).toBe(180);
-    expect(map.tiles[0]!.imageFlip).toBe(true);
+    expect(map.tiles[0]!.appearanceRotation).toBe(180);
+    expect(map.tiles[0]!.appearanceFlip).toBe(true);
+    expect(map.tiles[0]!.featureRotation).toBe(90);
+    expect(map.tiles[0]!.featureFlip).toBe(true);
     expect(map.tilePresets?.Forest?.terrain).toBe("cover");
     expect(map.tilePresets?.Forest?.featureKey).toBe("tiles/features/base/tree.png");
-    expect(map.tilePresets?.Forest?.imageRotation).toBe(90);
-    expect(map.tilePresets?.Forest?.imageFlip).toBe(true);
+    expect(map.tilePresets?.Forest?.appearanceRotation).toBe(90);
+    expect(map.tilePresets?.Forest?.appearanceFlip).toBe(true);
+    expect(map.tilePresets?.Forest?.featureRotation).toBe(270);
+    expect(map.tilePresets?.Forest?.featureFlip).toBe(true);
+  });
+
+  it("parseGameMap maps legacy imageRotation/imageFlip onto both layers", () => {
+    const tiles = makeTiles(1, 1).map((tile) => ({
+      ...tile,
+      appearanceKey: "a.png",
+      featureKey: "f.png",
+      imageRotation: 90,
+      imageFlip: true,
+    }));
+    const map = parseGameMap({ id: "legacy", width: 1, height: 1, tiles });
+    expect(map.tiles[0]!.appearanceRotation).toBe(90);
+    expect(map.tiles[0]!.featureRotation).toBe(90);
+    expect(map.tiles[0]!.appearanceFlip).toBe(true);
+    expect(map.tiles[0]!.featureFlip).toBe(true);
   });
 });

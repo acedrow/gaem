@@ -273,6 +273,10 @@ export function useGmTools() {
     clearPendingTilePlacements,
   );
 
+  watch([paintbrushEnableRotation, paintbrushAutoRotate], () => {
+    paintbrushImageRotation.value = 0;
+  });
+
   function setPaintbrushEyedropperActive(active: boolean) {
     if (activeTool.value !== "paintbrush") {
       paintbrushEyedropperActive.value = false;
@@ -295,8 +299,10 @@ export function useGmTools() {
       ...(tile.baseColor ? { baseColor: tile.baseColor } : {}),
       ...(tile.appearanceKey ? { appearanceKey: tile.appearanceKey } : {}),
       ...(tile.featureKey ? { featureKey: tile.featureKey } : {}),
-      ...(tile.imageRotation ? { imageRotation: tile.imageRotation } : {}),
-      ...(tile.imageFlip ? { imageFlip: true } : {}),
+      ...(tile.appearanceRotation ? { appearanceRotation: tile.appearanceRotation } : {}),
+      ...(tile.appearanceFlip ? { appearanceFlip: true } : {}),
+      ...(tile.featureRotation ? { featureRotation: tile.featureRotation } : {}),
+      ...(tile.featureFlip ? { featureFlip: true } : {}),
     };
   }
 
@@ -453,8 +459,16 @@ export function useGmTools() {
       ...(paintbrushBaseColor.value ? { baseColor: paintbrushBaseColor.value } : {}),
       ...(paintbrushAppearanceKey.value ? { appearanceKey: paintbrushAppearanceKey.value } : {}),
       ...(paintbrushFeatureKey.value ? { featureKey: paintbrushFeatureKey.value } : {}),
-      ...(paintbrushImageRotation.value ? { imageRotation: paintbrushImageRotation.value } : {}),
-      ...(paintbrushImageFlip.value ? { imageFlip: true } : {}),
+      ...(paintbrushAppearanceKey.value && paintbrushImageRotation.value
+        ? { appearanceRotation: paintbrushImageRotation.value }
+        : {}),
+      ...(paintbrushAppearanceKey.value && paintbrushImageFlip.value
+        ? { appearanceFlip: true }
+        : {}),
+      ...(paintbrushFeatureKey.value && paintbrushImageRotation.value
+        ? { featureRotation: paintbrushImageRotation.value }
+        : {}),
+      ...(paintbrushFeatureKey.value && paintbrushImageFlip.value ? { featureFlip: true } : {}),
     };
   }
 
@@ -473,8 +487,9 @@ export function useGmTools() {
     syncPaintbrushFeatureSetFromKey(preset.featureKey);
     if (preset.featureKey) setPaintbrushFeaturePreview(preset.featureKey);
     else clearPaintbrushFeaturePreview();
-    paintbrushImageRotation.value = preset.imageRotation ?? 0;
-    paintbrushImageFlip.value = preset.imageFlip ?? false;
+    paintbrushImageRotation.value =
+      preset.appearanceRotation ?? preset.featureRotation ?? 0;
+    paintbrushImageFlip.value = !!(preset.appearanceFlip || preset.featureFlip);
   }
 
   function selectBundledPaintbrushAppearance(key: string) {
@@ -597,7 +612,11 @@ export function useGmTools() {
   }
 
   function cyclePaintbrushImageRotation() {
-    if (!paintbrushEnableRotation.value) paintbrushEnableRotation.value = true;
+    if (!paintbrushEnableRotation.value) {
+      paintbrushEnableRotation.value = true;
+      paintbrushImageRotation.value = 0;
+      return;
+    }
     paintbrushImageRotation.value = ((paintbrushImageRotation.value + 90) % 360) as TileImageRotation;
   }
 
@@ -680,14 +699,23 @@ export function useGmTools() {
         ? sel.coords
         : [{ x, y }];
     const autoRotate = paintbrushEnableRotation.value && paintbrushAutoRotate.value;
+    const paintAppearance = paintbrushEnableAppearance.value;
+    const paintFeature = paintbrushEnableFeature.value;
+    const rotateOn = paintbrushEnableRotation.value;
+    const flipOn = paintbrushEnableFlip.value;
+    const brushRotation = paintbrushImageRotation.value || null;
+    const brushFlip = paintbrushImageFlip.value || null;
+
     const shared: {
       elevation?: number;
       terrain?: TerrainType;
       tileEffects?: string[];
       tileName?: string;
       baseColor?: string | null;
-      imageRotation?: TileImageRotation | null;
-      imageFlip?: boolean | null;
+      appearanceRotation?: TileImageRotation | null;
+      appearanceFlip?: boolean | null;
+      featureRotation?: TileImageRotation | null;
+      featureFlip?: boolean | null;
     } = {};
     if (paintbrushEnableElevation.value) shared.elevation = paintbrushElevation.value;
     if (paintbrushEnableTerrain.value) shared.terrain = paintbrushTerrain.value;
@@ -699,21 +727,19 @@ export function useGmTools() {
     }
     if (paintbrushEnableName.value) shared.tileName = paintbrushTileName.value;
     if (paintbrushEnableColor.value) shared.baseColor = paintbrushBaseColor.value;
-    if (paintbrushEnableRotation.value) {
-      shared.imageRotation = paintbrushImageRotation.value || null;
+    if (rotateOn && !autoRotate) {
+      if (paintAppearance) shared.appearanceRotation = brushRotation;
+      if (paintFeature) shared.featureRotation = brushRotation;
     }
-    if (paintbrushEnableFlip.value) {
-      shared.imageFlip = paintbrushImageFlip.value || null;
+    if (flipOn) {
+      if (paintAppearance) shared.appearanceFlip = brushFlip;
+      if (paintFeature) shared.featureFlip = brushFlip;
     }
 
-    const brushAppearance = paintbrushEnableAppearance.value
-      ? paintbrushAppearanceKey.value
-      : undefined;
+    const brushAppearance = paintAppearance ? paintbrushAppearanceKey.value : undefined;
     // Enabled + no selection clears existing features (null), unlike appearance which
     // leaves the tile unchanged when unset (undefined).
-    const brushFeature = paintbrushEnableFeature.value
-      ? (paintbrushFeatureKey.value ?? null)
-      : undefined;
+    const brushFeature = paintFeature ? (paintbrushFeatureKey.value ?? null) : undefined;
 
     if (
       shared.elevation === undefined &&
@@ -721,8 +747,10 @@ export function useGmTools() {
       shared.tileEffects === undefined &&
       shared.tileName === undefined &&
       shared.baseColor === undefined &&
-      shared.imageRotation === undefined &&
-      shared.imageFlip === undefined &&
+      shared.appearanceRotation === undefined &&
+      shared.appearanceFlip === undefined &&
+      shared.featureRotation === undefined &&
+      shared.featureFlip === undefined &&
       brushAppearance === undefined &&
       brushFeature === undefined
     ) {
@@ -740,6 +768,7 @@ export function useGmTools() {
     if (needsPerTileResolve || coords.length === 1) {
       for (const coord of coords) {
         const placement = takePendingTilePlacement(coord.x, coord.y);
+        const rotation = autoRotate ? (placement.imageRotation ?? null) : undefined;
         send({
           type: "gmPaintTile",
           coords: [coord],
@@ -748,7 +777,8 @@ export function useGmTools() {
             ? { appearanceKey: placement.appearanceKey }
             : {}),
           ...(placement.featureKey !== undefined ? { featureKey: placement.featureKey } : {}),
-          ...(autoRotate ? { imageRotation: placement.imageRotation ?? null } : {}),
+          ...(autoRotate && paintAppearance ? { appearanceRotation: rotation } : {}),
+          ...(autoRotate && paintFeature ? { featureRotation: rotation } : {}),
         });
       }
       paintbrushSuppressPreviewKey.value = coordKey(x, y);

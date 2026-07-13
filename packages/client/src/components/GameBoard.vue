@@ -2123,8 +2123,10 @@ const cellStateByKey = computed(() => {
       tileAppearanceUrl: tile?.appearanceKey ? tileAppearanceUrlFor(tile.appearanceKey) : null,
       tileFeatureUrl: tile?.featureKey ? tileAppearanceUrlFor(tile.featureKey) : null,
       tileBaseColor: tile?.baseColor ?? null,
-      imageRotation: tile?.imageRotation,
-      imageFlip: tile?.imageFlip,
+      appearanceRotation: tile?.appearanceRotation,
+      appearanceFlip: tile?.appearanceFlip,
+      featureRotation: tile?.featureRotation,
+      featureFlip: tile?.featureFlip,
       paintbrushPreview: null,
     });
   }
@@ -2148,12 +2150,14 @@ const cellStateByKey = computed(() => {
       const showFlip = paintbrushEnableFlip.value;
       if (showColor || showAppearance || showFeature || showRotation || showFlip) {
         const placement = peekPaintbrushPlacement(x, y);
-        const imageRotation = showRotation
+        const brushRotation = showRotation
           ? paintbrushAutoRotate.value
             ? (placement.imageRotation ?? 0)
             : paintbrushImageRotation.value
           : 0;
-        const imageFlip = showFlip ? paintbrushImageFlip.value : false;
+        const brushFlip = showFlip ? paintbrushImageFlip.value : false;
+        const paintingAppearance = showAppearance && placement.appearanceKey !== undefined;
+        const paintingFeature = showFeature && placement.featureKey !== undefined;
         const previewBaseColor = showColor ? paintbrushBaseColor.value : null;
         const previewAppearanceUrl = showAppearance ? placement.appearanceUrl : null;
         const previewFeatureUrl = showFeature ? placement.featureUrl : null;
@@ -2162,17 +2166,19 @@ const cellStateByKey = computed(() => {
         // clear), use that. Fall back to the live tile only when the brush leaves the
         // layer untouched (undefined / enable off).
         previewCell.paintbrushPreview = {
-          imageRotation,
-          imageFlip,
           baseColor: previewBaseColor ?? tile?.baseColor ?? null,
-          appearanceUrl:
-            showAppearance && placement.appearanceKey !== undefined
-              ? previewAppearanceUrl
-              : previewCell.tileAppearanceUrl,
-          featureUrl:
-            showFeature && placement.featureKey !== undefined
-              ? previewFeatureUrl
-              : previewCell.tileFeatureUrl,
+          appearanceUrl: paintingAppearance
+            ? previewAppearanceUrl
+            : previewCell.tileAppearanceUrl,
+          featureUrl: paintingFeature ? previewFeatureUrl : previewCell.tileFeatureUrl,
+          appearanceRotation: paintingAppearance
+            ? brushRotation
+            : (tile?.appearanceRotation ?? 0),
+          appearanceFlip: paintingAppearance ? brushFlip : !!tile?.appearanceFlip,
+          featureRotation: paintingFeature
+            ? brushRotation
+            : (tile?.featureRotation ?? 0),
+          featureFlip: paintingFeature ? brushFlip : !!tile?.featureFlip,
         };
       }
     }
@@ -4621,8 +4627,10 @@ onUnmounted(() => {
                   row.cell.tile?.name,
                   row.cell.tileAppearanceUrl,
                   row.cell.tileFeatureUrl,
-                  row.cell.imageRotation,
-                  row.cell.imageFlip,
+                  row.cell.appearanceRotation,
+                  row.cell.appearanceFlip,
+                  row.cell.featureRotation,
+                  row.cell.featureFlip,
                   row.cell.paintbrushPreview,
                   row.isHovered,
                   draggingDeploy,

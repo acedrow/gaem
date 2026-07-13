@@ -7,6 +7,7 @@ import { boardSelection } from "./useBoardSelection.js";
 import { useCharacterSheetSelection } from "./useCharacterSheetSelection.js";
 import { selectedFactionId } from "./useFactionSelection.js";
 import { activeTab } from "./useGameConsole.js";
+import { clearActiveTool } from "./useGmTools.js";
 import { useInfoDataSelection } from "./useInfoDataSelection.js";
 import { selectedMapId } from "./useMapSelection.js";
 
@@ -26,6 +27,7 @@ export function useTableSelection() {
 
   function selectTable(id: ReconTableId | null) {
     if (id) {
+      clearActiveTool();
       boardSelection.value = null;
       selectSheet(null);
       selectedMapId.value = null;

@@ -84,21 +84,40 @@ export function parseTilePaintPreset(raw: unknown, label: string): TilePaintPres
     preset.featureKey = featureKey.trim();
   }
 
-  const imageRotation = p.imageRotation;
-  if (imageRotation !== undefined) {
-    if (!isValidTileImageRotation(imageRotation)) {
-      throw new Error(`${label} imageRotation must be 0, 90, 180, or 270`);
+  function readRotation(key: string, legacyFallback: unknown): TileImageRotation | undefined {
+    const value = p[key] !== undefined ? p[key] : legacyFallback;
+    if (value === undefined) return undefined;
+    if (!isValidTileImageRotation(value)) {
+      throw new Error(`${label} ${key} must be 0, 90, 180, or 270`);
     }
-    if (imageRotation !== 0) preset.imageRotation = imageRotation;
+    return value !== 0 ? value : undefined;
   }
 
-  const imageFlip = p.imageFlip;
-  if (imageFlip !== undefined) {
-    if (typeof imageFlip !== "boolean") {
-      throw new Error(`${label} imageFlip must be a boolean`);
+  function readFlip(key: string, legacyFallback: unknown): true | undefined {
+    const value = p[key] !== undefined ? p[key] : legacyFallback;
+    if (value === undefined) return undefined;
+    if (typeof value !== "boolean") {
+      throw new Error(`${label} ${key} must be a boolean`);
     }
-    if (imageFlip) preset.imageFlip = true;
+    return value ? true : undefined;
   }
+
+  const legacyRotation = p.imageRotation;
+  const legacyFlip = p.imageFlip;
+  if (legacyRotation !== undefined && !isValidTileImageRotation(legacyRotation)) {
+    throw new Error(`${label} imageRotation must be 0, 90, 180, or 270`);
+  }
+  if (legacyFlip !== undefined && typeof legacyFlip !== "boolean") {
+    throw new Error(`${label} imageFlip must be a boolean`);
+  }
+
+  const appearanceRotation = readRotation("appearanceRotation", legacyRotation);
+  if (appearanceRotation !== undefined) preset.appearanceRotation = appearanceRotation;
+  const featureRotation = readRotation("featureRotation", legacyRotation);
+  if (featureRotation !== undefined) preset.featureRotation = featureRotation;
+
+  if (readFlip("appearanceFlip", legacyFlip)) preset.appearanceFlip = true;
+  if (readFlip("featureFlip", legacyFlip)) preset.featureFlip = true;
 
   return preset;
 }

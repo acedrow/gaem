@@ -55,14 +55,18 @@ export type CellRenderState = {
   tileAppearanceUrl?: string | null;
   tileFeatureUrl?: string | null;
   tileBaseColor?: string | null;
-  imageRotation?: 0 | 90 | 180 | 270;
-  imageFlip?: boolean;
+  appearanceRotation?: 0 | 90 | 180 | 270;
+  appearanceFlip?: boolean;
+  featureRotation?: 0 | 90 | 180 | 270;
+  featureFlip?: boolean;
   paintbrushPreview?: {
     baseColor?: string | null;
     appearanceUrl?: string | null;
     featureUrl?: string | null;
-    imageRotation: 0 | 90 | 180 | 270;
-    imageFlip: boolean;
+    appearanceRotation: 0 | 90 | 180 | 270;
+    appearanceFlip: boolean;
+    featureRotation: 0 | 90 | 180 | 270;
+    featureFlip: boolean;
   } | null;
 };
 
@@ -223,14 +227,24 @@ function tileImageTransform(rotation?: 0 | 90 | 180 | 270, flip?: boolean): stri
   return `rotate(${deg}deg) scaleX(${scaleX})`;
 }
 
-const tileImageTransformStyle = computed(() =>
-  tileImageTransform(props.cell.imageRotation, props.cell.imageFlip),
+const appearanceImageTransformStyle = computed(() =>
+  tileImageTransform(props.cell.appearanceRotation, props.cell.appearanceFlip),
 );
 
-const previewImageTransformStyle = computed(() => {
+const featureImageTransformStyle = computed(() =>
+  tileImageTransform(props.cell.featureRotation, props.cell.featureFlip),
+);
+
+const previewAppearanceTransformStyle = computed(() => {
   const preview = props.cell.paintbrushPreview;
   if (!preview) return undefined;
-  return tileImageTransform(preview.imageRotation, preview.imageFlip);
+  return tileImageTransform(preview.appearanceRotation, preview.appearanceFlip);
+});
+
+const previewFeatureTransformStyle = computed(() => {
+  const preview = props.cell.paintbrushPreview;
+  if (!preview) return undefined;
+  return tileImageTransform(preview.featureRotation, preview.featureFlip);
 });
 
 const tileEffectImageOverlays = computed(() =>
@@ -322,18 +336,23 @@ const terrainImageUrl = computed(() => {
     <div
       v-if="!cell.paintbrushPreview && (cell.tileAppearanceUrl || cell.tileFeatureUrl)"
       class="tile-image-stack"
-      :style="{ transform: tileImageTransformStyle }"
       aria-hidden="true"
     >
       <span
         v-if="cell.tileAppearanceUrl"
         class="board-overlay tile-appearance-image tile-image"
-        :style="{ backgroundImage: `url(${cell.tileAppearanceUrl})` }"
+        :style="{
+          backgroundImage: `url(${cell.tileAppearanceUrl})`,
+          transform: appearanceImageTransformStyle,
+        }"
       />
       <span
         v-if="cell.tileFeatureUrl"
         class="board-overlay tile-feature-image tile-image"
-        :style="{ backgroundImage: `url(${cell.tileFeatureUrl})` }"
+        :style="{
+          backgroundImage: `url(${cell.tileFeatureUrl})`,
+          transform: featureImageTransformStyle,
+        }"
       />
     </div>
     <div
@@ -346,19 +365,22 @@ const terrainImageUrl = computed(() => {
         class="tile-base-color"
         :style="{ backgroundColor: cell.paintbrushPreview.baseColor }"
       />
-      <div
-        class="tile-image-stack"
-        :style="{ transform: previewImageTransformStyle }"
-      >
+      <div class="tile-image-stack">
         <span
           v-if="cell.paintbrushPreview.appearanceUrl"
           class="board-overlay tile-appearance-image tile-image"
-          :style="{ backgroundImage: `url(${cell.paintbrushPreview.appearanceUrl})` }"
+          :style="{
+            backgroundImage: `url(${cell.paintbrushPreview.appearanceUrl})`,
+            transform: previewAppearanceTransformStyle,
+          }"
         />
         <span
           v-if="cell.paintbrushPreview.featureUrl"
           class="board-overlay tile-feature-image tile-image"
-          :style="{ backgroundImage: `url(${cell.paintbrushPreview.featureUrl})` }"
+          :style="{
+            backgroundImage: `url(${cell.paintbrushPreview.featureUrl})`,
+            transform: previewFeatureTransformStyle,
+          }"
         />
       </div>
     </div>

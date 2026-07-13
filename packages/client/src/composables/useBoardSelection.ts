@@ -4,6 +4,7 @@ import { computed, ref, watch } from "vue";
 
 import { readPersistedUi } from "./uiPersist.js";
 import { selectedFactionId } from "./useFactionSelection.js";
+import { clearActiveTool } from "./useGmTools.js";
 import { selectedMapId } from "./useMapSelection.js";
 import { useCharacterSheetSelection } from "./useCharacterSheetSelection.js";
 import { activeTab } from "./useGameConsole.js";
@@ -161,6 +162,7 @@ export function useBoardSelection() {
   }
 
   function selectSheetFromNav(sheetId: string) {
+    clearActiveTool();
     selectedMapId.value = null;
     selectedFactionId.value = null;
     selectedTableId.value = null;

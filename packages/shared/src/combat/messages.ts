@@ -1338,8 +1338,10 @@ export type GmPaintTileFields = {
   baseColor?: string | null;
   appearanceKey?: string | null;
   featureKey?: string | null;
-  imageRotation?: TileImageRotation | null;
-  imageFlip?: boolean | null;
+  appearanceRotation?: TileImageRotation | null;
+  appearanceFlip?: boolean | null;
+  featureRotation?: TileImageRotation | null;
+  featureFlip?: boolean | null;
 };
 
 function hasGmPaintTileFields(fields: GmPaintTileFields): boolean {
@@ -1351,8 +1353,10 @@ function hasGmPaintTileFields(fields: GmPaintTileFields): boolean {
     fields.baseColor !== undefined ||
     fields.appearanceKey !== undefined ||
     fields.featureKey !== undefined ||
-    fields.imageRotation !== undefined ||
-    fields.imageFlip !== undefined
+    fields.appearanceRotation !== undefined ||
+    fields.appearanceFlip !== undefined ||
+    fields.featureRotation !== undefined ||
+    fields.featureFlip !== undefined
   );
 }
 
@@ -1402,14 +1406,32 @@ export function validateGmPaintTile(
     return "featureKey must be a non-empty string";
   }
   if (
-    fields.imageRotation !== undefined &&
-    fields.imageRotation != null &&
-    !isValidTileImageRotation(fields.imageRotation)
+    fields.appearanceRotation !== undefined &&
+    fields.appearanceRotation != null &&
+    !isValidTileImageRotation(fields.appearanceRotation)
   ) {
-    return "imageRotation must be 0, 90, 180, or 270";
+    return "appearanceRotation must be 0, 90, 180, or 270";
   }
-  if (fields.imageFlip !== undefined && fields.imageFlip != null && typeof fields.imageFlip !== "boolean") {
-    return "imageFlip must be a boolean";
+  if (
+    fields.featureRotation !== undefined &&
+    fields.featureRotation != null &&
+    !isValidTileImageRotation(fields.featureRotation)
+  ) {
+    return "featureRotation must be 0, 90, 180, or 270";
+  }
+  if (
+    fields.appearanceFlip !== undefined &&
+    fields.appearanceFlip != null &&
+    typeof fields.appearanceFlip !== "boolean"
+  ) {
+    return "appearanceFlip must be a boolean";
+  }
+  if (
+    fields.featureFlip !== undefined &&
+    fields.featureFlip != null &&
+    typeof fields.featureFlip !== "boolean"
+  ) {
+    return "featureFlip must be a boolean";
   }
   return null;
 }
@@ -1446,17 +1468,30 @@ export function applyGmPaintTile(
     else delete tile.featureKey;
   }
 
-  if (fields.imageRotation !== undefined) {
-    if (fields.imageRotation != null && fields.imageRotation !== 0) {
-      tile.imageRotation = fields.imageRotation;
+  if (fields.appearanceRotation !== undefined) {
+    if (fields.appearanceRotation != null && fields.appearanceRotation !== 0) {
+      tile.appearanceRotation = fields.appearanceRotation;
     } else {
-      delete tile.imageRotation;
+      delete tile.appearanceRotation;
     }
   }
 
-  if (fields.imageFlip !== undefined) {
-    if (fields.imageFlip) tile.imageFlip = true;
-    else delete tile.imageFlip;
+  if (fields.featureRotation !== undefined) {
+    if (fields.featureRotation != null && fields.featureRotation !== 0) {
+      tile.featureRotation = fields.featureRotation;
+    } else {
+      delete tile.featureRotation;
+    }
+  }
+
+  if (fields.appearanceFlip !== undefined) {
+    if (fields.appearanceFlip) tile.appearanceFlip = true;
+    else delete tile.appearanceFlip;
+  }
+
+  if (fields.featureFlip !== undefined) {
+    if (fields.featureFlip) tile.featureFlip = true;
+    else delete tile.featureFlip;
   }
 
   return `Painted (${x}, ${y})`;
@@ -1685,8 +1720,12 @@ export function handleCombatMessage(
         ...(parsed.baseColor !== undefined ? { baseColor: parsed.baseColor } : {}),
         ...(parsed.appearanceKey !== undefined ? { appearanceKey: parsed.appearanceKey } : {}),
         ...(parsed.featureKey !== undefined ? { featureKey: parsed.featureKey } : {}),
-        ...(parsed.imageRotation !== undefined ? { imageRotation: parsed.imageRotation } : {}),
-        ...(parsed.imageFlip !== undefined ? { imageFlip: parsed.imageFlip } : {}),
+        ...(parsed.appearanceRotation !== undefined
+          ? { appearanceRotation: parsed.appearanceRotation }
+          : {}),
+        ...(parsed.appearanceFlip !== undefined ? { appearanceFlip: parsed.appearanceFlip } : {}),
+        ...(parsed.featureRotation !== undefined ? { featureRotation: parsed.featureRotation } : {}),
+        ...(parsed.featureFlip !== undefined ? { featureFlip: parsed.featureFlip } : {}),
       };
       for (const { x, y } of parsed.coords) {
         const err = validateGmPaintTile(state, x, y, fields);

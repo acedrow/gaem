@@ -44,8 +44,10 @@ export type MapTile = {
   baseColor?: string;
   appearanceKey?: string;
   featureKey?: string;
-  imageRotation?: TileImageRotation;
-  imageFlip?: boolean;
+  appearanceRotation?: TileImageRotation;
+  appearanceFlip?: boolean;
+  featureRotation?: TileImageRotation;
+  featureFlip?: boolean;
 };
 
 export type TilePaintPreset = {
@@ -57,8 +59,10 @@ export type TilePaintPreset = {
   baseColor?: string;
   appearanceKey?: string;
   featureKey?: string;
-  imageRotation?: TileImageRotation;
-  imageFlip?: boolean;
+  appearanceRotation?: TileImageRotation;
+  appearanceFlip?: boolean;
+  featureRotation?: TileImageRotation;
+  featureFlip?: boolean;
 };
 
 export type Enemy = {
@@ -407,8 +411,10 @@ export type ClientMessage =
       baseColor?: string | null;
       appearanceKey?: string | null;
       featureKey?: string | null;
-      imageRotation?: TileImageRotation | null;
-      imageFlip?: boolean | null;
+      appearanceRotation?: TileImageRotation | null;
+      appearanceFlip?: boolean | null;
+      featureRotation?: TileImageRotation | null;
+      featureFlip?: boolean | null;
     }
   | { type: "removeAttractor"; x: number; y: number }
   | { type: "phaseAction"; action: PhaseAction }

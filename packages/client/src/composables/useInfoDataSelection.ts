@@ -5,6 +5,7 @@ import { readPersistedUi } from "./uiPersist.js";
 import { selectedFactionId } from "./useFactionSelection.js";
 import { useEnemySpawnSelection } from "./useEnemySpawnSelection.js";
 import { activeTab } from "./useGameConsole.js";
+import { clearActiveTool } from "./useGmTools.js";
 import { usePatternSelection } from "./usePatternSelection.js";
 import { selectedTableId } from "./useTableSelection.js";
 
@@ -30,6 +31,7 @@ export function useInfoDataSelection() {
   const { clearSpawnEnemySelection } = useEnemySpawnSelection();
 
   function selectDataCategory(category: DataCategory, options?: { returnToFaction?: FactionId }) {
+    clearActiveTool();
     if (category !== "patterns") clearPatternSelection();
     if (!ENEMY_DATA_CATEGORIES.has(category)) clearSpawnEnemySelection();
     selectedFactionId.value = null;
@@ -41,6 +43,7 @@ export function useInfoDataSelection() {
   }
 
   function selectDataFocus(focus: DataFocus, options?: { returnTo?: DataCategory }) {
+    clearActiveTool();
     selectedFactionId.value = null;
     selectedTableId.value = null;
     dataFocus.value = focus;

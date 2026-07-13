@@ -4,6 +4,7 @@ import { readPersistedUi } from "./uiPersist.js";
 import { boardSelection } from "./useBoardSelection.js";
 import { selectedFactionId } from "./useFactionSelection.js";
 import { activeTab } from "./useGameConsole.js";
+import { clearActiveTool } from "./useGmTools.js";
 import { useCharacterSheetSelection } from "./useCharacterSheetSelection.js";
 import { useInfoDataSelection } from "./useInfoDataSelection.js";
 import { activeMainTab } from "./useMainSectionTab.js";
@@ -20,6 +21,7 @@ export function useMapSelection() {
 
   function selectMap(id: string | null) {
     if (id) {
+      clearActiveTool();
       boardSelection.value = null;
       selectSheet(null);
       selectedFactionId.value = null;

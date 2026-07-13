@@ -207,21 +207,37 @@ export function parseGameMap(raw: unknown): GameMap {
       tile.featureKey = featureKey.trim();
     }
 
-    const imageRotation = t.imageRotation;
-    if (imageRotation !== undefined) {
-      if (!isValidTileImageRotation(imageRotation)) {
-        throw new Error(`Tile (${x}, ${y}) imageRotation must be 0, 90, 180, or 270`);
-      }
-      if (imageRotation !== 0) tile.imageRotation = imageRotation;
+    const legacyRotation = t.imageRotation;
+    const legacyFlip = t.imageFlip;
+    if (legacyRotation !== undefined && !isValidTileImageRotation(legacyRotation)) {
+      throw new Error(`Tile (${x}, ${y}) imageRotation must be 0, 90, 180, or 270`);
+    }
+    if (legacyFlip !== undefined && typeof legacyFlip !== "boolean") {
+      throw new Error(`Tile (${x}, ${y}) imageFlip must be a boolean`);
     }
 
-    const imageFlip = t.imageFlip;
-    if (imageFlip !== undefined) {
-      if (typeof imageFlip !== "boolean") {
-        throw new Error(`Tile (${x}, ${y}) imageFlip must be a boolean`);
+    function readTileRotation(key: "appearanceRotation" | "featureRotation"): void {
+      const raw = t[key] !== undefined ? t[key] : legacyRotation;
+      if (raw === undefined) return;
+      if (!isValidTileImageRotation(raw)) {
+        throw new Error(`Tile (${x}, ${y}) ${key} must be 0, 90, 180, or 270`);
       }
-      if (imageFlip) tile.imageFlip = true;
+      if (raw !== 0) tile[key] = raw;
     }
+
+    function readTileFlip(key: "appearanceFlip" | "featureFlip"): void {
+      const raw = t[key] !== undefined ? t[key] : legacyFlip;
+      if (raw === undefined) return;
+      if (typeof raw !== "boolean") {
+        throw new Error(`Tile (${x}, ${y}) ${key} must be a boolean`);
+      }
+      if (raw) tile[key] = true;
+    }
+
+    readTileRotation("appearanceRotation");
+    readTileRotation("featureRotation");
+    readTileFlip("appearanceFlip");
+    readTileFlip("featureFlip");
 
     tile.walkable = computeWalkable(tile);
     tiles.push(tile);
@@ -350,8 +366,10 @@ export function cloneMapTile(tile: MapTile): MapTile {
     ...(tile.baseColor ? { baseColor: tile.baseColor } : {}),
     ...(tile.appearanceKey ? { appearanceKey: tile.appearanceKey } : {}),
     ...(tile.featureKey ? { featureKey: tile.featureKey } : {}),
-    ...(tile.imageRotation ? { imageRotation: tile.imageRotation } : {}),
-    ...(tile.imageFlip ? { imageFlip: true } : {}),
+    ...(tile.appearanceRotation ? { appearanceRotation: tile.appearanceRotation } : {}),
+    ...(tile.appearanceFlip ? { appearanceFlip: true } : {}),
+    ...(tile.featureRotation ? { featureRotation: tile.featureRotation } : {}),
+    ...(tile.featureFlip ? { featureFlip: true } : {}),
   };
 }
 
@@ -412,10 +430,14 @@ export function persistMapTileFromState(map: GameMap, source: MapTile): void {
   else delete mapTile.appearanceKey;
   if (source.featureKey) mapTile.featureKey = source.featureKey;
   else delete mapTile.featureKey;
-  if (source.imageRotation) mapTile.imageRotation = source.imageRotation;
-  else delete mapTile.imageRotation;
-  if (source.imageFlip) mapTile.imageFlip = true;
-  else delete mapTile.imageFlip;
+  if (source.appearanceRotation) mapTile.appearanceRotation = source.appearanceRotation;
+  else delete mapTile.appearanceRotation;
+  if (source.appearanceFlip) mapTile.appearanceFlip = true;
+  else delete mapTile.appearanceFlip;
+  if (source.featureRotation) mapTile.featureRotation = source.featureRotation;
+  else delete mapTile.featureRotation;
+  if (source.featureFlip) mapTile.featureFlip = true;
+  else delete mapTile.featureFlip;
   delete mapTile.tileEffects;
 }
 

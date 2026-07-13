@@ -33,16 +33,20 @@ describe("gmPaintTile", () => {
       baseColor: "#aabbcc",
       appearanceKey: "tile-appearances/abc.png",
       featureKey: "tiles/features/base/rock.png",
-      imageRotation: 90,
-      imageFlip: true,
+      appearanceRotation: 90,
+      appearanceFlip: true,
+      featureRotation: 180,
+      featureFlip: true,
     });
     const tile = tileAt(state.tiles, 1, 1)!;
     expect(tile.name).toBe("Forest");
     expect(tile.baseColor).toBe("#aabbcc");
     expect(tile.appearanceKey).toBe("tile-appearances/abc.png");
     expect(tile.featureKey).toBe("tiles/features/base/rock.png");
-    expect(tile.imageRotation).toBe(90);
-    expect(tile.imageFlip).toBe(true);
+    expect(tile.appearanceRotation).toBe(90);
+    expect(tile.appearanceFlip).toBe(true);
+    expect(tile.featureRotation).toBe(180);
+    expect(tile.featureFlip).toBe(true);
   });
 
   it("clears cosmetic tile fields", () => {
@@ -55,8 +59,10 @@ describe("gmPaintTile", () => {
       baseColor: "#fff",
       appearanceKey: "key",
       featureKey: "feature-key",
-      imageRotation: 180,
-      imageFlip: true,
+      appearanceRotation: 180,
+      appearanceFlip: true,
+      featureRotation: 90,
+      featureFlip: true,
     });
     applyGmPaintTile(state, 0, 0, {
       elevation: 0,
@@ -66,16 +72,20 @@ describe("gmPaintTile", () => {
       baseColor: null,
       appearanceKey: null,
       featureKey: null,
-      imageRotation: null,
-      imageFlip: null,
+      appearanceRotation: null,
+      appearanceFlip: null,
+      featureRotation: null,
+      featureFlip: null,
     });
     const tile = tileAt(state.tiles, 0, 0)!;
     expect(tile.name).toBeUndefined();
     expect(tile.baseColor).toBeUndefined();
     expect(tile.appearanceKey).toBeUndefined();
     expect(tile.featureKey).toBeUndefined();
-    expect(tile.imageRotation).toBeUndefined();
-    expect(tile.imageFlip).toBeUndefined();
+    expect(tile.appearanceRotation).toBeUndefined();
+    expect(tile.appearanceFlip).toBeUndefined();
+    expect(tile.featureRotation).toBeUndefined();
+    expect(tile.featureFlip).toBeUndefined();
   });
 
   it("replaces existing tile effects", () => {
@@ -187,8 +197,10 @@ describe("gmPaintTile", () => {
       baseColor: "#112233",
       appearanceKey: "keep.png",
       featureKey: "feature.png",
-      imageRotation: 270,
-      imageFlip: true,
+      appearanceRotation: 270,
+      appearanceFlip: true,
+      featureRotation: 90,
+      featureFlip: true,
     });
     applyGmPaintTile(state, 1, 1, { terrain: "obstacle" });
     const tile = tileAt(state.tiles, 1, 1)!;
@@ -199,8 +211,53 @@ describe("gmPaintTile", () => {
     expect(tile.baseColor).toBe("#112233");
     expect(tile.appearanceKey).toBe("keep.png");
     expect(tile.featureKey).toBe("feature.png");
-    expect(tile.imageRotation).toBe(270);
-    expect(tile.imageFlip).toBe(true);
+    expect(tile.appearanceRotation).toBe(270);
+    expect(tile.appearanceFlip).toBe(true);
+    expect(tile.featureRotation).toBe(90);
+    expect(tile.featureFlip).toBe(true);
+  });
+
+  it("appearance-only rotation leaves feature transform unchanged", () => {
+    const state = makeGameState();
+    applyGmPaintTile(state, 0, 0, {
+      appearanceKey: "a.png",
+      featureKey: "f.png",
+      appearanceRotation: 90,
+      featureRotation: 180,
+      appearanceFlip: true,
+      featureFlip: true,
+    });
+    applyGmPaintTile(state, 0, 0, {
+      appearanceKey: "b.png",
+      appearanceRotation: 270,
+      appearanceFlip: null,
+    });
+    const tile = tileAt(state.tiles, 0, 0)!;
+    expect(tile.appearanceKey).toBe("b.png");
+    expect(tile.appearanceRotation).toBe(270);
+    expect(tile.appearanceFlip).toBeUndefined();
+    expect(tile.featureKey).toBe("f.png");
+    expect(tile.featureRotation).toBe(180);
+    expect(tile.featureFlip).toBe(true);
+  });
+
+  it("feature-only rotation leaves appearance transform unchanged", () => {
+    const state = makeGameState();
+    applyGmPaintTile(state, 0, 0, {
+      appearanceKey: "a.png",
+      featureKey: "f.png",
+      appearanceRotation: 90,
+      featureRotation: 180,
+    });
+    applyGmPaintTile(state, 0, 0, {
+      featureKey: "g.png",
+      featureRotation: 270,
+    });
+    const tile = tileAt(state.tiles, 0, 0)!;
+    expect(tile.appearanceKey).toBe("a.png");
+    expect(tile.appearanceRotation).toBe(90);
+    expect(tile.featureKey).toBe("g.png");
+    expect(tile.featureRotation).toBe(270);
   });
 
   it("rejects a message with no paint fields", () => {
