@@ -98,11 +98,6 @@ export function isFortificationEnemy(enemy: Pick<Enemy, "name">): boolean {
   return findEnemyListing(enemy.name)?.tags?.includes("Fortification") ?? false;
 }
 
-export function enemyAllowsStainwalk(enemy: Pick<Enemy, "name">): boolean {
-  const text = findEnemyListing(enemy.name)?.stainwalk;
-  return text != null && /same square/i.test(text);
-}
-
 export function getEnemyMaxHpByName(name: string | undefined): number {
   return findEnemyListing(name)?.hp ?? 0;
 }
@@ -159,13 +154,4 @@ export function enemyFootprintTiles(
     }
   }
   return tiles;
-}
-
-export function enemyOccupiesTile(
-  enemy: Pick<Enemy, "x" | "y" | "scale" | "name">,
-  x: number,
-  y: number,
-): boolean {
-  const scale = getEnemyScale(enemy);
-  return x >= enemy.x && x < enemy.x + scale && y >= enemy.y && y < enemy.y + scale;
 }

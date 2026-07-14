@@ -1,6 +1,7 @@
-import type { GameState, Player } from "../types.js";
+import type { GameMap, GameState, Player } from "../types.js";
 import { getPlayerMaxHp } from "../game.js";
 import { getArmorByName } from "../player-data.js";
+import { applyResetToStartingState } from "../map.js";
 import { initHeavenBurningLevel, initSabaothCharges } from "./attack.js";
 import { clearAnnihilationCorridorTileEffects, clearEquipmentTerrainSnapshots } from "./equipment.js";
 import { createDefaultCombatState } from "./types.js";
@@ -97,7 +98,8 @@ export function exitTaccom(state: GameState, opts?: { removeEnemies?: boolean })
   }
 }
 
-export function resetTaccomEncounter(state: GameState): void {
+export function resetTaccomEncounter(state: GameState, map?: GameMap): void {
   exitTaccom(state, { removeEnemies: false });
+  if (map?.startingState) applyResetToStartingState(state, map);
   enterTaccom(state);
 }

@@ -158,6 +158,7 @@ import BreakerPromptModal from "./BreakerPromptModal.vue";
 import ProvokePromptModal from "./ProvokePromptModal.vue";
 import SwarmChipModal from "./SwarmChipModal.vue";
 import GmSwarmAttackModal from "./GmSwarmAttackModal.vue";
+import TargetPickerModal, { type TargetPickerEnemy } from "./TargetPickerModal.vue";
 
 const props = defineProps<{
   role: "gm" | "player";
@@ -465,6 +466,18 @@ const swarmAttackPending = ref<{
   targetPlayerId: string;
   damage?: number;
 } | null>(null);
+const targetPickerOpen = ref(false);
+const targetPickerEnemies = ref<TargetPickerEnemy[]>([]);
+const targetPickerMaxSelectable = ref(1);
+const targetPickerPreSelectedIds = ref<string[]>([]);
+const targetPickerTileIds = ref<string[]>([]);
+
+function closeTargetPicker() {
+  targetPickerOpen.value = false;
+  targetPickerEnemies.value = [];
+  targetPickerPreSelectedIds.value = [];
+  targetPickerTileIds.value = [];
+}
 
 function maybePromptSwarmChip(enemyId: string) {
   if (props.role !== "gm") return;
@@ -1815,9 +1828,7 @@ const gmSpawnableKeys = computed(() => {
   const scale = getEnemyScaleByName(spawnName);
   for (const c of cells.value) {
     if (
-      validateEnemyFootprint(s, c.x, c.y, scale, undefined, occupancy.value ?? undefined, { name: spawnName }, {
-        allowEnemyStack: true,
-      }) === null
+      validateEnemyFootprint(s, c.x, c.y, scale, undefined, occupancy.value ?? undefined, { name: spawnName }) === null
     ) {
       keys.add(c.key);
     }
@@ -2962,6 +2973,40 @@ function submitRangeAttackFromSelection() {
   });
 }
 
+function onTargetPickerConfirm(selectedIds: string[]) {
+  const tileIds = new Set(targetPickerTileIds.value);
+  const withoutTile = rangeAttackTargetIds.value.filter((id) => !tileIds.has(id));
+  const next = [...withoutTile, ...selectedIds];
+  rangeAttackTargetIds.value = next;
+  closeTargetPicker();
+
+  const ctx = attackContext.value;
+  if (!ctx || !isRangeTargetAttack(ctx.spec)) return;
+  const maxTargets = rangeTargetMax(ctx.spec);
+  if (next.length + rangeAttackObstacleCoords.value.length >= maxTargets) {
+    submitAttackAction({
+      action: "attack",
+      direction: attackDirection.value,
+      targetEnemyIds: next,
+      ...(rangeAttackObstacleCoords.value.length
+        ? { targetObstacleCoords: [...rangeAttackObstacleCoords.value] }
+        : {}),
+      ...(elevBonusTile.value
+        ? {
+            elevationBonusTile: {
+              x: elevBonusTile.value.x,
+              y: elevBonusTile.value.y,
+            },
+          }
+        : {}),
+    });
+  }
+}
+
+watch(boardActionMode, () => {
+  if (targetPickerOpen.value) closeTargetPicker();
+});
+
 registerRangeAttackConfirm(submitRangeAttackFromSelection);
 onUnmounted(unregisterRangeAttackConfirm);
 
@@ -3012,17 +3057,45 @@ function handleAttackCellClick(x: number, y: number, targetEnemyId?: string): bo
     const maxTargets = rangeTargetMax(ctx.spec);
     const selectedCount =
       rangeAttackTargetIds.value.length + rangeAttackObstacleCoords.value.length;
+    const rangeLimit = rangeTargetDistance(ctx.spec);
+    const occ = occupancy.value;
+    const enemiesAtTile = (occ?.enemiesByKey.get(key) ?? []).filter(
+      (e) => manhattanDistance(origin, e) <= rangeLimit,
+    );
 
-    if (targetEnemyId) {
-      const enemy = s.enemies.find((e) => e.id === targetEnemyId);
+    if (enemiesAtTile.length > 1) {
+      const tileIds = enemiesAtTile.map((e) => e.id);
+      const alreadyFromTile = rangeAttackTargetIds.value.filter((id) => tileIds.includes(id));
+      const slotsLeft = Math.max(0, maxTargets - (selectedCount - alreadyFromTile.length));
+      if (slotsLeft <= 0 && alreadyFromTile.length === 0) return true;
+      targetPickerTileIds.value = tileIds;
+      targetPickerEnemies.value = enemiesAtTile.map((e) => ({
+        id: e.id,
+        name: e.name ?? "Enemy",
+        ...(canUseGmTools.value
+          ? {
+              hp: getEffectiveEnemyHp(e, s),
+              maxHp: getEffectiveEnemyMaxHp(e, s),
+            }
+          : {}),
+      }));
+      targetPickerPreSelectedIds.value = alreadyFromTile;
+      targetPickerMaxSelectable.value = Math.max(1, Math.min(slotsLeft, enemiesAtTile.length));
+      targetPickerOpen.value = true;
+      return true;
+    }
+
+    const singleEnemyId = enemiesAtTile[0]?.id ?? targetEnemyId;
+    if (singleEnemyId) {
+      const enemy = s.enemies.find((e) => e.id === singleEnemyId);
       if (!enemy) return false;
-      if (manhattanDistance(origin, enemy) > rangeTargetDistance(ctx.spec)) return false;
+      if (manhattanDistance(origin, enemy) > rangeLimit) return false;
 
       const selected = rangeAttackTargetIds.value;
-      if (selected.includes(targetEnemyId)) {
-        rangeAttackTargetIds.value = selected.filter((id) => id !== targetEnemyId);
+      if (selected.includes(singleEnemyId)) {
+        rangeAttackTargetIds.value = selected.filter((id) => id !== singleEnemyId);
       } else if (selectedCount < maxTargets) {
-        const next = [...selected, targetEnemyId];
+        const next = [...selected, singleEnemyId];
         rangeAttackTargetIds.value = next;
         if (next.length + rangeAttackObstacleCoords.value.length >= maxTargets) {
           submitAttackAction({
@@ -3039,7 +3112,7 @@ function handleAttackCellClick(x: number, y: number, targetEnemyId?: string): bo
 
     const tile = tileAt(s.tiles, x, y);
     if (isObstacleTile(tile)) {
-      if (manhattanDistance(origin, { x, y }) > rangeTargetDistance(ctx.spec)) return false;
+      if (manhattanDistance(origin, { x, y }) > rangeLimit) return false;
       const selected = rangeAttackObstacleCoords.value;
       const already = selected.some((c) => c.x === x && c.y === y);
       if (already) {
@@ -4103,7 +4176,6 @@ function trySpawnEnemyAt(x: number, y: number): boolean {
       undefined,
       occupancy.value ?? undefined,
       { name: spawnName },
-      { allowEnemyStack: true },
     ) !== null
   ) {
     return false;
@@ -5051,6 +5123,16 @@ onUnmounted(() => {
       :damage-override="swarmAttackModalProps.damageOverride"
       @close="onSwarmAttackClose"
       @confirm="onSwarmAttackConfirm"
+    />
+
+    <TargetPickerModal
+      :open="targetPickerOpen"
+      :enemies="targetPickerEnemies"
+      :max-selectable="targetPickerMaxSelectable"
+      :pre-selected-ids="targetPickerPreSelectedIds"
+      :show-hp="canUseGmTools"
+      @close="closeTargetPicker"
+      @confirm="onTargetPickerConfirm"
     />
   </div>
 </template>

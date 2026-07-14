@@ -12,6 +12,9 @@ import {
   toMapSummary,
   validateActivateMap,
   persistMapTileAt,
+  applySaveStartingState,
+  applyResetToStartingState,
+  validateResetToStartingState,
 } from "./map.js";
 import { applyGmPaintTile } from "./combat/messages.js";
 import { applyActivateMap } from "./game.js";
@@ -342,5 +345,47 @@ describe("map", () => {
     expect(map.tiles[0]!.featureRotation).toBe(90);
     expect(map.tiles[0]!.appearanceFlip).toBe(true);
     expect(map.tiles[0]!.featureFlip).toBe(true);
+  });
+
+  it("save and reset starting state restores tiles and enemies", () => {
+    const map = createBlankGameMap("arena", "Arena", 4, 4);
+    const state = createInitialStateFromMap(map);
+    state.enemies = [{ id: "e1", x: 1, y: 1, name: "Stain Creep", hp: 1, scale: 1 }];
+    const tile = tileAt(state.tiles, 2, 2)!;
+    tile.terrain = ["obstacle"];
+    tile.obstacleHp = 3;
+
+    expect(validateResetToStartingState(map)).toBe("No starting state saved for this map");
+    expect(applySaveStartingState(state, map)).toBe("Starting state saved");
+    expect(map.startingState?.enemies).toHaveLength(1);
+    expect(tileAt(map.startingState!.tiles, 2, 2)?.terrain).toEqual(["obstacle"]);
+    expect(tileAt(map.startingState!.tiles, 2, 2)?.obstacleHp).toBe(3);
+
+    state.enemies[0]!.x = 3;
+    state.enemies[0]!.hp = 99;
+    tileAt(state.tiles, 2, 2)!.terrain = ["standard"];
+    delete tileAt(state.tiles, 2, 2)!.obstacleHp;
+
+    expect(validateResetToStartingState(map)).toBeNull();
+    expect(applyResetToStartingState(state, map)).toBe("Board reset to starting state");
+    expect(state.enemies).toHaveLength(1);
+    expect(state.enemies[0]!.x).toBe(1);
+    expect(state.enemies[0]!.hp).toBe(1);
+    expect(tileAt(state.tiles, 2, 2)!.terrain).toEqual(["obstacle"]);
+    expect(tileAt(state.tiles, 2, 2)!.obstacleHp).toBe(3);
+  });
+
+  it("parseGameMap round-trips startingState", () => {
+    const map = createBlankGameMap("arena", "Arena", 3, 3);
+    const state = createInitialStateFromMap(map);
+    state.enemies = [{ id: "e1", x: 1, y: 1, name: "Stain Creep", hp: 1, scale: 1 }];
+    applySaveStartingState(state, map);
+
+    const parsed = parseGameMap(JSON.parse(JSON.stringify(map)));
+    expect(parsed.startingState).toBeDefined();
+    expect(parsed.startingState!.enemies).toHaveLength(1);
+    expect(parsed.startingState!.enemies[0]!.id).toBe("e1");
+    expect(parsed.startingState!.enemies[0]!.hp).toBe(1);
+    expect(parsed.startingState!.tiles).toHaveLength(9);
   });
 });

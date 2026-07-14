@@ -6,7 +6,8 @@ import { tickRoundCountdowns, tickUnitEndOfTurn, tickUnitStartOfTurn } from "./c
 import { clearAegisFlyingUsed, ensureAssistedAscensionAegis } from "./combat/aegis.js";
 import { enemyHasFlyingTag, initializeUnitElevation, syncUnitElevationOnTile } from "./combat/elevation.js";
 import { resetEnemyExhaustion, resetGmTurnActions } from "./combat/enemy.js";
-import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles, enemyOccupiesTile, ensureEnemyMovement, refreshEnemyMovement, spendEnemyMovement, enemyAllowsStainwalk } from "./enemy-data.js";
+import { applyStainwalkGmTurnEnd, applyStainwalkMovement } from "./combat/stainwalk.js";
+import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles, ensureEnemyMovement, spendEnemyMovement } from "./enemy-data.js";
 import { ensureFactionStates } from "./faction-campaign.js";
 import { ensureOverworldLocations, ensureOverworldParty } from "./overworld.js";
 import { applyLoadoutToPlayer, getClassMaxHp, getArmorSpeed } from "./player-data.js";
@@ -44,6 +45,7 @@ import { applyPostMovementHooks } from "./combat/class-abilities.js";
 export type BoardOccupancy = {
   playerByKey: Map<string, Player>;
   enemyByKey: Map<string, Enemy>;
+  enemiesByKey: Map<string, Enemy[]>;
   enemyAnchorByKey: Map<string, Enemy>;
   terrainObjectsByKey: Map<string, TerrainObject[]>;
 };
@@ -55,12 +57,17 @@ export function buildBoardOccupancy(state: GameState): BoardOccupancy {
   }
 
   const enemyByKey = new Map<string, Enemy>();
+  const enemiesByKey = new Map<string, Enemy[]>();
   const enemyAnchorByKey = new Map<string, Enemy>();
   for (const enemy of state.enemies) {
     enemyAnchorByKey.set(coordKey(enemy.x, enemy.y), enemy);
     const scale = getEnemyScale(enemy);
     for (const tile of enemyFootprintTiles(enemy.x, enemy.y, scale)) {
-      enemyByKey.set(coordKey(tile.x, tile.y), enemy);
+      const key = coordKey(tile.x, tile.y);
+      enemyByKey.set(key, enemy);
+      const list = enemiesByKey.get(key);
+      if (list) list.push(enemy);
+      else enemiesByKey.set(key, [enemy]);
     }
   }
 
@@ -72,7 +79,7 @@ export function buildBoardOccupancy(state: GameState): BoardOccupancy {
     else terrainObjectsByKey.set(key, [object]);
   }
 
-  return { playerByKey, enemyByKey, enemyAnchorByKey, terrainObjectsByKey };
+  return { playerByKey, enemyByKey, enemiesByKey, enemyAnchorByKey, terrainObjectsByKey };
 }
 
 export function isTileOccupied(
@@ -412,7 +419,15 @@ export function applyPhaseAction(
   state: GameState,
   action: PhaseAction,
   ctx: PhaseActionContext,
+  map?: GameMap,
 ): string {
+  const enterCountdownTags = (): string[] => {
+    recordTurn(state, { role: "gm", gmPhase: "countdownTags" });
+    state.roundPhase = "countdownTags";
+    state.turn = { role: "gm" };
+    return applyStainwalkGmTurnEnd(state);
+  };
+
   switch (action) {
     case "doEffects": {
       recordTurn(state, { role: "gm", gmPhase: "startRoundEffects" });
@@ -429,10 +444,10 @@ export function applyPhaseAction(
       return `GM ended turn — ${msg}`;
     }
     case "countdownTags": {
-      recordTurn(state, { role: "gm", gmPhase: "countdownTags" });
-      state.roundPhase = "countdownTags";
-      state.turn = { role: "gm" };
-      return "GM started tag countdown";
+      const stainwalkMsgs = enterCountdownTags();
+      let msg = "GM started tag countdown";
+      if (stainwalkMsgs.length) msg += `. ${stainwalkMsgs.join("; ")}`;
+      return msg;
     }
     case "endRound":
     case "gmEndRound":
@@ -469,10 +484,10 @@ export function applyPhaseAction(
             const msg = enterPlayersChoice(state);
             return `GM ended turn — ${msg}`;
           }
-          recordTurn(state, { role: "gm", gmPhase: "countdownTags" });
-          state.roundPhase = "countdownTags";
-          state.turn = { role: "gm" };
-          return "GM ended turn — countdown tags";
+          const stainwalkMsgs = enterCountdownTags();
+          let msg = "GM ended turn — countdown tags";
+          if (stainwalkMsgs.length) msg += `. ${stainwalkMsgs.join("; ")}`;
+          return msg;
         }
         case "countdownTags":
           return "Countdown tags in progress";
@@ -494,8 +509,10 @@ export function applyPhaseAction(
       return "Combat ended — players reset, TACCOM not started";
     }
     case "resetCombat": {
-      resetTaccomEncounter(state);
-      return "Combat reset — TACCOM not started";
+      resetTaccomEncounter(state, map);
+      return map?.startingState
+        ? "Combat reset — board restored to starting state"
+        : "Combat reset — TACCOM not started";
     }
     case "removeAllEnemies": {
       const count = removeAllEnemies(state);
@@ -681,10 +698,9 @@ export function validateEnemyFootprint(
   x: number,
   y: number,
   scale: number,
-  excludeEnemyId?: string,
+  _excludeEnemyId?: string,
   occupancy?: BoardOccupancy,
   enemy?: Pick<Enemy, "name">,
-  opts?: { allowEnemyStack?: boolean },
 ): string | null {
   if (scale < 1) return "Invalid scale";
   if (!isFootprintInBounds(x, y, scale, state.width, state.height)) {
@@ -692,18 +708,9 @@ export function validateEnemyFootprint(
   }
   const flying = enemy != null && enemyHasFlyingTag(enemy);
   const occ = occupancy ?? buildBoardOccupancy(state);
-  const moverStainwalk = enemy != null && enemyAllowsStainwalk(enemy);
   for (const tile of enemyFootprintTiles(x, y, scale)) {
     if (!flying && !isWalkable(tileAt(state.tiles, tile.x, tile.y))) return "Blocked";
-    const key = coordKey(tile.x, tile.y);
-    if (occ.playerByKey.has(key)) return "Tile occupied";
-    if (opts?.allowEnemyStack || moverStainwalk) continue;
-    const others = state.enemies.filter(
-      (e) => e.id !== excludeEnemyId && enemyOccupiesTile(e, tile.x, tile.y),
-    );
-    if (others.length === 0) continue;
-    if (others.some((e) => enemyAllowsStainwalk(e))) continue;
-    return "Tile occupied";
+    if (occ.playerByKey.has(coordKey(tile.x, tile.y))) return "Tile occupied";
   }
   return null;
 }
@@ -714,30 +721,17 @@ export function validateForceMoveFootprint(
   x: number,
   y: number,
   scale: number,
-  excludeEnemyIds?: ReadonlySet<string> | string,
+  _excludeEnemyIds?: ReadonlySet<string> | string,
   occupancy?: BoardOccupancy,
-  mover?: Pick<Enemy, "name">,
+  _mover?: Pick<Enemy, "name">,
 ): string | null {
   if (scale < 1) return "Invalid scale";
   if (!isFootprintInBounds(x, y, scale, state.width, state.height)) {
     return "Out of bounds";
   }
-  const exclude =
-    typeof excludeEnemyIds === "string"
-      ? new Set([excludeEnemyIds])
-      : (excludeEnemyIds ?? new Set<string>());
   const occ = occupancy ?? buildBoardOccupancy(state);
-  const moverStainwalk = mover != null && enemyAllowsStainwalk(mover);
   for (const tile of enemyFootprintTiles(x, y, scale)) {
-    const key = coordKey(tile.x, tile.y);
-    if (occ.playerByKey.has(key)) return "Tile occupied";
-    if (moverStainwalk) continue;
-    const others = state.enemies.filter(
-      (e) => !exclude.has(e.id) && enemyOccupiesTile(e, tile.x, tile.y),
-    );
-    if (others.length === 0) continue;
-    if (others.some((e) => enemyAllowsStainwalk(e))) continue;
-    return "Tile occupied";
+    if (occ.playerByKey.has(coordKey(tile.x, tile.y))) return "Tile occupied";
   }
   return null;
 }
@@ -997,7 +991,6 @@ export function validateAddEnemy(
     undefined,
     undefined,
     enemyName != null ? { name: enemyName } : undefined,
-    { allowEnemyStack: true },
   );
 }
 
@@ -1011,7 +1004,6 @@ export function addEnemy(state: GameState, enemy: Enemy): string | null {
     undefined,
     undefined,
     enemy,
-    { allowEnemyStack: true },
   );
   if (err) return err;
   const prevGroups = buildSwarmGroups(state);
@@ -1023,7 +1015,7 @@ export function addEnemy(state: GameState, enemy: Enemy): string | null {
   });
   const added = state.enemies[state.enemies.length - 1]!;
   initializeUnitElevation(state, added);
-  refreshEnemyMovement(added);
+  applyStainwalkMovement(state, added);
   reconcileSwarmHp(state, prevGroups);
   return null;
 }

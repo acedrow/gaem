@@ -1,7 +1,8 @@
 import type { GameState } from "../types.js";
-import { getEnemyListingByName, refreshEnemyMovement } from "../enemy-data.js";
+import { getEnemyListingByName } from "../enemy-data.js";
 import { reconcileSwarmMovement } from "./swarm.js";
 import { tickUnitStartOfTurn } from "./effects.js";
+import { applyStainwalkMovement } from "./stainwalk.js";
 
 export function bossActionsForEncounter(
   actionsStat: string | undefined,
@@ -33,7 +34,7 @@ export function markEnemyExhausted(state: GameState, enemyId: string): void {
 export function resetEnemyExhaustion(state: GameState): void {
   for (const enemy of state.enemies) {
     enemy.exhausted = false;
-    refreshEnemyMovement(enemy);
+    applyStainwalkMovement(state, enemy);
   }
   reconcileSwarmMovement(state);
   if (state.combat) state.combat.swarmChipResolvedIds = [];

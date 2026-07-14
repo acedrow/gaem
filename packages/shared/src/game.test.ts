@@ -30,12 +30,23 @@ describe("game", () => {
       const occ = buildBoardOccupancy(state);
       expect(occ.playerByKey.get(coordKey(2, 2))?.id).toBe("p1");
       expect(occ.enemyByKey.get(coordKey(4, 4))?.id).toBe("e1");
+      expect(occ.enemiesByKey.get(coordKey(4, 4))?.map((e) => e.id)).toEqual(["e1"]);
       expect(occ.enemyByKey.get(coordKey(5, 5))?.id).toBe("e2");
       expect(occ.enemyByKey.get(coordKey(6, 6))?.id).toBe("e2");
 
       expect(isTileOccupied(state, 2, 2)).toBe(true);
       expect(isTileOccupied(state, 6, 6)).toBe(true);
       expect(isTileOccupied(state, 1, 1)).toBe(false);
+    });
+
+    it("lists every stacked enemy on a shared tile", () => {
+      const state = makeGameState();
+      addTestEnemy(state, "e1", 4, 4, { name: "Latent Pudding" });
+      addTestEnemy(state, "e2", 4, 4, { name: "Latent Pudding" });
+
+      const occ = buildBoardOccupancy(state);
+      expect(occ.enemiesByKey.get(coordKey(4, 4))?.map((e) => e.id).sort()).toEqual(["e1", "e2"]);
+      expect(occ.enemyByKey.has(coordKey(4, 4))).toBe(true);
     });
   });
 
@@ -173,29 +184,20 @@ describe("game", () => {
       expect(validateEnemyMove(wrongPhase, "e1", 4, 3)).toBe("Not GM turn");
     });
 
-    it("blocks normal enemy-enemy movement but allows Stainwalk sharing", () => {
-      const blocked = makeGameState({ roundPhase: "gmTurn", turn: { role: "gm" } });
-      addTestEnemy(blocked, "a", 3, 3, { name: "Latent Pudding" });
-      addTestEnemy(blocked, "b", 4, 3, { name: "Latent Pudding" });
-      blocked.enemies[0]!.movementRemaining = 2;
-      expect(validateEnemyMove(blocked, "a", 4, 3)).toBe("Tile occupied");
+    it("allows enemy-enemy stacking via movement", () => {
+      const stacked = makeGameState({ roundPhase: "gmTurn", turn: { role: "gm" } });
+      addTestEnemy(stacked, "a", 3, 3, { name: "Latent Pudding" });
+      addTestEnemy(stacked, "b", 4, 3, { name: "Latent Pudding" });
+      stacked.enemies[0]!.movementRemaining = 2;
+      expect(validateEnemyMove(stacked, "a", 4, 3)).toBeNull();
+      applyEnemyMove(stacked, "a", 4, 3);
+      expect(stacked.enemies.every((e) => e.x === 4 && e.y === 3)).toBe(true);
 
-      const stainOntoAlly = makeGameState({ roundPhase: "gmTurn", turn: { role: "gm" } });
-      addTestEnemy(stainOntoAlly, "creep", 3, 3, { name: "Stain Creep" });
-      addTestEnemy(stainOntoAlly, "ally", 4, 3, { name: "Latent Pudding" });
-      stainOntoAlly.enemies[0]!.movementRemaining = 2;
-      expect(validateEnemyMove(stainOntoAlly, "creep", 4, 3)).toBeNull();
-      applyEnemyMove(stainOntoAlly, "creep", 4, 3);
-      expect(stainOntoAlly.enemies.find((e) => e.id === "creep")).toMatchObject({ x: 4, y: 3 });
-      expect(stainOntoAlly.enemies.find((e) => e.id === "ally")).toMatchObject({ x: 4, y: 3 });
-
-      const allyOntoStain = makeGameState({ roundPhase: "gmTurn", turn: { role: "gm" } });
-      addTestEnemy(allyOntoStain, "ally", 3, 3, { name: "Latent Pudding" });
-      addTestEnemy(allyOntoStain, "creep", 4, 3, { name: "Stain Creep" });
-      allyOntoStain.enemies[0]!.movementRemaining = 2;
-      expect(validateEnemyMove(allyOntoStain, "ally", 4, 3)).toBeNull();
-      applyEnemyMove(allyOntoStain, "ally", 4, 3);
-      expect(allyOntoStain.enemies.every((e) => e.x === 4 && e.y === 3)).toBe(true);
+      const ontoPlayer = makeGameState({ roundPhase: "gmTurn", turn: { role: "gm" } });
+      addTestPlayer(ontoPlayer, "p1", { x: 4, y: 3 });
+      addTestEnemy(ontoPlayer, "a", 3, 3, { name: "Latent Pudding" });
+      ontoPlayer.enemies[0]!.movementRemaining = 2;
+      expect(validateEnemyMove(ontoPlayer, "a", 4, 3)).toBe("Tile occupied");
     });
   });
 

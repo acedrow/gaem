@@ -23,3 +23,4 @@ export * from "./assisted-launch.js";
 export * from "./aegis.js";
 export * from "./elevation.js";
 export * from "./equipment.js";
+export * from "./stainwalk.js";

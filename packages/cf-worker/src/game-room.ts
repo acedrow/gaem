@@ -24,6 +24,9 @@ import {
   normalizeGameState,
   persistMapTileAt,
   persistMapTilesAt,
+  applySaveStartingState,
+  applyResetToStartingState,
+  validateResetToStartingState,
   playerLabel,
   removeEnemy,
   removePlayer,
@@ -541,6 +544,43 @@ export class GameRoom {
       return;
     }
 
+    if (parsed.type === "saveStartingState") {
+      if (!this.attHasGmCapabilities(att)) {
+        this.sendError(ws, "Only the game master can do that");
+        return;
+      }
+      await this.queueMapPersist((map) => {
+        applySaveStartingState(this.gameState, map);
+      });
+      const actor = await this.actorForSocket(ws);
+      await this.broadcastConsole(actor, "Starting state saved");
+      await this.broadcastState();
+      return;
+    }
+
+    if (parsed.type === "resetToStartingState") {
+      if (!this.attHasGmCapabilities(att)) {
+        this.sendError(ws, "Only the game master can do that");
+        return;
+      }
+      let map;
+      try {
+        map = await getMap(this.env, this.gameState.mapId);
+      } catch {
+        map = undefined;
+      }
+      const err = validateResetToStartingState(map);
+      if (err) {
+        this.sendError(ws, err);
+        return;
+      }
+      const message = applyResetToStartingState(this.gameState, map!);
+      const actor = await this.actorForSocket(ws);
+      await this.broadcastConsole(actor, message);
+      await this.broadcastState();
+      return;
+    }
+
     if (parsed.type === "setSandboxMode") {
       if (!this.attHasGmCapabilities(att)) {
         this.sendError(ws, "Only the game master can do that");
@@ -588,7 +628,11 @@ export class GameRoom {
         this.sendError(ws, err);
         return;
       }
-      const message = applyPhaseAction(this.gameState, parsed.action, ctx);
+      const map =
+        parsed.action === "resetCombat"
+          ? await getMap(this.env, this.gameState.mapId).catch(() => undefined)
+          : undefined;
+      const message = applyPhaseAction(this.gameState, parsed.action, ctx, map);
       const actor = await this.actorForSocket(ws);
       await this.broadcastConsole(actor, message);
       await this.broadcastState();

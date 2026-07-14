@@ -707,8 +707,9 @@ export function attackTargetsSwarm(
 ): boolean {
   const occ = buildBoardOccupancy(state);
   for (const tile of tiles) {
-    const enemy = occ.enemyByKey.get(coordKey(tile.x, tile.y));
-    if (enemy && swarmGroupForEnemy(state, enemy.id)) return true;
+    for (const enemy of occ.enemiesByKey.get(coordKey(tile.x, tile.y)) ?? []) {
+      if (swarmGroupForEnemy(state, enemy.id)) return true;
+    }
   }
   return false;
 }
@@ -738,11 +739,12 @@ export function swarmMembersHitByTiles(
   const hits: { enemyId: string; x: number; y: number }[] = [];
   const seen = new Set<string>();
   for (const tile of tiles) {
-    const enemy = occ.enemyByKey.get(coordKey(tile.x, tile.y));
-    if (!enemy || seen.has(enemy.id)) continue;
-    if (!swarmGroupForEnemy(state, enemy.id)) continue;
-    seen.add(enemy.id);
-    hits.push({ enemyId: enemy.id, x: tile.x, y: tile.y });
+    for (const enemy of occ.enemiesByKey.get(coordKey(tile.x, tile.y)) ?? []) {
+      if (seen.has(enemy.id)) continue;
+      if (!swarmGroupForEnemy(state, enemy.id)) continue;
+      seen.add(enemy.id);
+      hits.push({ enemyId: enemy.id, x: tile.x, y: tile.y });
+    }
   }
   return hits;
 }

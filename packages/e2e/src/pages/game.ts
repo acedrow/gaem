@@ -155,7 +155,12 @@ export async function playerAttackCell(page: Page, coord: CellCoord): Promise<vo
 }
 
 export async function gmSelectEnemyOnBoard(page: Page, coord: CellCoord): Promise<void> {
-  await cell(page, coord.x, coord.y).click();
+  // Escape clears an active GM tool, then spawn selection — otherwise a still-selected
+  // spawn unit would stack another enemy on the tile instead of selecting it.
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Escape");
+  await cell(page, coord.x, coord.y).locator(".piece.enemy").first().click();
+  await expect(page.locator(".action-bar.gm-bar")).toBeVisible();
 }
 
 export async function gmDirectEnemyAttack(page: Page, targetCoord: CellCoord): Promise<void> {

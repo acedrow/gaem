@@ -309,6 +309,7 @@ export function parseGameMap(raw: unknown): GameMap {
   }
 
   const tilePresets = parseTilePresets(obj.tilePresets);
+  const startingState = parseStartingState(obj.startingState, w, h);
 
   return {
     id: id.trim(),
@@ -318,6 +319,7 @@ export function parseGameMap(raw: unknown): GameMap {
     tiles,
     enemies,
     tilePresets,
+    ...(startingState ? { startingState } : {}),
   };
 }
 
@@ -389,6 +391,65 @@ function parseMapEnemies(raw: unknown, width: number, height: number): Enemy[] |
   return enemies;
 }
 
+function parseStartingState(
+  raw: unknown,
+  width: number,
+  height: number,
+): { tiles: MapTile[]; enemies: Enemy[] } | undefined {
+  if (raw === undefined) return undefined;
+  if (!raw || typeof raw !== "object") {
+    throw new Error("Map startingState must be an object");
+  }
+  const obj = raw as Record<string, unknown>;
+  if (!Array.isArray(obj.tiles)) {
+    throw new Error("Map startingState.tiles must be an array");
+  }
+  if (!Array.isArray(obj.enemies)) {
+    throw new Error("Map startingState.enemies must be an array");
+  }
+  const expected = width * height;
+  if (obj.tiles.length !== expected) {
+    throw new Error(`Map startingState must have ${expected} tiles, got ${obj.tiles.length}`);
+  }
+
+  // Starting-state tiles/enemies are written by applySaveStartingState; re-parse via
+  // the normal map path for tiles, and accept full runtime enemy fields for enemies.
+  const tiles = parseGameMap({
+    id: "starting-state",
+    width,
+    height,
+    tiles: obj.tiles,
+  }).tiles;
+
+  const enemies: Enemy[] = [];
+  const seenIds = new Set<string>();
+  for (const entry of obj.enemies) {
+    if (!entry || typeof entry !== "object") {
+      throw new Error("Each startingState enemy must be an object");
+    }
+    const e = entry as Record<string, unknown>;
+    const id = e.id;
+    if (typeof id !== "string" || !id.trim()) {
+      throw new Error("StartingState enemy id must be a non-empty string");
+    }
+    if (seenIds.has(id)) {
+      throw new Error(`Duplicate startingState enemy id: ${id}`);
+    }
+    seenIds.add(id);
+    const x = e.x;
+    const y = e.y;
+    if (!Number.isInteger(x) || !Number.isInteger(y)) {
+      throw new Error(`StartingState enemy ${id} x and y must be integers`);
+    }
+    if (!isInBounds(x as number, y as number, width, height)) {
+      throw new Error(`StartingState enemy ${id} is out of bounds`);
+    }
+    enemies.push(cloneEnemy(e as unknown as Enemy));
+  }
+
+  return { tiles, enemies };
+}
+
 export function toMapSummary(map: GameMap): GameMapSummary {
   return {
     id: map.id,
@@ -432,6 +493,35 @@ export function cloneMapTile(tile: MapTile): MapTile {
     ...(tile.featureRotation ? { featureRotation: tile.featureRotation } : {}),
     ...(tile.featureFlip ? { featureFlip: true } : {}),
   };
+}
+
+export function cloneEnemy(enemy: Enemy): Enemy {
+  return {
+    ...enemy,
+    ...(enemy.effects ? { effects: { ...enemy.effects } } : {}),
+    ...(enemy.falling ? { falling: { ...enemy.falling } } : {}),
+  };
+}
+
+export function applySaveStartingState(state: GameState, map: GameMap): string {
+  map.startingState = {
+    tiles: state.tiles.map(cloneMapTile),
+    enemies: state.enemies.map(cloneEnemy),
+  };
+  return "Starting state saved";
+}
+
+export function validateResetToStartingState(map: GameMap | undefined): string | null {
+  if (!map) return "Map not found";
+  if (!map.startingState) return "No starting state saved for this map";
+  return null;
+}
+
+export function applyResetToStartingState(state: GameState, map: GameMap): string {
+  const snapshot = map.startingState!;
+  state.tiles = snapshot.tiles.map(cloneMapTile);
+  state.enemies = snapshot.enemies.map(cloneEnemy);
+  return "Board reset to starting state";
 }
 
 export function createInitialStateFromMap(map: GameMap): GameState {

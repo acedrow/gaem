@@ -22,6 +22,8 @@ const error = ref<string | null>(null);
 const actionError = ref<string | null>(null);
 const activating = ref(false);
 const deleting = ref(false);
+const savingStartingState = ref(false);
+const resettingStartingState = ref(false);
 
 const isActiveOnBoard = computed(
   () => map.value != null && gameState.value?.mapId === map.value.id,
@@ -30,6 +32,18 @@ const isActiveOnBoard = computed(
 const canActivate = computed(() => !isActiveOnBoard.value && !activating.value && !deleting.value);
 const canDelete = computed(
   () => !isActiveOnBoard.value && mapCount.value > 1 && !activating.value && !deleting.value,
+);
+const hasStartingState = computed(() => map.value?.startingState != null);
+const canSaveStartingState = computed(
+  () =>
+    isActiveOnBoard.value &&
+    !savingStartingState.value &&
+    !resettingStartingState.value &&
+    !activating.value &&
+    !deleting.value,
+);
+const canResetToStartingState = computed(
+  () => canSaveStartingState.value && hasStartingState.value,
 );
 
 const tilePresetCount = computed(() => Object.keys(map.value?.tilePresets ?? {}).length);
@@ -59,6 +73,30 @@ function activateMap() {
   actionError.value = null;
   send({ type: "activateMap", mapId: props.mapId });
   activating.value = false;
+}
+
+function saveStartingState() {
+  if (!canSaveStartingState.value) return;
+  savingStartingState.value = true;
+  actionError.value = null;
+  send({ type: "saveStartingState" });
+  savingStartingState.value = false;
+  void loadMap(props.mapId);
+}
+
+function resetToStartingState() {
+  if (!canResetToStartingState.value) return;
+  if (
+    !confirm(
+      "Reset the board to the saved starting state? This overwrites current tile terrain and enemy positions/HP.",
+    )
+  ) {
+    return;
+  }
+  resettingStartingState.value = true;
+  actionError.value = null;
+  send({ type: "resetToStartingState" });
+  resettingStartingState.value = false;
 }
 
 async function removeMap() {
@@ -110,11 +148,31 @@ watch(
             <dt>Tile presets</dt>
             <dd>{{ tilePresetCount }}</dd>
           </div>
+          <div class="detail-row">
+            <dt>Starting state</dt>
+            <dd>{{ hasStartingState ? "Saved" : "Not saved" }}</dd>
+          </div>
         </dl>
         <p v-if="actionError" class="panel-error">{{ actionError }}</p>
         <div class="map-actions">
           <button class="cta" type="button" :disabled="!canActivate" @click="activateMap">
             {{ activating ? "Activating…" : "Activate" }}
+          </button>
+          <button
+            class="cta"
+            type="button"
+            :disabled="!canSaveStartingState"
+            @click="saveStartingState"
+          >
+            {{ savingStartingState ? "Saving…" : "Save starting state" }}
+          </button>
+          <button
+            class="cta danger"
+            type="button"
+            :disabled="!canResetToStartingState"
+            @click="resetToStartingState"
+          >
+            {{ resettingStartingState ? "Resetting…" : "Reset to starting state" }}
           </button>
           <button class="cta danger" type="button" :disabled="!canDelete" @click="removeMap">
             {{ deleting ? "Deleting…" : "Delete" }}

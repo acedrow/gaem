@@ -115,6 +115,7 @@ export type GameMap = {
   tiles: MapTile[];
   enemies?: Enemy[];
   tilePresets?: Record<string, TilePaintPreset>;
+  startingState?: { tiles: MapTile[]; enemies: Enemy[] };
 };
 
 export type GameMapSummary = {
@@ -452,4 +453,6 @@ export type ClientMessage =
   | { type: "overworldLocationAction"; action: OverworldLocationAction }
   | { type: "spawnPlayerToken"; characterSheetId: string }
   | { type: "removePlayerToken"; playerId: string }
-  | { type: "activateMap"; mapId: string };
+  | { type: "activateMap"; mapId: string }
+  | { type: "saveStartingState" }
+  | { type: "resetToStartingState" };

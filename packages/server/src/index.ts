@@ -54,6 +54,9 @@ import {
   validateFactionCampaignAction,
   persistMapTileAt,
   persistMapTilesAt,
+  applySaveStartingState,
+  applyResetToStartingState,
+  validateResetToStartingState,
   validateActivateMap,
   verifyAuthToken,
 } from "@gaem/shared";
@@ -870,6 +873,37 @@ wss.on("connection", (ws: WebSocket) => {
       return;
     }
 
+    if (parsed.type === "saveStartingState") {
+      if (!socketHasGmCapabilities(ws)) {
+        sendError(ws, "Only the game master can do that");
+        return;
+      }
+      const map = savedMaps.get(gameState.mapId);
+      if (!map) {
+        sendError(ws, "Map not found");
+        return;
+      }
+      broadcastConsole(actorForSocket(ws), applySaveStartingState(gameState, map));
+      broadcastState();
+      return;
+    }
+
+    if (parsed.type === "resetToStartingState") {
+      if (!socketHasGmCapabilities(ws)) {
+        sendError(ws, "Only the game master can do that");
+        return;
+      }
+      const map = savedMaps.get(gameState.mapId);
+      const err = validateResetToStartingState(map);
+      if (err) {
+        sendError(ws, err);
+        return;
+      }
+      broadcastConsole(actorForSocket(ws), applyResetToStartingState(gameState, map!));
+      broadcastState();
+      return;
+    }
+
     if (parsed.type === "setSandboxMode") {
       if (!socketHasGmCapabilities(ws)) {
         sendError(ws, "Only the game master can do that");
@@ -918,7 +952,8 @@ wss.on("connection", (ws: WebSocket) => {
         sendError(ws, err);
         return;
       }
-      const message = applyPhaseAction(gameState, parsed.action, ctx);
+      const map = parsed.action === "resetCombat" ? savedMaps.get(gameState.mapId) : undefined;
+      const message = applyPhaseAction(gameState, parsed.action, ctx, map);
       broadcastConsole(actorForSocket(ws), message);
       broadcastState();
       return;

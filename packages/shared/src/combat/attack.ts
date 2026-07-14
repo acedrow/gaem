@@ -31,6 +31,7 @@ import {
 } from "./damage.js";
 import { checkSharurEmergencyDefenses } from "./attractor.js";
 import { clampHp, getEnemyMaxHp, getPlayerMaxHp, getEffectiveEnemyMaxHp, removeEnemy } from "../game.js";
+import { stainwalkDamageAdjustment } from "./stainwalk.js";
 import {
   buildSwarmGroups,
   countSwarmTilesAdjacentTo,
@@ -388,21 +389,22 @@ export function enemiesInTiles(
   const seenSwarmGroups = new Set<string>();
   const targets: AttackTarget[] = [];
   for (const tile of tiles) {
-    const enemy = occ.enemyByKey.get(coordKey(tile.x, tile.y));
-    if (!enemy || seen.has(enemy.id)) continue;
-    if (dedupeSwarms) {
-      const group = swarmGroupForEnemy(state, enemy.id);
-      if (group) {
-        const key = [...group.memberIds].sort().join(",");
-        if (seenSwarmGroups.has(key)) continue;
-        seenSwarmGroups.add(key);
-        seen.add(enemy.id);
-        targets.push({ enemyId: group.canonicalId, x: tile.x, y: tile.y });
-        continue;
+    for (const enemy of occ.enemiesByKey.get(coordKey(tile.x, tile.y)) ?? []) {
+      if (seen.has(enemy.id)) continue;
+      if (dedupeSwarms) {
+        const group = swarmGroupForEnemy(state, enemy.id);
+        if (group) {
+          const key = [...group.memberIds].sort().join(",");
+          if (seenSwarmGroups.has(key)) continue;
+          seenSwarmGroups.add(key);
+          seen.add(enemy.id);
+          targets.push({ enemyId: group.canonicalId, x: tile.x, y: tile.y });
+          continue;
+        }
       }
+      seen.add(enemy.id);
+      targets.push({ enemyId: enemy.id, x: tile.x, y: tile.y });
     }
-    seen.add(enemy.id);
-    targets.push({ enemyId: enemy.id, x: tile.x, y: tile.y });
   }
   return targets;
 }
@@ -430,15 +432,18 @@ export function applyDamageToEnemy(
 ): number {
   const maxHp = state ? getEffectiveEnemyMaxHp(enemy, state) : getEnemyMaxHp(enemy);
   const before = enemy.hp ?? maxHp;
-  const adjusted = resolveDamageAgainstTarget(
-    damage,
-    { effects: enemy.effects, x: enemy.x, y: enemy.y },
-    {
-      damageSpec: opts?.damageSpec,
-      hitTile: opts?.hitTile,
-      state,
-      piercing: opts?.piercing,
-    },
+  const adjusted = Math.max(
+    0,
+    resolveDamageAgainstTarget(
+      damage,
+      { effects: enemy.effects, x: enemy.x, y: enemy.y },
+      {
+        damageSpec: opts?.damageSpec,
+        hitTile: opts?.hitTile,
+        state,
+        piercing: opts?.piercing,
+      },
+    ) + (state ? stainwalkDamageAdjustment(state, enemy) : 0),
   );
   consumeBrokenStack(enemy);
   const newHp = clampHp(before - adjusted, maxHp);
@@ -657,11 +662,11 @@ function swarmHitsByGroup(
   const occ = buildBoardOccupancy(state);
   const hits = new Map<string, number>();
   for (const tile of tiles) {
-    const enemy = occ.enemyByKey.get(coordKey(tile.x, tile.y));
-    if (!enemy) continue;
-    const group = swarmGroupForEnemy(state, enemy.id);
-    if (!group) continue;
-    hits.set(group.canonicalId, (hits.get(group.canonicalId) ?? 0) + 1);
+    for (const enemy of occ.enemiesByKey.get(coordKey(tile.x, tile.y)) ?? []) {
+      const group = swarmGroupForEnemy(state, enemy.id);
+      if (!group) continue;
+      hits.set(group.canonicalId, (hits.get(group.canonicalId) ?? 0) + 1);
+    }
   }
   return hits;
 }
@@ -687,8 +692,8 @@ function applySethianWholeSwarmAttack(
     const memberIds = new Set(group?.memberIds ?? [canonicalId]);
     const hitTile =
       tiles.find((tile) => {
-        const at = occ.enemyByKey.get(coordKey(tile.x, tile.y));
-        return at != null && memberIds.has(at.id);
+        const at = occ.enemiesByKey.get(coordKey(tile.x, tile.y)) ?? [];
+        return at.some((e) => memberIds.has(e.id));
       }) ?? { x: enemy.x, y: enemy.y };
     applyDamageToEnemy(enemy, damage, state, { ...damageOpts, hitTile });
     applyUnitEffectStacks(state,enemy, effects);
@@ -1128,8 +1133,7 @@ export function applyOmnistrike(
       if (mapTile && effects.some((e) => e === "Advantageous")) {
         setTileTerrain(mapTile, "advantageous");
       }
-      const enemy = occ.enemyByKey.get(coordKey(tile.x, tile.y));
-      if (enemy) {
+      for (const enemy of occ.enemiesByKey.get(coordKey(tile.x, tile.y)) ?? []) {
         if (total > 0) {
           applyDamageToEnemy(enemy, total, state, {
             damageSpec: bombSpec.damage,

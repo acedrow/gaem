@@ -47,8 +47,9 @@ function burstDamageAt(
       player.hp = clampHp(before - damage, maxHp);
       messages.push(`${playerLabel(player)} ${damage}`);
     }
-    const enemy = occ.enemyByKey.get(coordKey(tile.x, tile.y));
-    if (enemy && !hitEnemies.has(enemy.id)) {
+    const enemies = occ.enemiesByKey.get(coordKey(tile.x, tile.y)) ?? [];
+    for (const enemy of enemies) {
+      if (hitEnemies.has(enemy.id)) continue;
       hitEnemies.add(enemy.id);
       const maxHp = getEnemyMaxHp(enemy);
       const before = enemy.hp ?? maxHp;
