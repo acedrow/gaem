@@ -63,6 +63,11 @@ const { toasts } = useToasts();
   color: var(--color-text);
 }
 
+.toast.success {
+  border-color: var(--color-success-outline);
+  color: var(--color-success);
+}
+
 .toast-enter-active,
 .toast-leave-active {
   transition:

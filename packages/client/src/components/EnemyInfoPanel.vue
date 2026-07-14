@@ -9,6 +9,7 @@ import {
   getSwarmMemberHp,
   getSwarmMaxHp,
   getSwarmMovementRemaining,
+  getYadathanTowerDef,
   isDirectTargetEnemyAttack,
   isTowerEnemy,
   parseEnemyAttackString,
@@ -28,6 +29,7 @@ import { useSession } from "../composables/useSession.js";
 import GmEnemyAttackModal from "./GmEnemyAttackModal.vue";
 import HpBar from "./HpBar.vue";
 import PanelShell from "./PanelShell.vue";
+import RuleText from "./RuleText.vue";
 
 const props = defineProps<{
   enemyId?: string;
@@ -56,6 +58,15 @@ const listing = computed(() =>
   getEnemyListingByName(activeEnemy.value?.name ?? props.enemyName),
 );
 
+const towerDef = computed(() => {
+  const enemy = activeEnemy.value;
+  if (enemy && !isTowerEnemy(enemy)) return undefined;
+  const name = enemy?.name ?? props.enemyName;
+  if (!name) return undefined;
+  if (enemy || !listing.value) return getYadathanTowerDef(name);
+  return undefined;
+});
+
 const portraitUrl = computed(() => enemyPortraitUrl(listing.value));
 
 const portraitFrameStyle = computed(() => {
@@ -82,7 +93,8 @@ const soloSwarmMember = computed(
 
 const displayName = computed(() => {
   const group = swarmGroup.value;
-  const listingName = listing.value?.name ?? activeEnemy.value?.name ?? props.enemyName ?? "Enemy";
+  const listingName =
+    listing.value?.name ?? towerDef.value?.name ?? activeEnemy.value?.name ?? props.enemyName ?? "Enemy";
   if (soloSwarmMember.value && group) return `${listingName} (Swarm member)`;
   if (group && group.size > 1) return `${listingName} (Swarm · ${group.size})`;
   return listingName;
@@ -90,7 +102,7 @@ const displayName = computed(() => {
 const maxHp = computed(() => {
   const s = gameState.value;
   const enemy = activeEnemy.value;
-  if (!s || !enemy) return listing.value?.hp ?? 0;
+  if (!s || !enemy) return listing.value?.hp ?? towerDef.value?.hp ?? 0;
   const group = swarmGroup.value;
   if (soloSwarmMember.value && group) {
     return getSwarmMaxHp(1);
@@ -107,14 +119,20 @@ const currentHp = computed(() => {
   }
   return getEffectiveEnemyHp(enemy, s);
 });
-const showHpBar = computed(() => hasGmCapabilities.value && !!activeEnemy.value);
+const showHpBar = computed(() => {
+  const enemy = activeEnemy.value;
+  if (!enemy) return false;
+  if (isTowerEnemy(enemy)) return true;
+  return hasGmCapabilities.value;
+});
+const hpEditable = computed(() => hasGmCapabilities.value && !!activeEnemy.value);
 
 const enemyScale = computed(() => {
   if (activeEnemy.value) return getEnemyScale(activeEnemy.value);
-  return listing.value?.scale ?? 1;
+  return listing.value?.scale ?? towerDef.value?.scale ?? 1;
 });
 
-const notFound = computed(() => !listing.value && !activeEnemy.value);
+const notFound = computed(() => !listing.value && !towerDef.value && !activeEnemy.value);
 
 const bossBudget = computed(() => {
   const s = gameState.value;
@@ -145,7 +163,9 @@ const spawnEnemyName = computed(
   () => listing.value?.name ?? activeEnemy.value?.name ?? props.enemyName ?? null,
 );
 
-const showSpawnUnit = computed(() => hasGmCapabilities.value && !!spawnEnemyName.value);
+const showSpawnUnit = computed(
+  () => hasGmCapabilities.value && !!spawnEnemyName.value && !towerDef.value,
+);
 
 const spawnSelected = computed(
   () => spawnEnemyName.value != null && selectedSpawnEnemyName.value === spawnEnemyName.value,
@@ -220,12 +240,12 @@ function spawnUnit() {
     </div>
 
     <div v-if="!notFound" class="panel-body">
-      <template v-if="hasGmCapabilities">
+      <template v-if="hasGmCapabilities || showHpBar">
         <HpBar
           v-if="showHpBar"
           :current-hp="currentHp"
           :max-hp="maxHp"
-          editable
+          :editable="hpEditable"
           @commit="commitHp"
         />
 
@@ -271,26 +291,37 @@ function spawnUnit() {
         </p>
       </template>
 
-      <div v-if="listing" class="stats">
-        <span v-if="hasGmCapabilities && !showHpBar" class="stat">HP: {{ listing.hp }}</span>
-        <span v-if="listing.crown != null" class="stat">Crown: {{ listing.crown }}</span>
-        <span v-if="listing.scale != null || activeEnemy" class="stat">Scale: {{ enemyScale }}</span>
-        <span v-if="listing.speed != null || activeEnemy" class="stat">Speed: {{ enemySpeedLabel ?? listing.speed }}</span>
-        <span v-if="listing.actions" class="stat">Actions: {{ listing.actions }}</span>
+      <div v-if="listing || towerDef" class="stats">
+        <span v-if="hasGmCapabilities && !showHpBar" class="stat">
+          HP: {{ listing?.hp ?? towerDef?.hp }}
+        </span>
+        <span v-if="listing?.crown != null" class="stat">Crown: {{ listing.crown }}</span>
+        <span v-if="listing?.scale != null || towerDef || activeEnemy" class="stat">
+          Scale: {{ enemyScale }}
+        </span>
+        <span v-if="listing?.speed != null || (activeEnemy && !towerDef)" class="stat">
+          Speed: {{ enemySpeedLabel ?? listing?.speed }}
+        </span>
+        <span v-if="listing?.actions" class="stat">Actions: {{ listing.actions }}</span>
         <span v-if="bossBudget != null" class="stat">Boss budget: {{ bossBudget }}</span>
         <span
           v-if="activeEnemy?.exhausted && !isTowerEnemy(activeEnemy)"
           class="stat exhausted"
         >Exhausted</span>
-        <span v-if="hasGmCapabilities && listing.agnosiaHp != null" class="stat">Agnosia HP: {{ listing.agnosiaHp }}</span>
+        <span v-if="hasGmCapabilities && listing?.agnosiaHp != null" class="stat">Agnosia HP: {{ listing.agnosiaHp }}</span>
       </div>
 
-      <div v-if="listing?.tags?.length" class="tags">
-        <span v-for="tag in listing.tags" :key="tag" class="tag">{{ tag }}</span>
+      <div v-if="listing?.tags?.length || towerDef?.tags" class="tags">
+        <span v-for="tag in listing?.tags ?? []" :key="tag" class="tag">{{ tag }}</span>
+        <span v-if="towerDef?.tags" class="tag">{{ towerDef.tags }}</span>
       </div>
 
       <p v-if="listing?.codename" class="codename"><em>{{ listing.codename }}</em></p>
       <p v-if="listing?.description" class="item-description">{{ listing.description }}</p>
+      <p v-else-if="towerDef?.special" class="ability">
+        <span class="ability-label">Special</span>
+        <RuleText :text="towerDef.special" />
+      </p>
       <p v-else-if="!listing?.codename" class="muted">No description available.</p>
 
       <template v-if="listing">
@@ -318,11 +349,11 @@ function spawnUnit() {
           <span class="ability-label">Stainwalk</span>
           {{ listing.stainwalk }}
         </p>
-
-        <p v-if="activeEnemy" class="position">
-          Position ({{ activeEnemy.x }}, {{ activeEnemy.y }}){{ enemyScale > 1 ? ` · ${enemyScale}×${enemyScale}` : "" }}
-        </p>
       </template>
+
+      <p v-if="activeEnemy" class="position">
+        Position ({{ activeEnemy.x }}, {{ activeEnemy.y }}){{ enemyScale > 1 ? ` · ${enemyScale}×${enemyScale}` : "" }}
+      </p>
     </div>
 
     <p v-else class="muted">Enemy not found.</p>

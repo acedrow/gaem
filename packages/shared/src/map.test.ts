@@ -354,17 +354,23 @@ describe("map", () => {
     const tile = tileAt(state.tiles, 2, 2)!;
     tile.terrain = ["obstacle"];
     tile.obstacleHp = 3;
+    tile.tileEffects = { Stained: 1, Fortified: 2 };
 
     expect(validateResetToStartingState(map)).toBe("No starting state saved for this map");
     expect(applySaveStartingState(state, map)).toBe("Starting state saved");
     expect(map.startingState?.enemies).toHaveLength(1);
     expect(tileAt(map.startingState!.tiles, 2, 2)?.terrain).toEqual(["obstacle"]);
     expect(tileAt(map.startingState!.tiles, 2, 2)?.obstacleHp).toBe(3);
+    expect(tileAt(map.startingState!.tiles, 2, 2)?.tileEffects).toEqual({
+      Stained: 1,
+      Fortified: 2,
+    });
 
     state.enemies[0]!.x = 3;
     state.enemies[0]!.hp = 99;
     tileAt(state.tiles, 2, 2)!.terrain = ["standard"];
     delete tileAt(state.tiles, 2, 2)!.obstacleHp;
+    delete tileAt(state.tiles, 2, 2)!.tileEffects;
 
     expect(validateResetToStartingState(map)).toBeNull();
     expect(applyResetToStartingState(state, map)).toBe("Board reset to starting state");
@@ -373,12 +379,14 @@ describe("map", () => {
     expect(state.enemies[0]!.hp).toBe(1);
     expect(tileAt(state.tiles, 2, 2)!.terrain).toEqual(["obstacle"]);
     expect(tileAt(state.tiles, 2, 2)!.obstacleHp).toBe(3);
+    expect(tileAt(state.tiles, 2, 2)!.tileEffects).toEqual({ Stained: 1, Fortified: 2 });
   });
 
   it("parseGameMap round-trips startingState", () => {
     const map = createBlankGameMap("arena", "Arena", 3, 3);
     const state = createInitialStateFromMap(map);
     state.enemies = [{ id: "e1", x: 1, y: 1, name: "Stain Creep", hp: 1, scale: 1 }];
+    tileAt(state.tiles, 0, 0)!.tileEffects = { Stained: 1 };
     applySaveStartingState(state, map);
 
     const parsed = parseGameMap(JSON.parse(JSON.stringify(map)));
@@ -387,5 +395,6 @@ describe("map", () => {
     expect(parsed.startingState!.enemies[0]!.id).toBe("e1");
     expect(parsed.startingState!.enemies[0]!.hp).toBe(1);
     expect(parsed.startingState!.tiles).toHaveLength(9);
+    expect(tileAt(parsed.startingState!.tiles, 0, 0)?.tileEffects).toEqual({ Stained: 1 });
   });
 });

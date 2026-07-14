@@ -27,6 +27,8 @@ export type YadathanTowerDef = {
   name: string;
   hp: number;
   scale: number;
+  tags: string;
+  special: string;
 };
 
 function newEntityId(prefix: string): string {
@@ -49,7 +51,13 @@ export function getYadathanTowerDef(towerName: string): YadathanTowerDef | undef
   const armor = getArmorByName(YADATHAN_ARMOR_NAME);
   const tower = armor?.towers?.find((t) => t.name === towerName);
   if (!tower) return undefined;
-  return { name: tower.name, hp: tower.hp, scale: tower.scale ?? 1 };
+  return {
+    name: tower.name,
+    hp: tower.hp,
+    scale: tower.scale ?? 1,
+    tags: tower.tags,
+    special: tower.special,
+  };
 }
 
 export function isTowerEnemy(enemy: Enemy): boolean {

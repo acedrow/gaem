@@ -1,7 +1,8 @@
-import type { Enemy, GameMap, GameMapSummary, GameState, MapTile, TerrainType } from "./types.js";
+import type { EffectStacks, Enemy, GameMap, GameMapSummary, GameState, MapTile, TerrainType } from "./types.js";
 import { BOARD_HEIGHT, BOARD_WIDTH } from "./constants.js";
 import { DEFAULT_OBSTACLE_HP, TERRAIN_TYPES } from "./types.js";
 import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles, refreshEnemyMovement } from "./enemy-data.js";
+import { isKnownEffectId } from "./effects-data.js";
 import { defaultOverworldParty } from "./overworld.js";
 import {
   isValidTileBaseColor,
@@ -297,6 +298,24 @@ export function parseGameMap(raw: unknown): GameMap {
       tile.obstacleHp = DEFAULT_OBSTACLE_HP;
     }
 
+    const tileEffects = t.tileEffects;
+    if (tileEffects !== undefined) {
+      if (!tileEffects || typeof tileEffects !== "object" || Array.isArray(tileEffects)) {
+        throw new Error(`Tile (${x}, ${y}) tileEffects must be an object`);
+      }
+      const stacks: EffectStacks = {};
+      for (const [id, value] of Object.entries(tileEffects as Record<string, unknown>)) {
+        if (!id.trim() || !isKnownEffectId(id)) {
+          throw new Error(`Tile (${x}, ${y}) has unknown tile effect: ${id}`);
+        }
+        if (!Number.isInteger(value) || (value as number) < 1) {
+          throw new Error(`Tile (${x}, ${y}) tile effect ${id} stacks must be a positive integer`);
+        }
+        stacks[id] = value as number;
+      }
+      if (Object.keys(stacks).length > 0) tile.tileEffects = stacks;
+    }
+
     tile.walkable = computeWalkable(tile);
     tiles.push(tile);
   }
@@ -482,6 +501,7 @@ export function cloneMapTile(tile: MapTile): MapTile {
     terrain: [...tile.terrain],
     ...(tile.walkable !== undefined ? { walkable: tile.walkable } : {}),
     ...(tile.obstacleHp !== undefined ? { obstacleHp: tile.obstacleHp } : {}),
+    ...(tile.tileEffects ? { tileEffects: { ...tile.tileEffects } } : {}),
     ...(tile.name ? { name: tile.name } : {}),
     ...(tile.baseColor ? { baseColor: tile.baseColor } : {}),
     ...(tile.appearanceKey ? { appearanceKey: tile.appearanceKey } : {}),

@@ -1,6 +1,6 @@
 import { ref } from "vue";
 
-export type ToastKind = "error" | "info";
+export type ToastKind = "error" | "info" | "success";
 
 export type Toast = {
   id: string;
