@@ -42,43 +42,47 @@ export function spendMovement(budget: ActionBudget | undefined, cost: number): b
   return true;
 }
 
-export function hasShockBlockingMain(player: Player): boolean {
-  return (player.effects?.Shock ?? 0) > 0 && !canSpendActionTier(player.actionBudget, "main");
+// Shock treats an action as one tier higher: Aux spends the Support slot, Support spends
+// the Main slot, and Main is impossible (there is no tier above it).
+function shockShiftedTier(shock: number, tier: ActionTier): ActionTier | null {
+  if (shock <= 0) return tier;
+  if (tier === "aux") return "support";
+  if (tier === "support") return "main";
+  return null;
 }
 
 export function effectiveActionBlocked(player: Player, tier: ActionTier): boolean {
   const shock = player.effects?.Shock ?? 0;
-  if (shock <= 0) return false;
-  if (tier === "aux" && shock >= 1) return true;
-  if (tier === "support" && shock >= 2) return true;
-  if (tier === "main" && shock >= 3) return true;
-  return false;
+  return shockShiftedTier(shock, tier) === null;
 }
 
 export function canUseActionTier(player: Player, tier: ActionTier): boolean {
-  if (effectiveActionBlocked(player, tier)) return false;
-  if (canSpendActionTier(player.actionBudget, tier)) return true;
+  const shock = player.effects?.Shock ?? 0;
+  const shifted = shockShiftedTier(shock, tier);
+  if (!shifted) return false;
+  if (canSpendActionTier(player.actionBudget, shifted)) return true;
   return player.hasteActionTier === tier && hasteStacks(player) > 0;
 }
 
 export function canCommitHasteForTier(player: Player, tier: ActionTier): boolean {
   if (hasteStacks(player) <= 0) return false;
   if (player.hasteActionTier) return false;
-  if (canSpendActionTier(player.actionBudget, tier)) return false;
-  if (effectiveActionBlocked(player, tier)) return false;
+  const shock = player.effects?.Shock ?? 0;
+  const shifted = shockShiftedTier(shock, tier);
+  if (!shifted) return false;
+  if (canSpendActionTier(player.actionBudget, shifted)) return false;
   return true;
 }
 
 export function actionTierBlockedReason(player: Player, tier: ActionTier): string | null {
-  if (effectiveActionBlocked(player, tier)) {
-    if (tier === "main") return "Shock — cannot use Main";
-    if (tier === "aux") return "Shock — cannot use Aux";
-    return "Shock — cannot use Support";
-  }
-  if (canSpendActionTier(player.actionBudget, tier)) return null;
+  const shock = player.effects?.Shock ?? 0;
+  const shifted = shockShiftedTier(shock, tier);
+  if (!shifted) return "Shock — cannot use Main";
+  if (canSpendActionTier(player.actionBudget, shifted)) return null;
   if (player.hasteActionTier === tier && hasteStacks(player) > 0) return null;
-  if (tier === "main") return "Main action spent";
-  if (tier === "support") return "Support action spent";
+  const prefix = shock > 0 ? "Shock — " : "";
+  if (shifted === "main") return `${prefix}Main action spent`;
+  if (shifted === "support") return `${prefix}Support action spent`;
   return "Aux action spent";
 }
 
@@ -86,12 +90,10 @@ export function validateCommitHaste(player: Player, tier: ActionTier): string | 
   if (canCommitHasteForTier(player, tier)) return null;
   if (hasteStacks(player) <= 0) return "No Haste";
   if (player.hasteActionTier) return "Haste already committed";
-  if (canSpendActionTier(player.actionBudget, tier)) return "Action not spent";
-  if (effectiveActionBlocked(player, tier)) {
-    if (tier === "main") return "Shock — cannot use Main";
-    if (tier === "aux") return "Shock — cannot use Aux";
-    return "Shock — cannot use Support";
-  }
+  const shock = player.effects?.Shock ?? 0;
+  const shifted = shockShiftedTier(shock, tier);
+  if (!shifted) return "Shock — cannot use Main";
+  if (canSpendActionTier(player.actionBudget, shifted)) return "Action not spent";
   return "Cannot commit Haste";
 }
 
@@ -101,7 +103,9 @@ export function applyCommitHaste(player: Player, tier: ActionTier): string {
 }
 
 export function spendActionTierOrHaste(player: Player, tier: ActionTier): boolean {
-  if (spendActionTier(player.actionBudget, tier)) return true;
+  const shock = player.effects?.Shock ?? 0;
+  const shifted = shockShiftedTier(shock, tier);
+  if (shifted && spendActionTier(player.actionBudget, shifted)) return true;
   if (player.hasteActionTier !== tier || hasteStacks(player) <= 0) return false;
   removeEffectStacks(player, ["Haste:1"]);
   delete player.hasteActionTier;

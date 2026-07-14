@@ -420,12 +420,13 @@ export function applyKopisRetaliation(
     const enemy = state.enemies.find((e) => e.id === trigger.sourceId);
     if (!enemy || !isEnemyAlive(enemy)) continue;
     const roll = rollDice(1, 6, rng)[0]!;
-    applyDamageToEnemy(enemy, roll, state);
-    let part = `${enemyLabel(enemy)} ${roll}`;
+    const dealt = applyDamageToEnemy(enemy, roll, state);
+    let part = `${enemyLabel(enemy)} ${dealt}`;
+    if (dealt !== roll) part += ` (rolled ${roll})`;
     if ((enemy.hp ?? 0) <= 0) {
       const tokenMsg = handleEnemyDefeated(state, enemy, player.id);
       if (tokenMsg) part += `; ${tokenMsg}`;
-    } else if (roll >= 4 && isEnemyAlive(enemy)) {
+    } else if (dealt >= 4 && isEnemyAlive(enemy)) {
       pushEligible.push(enemy.id);
       part += " (Push:1 available)";
     }

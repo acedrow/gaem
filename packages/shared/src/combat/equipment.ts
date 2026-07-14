@@ -333,7 +333,11 @@ export function applyHylicRejectionField(
   for (const tile of coverTiles) {
     snapshotTileTerrain(state, tile.x, tile.y);
     const mapTile = tileAt(state.tiles, tile.x, tile.y);
-    if (mapTile) setTileTerrain(mapTile, "cover");
+    // Layer Cover onto whatever terrain is already there instead of replacing it,
+    // so e.g. an Advantageous tile keeps that terrain while also gaining Cover.
+    if (mapTile && !mapTile.terrain.includes("cover")) {
+      mapTile.terrain = [...mapTile.terrain.filter((t) => t !== "standard"), "cover"];
+    }
   }
   return `${coverTiles.length} Cover tiles`;
 }

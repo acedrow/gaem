@@ -26,6 +26,8 @@ function applyUnitEffectStacks(state: GameState, unit: Player | Enemy, effects: 
 }
 import {
   consumeBrokenStack,
+  maxWeaponDamage,
+  minWeaponDamage,
   parseAndRollDamage,
   resolveDamageAgainstTarget,
 } from "./damage.js";
@@ -42,6 +44,7 @@ import {
   swarmGroupForEnemy,
   swarmCanonicalDisplayId,
   swarmMembersHitByTiles,
+  weaponHasBreakerTag,
 } from "./swarm.js";
 import { isOrthogonallyAdjacent } from "../patterns.js";
 
@@ -415,7 +418,11 @@ export function resolveAttackDamage(
   damageRoll?: number,
 ): { total: number; detail: string } {
   if (damageRoll !== undefined && Number.isFinite(damageRoll)) {
-    return { total: damageRoll, detail: String(damageRoll) };
+    const clamped = Math.min(
+      maxWeaponDamage(spec.damage),
+      Math.max(minWeaponDamage(spec.damage), Math.trunc(damageRoll)),
+    );
+    return { total: clamped, detail: String(clamped) };
   }
   return parseAndRollDamage(spec.damage);
 }
@@ -527,6 +534,15 @@ export function applyBreakerAttackToSwarm(
       const enemy = state.enemies.find((e) => e.id === hit.enemyId);
       if (enemy) enemy.hp = 0;
     }
+    // Removing squares from a Swarm reduces its pooled HP by their share before any
+    // remaining members re-merge/split, rather than leaving survivors at the old total.
+    const removedShare = memberHp * hits.length;
+    const remainingPool = Math.max(0, group.currentHp - removedShare);
+    for (const id of group.memberIds) {
+      if (brokenIds.includes(id)) continue;
+      const survivor = state.enemies.find((e) => e.id === id);
+      if (survivor) survivor.hp = remainingPool;
+    }
     reconcileSwarmHp(state, prevGroups);
   } else {
     applyDamageToEnemy(primary, damage, state, { recordDamage: false, hitTile: { x: primary.x, y: primary.y } });
@@ -617,24 +633,31 @@ export function applyAttackToEnemies(
   origin: { x: number; y: number },
   direction: PatternDirection,
   damageRoll?: number,
-  opts?: { useBreaker?: boolean; weaponName?: string; elevationBonusTile?: { x: number; y: number } },
+  opts?: {
+    useBreaker?: boolean;
+    weaponName?: string;
+    elevationBonusTile?: { x: number; y: number };
+    suppressEffects?: boolean;
+  },
 ): { damage: number; detail: string; targets: AttackTarget[]; effects: string[] } {
   const tiles = collectAttackTiles(state, origin, spec, direction, opts?.elevationBonusTile);
   const { total, detail } = resolveAttackDamage(spec, damageRoll);
-  const effects = spec.effects ?? [];
+  const effects = opts?.suppressEffects ? [] : spec.effects ?? [];
+  const useBreaker =
+    !!opts?.useBreaker && weaponHasBreakerTag({ weapon: opts?.weaponName }, opts?.weaponName);
 
-  if (opts?.useBreaker && swarmMembersHitByTiles(state, tiles).length) {
+  if (useBreaker && swarmMembersHitByTiles(state, tiles).length) {
     const { targets } = applyBreakerAttackToSwarm(state, tiles, total, effects);
     applyDamageToObstaclesInTiles(state, tiles, total);
     return { damage: total, detail, targets, effects };
   }
 
   if (
-    !opts?.useBreaker &&
+    !useBreaker &&
     isSethianWeaponName(opts?.weaponName) &&
     swarmMembersHitByTiles(state, tiles).length
   ) {
-    const result = applySethianWholeSwarmAttack(state, spec, tiles, damageRoll);
+    const result = applySethianWholeSwarmAttack(state, spec, tiles, damageRoll, opts?.suppressEffects);
     applyDamageToObstaclesInTiles(state, tiles, result.damage);
     return result;
   }
@@ -648,7 +671,30 @@ export function applyAttackToEnemies(
     applyUnitEffectStacks(state,enemy, effects);
   }
   applyDamageToObstaclesInTiles(state, tiles, total);
+  if (isSabaothWeaponName(opts?.weaponName)) {
+    applySabaothSquareEffects(state, tiles, effects);
+  }
   return { damage: total, detail, targets, effects };
+}
+
+// Pelti/Akeomai's Sabaoth bomb Effects (Advantageous terrain, ally Healing) act on the
+// squares themselves, not just enemies — the generic enemy-only pipeline above misses them.
+function applySabaothSquareEffects(
+  state: GameState,
+  tiles: { x: number; y: number }[],
+  effects: string[],
+): void {
+  if (!effects.length) return;
+  const setsAdvantageous = effects.includes("Advantageous");
+  const occ = buildBoardOccupancy(state);
+  for (const tile of tiles) {
+    if (setsAdvantageous) {
+      const mapTile = tileAt(state.tiles, tile.x, tile.y);
+      if (mapTile) setTileTerrain(mapTile, "advantageous");
+    }
+    const ally = occ.playerByKey.get(coordKey(tile.x, tile.y));
+    if (ally) applyUnitEffectStacks(state, ally, effects);
+  }
 }
 
 export const SETHIAN_DAMAGE_CAP = 12 + 20 * 6;
@@ -678,10 +724,11 @@ function applySethianWholeSwarmAttack(
   spec: WeaponAttackSpec,
   tiles: { x: number; y: number }[],
   damageRoll?: number,
+  suppressEffects?: boolean,
 ): { damage: number; detail: string; targets: AttackTarget[]; effects: string[] } {
   const groupHits = swarmHitsByGroup(state, tiles);
   const { total, detail } = resolveAttackDamage(spec, damageRoll);
-  const effects = spec.effects ?? [];
+  const effects = suppressEffects ? [] : spec.effects ?? [];
   const targets: AttackTarget[] = [];
   const parts: string[] = [];
 
@@ -724,6 +771,7 @@ export function applyRangeAttackToEnemies(
     useBreaker?: boolean;
     weaponName?: string;
     obstacleCoords?: { x: number; y: number }[];
+    suppressEffects?: boolean;
   },
 ): { damage: number; detail: string; targets: AttackTarget[]; effects: string[] } {
   const tiles = targetIds
@@ -731,10 +779,12 @@ export function applyRangeAttackToEnemies(
     .filter(Boolean)
     .map((e) => ({ x: e!.x, y: e!.y }));
   const obstacleCoords = opts?.obstacleCoords ?? [];
+  const useBreaker =
+    !!opts?.useBreaker && weaponHasBreakerTag({ weapon: opts?.weaponName }, opts?.weaponName);
 
-  if (opts?.useBreaker && swarmMembersHitByTiles(state, tiles).length) {
+  if (useBreaker && swarmMembersHitByTiles(state, tiles).length) {
     const { total, detail } = resolveAttackDamage(spec, damageRoll);
-    const effects = spec.effects ?? [];
+    const effects = opts?.suppressEffects ? [] : spec.effects ?? [];
     const targets: AttackTarget[] = [];
     for (const targetId of targetIds) {
       const enemy = state.enemies.find((e) => e.id === targetId)!;
@@ -758,17 +808,17 @@ export function applyRangeAttackToEnemies(
   }
 
   if (
-    !opts?.useBreaker &&
+    !useBreaker &&
     isSethianWeaponName(opts?.weaponName) &&
     swarmMembersHitByTiles(state, tiles).length
   ) {
-    const result = applySethianWholeSwarmAttack(state, spec, tiles, damageRoll);
+    const result = applySethianWholeSwarmAttack(state, spec, tiles, damageRoll, opts?.suppressEffects);
     applyDamageToObstaclesInTiles(state, obstacleCoords, result.damage);
     return result;
   }
 
   const { total, detail } = resolveAttackDamage(spec, damageRoll);
-  const effects = spec.effects ?? [];
+  const effects = opts?.suppressEffects ? [] : spec.effects ?? [];
   const targets: AttackTarget[] = [];
   const damageOpts = { damageSpec: spec.damage };
   for (const targetId of targetIds) {
@@ -978,7 +1028,6 @@ export function evaluateOmnistrikePlacement(
   bombSpec: WeaponAttackSpec,
   direction: PatternDirection,
   state: GameState,
-  combinedSpan: AttackRangeSpan,
   otherPatternTiles?: { x: number; y: number }[],
 ): OmnistrikePlacement {
   const patternTiles = collectBombPatternTiles(state, anchor, bombSpec, direction);
@@ -986,19 +1035,22 @@ export function evaluateOmnistrikePlacement(
     ? unionPatternTiles(otherPatternTiles, patternTiles)
     : patternTiles;
 
+  // Each bomb's minimum/maximum range is checked against its own band, not a band
+  // widened by whichever bomb it's being combined with.
+  const span = bombSpec.rangeSpan ?? { min: 0, max: Infinity };
   let nearestDist = Infinity;
   const tooCloseKeys = new Set<string>();
 
-  for (const tile of combinedTiles) {
+  for (const tile of patternTiles) {
     const dist = manhattanDistance(user, tile);
     nearestDist = Math.min(nearestDist, dist);
-    if (dist - 1 < combinedSpan.min) {
+    if (dist - 1 < span.min) {
       tooCloseKeys.add(coordKey(tile.x, tile.y));
     }
   }
 
   const nearestEmptySpaces = nearestDist === Infinity ? Infinity : nearestDist - 1;
-  const tooFar = nearestEmptySpaces > combinedSpan.max;
+  const tooFar = nearestEmptySpaces > span.max;
   const adjacentToOther = !otherPatternTiles?.length || patternsAdjacentOrOverlap(otherPatternTiles, patternTiles);
   const valid =
     patternTiles.length > 0 &&
@@ -1042,7 +1094,6 @@ export function resolveOmnistrikePlacements(
     bombA,
     payload.direction,
     state,
-    combinedSpan,
     tilesB,
   );
   const placementB = evaluateOmnistrikePlacement(
@@ -1051,7 +1102,6 @@ export function resolveOmnistrikePlacements(
     bombB,
     payload.direction,
     state,
-    combinedSpan,
     tilesA,
   );
   if (!placementA.valid || !placementB.valid) return null;
@@ -1100,7 +1150,6 @@ export function validateOmnistrikeAction(
         spec,
         payload.direction,
         state,
-        combinedSpan,
         other,
       );
       if (placement.tooFar) return "outside maximum range";
@@ -1130,26 +1179,34 @@ export function applyOmnistrike(
     const { total, detail } = resolveAttackDamage(bombSpec);
     if (total > 0) damageParts.push(detail);
     const effects = bombSpec.effects ?? [];
+    // A Swarm sharing pooled HP across several occupied tiles should only take this
+    // bomb's damage once, not once per member tile it happens to cover.
+    const hitSwarmGroups = new Set<string>();
     for (const tile of unionTiles) {
       const mapTile = tileAt(state.tiles, tile.x, tile.y);
       if (mapTile && effects.some((e) => e === "Advantageous")) {
         setTileTerrain(mapTile, "advantageous");
       }
       for (const enemy of occ.enemiesByKey.get(coordKey(tile.x, tile.y)) ?? []) {
+        const group = swarmGroupForEnemy(state, enemy.id);
+        const hitId = group?.canonicalId ?? enemy.id;
+        if (hitSwarmGroups.has(hitId)) continue;
+        hitSwarmGroups.add(hitId);
+        const hit = group ? state.enemies.find((e) => e.id === group.canonicalId)! : enemy;
         if (total > 0) {
-          applyDamageToEnemy(enemy, total, state, {
+          applyDamageToEnemy(hit, total, state, {
             damageSpec: bombSpec.damage,
             hitTile: { x: tile.x, y: tile.y },
           });
         }
-        applyUnitEffectStacks(state,enemy, effects);
-        if (!seenEnemies.has(enemy.id)) {
-          seenEnemies.add(enemy.id);
-          allTargets.push({ enemyId: enemy.id, x: tile.x, y: tile.y });
+        applyUnitEffectStacks(state, hit, effects);
+        if (!seenEnemies.has(hit.id)) {
+          seenEnemies.add(hit.id);
+          allTargets.push({ enemyId: hit.id, x: tile.x, y: tile.y });
         }
       }
       const ally = occ.playerByKey.get(coordKey(tile.x, tile.y));
-      if (ally) applyUnitEffectStacks(state,ally, effects);
+      if (ally) applyUnitEffectStacks(state, ally, effects);
     }
   }
 
@@ -1343,9 +1400,10 @@ export function applyWarhook(
         const resolved = resolveAttackDamage(spec, payload.damageRoll);
         detail = resolved.detail;
         const group = swarmGroupForEnemy(state, enemy.id);
-        if (payload.useBreaker && group) {
+        const useBreaker = !!payload.useBreaker && weaponHasBreakerTag(player);
+        if (useBreaker && group) {
           applyBreakerAttackToSwarm(state, [{ x: enemy.x, y: enemy.y }], resolved.total, []);
-        } else if (!payload.useBreaker && isSethianWeaponName(player.weapon) && group) {
+        } else if (!useBreaker && isSethianWeaponName(player.weapon) && group) {
           applySethianWholeSwarmAttack(state, spec, [{ x: enemy.x, y: enemy.y }], payload.damageRoll);
         } else {
           applyDamageToEnemy(enemy, resolved.total, state, {

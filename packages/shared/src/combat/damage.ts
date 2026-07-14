@@ -97,3 +97,15 @@ export function maxWeaponDamage(spec: string): number {
   const sides = Number(match[3]);
   return base + count * sides;
 }
+
+export function minWeaponDamage(spec: string): number {
+  const trimmed = spec.trim();
+  const match = trimmed.match(/^(\d+)(?:\+(\d+)D(\d+))?$/i);
+  if (!match) {
+    const fixed = Number(trimmed);
+    return Number.isFinite(fixed) ? fixed : 0;
+  }
+  const base = Number(match[1]);
+  if (!match[2]) return base;
+  return base + Number(match[2]);
+}

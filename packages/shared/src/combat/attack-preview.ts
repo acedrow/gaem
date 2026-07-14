@@ -214,7 +214,7 @@ function computeOmnistrikeHighlights(
 
   const placement =
     step === "placeFirst"
-      ? evaluateOmnistrikePlacement(player, hover, bombA, direction, state, combinedSpan)
+      ? evaluateOmnistrikePlacement(player, hover, bombA, direction, state)
       : firstAnchor
         ? evaluateOmnistrikePlacement(
             player,
@@ -222,7 +222,6 @@ function computeOmnistrikeHighlights(
             bombB,
             direction,
             state,
-            combinedSpan,
             collectBombPatternTiles(state, firstAnchor, bombA, direction),
           )
         : null;

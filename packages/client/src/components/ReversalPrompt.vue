@@ -1,11 +1,18 @@
 <script setup lang="ts">
 import { computed, watch } from "vue";
+import { getPlayerTower, isYadathanArmorName } from "@gaem/shared";
 
 import { useCombatActions } from "../composables/useCombatActions.js";
 import { useGameState } from "../composables/useGameState.js";
 
-const { pendingReaction, activePlayer, triggerReversal, declineReversal, reversalExtraAllyIds } =
-  useCombatActions();
+const {
+  pendingReaction,
+  activePlayer,
+  triggerReversal,
+  declineReversal,
+  reversalExtraAllyIds,
+  reversalTowerAnchorAllyIds,
+} = useCombatActions();
 const { gameState } = useGameState();
 
 const allyOptions = computed(() => {
@@ -13,6 +20,14 @@ const allyOptions = computed(() => {
   const s = gameState.value;
   if (!me || !s) return [];
   return s.players.filter((p) => p.id !== me.id && (p.hp ?? 0) > 0);
+});
+
+// YADATHAN's Reversal lets each extra line run from either the player or their tower.
+const hasTowerAnchorOption = computed(() => {
+  const me = activePlayer.value;
+  const s = gameState.value;
+  if (!me || !s || !isYadathanArmorName(me.armor)) return false;
+  return !!getPlayerTower(s, me.id);
 });
 
 const extraChargeCost = computed(() => reversalExtraAllyIds.value.length);
@@ -24,8 +39,19 @@ function toggleAlly(id: string) {
   else reversalExtraAllyIds.value = [...ids, id];
 }
 
+function toggleTowerAnchor(id: string) {
+  const ids = reversalTowerAnchorAllyIds.value;
+  const idx = ids.indexOf(id);
+  if (idx >= 0) reversalTowerAnchorAllyIds.value = ids.filter((x) => x !== id);
+  else reversalTowerAnchorAllyIds.value = [...ids, id];
+}
+
 function onTrigger() {
-  triggerReversal(reversalExtraAllyIds.value);
+  const extraLines = reversalExtraAllyIds.value.map((allyId) => ({
+    allyId,
+    anchor: reversalTowerAnchorAllyIds.value.includes(allyId) ? ("tower" as const) : undefined,
+  }));
+  triggerReversal(extraLines);
 }
 
 function onDecline() {
@@ -33,7 +59,10 @@ function onDecline() {
 }
 
 watch(pendingReaction, (r) => {
-  if (!r) reversalExtraAllyIds.value = [];
+  if (!r) {
+    reversalExtraAllyIds.value = [];
+    reversalTowerAnchorAllyIds.value = [];
+  }
 });
 </script>
 
@@ -55,6 +84,14 @@ watch(pendingReaction, (r) => {
           @change="toggleAlly(ally.id)"
         />
         {{ ally.nickname ?? ally.id }}
+        <label v-if="hasTowerAnchorOption && reversalExtraAllyIds.includes(ally.id)" class="reversal-ally-anchor">
+          <input
+            type="checkbox"
+            :checked="reversalTowerAnchorAllyIds.includes(ally.id)"
+            @change="toggleTowerAnchor(ally.id)"
+          />
+          from tower
+        </label>
       </label>
     </div>
     <div class="reversal-actions">
@@ -106,6 +143,14 @@ watch(pendingReaction, (r) => {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
+}
+
+.reversal-ally-anchor {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  margin-left: 0.35rem;
+  color: var(--color-muted);
 }
 
 .reversal-actions {

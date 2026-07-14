@@ -354,7 +354,7 @@ export function applyYadathanReversal(
   state: GameState,
   player: Player,
   incomingDamage: number,
-  extraAllyIds: string[] = [],
+  extraLines: { allyId: string; anchor?: "tower" }[] = [],
 ): string {
   const tower = getPlayerTower(state, player.id);
   if (!tower) return "No tower for reversal";
@@ -362,11 +362,11 @@ export function applyYadathanReversal(
   const lines: { from: { x: number; y: number }; to: { x: number; y: number }; iatros: boolean }[] = [
     { from: { x: player.x, y: player.y }, to: { x: tower.x, y: tower.y }, iatros: tower.name === TOWER_IATROS },
   ];
-  for (const allyId of extraAllyIds) {
+  for (const { allyId, anchor } of extraLines) {
     const ally = state.players.find((p) => p.id === allyId);
     if (!ally) continue;
     lines.push({
-      from: { x: player.x, y: player.y },
+      from: anchor === "tower" ? { x: tower.x, y: tower.y } : { x: player.x, y: player.y },
       to: { x: ally.x, y: ally.y },
       iatros: tower.name === TOWER_IATROS,
     });

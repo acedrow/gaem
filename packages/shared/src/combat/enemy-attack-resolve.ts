@@ -25,8 +25,10 @@ function applyStacks(
   state: GameState,
   unit: Player | Enemy,
   effects: string[],
+  source?: Enemy,
 ): void {
   if (!effects.length) return;
+  if ((source?.effects?.Bound ?? 0) > 0) return;
   applyEffectStacks(unit as { effects?: EffectStacks; counters?: Record<string, number> }, effects);
   trackCountdownKinds(state, unit, effects);
 }
@@ -36,7 +38,11 @@ export function applyPatternEnemyAttack(
   enemy: Enemy,
   parsed: ParsedEnemyAttack,
   direction: PatternDirection,
-  opts?: { damage?: number; origin?: { x: number; y: number } },
+  opts?: {
+    damage?: number;
+    origin?: { x: number; y: number };
+    onPlayerHit?: (playerId: string) => void;
+  },
 ): string {
   const spec = enemyPatternAttackSpec(parsed);
   if (!spec) {
@@ -76,7 +82,8 @@ export function applyPatternEnemyAttack(
     if (player && !hitPlayers.has(player.id) && (player.hp ?? 0) > 0) {
       hitPlayers.add(player.id);
       applyDamageToPlayer(player, damage, state);
-      applyStacks(state, player, effectTokens);
+      applyStacks(state, player, effectTokens, enemy);
+      opts?.onPlayerHit?.(player.id);
       let part = `${playerLabel(player)} ${rolled.detail}`;
       if (pullDistance != null && pullDistance > 0) {
         const pullMsg = applyPullToward(state, player, enemy.x, enemy.y, pullDistance, {
@@ -95,7 +102,7 @@ export function applyPatternEnemyAttack(
       hitEnemies.add(canon);
       const hit = state.enemies.find((e) => e.id === canon) ?? target;
       applyDamageToEnemy(hit, damage, state);
-      applyStacks(state, hit, effectTokens);
+      applyStacks(state, hit, effectTokens, enemy);
       let part = `${enemyLabel(hit)} ${rolled.detail}`;
       if (pullDistance != null && pullDistance > 0) {
         const pullMsg = applyPullToward(state, hit, enemy.x, enemy.y, pullDistance, {
@@ -148,7 +155,7 @@ export function applySelectTargetEnemyAttack(
       applyDamageToPlayer(target, damageTotal, state);
       parts.push(`${damageDetail} dmg`);
     }
-    applyStacks(state, target, effectTokens);
+    applyStacks(state, target, effectTokens, enemy);
     if (pushDistance != null && pushDistance > 0) {
       const pushMsg = applyPushFromOrigin(state, target, enemy.x, enemy.y, pushDistance, {
         kind: "player",
@@ -168,7 +175,7 @@ export function applySelectTargetEnemyAttack(
       applyDamageToEnemy(target, damageTotal, state);
       parts.push(`${damageDetail} dmg`);
     }
-    applyStacks(state, target, effectTokens);
+    applyStacks(state, target, effectTokens, enemy);
     if (pushDistance != null && pushDistance > 0) {
       const pushMsg = applyPushFromOrigin(state, target, enemy.x, enemy.y, pushDistance, {
         kind: "enemy",

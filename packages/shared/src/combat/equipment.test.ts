@@ -137,7 +137,8 @@ describe("Promethean-Grade Hylic Rejection Field", () => {
     const tile = tileAt(state.tiles, 6, 5)!;
     tile.terrain = ["advantageous"];
     applyHylicRejectionField(state, [{ x: 6, y: 5 }, { x: 7, y: 5 }, { x: 7, y: 6 }]);
-    expect(tile.terrain).toEqual(["cover"]);
+    // Cover layers onto existing terrain rather than replacing it.
+    expect(tile.terrain).toEqual(["advantageous", "cover"]);
     clearEquipmentTerrainSnapshots(state);
     expect(tile.terrain).toEqual(["advantageous"]);
   });

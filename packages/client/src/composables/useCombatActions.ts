@@ -279,6 +279,7 @@ export function useCombatActions(playerId?: () => string | null) {
   });
 
   const reversalExtraAllyIds = ref<string[]>([]);
+  const reversalTowerAnchorAllyIds = ref<string[]>([]);
 
   const hasSpentActionTier = computed(() => {
     if (sandboxMode.value || !budget.value) return false;
@@ -349,14 +350,16 @@ export function useCombatActions(playerId?: () => string | null) {
     send({ type: "movePath", path, ...(flying ? { flying: true } : {}) });
   }
 
-  function triggerReversal(extraAllyIds: string[] = []) {
-    send({ type: "triggerReversal", extraAllyIds: extraAllyIds.length ? extraAllyIds : undefined });
+  function triggerReversal(extraLines: { allyId: string; anchor?: "tower" }[] = []) {
+    send({ type: "triggerReversal", extraLines: extraLines.length ? extraLines : undefined });
     reversalExtraAllyIds.value = [];
+    reversalTowerAnchorAllyIds.value = [];
   }
 
   function declineReversal() {
     send({ type: "declineReversal" });
     reversalExtraAllyIds.value = [];
+    reversalTowerAnchorAllyIds.value = [];
   }
 
   function attackPreview(direction: import("@gaem/shared").PatternDirection) {
@@ -417,6 +420,7 @@ export function useCombatActions(playerId?: () => string | null) {
     hasThrownTrap,
     thrownTrapWeapon,
     reversalExtraAllyIds,
+    reversalTowerAnchorAllyIds,
     hasSpentActionTier,
     canResetMovement,
     showAegis,

@@ -34,6 +34,7 @@ import {
   TILE_NAME_MAX_LENGTH,
 } from "../tile-cosmetics.js";
 import { isOrthogonallyAdjacent } from "../patterns.js";
+import { effectiveElevation } from "./elevation.js";
 import {
   actionTierBlockedReason,
   actionTierLabel,
@@ -581,6 +582,7 @@ export function applyPlayerAction(
       if (!spec) return "Weapon has no attack profile";
       let result;
       const weaponName = weapon;
+      const suppressEffects = (player.effects?.Bound ?? 0) > 0;
       if (isRangeTargetAttack(spec)) {
         const rangeTargetIds = resolveRangeAttackTargetIds(action);
         const obstacleCoords = resolveRangeAttackObstacleCoords(action);
@@ -592,6 +594,7 @@ export function applyPlayerAction(
             useBreaker: action.useBreaker,
             weaponName,
             obstacleCoords,
+            suppressEffects,
           });
         } else {
           result = applyAttackToEnemies(
@@ -600,7 +603,12 @@ export function applyPlayerAction(
             { x: player.x, y: player.y },
             action.direction,
             action.damageRoll,
-            { useBreaker: action.useBreaker, weaponName, elevationBonusTile: action.elevationBonusTile },
+            {
+              useBreaker: action.useBreaker,
+              weaponName,
+              elevationBonusTile: action.elevationBonusTile,
+              suppressEffects,
+            },
           );
         }
       } else {
@@ -615,7 +623,12 @@ export function applyPlayerAction(
           attackOrigin,
           direction,
           action.damageRoll,
-          { useBreaker: action.useBreaker, weaponName, elevationBonusTile: action.elevationBonusTile },
+          {
+            useBreaker: action.useBreaker,
+            weaponName,
+            elevationBonusTile: action.elevationBonusTile,
+            suppressEffects,
+          },
         );
       }
       const hitEnemies = result.targets
@@ -1136,16 +1149,16 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
       }
 
       if (isPatternEnemyAttack(parsed) && action.direction) {
-        return appendCombatSideEffectMessages(
-          state,
-          applyPatternEnemyAttack(state, enemy, parsed, action.direction, {
-            damage: action.damage,
-            origin:
-              action.originX != null && action.originY != null
-                ? { x: action.originX, y: action.originY }
-                : undefined,
-          }),
-        );
+        const msg = applyPatternEnemyAttack(state, enemy, parsed, action.direction, {
+          damage: action.damage,
+          origin:
+            action.originX != null && action.originY != null
+              ? { x: action.originX, y: action.originY }
+              : undefined,
+          onPlayerHit: (playerId) =>
+            maybeSetEnemyAttackReversal(state, playerId, enemy.id, action.damage ?? parsed.damage ?? 0),
+        });
+        return appendCombatSideEffectMessages(state, msg);
       }
 
       const group = swarmGroupForEnemy(state, enemy.id);
@@ -1238,6 +1251,24 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
 
 import { getEnemyListingByName } from "../enemy-data.js";
 
+// Trigger conditions we can verify from board state. Armors whose text names a condition
+// we have no tracking for (e.g. clone count, "special terrain") fall through to `true`,
+// matching the previous always-eligible behavior.
+function reversalTriggerSatisfied(
+  state: GameState,
+  armorName: string,
+  enemy: Enemy,
+  wearer: Player,
+): boolean {
+  const distance = Math.abs(enemy.x - wearer.x) + Math.abs(enemy.y - wearer.y);
+  if (armorName === "MALAKBEL") return distance > 1;
+  if (armorName === "KUSHIEL" || armorName === "SACHIEL") return distance === 1;
+  if (armorName === "BARAQIEL") {
+    return effectiveElevation(state, enemy) <= effectiveElevation(state, wearer);
+  }
+  return true;
+}
+
 function maybeSetEnemyAttackReversal(
   state: GameState,
   targetPlayerId: string,
@@ -1245,22 +1276,43 @@ function maybeSetEnemyAttackReversal(
   incomingDamage: number,
 ): void {
   if (!state.combat) return;
+  if (!isCampaignFeatureUnlocked("reversals", state.constructedBaseUpgrades ?? [])) return;
   const target = state.players.find((p) => p.id === targetPlayerId);
-  const armor = target ? getArmorByName(target.armor ?? "") : undefined;
-  const reversalOk =
-    isCampaignFeatureUnlocked("reversals", state.constructedBaseUpgrades ?? []) &&
-    target &&
-    armor?.reversal &&
-    (target.reversalCharges ?? 0) > 0 &&
-    (!isYadathanArmorName(target.armor) || yadathanReversalEligible(state, target.id));
-  if (!reversalOk || !target || !armor?.reversal) return;
-  state.combat.pendingReaction = {
-    playerId: target.id,
-    sourceEnemyId,
-    trigger: armor.reversal.trigger,
-    label: `${armor.name} Reversal`,
-    incomingDamage: incomingDamage > 0 ? incomingDamage : undefined,
+  const enemy = state.enemies.find((e) => e.id === sourceEnemyId);
+  if (!target || !enemy) return;
+
+  const setPending = (wearer: Player, armorName: string, trigger: string) => {
+    state.combat!.pendingReaction = {
+      playerId: wearer.id,
+      sourceEnemyId,
+      trigger,
+      label: `${armorName} Reversal`,
+      incomingDamage: incomingDamage > 0 ? incomingDamage : undefined,
+    };
   };
+
+  const targetArmor = getArmorByName(target.armor ?? "");
+  const targetEligible =
+    targetArmor?.reversal &&
+    (target.reversalCharges ?? 0) > 0 &&
+    (!isYadathanArmorName(target.armor) || yadathanReversalEligible(state, target.id)) &&
+    reversalTriggerSatisfied(state, targetArmor.name, enemy, target);
+  if (targetEligible) {
+    setPending(target, targetArmor!.name, targetArmor!.reversal!.trigger);
+    return;
+  }
+
+  // ASMODEL's Reversal triggers for the ally watching an adjacent teammate get hit,
+  // not for the attacked player's own armor.
+  for (const ally of state.players) {
+    if (ally.id === target.id) continue;
+    if (!isOrthogonallyAdjacent(ally, target)) continue;
+    const allyArmor = getArmorByName(ally.armor ?? "");
+    if (allyArmor?.name !== "ASMODEL" || !allyArmor.reversal) continue;
+    if ((ally.reversalCharges ?? 0) <= 0) continue;
+    setPending(ally, allyArmor.name, allyArmor.reversal.trigger);
+    return;
+  }
 }
 
 function enemyAttacks(name: string): string[] {
@@ -1770,13 +1822,13 @@ export function validateTriggerReversal(state: GameState, playerId: string): str
 export function applyTriggerReversal(
   state: GameState,
   playerId: string,
-  extraAllyIds: string[] = [],
+  extraLines: { allyId: string; anchor?: "tower" }[] = [],
 ): string {
   const player = state.players.find((p) => p.id === playerId)!;
   const reaction = state.combat?.pendingReaction;
   const incomingDamage = reaction?.incomingDamage ?? 1;
   player.reversalCharges = (player.reversalCharges ?? 0) - 1;
-  const extraCount = extraAllyIds.length;
+  const extraCount = extraLines.length;
   if (extraCount > 0) {
     player.reversalCharges = Math.max(0, (player.reversalCharges ?? 0) - extraCount);
   }
@@ -1784,7 +1836,7 @@ export function applyTriggerReversal(
   const armor = getArmorByName(player.armor ?? "");
 
   if (isYadathanArmorName(player.armor)) {
-    const detail = applyYadathanReversal(state, player, incomingDamage, extraAllyIds);
+    const detail = applyYadathanReversal(state, player, incomingDamage, extraLines);
     return `${playerLabel(player)} triggered Reversal — ${detail}`;
   }
 
@@ -2036,7 +2088,7 @@ export function handleCombatMessage(
       if (err) return { handled: true, error: err };
       return {
         handled: true,
-        message: applyTriggerReversal(state, ctx.playerId, parsed.extraAllyIds ?? []),
+        message: applyTriggerReversal(state, ctx.playerId, parsed.extraLines ?? []),
       };
     }
     case "declineReversal": {

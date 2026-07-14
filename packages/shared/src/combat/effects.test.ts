@@ -5,12 +5,25 @@ import { applyTileEffectStacks } from "./effects.js";
 import { tileAt } from "../map.js";
 
 describe("tickUnitStartOfTurn", () => {
-  it("deals Blazing damage and spreads to adjacent", () => {
+  it("deals flat 1 Blazing damage regardless of stack count", () => {
+    const state = makeGameState();
+    addTestPlayer(state, "p1", { x: 2, y: 2, hp: 10, class: "HARPE", effects: { Blazing: 3 } });
+    const msgs = tickUnitStartOfTurn(state, state.players[0]!, "player");
+    expect(state.players[0]!.hp).toBe(9);
+    expect(msgs.some((m) => m.includes("Blazing"))).toBe(true);
+  });
+
+  it("spreads Blazing to a unit only when that unit's own turn begins", () => {
     const state = makeGameState();
     addTestPlayer(state, "p1", { x: 2, y: 2, hp: 10, class: "HARPE", effects: { Blazing: 1 } });
     addTestEnemy(state, "e1", 2, 3, { hp: 5 });
-    const msgs = tickUnitStartOfTurn(state, state.players[0]!, "player");
+
+    tickUnitStartOfTurn(state, state.players[0]!, "player");
     expect(state.players[0]!.hp).toBe(9);
+    expect(state.enemies[0]!.effects?.Blazing).toBeUndefined();
+    expect(state.enemies[0]!.hp).toBe(5);
+
+    const msgs = tickUnitStartOfTurn(state, state.enemies[0]!, "enemy");
     expect(state.enemies[0]!.effects?.Blazing).toBe(1);
     expect(state.enemies[0]!.hp).toBe(4);
     expect(msgs.some((m) => m.includes("Blazing"))).toBe(true);

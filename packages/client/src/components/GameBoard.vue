@@ -722,14 +722,7 @@ const omnistrikePlacementPreview = computed(() => {
   if (!anchor) return null;
 
   if (step === "placeFirst") {
-    return evaluateOmnistrikePlacement(
-      ctx.me,
-      anchor,
-      ctx.bombA,
-      attackDirection.value,
-      s,
-      ctx.combinedSpan,
-    );
+    return evaluateOmnistrikePlacement(ctx.me, anchor, ctx.bombA, attackDirection.value, s);
   }
 
   const firstAnchor = omnistrikeAnchors.value[0];
@@ -741,7 +734,6 @@ const omnistrikePlacementPreview = computed(() => {
     ctx.bombB,
     attackDirection.value,
     s,
-    ctx.combinedSpan,
     firstTiles,
   );
 });
@@ -3777,14 +3769,7 @@ function handleOmnistrikeCellClick(x: number, y: number): boolean {
   }
 
   if (step === "placeFirst") {
-    const placement = evaluateOmnistrikePlacement(
-      ctx.me,
-      { x, y },
-      ctx.bombA,
-      attackDirection.value,
-      s,
-      ctx.combinedSpan,
-    );
+    const placement = evaluateOmnistrikePlacement(ctx.me, { x, y }, ctx.bombA, attackDirection.value, s);
     if (placement.tooFar) {
       showToast("outside maximum range");
       return true;
@@ -3809,7 +3794,6 @@ function handleOmnistrikeCellClick(x: number, y: number): boolean {
       ctx.bombB,
       attackDirection.value,
       s,
-      ctx.combinedSpan,
       firstTiles,
     );
     if (placement.tooFar) {

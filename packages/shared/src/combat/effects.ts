@@ -87,30 +87,17 @@ export function tickUnitStartOfTurn(
 
   messages.push(...tickFallingStartOfTurn(state, unit, kind));
 
+  // A unit that begins its turn adjacent to a Blazing unit catches fire too.
+  if ((unit.effects?.Blazing ?? 0) <= 0 && adjacentUnitsWithBlazing(state, unit)) {
+    applyEffectStacks(unit, ["Blazing:1"]);
+    messages.push("Blazing spread from adjacent unit");
+  }
+
   const blazing = unit.effects?.Blazing ?? 0;
   if (blazing > 0) {
     const maxHp = kind === "player" ? getPlayerMaxHp(unit as Player) : getEnemyMaxHp(unit as Enemy);
-    dealDirectTickDamage(unit, blazing, maxHp);
-    messages.push(`Blazing ${blazing} damage at start of turn`);
-
-    const occ = buildBoardOccupancy(state);
-    for (const [dx, dy] of [
-      [0, -1],
-      [1, 0],
-      [0, 1],
-      [-1, 0],
-    ]) {
-      const nx = unit.x + dx!;
-      const ny = unit.y + dy!;
-      const key = coordKey(nx, ny);
-      const other = occ.playerByKey.get(key) ?? occ.enemyByKey.get(key);
-      if (!other || other === unit || (other.effects?.Blazing ?? 0) > 0) continue;
-      applyEffectStacks(other, ["Blazing:1"]);
-      const otherMax =
-        "class" in other ? getPlayerMaxHp(other as Player) : getEnemyMaxHp(other as Enemy);
-      dealDirectTickDamage(other, 1, otherMax);
-      messages.push(`Blazing spread to adjacent unit`);
-    }
+    dealDirectTickDamage(unit, 1, maxHp);
+    messages.push("Blazing damage at start of turn");
   }
 
   if (kind === "player") {
@@ -135,6 +122,8 @@ const END_OF_TURN_EFFECTS = new Set([
   "Shock",
   "Bound",
   "Healing",
+  "Armor",
+  "Transference",
 ]);
 
 export function tickUnitEndOfTurn(state: GameState, unit: Player | Enemy): string[] {
