@@ -9,7 +9,7 @@ describe("terrain-data", () => {
 
   it("exposes rulebook icons for terrain types", () => {
     expect(terrainTypeIcon("standard")).toBeUndefined();
-    expect(terrainTypeIcon("void")).toBeUndefined();
+    expect(terrainTypeIcon("void")).toBeTruthy();
     expect(terrainTypeIcon("impassable")).toBeTruthy();
     expect(terrainTypeIcon("uneasy")).toBeTruthy();
     expect(terrainTypeIcon("cover")).toBeTruthy();
@@ -17,11 +17,11 @@ describe("terrain-data", () => {
     expect(terrainTypeIcon("advantageous")).toBeTruthy();
   });
 
-  it("primaryTerrainTypeForIcon skips void and standard", () => {
-    expect(primaryTerrainTypeForIcon(["void"])).toBeNull();
+  it("primaryTerrainTypeForIcon prefers void over other terrain", () => {
+    expect(primaryTerrainTypeForIcon(["void"])).toBe("void");
     expect(primaryTerrainTypeForIcon(["standard"])).toBeNull();
     expect(primaryTerrainTypeForIcon(["advantageous"])).toBe("advantageous");
-    expect(primaryTerrainTypeForIcon(["cover", "void"])).toBeNull();
+    expect(primaryTerrainTypeForIcon(["cover", "void"])).toBe("void");
     expect(primaryTerrainTypeForIcon(["cover", "uneasy"])).toBe("cover");
   });
 });

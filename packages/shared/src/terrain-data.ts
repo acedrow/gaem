@@ -37,7 +37,7 @@ export function terrainTypeIcon(id: string): string | undefined {
 }
 
 export function primaryTerrainTypeForIcon(terrain: TerrainType[]): TerrainType | null {
-  if (terrain.includes("void")) return null;
+  if (terrain.includes("void")) return "void";
   if (terrain.includes("impassable")) return "impassable";
   if (terrain.includes("obstacle")) return "obstacle";
   if (terrain.includes("cover")) return "cover";

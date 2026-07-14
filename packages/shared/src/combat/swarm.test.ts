@@ -77,15 +77,17 @@ describe("swarm", () => {
     expect((soloA.hp ?? 0) + (soloB.hp ?? 0)).toBeGreaterThanOrEqual(pooledHp - 1);
   });
 
-  it("swarmChipEligibleTargets finds adjacent units", () => {
+  it("swarmChipEligibleTargets finds adjacent players only", () => {
     const state = makeGameState();
     addTestEnemy(state, "a", 2, 2, { name: SWARM_NAME });
     addTestEnemy(state, "b", 3, 2, { name: SWARM_NAME });
+    addTestEnemy(state, "other", 2, 1, { name: "Other Demon" });
     addTestPlayer(state, "p1", 2, 3);
     reconcileSwarmHp(state);
 
     const targets = swarmChipEligibleTargets(state, "a");
-    expect(targets.some((t) => t.kind === "player" && t.id === "p1")).toBe(true);
+    expect(targets.some((t) => t.id === "p1")).toBe(true);
+    expect(targets.some((t) => t.id === "other")).toBe(false);
   });
 
   it("requireSwarmChipResolved skips swarms with no adjacent chip targets", () => {

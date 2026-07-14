@@ -44,6 +44,7 @@
     "id": "void",
     "name": "Void",
     "summary": "Impassable; entering causes instant death. Replaces all other terrain when created.",
-    "description": "Void is Impassable, but units can be pushed into it. Entering Void causes instant death. When this terrain type is created, it instantly removes all other terrain on that space, leaving only Void."
+    "description": "Void is Impassable, but units can be pushed into it. Entering Void causes instant death. When this terrain type is created, it instantly removes all other terrain on that space, leaving only Void.",
+    "icon": "M8 3.5 A4.5 4.5 0 1 1 8 12.5 A4.5 4.5 0 1 1 8 3.5"
   }
 ]

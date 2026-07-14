@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import type { EffectStacks, Enemy, MapTile, Player, TileColorTint } from "@gaem/shared";
-import { getEnemyMaxHp, getEnemyScale, getEffectSummary, getPlayerMaxHp, isFortificationEnemy, formatTileEffectTooltipLabel, primaryTerrainTypeForIcon, terrainTypeDisplayName, tileEffectDisplayName, tileEffectShowsStackCount } from "@gaem/shared";
+import { getEnemyMaxHp, getEnemyScale, getEffectSummary, getPlayerMaxHp, isFortificationEnemy, formatTileEffectTooltipLabel, primaryTerrainTypeForIcon, terrainTypeDisplayName, tileEffectShowsStackCount } from "@gaem/shared";
 import { computed } from "vue";
 
-import { TILE_EFFECT_IMAGE_URLS } from "../lib/tileEffectOverlays.js";
-import { TERRAIN_TILE_IMAGE_URLS } from "../lib/terrainTileImages.js";
 import { tileImageLayerStyle } from "../lib/tileColorTint.js";
 import EffectIcon from "./EffectIcon.vue";
 import HpBar from "./HpBar.vue";
@@ -278,28 +276,7 @@ const previewFeatureLayerStyle = computed(() => {
   return tileImageLayerStyle(url, preview.featureTint);
 });
 
-const tileEffectImageOverlays = computed(() =>
-  tileEffectEntries.value
-    .filter((effect) => TILE_EFFECT_IMAGE_URLS[effect.id])
-    .map((effect) => ({
-      id: effect.id,
-      url: TILE_EFFECT_IMAGE_URLS[effect.id]!,
-      title: tileEffectDisplayName(effect.id),
-    })),
-);
-
-const tileEffectBadgeEntries = computed(() =>
-  tileEffectEntries.value.filter((effect) => !TILE_EFFECT_IMAGE_URLS[effect.id]),
-);
-
-const terrainImageUrl = computed(() => {
-  const terrain = props.cell.tile?.terrain ?? [];
-  for (const type of terrain) {
-    const url = TERRAIN_TILE_IMAGE_URLS[type];
-    if (url) return url;
-  }
-  return null;
-});
+const tileEffectBadgeEntries = computed(() => tileEffectEntries.value);
 </script>
 
 <template>
@@ -423,19 +400,6 @@ const terrainImageUrl = computed(() => {
         </span>
       </div>
     </div>
-    <span
-      v-if="terrainImageUrl"
-      class="board-overlay terrain-tile-image tile-image"
-      :style="{ backgroundImage: `url(${terrainImageUrl})` }"
-      aria-hidden="true"
-    />
-    <span
-      v-for="overlay in tileEffectImageOverlays"
-      :key="overlay.id"
-      class="board-overlay tile-effect-image tile-image"
-      :style="{ backgroundImage: `url(${overlay.url})` }"
-      :title="overlay.title"
-    />
     <span v-if="cell.combatTargetInvalid" class="combat-target-invalid-mark" aria-hidden="true" />
     <span v-if="cell.outOfLineOfSight" class="board-overlay out-of-los-shadow" aria-hidden="true" />
     <NoLosIcon v-if="cell.outOfLineOfSight" class="no-los-overlay" :size="20" />
@@ -983,15 +947,6 @@ const terrainImageUrl = computed(() => {
   font-size: 0.45rem;
 }
 
-.tile-effect-image {
-  inset: 0;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  opacity: 0.9;
-  z-index: 2;
-}
-
 .tile-base-color {
   position: absolute;
   inset: 0;
@@ -1040,14 +995,6 @@ const terrainImageUrl = computed(() => {
 
 .paintbrush-preview .tile-image-stack {
   z-index: 0;
-}
-
-.terrain-tile-image {
-  inset: 0;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  z-index: 1;
 }
 
 .board-overlay {

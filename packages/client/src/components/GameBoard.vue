@@ -524,12 +524,12 @@ function onProvokeCancel() {
   provokeTriggers.value = [];
 }
 
-function onSwarmChipConfirm(targetPlayerIds: string[], targetEnemyIds: string[]) {
+function onSwarmChipConfirm(targetPlayerIds: string[]) {
   const enemyId = swarmChipEnemyId.value;
   if (!enemyId) return;
   send({
     type: "gmEnemyAction",
-    action: { action: "swarmChip", enemyId, targetPlayerIds, targetEnemyIds },
+    action: { action: "swarmChip", enemyId, targetPlayerIds },
   });
   swarmChipOpen.value = false;
 }

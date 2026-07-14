@@ -976,7 +976,7 @@ export function validateGmEnemyAction(state: GameState, action: GmEnemyAction): 
       return null;
     }
     case "swarmChip":
-      return validateSwarmChip(state, action.enemyId, action.targetPlayerIds, action.targetEnemyIds);
+      return validateSwarmChip(state, action.enemyId, action.targetPlayerIds);
     case "attack": {
       const chipErr = requireSwarmChipResolved(state, action.enemyId);
       if (chipErr) return chipErr;
@@ -1025,12 +1025,6 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
         if (!player) continue;
         applyDamageToPlayer(player, 1, state);
         hits.push(playerLabel(player));
-      }
-      for (const id of action.targetEnemyIds) {
-        const target = state.enemies.find((e) => e.id === id);
-        if (!target) continue;
-        applyDamageToEnemy(target, 1, state);
-        hits.push(enemyLabel(target));
       }
       markSwarmChipResolved(state, action.enemyId);
       setActiveEnemy(state, group?.canonicalId ?? action.enemyId);

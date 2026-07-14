@@ -597,11 +597,10 @@ export function weaponHasBreakerTag(
   return activeText.includes("Breaker tag");
 }
 
-export type SwarmChipTarget = { kind: "player"; id: string; label: string } | { kind: "enemy"; id: string; label: string };
+export type SwarmChipTarget = { kind: "player"; id: string; label: string };
 
 export function swarmChipEligibleTargets(state: GameState, enemyId: string): SwarmChipTarget[] {
   const group = swarmGroupForEnemy(state, enemyId);
-  const memberIds = new Set(group?.memberIds ?? [enemyId]);
   const positions = swarmMemberPositions(state, group?.memberIds ?? [enemyId]);
   const occ = buildBoardOccupancy(state);
   const seen = new Set<string>();
@@ -620,16 +619,9 @@ export function swarmChipEligibleTargets(state: GameState, enemyId: string): Swa
       const key = coordKey(x, y);
       if (seen.has(key)) continue;
       const player = occ.playerByKey.get(key);
-      if (player) {
-        seen.add(key);
-        targets.push({ kind: "player", id: player.id, label: player.nickname ?? player.id });
-        continue;
-      }
-      const enemy = occ.enemyByKey.get(key);
-      if (enemy && !memberIds.has(enemy.id)) {
-        seen.add(key);
-        targets.push({ kind: "enemy", id: enemy.id, label: enemy.name ?? enemy.id });
-      }
+      if (!player) continue;
+      seen.add(key);
+      targets.push({ kind: "player", id: player.id, label: player.nickname ?? player.id });
     }
   }
   return targets;
@@ -657,7 +649,6 @@ export function validateSwarmChip(
   state: GameState,
   enemyId: string,
   targetPlayerIds: string[],
-  targetEnemyIds: string[],
 ): string | null {
   if (!canGmMoveEnemies(state)) return "Not GM turn";
   const enemy = state.enemies.find((e) => e.id === enemyId);
@@ -666,15 +657,9 @@ export function validateSwarmChip(
   if (!group) return "Not a swarm";
   if (!isSandboxMode(state) && enemy.exhausted) return "Enemy has ended turn";
 
-  const eligible = swarmChipEligibleTargets(state, enemyId);
-  const eligiblePlayers = new Set(eligible.filter((t) => t.kind === "player").map((t) => t.id));
-  const eligibleEnemies = new Set(eligible.filter((t) => t.kind === "enemy").map((t) => t.id));
-
+  const eligiblePlayers = new Set(swarmChipEligibleTargets(state, enemyId).map((t) => t.id));
   for (const id of targetPlayerIds) {
     if (!eligiblePlayers.has(id)) return "Invalid chip target";
-  }
-  for (const id of targetEnemyIds) {
-    if (!eligibleEnemies.has(id)) return "Invalid chip target";
   }
   return null;
 }
