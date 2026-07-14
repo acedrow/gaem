@@ -107,3 +107,12 @@ export function spendActionTierOrHaste(player: Player, tier: ActionTier): boolea
   delete player.hasteActionTier;
   return true;
 }
+
+export function restoreActionTier(budget: ActionBudget | undefined, tier: ActionTier): boolean {
+  if (!budget) return false;
+  if (canSpendActionTier(budget, tier)) return false;
+  if (tier === "main") budget.main = true;
+  else if (tier === "support") budget.support = true;
+  else budget.aux = true;
+  return true;
+}

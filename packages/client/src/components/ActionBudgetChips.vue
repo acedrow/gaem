@@ -6,6 +6,7 @@ import ModalDialog from "./ModalDialog.vue";
 
 const props = defineProps<{
   interactive?: boolean;
+  gmRestore?: boolean;
   fill?: boolean;
   mainSpent: boolean;
   supportSpent: boolean;
@@ -21,9 +22,11 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   commitHaste: [tier: ActionTier];
+  restoreTier: [tier: ActionTier];
 }>();
 
-const pendingTier = ref<ActionTier | null>(null);
+const pendingHasteTier = ref<ActionTier | null>(null);
+const pendingRestoreTier = ref<ActionTier | null>(null);
 
 const tiers: { tier: ActionTier; spent: () => boolean; granted: () => boolean; canCommit: () => boolean }[] = [
   { tier: "main", spent: () => props.mainSpent, granted: () => props.mainGranted, canCommit: () => props.canCommitMain },
@@ -38,24 +41,45 @@ const tiers: { tier: ActionTier; spent: () => boolean; granted: () => boolean; c
 
 function chipClass(spent: boolean, granted: boolean, canCommit: boolean) {
   if (granted) return "chip haste-granted";
+  if (spent && props.gmRestore) return "chip spent clickable";
   if (spent && canCommit && props.interactive) return "chip spent clickable";
   if (spent) return "chip spent";
   return "chip";
 }
 
+function chipDisabled(spent: boolean, canCommit: boolean) {
+  if (props.gmRestore) return !spent;
+  return !props.interactive || !spent || !canCommit;
+}
+
 function onChipClick(tier: ActionTier, spent: boolean, canCommit: boolean) {
+  if (props.gmRestore) {
+    if (!spent) return;
+    pendingRestoreTier.value = tier;
+    return;
+  }
   if (!props.interactive || !spent || !canCommit) return;
-  pendingTier.value = tier;
+  pendingHasteTier.value = tier;
 }
 
 function confirmHaste() {
-  if (!pendingTier.value) return;
-  emit("commitHaste", pendingTier.value);
-  pendingTier.value = null;
+  if (!pendingHasteTier.value) return;
+  emit("commitHaste", pendingHasteTier.value);
+  pendingHasteTier.value = null;
 }
 
 function cancelHaste() {
-  pendingTier.value = null;
+  pendingHasteTier.value = null;
+}
+
+function confirmRestore() {
+  if (!pendingRestoreTier.value) return;
+  emit("restoreTier", pendingRestoreTier.value);
+  pendingRestoreTier.value = null;
+}
+
+function cancelRestore() {
+  pendingRestoreTier.value = null;
 }
 </script>
 
@@ -67,7 +91,7 @@ function cancelHaste() {
       type="button"
       class="chip-btn"
       :class="chipClass(spent(), granted(), canCommit())"
-      :disabled="!interactive || !spent() || !canCommit()"
+      :disabled="chipDisabled(spent(), canCommit())"
       @click="onChipClick(tier, spent(), canCommit())"
     >
       <span class="chip-label">{{ actionTierLabel(tier) }}</span>
@@ -77,15 +101,27 @@ function cancelHaste() {
   </div>
 
   <ModalDialog
-    :open="pendingTier != null"
+    :open="pendingHasteTier != null"
     title="Spend Haste"
     ok-label="Spend Haste"
     @close="cancelHaste"
     @confirm="confirmHaste"
   >
-    <p v-if="pendingTier" class="prompt">
+    <p v-if="pendingHasteTier" class="prompt">
       Would you like to spend Haste to gain an additional
-      {{ actionTierLabel(pendingTier) }} action?
+      {{ actionTierLabel(pendingHasteTier) }} action?
+    </p>
+  </ModalDialog>
+
+  <ModalDialog
+    :open="pendingRestoreTier != null"
+    title="Mark action unused"
+    ok-label="Mark unused"
+    @close="cancelRestore"
+    @confirm="confirmRestore"
+  >
+    <p v-if="pendingRestoreTier" class="prompt">
+      Mark {{ actionTierLabel(pendingRestoreTier) }} action as unused?
     </p>
   </ModalDialog>
 </template>
@@ -153,6 +189,7 @@ function cancelHaste() {
   white-space: normal;
   box-shadow: var(--shadow-popover);
   pointer-events: none;
+  opacity: 1;
 }
 
 .chip-btn:hover .chip-tooltip,
@@ -160,20 +197,26 @@ function cancelHaste() {
   display: block;
 }
 
-.chip-btn.spent {
+.chip-btn.spent .chip-label {
   opacity: 0.45;
 }
 
 .chip-btn.clickable {
   cursor: pointer;
-  opacity: 0.75;
   border-style: dashed;
   border-color: var(--color-accent);
 }
 
+.chip-btn.clickable .chip-label {
+  opacity: 0.75;
+}
+
 .chip-btn.clickable:hover:not(:disabled) {
-  opacity: 1;
   background: var(--color-accent-muted);
+}
+
+.chip-btn.clickable:hover:not(:disabled) .chip-label {
+  opacity: 1;
 }
 
 .chip-btn:disabled {
@@ -181,10 +224,13 @@ function cancelHaste() {
 }
 
 .chip-btn.haste-granted {
-  opacity: 1;
   border-color: var(--color-accent);
   color: var(--color-accent);
   background: var(--color-accent-muted);
+}
+
+.chip-btn.haste-granted .chip-label {
+  opacity: 1;
 }
 
 .chip.haste {

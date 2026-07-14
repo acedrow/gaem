@@ -828,10 +828,7 @@ const armorPushTargetKeys = computed(() => {
   const me = yourPlayer.value;
   const s = gameState.value;
   if (!me || !s) return new Set<string>();
-  const keys = new Set<string>();
-  for (const e of s.enemies) {
-    if (Math.abs(e.x - me.x) + Math.abs(e.y - me.y) === 1) keys.add(coordKey(e.x, e.y));
-  }
+  const keys = formlessTargetTileKeys(s, me.x, me.y);
   for (const p of s.players) {
     if (p.id !== me.id && Math.abs(p.x - me.x) + Math.abs(p.y - me.y) === 1) {
       keys.add(coordKey(p.x, p.y));
@@ -869,11 +866,7 @@ const classAbilityPrimaryKeys = computed(() => {
     }
   }
   if (m === "hephaestusSynesis") {
-    for (const e of s.enemies) {
-      if (Math.abs(e.x - me.x) + Math.abs(e.y - me.y) <= 1) {
-        keys.add(coordKey(e.x, e.y));
-      }
-    }
+    for (const key of formlessTargetTileKeys(s, me.x, me.y)) keys.add(key);
   }
   if (m === "varunastraBorrow" && !borrowAllyId.value) {
     for (const p of s.players) {
@@ -3932,7 +3925,7 @@ function handleCombatCellClick(x: number, y: number): boolean {
     return true;
   }
   if (m === "armorPush") {
-    if (enemy && Math.abs(x - me.x) + Math.abs(y - me.y) === 1) {
+    if (enemy && armorPushTargetKeys.value.has(coordKey(x, y))) {
       sendPlayerAction({ action: "armorAction", targetEnemyId: enemy.id, push: armorPush.value });
       clearBoardActionMode();
       return true;
@@ -3975,7 +3968,7 @@ function handleCombatCellClick(x: number, y: number): boolean {
     clearBoardActionMode();
     return true;
   }
-  if (m === "hephaestusSynesis" && enemy && Math.abs(x - me.x) + Math.abs(y - me.y) <= 1) {
+  if (m === "hephaestusSynesis" && enemy && classAbilityPrimaryKeys.value.has(coordKey(x, y))) {
     sendPlayerAction({ action: "classActive", kind: "synesis_conversion", targetEnemyIds: [enemy.id] });
     clearBoardActionMode();
     return true;

@@ -34,7 +34,15 @@ import {
   TILE_NAME_MAX_LENGTH,
 } from "../tile-cosmetics.js";
 import { isOrthogonallyAdjacent } from "../patterns.js";
-import { actionTierBlockedReason, applyCommitHaste, spendActionTierOrHaste, validateCommitHaste } from "./actions.js";
+import {
+  actionTierBlockedReason,
+  actionTierLabel,
+  applyCommitHaste,
+  canSpendActionTier,
+  restoreActionTier,
+  spendActionTierOrHaste,
+  validateCommitHaste,
+} from "./actions.js";
 import {
   adjacentEnemies,
   applySprintBegin,
@@ -449,12 +457,17 @@ export function validatePlayerAction(
         const push = action.push ?? 1;
         const maxPush = structured.push ?? 3;
         if (!Number.isInteger(push) || push < 1 || push > maxPush) return "Invalid push distance";
-        const target = action.targetEnemyId
-          ? state.enemies.find((e) => e.id === action.targetEnemyId)
-          : state.players.find((p) => p.id === action.targetPlayerId);
-        if (!target) return "Unknown target";
-        if (!isOrthogonallyAdjacent({ x: player.x, y: player.y }, { x: target.x, y: target.y })) {
-          return "Target must be adjacent";
+        if (action.targetEnemyId) {
+          if (!state.enemies.some((e) => e.id === action.targetEnemyId)) return "Unknown target";
+          if (!adjacentEnemies(state, player.x, player.y).includes(action.targetEnemyId)) {
+            return "Target must be adjacent";
+          }
+        } else {
+          const target = state.players.find((p) => p.id === action.targetPlayerId);
+          if (!target) return "Unknown target";
+          if (!isOrthogonallyAdjacent({ x: player.x, y: player.y }, { x: target.x, y: target.y })) {
+            return "Target must be adjacent";
+          }
         }
       }
       if (structured.kind === "place_tower") {
@@ -1866,6 +1879,30 @@ export function applySetAttackPreview(state: GameState, preview: AttackPreviewSt
   state.combat.attackPreview = preview;
 }
 
+export function validateRestorePlayerActionTier(
+  state: GameState,
+  playerId: string,
+  tier: ActionTier,
+): string | null {
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player) return "Unknown player";
+  if (!player.actionBudget) return "No action budget";
+  if (canSpendActionTier(player.actionBudget, tier)) return "Action not spent";
+  return null;
+}
+
+export function applyRestorePlayerActionTier(
+  state: GameState,
+  playerId: string,
+  tier: ActionTier,
+): string {
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player?.actionBudget) return "Unknown player";
+  restoreActionTier(player.actionBudget, tier);
+  if (player.hasteActionTier === tier) delete player.hasteActionTier;
+  return `restored ${actionTierLabel(tier)} action for ${playerLabel(player)}`;
+}
+
 export function handleCombatMessage(
   state: GameState,
   parsed: ClientMessage,
@@ -1892,6 +1929,15 @@ export function handleCombatMessage(
       const err = validatePlayerAction(state, ctx.playerId, parsed.action);
       if (err) return { handled: true, error: err };
       return { handled: true, message: applyPlayerAction(state, ctx.playerId, parsed.action) };
+    }
+    case "restorePlayerActionTier": {
+      if (!hasGmCapabilities(ctx)) return { handled: true, error: "Only GM can do that" };
+      const err = validateRestorePlayerActionTier(state, parsed.playerId, parsed.tier);
+      if (err) return { handled: true, error: err };
+      return {
+        handled: true,
+        message: applyRestorePlayerActionTier(state, parsed.playerId, parsed.tier),
+      };
     }
     case "gmEnemyAction": {
       if (!hasGmCapabilities(ctx)) return { handled: true, error: "Only GM can do that" };

@@ -14,6 +14,8 @@ const props = defineProps<{ playerId: string }>();
 
 const {
   showPlayerActionBar,
+  showSheetCombatPanel,
+  canGmRestoreActionTier,
   budget,
   canMain,
   canAux,
@@ -21,6 +23,7 @@ const {
   actionBudgetChips,
   sandboxMode,
   commitHaste,
+  restorePlayerActionTier,
   canStartSprint,
   canResetMovement,
   canTowerTeleport,
@@ -87,78 +90,82 @@ function pickShoveMode() {
 </script>
 
 <template>
-  <div v-if="activePlayer && (showPlayerActionBar || pills.length)" class="sheet-combat-wrap">
-    <div v-if="showPlayerActionBar" class="sheet-combat">
+  <div v-if="activePlayer && (showSheetCombatPanel || pills.length)" class="sheet-combat-wrap">
+    <div v-if="showSheetCombatPanel" class="sheet-combat">
       <div class="budget-row">
         <ActionBudgetChips
           fill
           :interactive="showPlayerActionBar && !sandboxMode"
+          :gm-restore="canGmRestoreActionTier"
           v-bind="actionBudgetChips"
           :haste-stacks="hasteRemaining"
           @commit-haste="commitHaste"
+          @restore-tier="restorePlayerActionTier"
         />
       </div>
 
       <div class="speed-row">
         <span class="stat">Speed {{ speedLabel }}</span>
-        <SheetActionButton
-          :disabled="!canResetMovement"
-          @click="onResetMovement"
-        >
-          Reset movement
-        </SheetActionButton>
-        <SheetActionButton
-          :active="mode === 'sprint'"
-          :disabled="mode !== 'sprint' && !canStartSprint"
-          @click="pickSprintMode"
-        >
-          Sprint
-          <template #tooltip>
-            <AbilityBlock tier-label="Aux action" content="Sprint — Move up to half your Speed." />
-          </template>
-        </SheetActionButton>
-        <SheetActionButton
-          v-if="showAegis"
-          :active="mode === 'aegis'"
-          :disabled="mode !== 'aegis' && !canUseAegis"
-          @click="pickAegisToggle"
-        >
-          Aegis {{ aegisLabel }}
-          <template #tooltip>
-            <AbilityBlock
-              tier-label="Movement"
-              content="Fly over terrain for up to your Aegis stacks this turn. Does not Provoke."
-            />
-          </template>
-        </SheetActionButton>
-        <SheetActionButton
-          v-if="showTowerStep"
-          :active="mode === 'towerTeleport'"
-          :disabled="!canTowerTeleport"
-          @click="pickTowerTeleportMode"
-        >
-          Tower step
-          <template #tooltip>
-            <AbilityBlock
-              tier-label="Special movement"
-              content="Spend all remaining Speed to teleport adjacent to your tower."
-            />
-          </template>
-        </SheetActionButton>
-        <SheetActionButton
-          v-if="showAssistedLaunch"
-          :active="mode === 'assistedLaunch'"
-          :disabled="mode !== 'assistedLaunch' && !canAssistedLaunch"
-          @click="pickAssistedLaunchMode"
-        >
-          Launch
-          <template #tooltip>
-            <AbilityBlock tier-label="Special movement" :content="assistedLaunchAbility" />
-          </template>
-        </SheetActionButton>
+        <template v-if="showPlayerActionBar">
+          <SheetActionButton
+            :disabled="!canResetMovement"
+            @click="onResetMovement"
+          >
+            Reset movement
+          </SheetActionButton>
+          <SheetActionButton
+            :active="mode === 'sprint'"
+            :disabled="mode !== 'sprint' && !canStartSprint"
+            @click="pickSprintMode"
+          >
+            Sprint
+            <template #tooltip>
+              <AbilityBlock tier-label="Aux action" content="Sprint — Move up to half your Speed." />
+            </template>
+          </SheetActionButton>
+          <SheetActionButton
+            v-if="showAegis"
+            :active="mode === 'aegis'"
+            :disabled="mode !== 'aegis' && !canUseAegis"
+            @click="pickAegisToggle"
+          >
+            Aegis {{ aegisLabel }}
+            <template #tooltip>
+              <AbilityBlock
+                tier-label="Movement"
+                content="Fly over terrain for up to your Aegis stacks this turn. Does not Provoke."
+              />
+            </template>
+          </SheetActionButton>
+          <SheetActionButton
+            v-if="showTowerStep"
+            :active="mode === 'towerTeleport'"
+            :disabled="!canTowerTeleport"
+            @click="pickTowerTeleportMode"
+          >
+            Tower step
+            <template #tooltip>
+              <AbilityBlock
+                tier-label="Special movement"
+                content="Spend all remaining Speed to teleport adjacent to your tower."
+              />
+            </template>
+          </SheetActionButton>
+          <SheetActionButton
+            v-if="showAssistedLaunch"
+            :active="mode === 'assistedLaunch'"
+            :disabled="mode !== 'assistedLaunch' && !canAssistedLaunch"
+            @click="pickAssistedLaunchMode"
+          >
+            Launch
+            <template #tooltip>
+              <AbilityBlock tier-label="Special movement" :content="assistedLaunchAbility" />
+            </template>
+          </SheetActionButton>
+        </template>
       </div>
 
-      <div class="action-row">
+      <div v-if="showPlayerActionBar" class="action-row">
         <SheetActionButton
           :active="mode === 'rez'"
           :disabled="mode !== 'rez' && !canMain"

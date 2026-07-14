@@ -76,6 +76,51 @@ describe("class-abilities", () => {
     expect(player.equipmentUses).toBe(1);
   });
 
+  it("HEPHAESTUS Synesis allows scale:2 enemy adjacent via non-anchor footprint", () => {
+    const state = makeGameState({ width: 10, height: 10 });
+    const player = addTestPlayer(state, "p1", {
+      x: 5,
+      y: 2,
+      class: "HEPHAESTUS",
+      actionBudget: true,
+    });
+    // Gorgenaut at (3,2) occupies (3,2)(4,2)(3,3)(4,3); player is adjacent to (4,2)
+    addTestEnemy(state, "e1", 3, 2, { name: "Gorgenaut", hp: 50 });
+    state.roundPhase = "playerTurn";
+    state.turn = { role: "player", playerId: "p1" };
+    state.combat = createDefaultCombatState(1);
+
+    expect(
+      validateClassActive(state, player, {
+        action: "classActive",
+        kind: "synesis_conversion",
+        targetEnemyIds: ["e1"],
+      }),
+    ).toBeNull();
+  });
+
+  it("HEPHAESTUS Synesis rejects scale:2 enemy that is not footprint-adjacent", () => {
+    const state = makeGameState({ width: 10, height: 10 });
+    const player = addTestPlayer(state, "p1", {
+      x: 6,
+      y: 2,
+      class: "HEPHAESTUS",
+      actionBudget: true,
+    });
+    addTestEnemy(state, "e1", 3, 2, { name: "Gorgenaut", hp: 50 });
+    state.roundPhase = "playerTurn";
+    state.turn = { role: "player", playerId: "p1" };
+    state.combat = createDefaultCombatState(1);
+
+    expect(
+      validateClassActive(state, player, {
+        action: "classActive",
+        kind: "synesis_conversion",
+        targetEnemyIds: ["e1"],
+      }),
+    ).toBe("Range 1");
+  });
+
   it("VARUNASTRA Borrowing sets follow-up pending reaction", () => {
     const state = makeGameState();
     addTestPlayer(state, "p1", {

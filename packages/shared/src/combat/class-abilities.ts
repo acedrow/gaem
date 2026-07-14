@@ -29,6 +29,7 @@ import {
   handleEnemyDefeated,
 } from "./kopis.js";
 import { unitHasSeeking, unitPiercingStacks } from "./elevation.js";
+import { adjacentEnemies } from "./movement.js";
 
 export { handleEnemyDefeated, syncKopisMarkEffects } from "./kopis.js";
 export const HARPE_CLASS = "HARPE";
@@ -120,7 +121,7 @@ export function validateClassActive(
     if (!enemyId) return "Select adjacent enemy";
     const enemy = state.enemies.find((e) => e.id === enemyId);
     if (!enemy) return "Unknown enemy";
-    if (manhattanDistance(player, enemy) > 1) return "Range 1";
+    if (!adjacentEnemies(state, player.x, player.y).includes(enemy.id)) return "Range 1";
     return null;
   }
 

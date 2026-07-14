@@ -67,6 +67,19 @@ export function useCombatActions(playerId?: () => string | null) {
     return isPlayerTurn.value || sandboxMode.value;
   });
 
+  const showSheetCombatPanel = computed(() => {
+    if (!activePlayerId.value || !combatUiUnlocked.value) return false;
+    return showPlayerActionBar.value || hasGmCapabilities.value;
+  });
+
+  const canGmRestoreActionTier = computed(
+    () =>
+      hasGmCapabilities.value &&
+      !sandboxMode.value &&
+      !!activePlayerId.value &&
+      !showPlayerActionBar.value,
+  );
+
   const showGmCombatUi = computed(() => {
     if (!hasGmCapabilities.value || !combatUiUnlocked.value) return false;
     const s = gameState.value;
@@ -312,6 +325,12 @@ export function useCombatActions(playerId?: () => string | null) {
     sendPlayerAction({ action: "commitHaste", tier });
   }
 
+  function restorePlayerActionTier(tier: ActionTier) {
+    const id = activePlayerId.value;
+    if (!id) return;
+    send({ type: "restorePlayerActionTier", playerId: id, tier });
+  }
+
   function sendPlayerAction(action: import("@gaem/shared").PlayerAction) {
     send({ type: "playerAction", action });
   }
@@ -355,6 +374,8 @@ export function useCombatActions(playerId?: () => string | null) {
     isPlayerTurn,
     combatUiUnlocked,
     showPlayerActionBar,
+    showSheetCombatPanel,
+    canGmRestoreActionTier,
     showGmCombatUi,
     budget,
     canMain,
@@ -397,6 +418,7 @@ export function useCombatActions(playerId?: () => string | null) {
     aegisLabel,
     sendPlayerAction,
     commitHaste,
+    restorePlayerActionTier,
     resetMovement,
     sendMovePath,
     triggerReversal,

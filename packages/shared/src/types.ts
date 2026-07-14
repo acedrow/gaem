@@ -393,6 +393,7 @@ export type ClientMessage =
       yadathanTower?: string;
     }
   | { type: "playerAction"; action: PlayerAction }
+  | { type: "restorePlayerActionTier"; playerId: string; tier: ActionTier }
   | { type: "setAttackPreview"; preview: AttackPreviewState | null }
   | { type: "gmEnemyAction"; action: GmEnemyAction }
   | { type: "applyAssistedOutcome"; outcome: AssistedOutcome }

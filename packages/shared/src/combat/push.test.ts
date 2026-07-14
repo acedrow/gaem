@@ -91,4 +91,20 @@ describe("Hasaphet's Palm armor action", () => {
     expect(state.players.find((p) => p.id === "p2")!.x).toBe(4);
     expect(state.players[0]!.x).toBe(1);
   });
+
+  it("can push a scale:2 enemy adjacent via non-anchor footprint", () => {
+    const state = makeGameState({ width: 10, height: 10 });
+    addTestPlayer(state, "p1", { x: 5, y: 2, armor: "KUSHIEL", actionBudget: true });
+    // Gorgenaut at (3,2) occupies (3,2)(4,2)(3,3)(4,3); player is adjacent to (4,2)
+    addTestEnemy(state, "e1", 3, 2, { name: "Gorgenaut", hp: 50 });
+    combatPlayerTurn(state, "p1");
+    const msg = applyPlayerAction(state, "p1", {
+      action: "armorAction",
+      targetEnemyId: "e1",
+      push: 1,
+    });
+    expect(msg).toContain("Hasaphet's Palm");
+    expect(state.enemies[0]!.x).toBe(2);
+    expect(state.players[0]!.x).toBe(6);
+  });
 });
