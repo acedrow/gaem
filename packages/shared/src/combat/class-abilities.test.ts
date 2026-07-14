@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyClassActive, applyResolveClassReaction, handleEnemyDefeated, validateClassActive } from "./class-abilities.js";
+import { applyPlayerAction, validatePlayerAction } from "./messages.js";
 import { createDefaultCombatState } from "./types.js";
 import { addTestEnemy, addTestPlayer, makeGameState } from "../test/fixtures.js";
 import { tileAt } from "../map.js";
@@ -74,6 +75,45 @@ describe("class-abilities", () => {
     });
     expect(msg).toContain("Equipment restored");
     expect(player.equipmentUses).toBe(1);
+  });
+
+  it("HEPHAESTUS Synesis restores equipment after Haste-spent Support", () => {
+    const state = makeGameState();
+    const player = addTestPlayer(state, "p1", {
+      x: 2,
+      y: 2,
+      class: "HEPHAESTUS",
+      equipmentUses: 0,
+      actionBudget: true,
+      equipment: "Hylic Annihilation Corridor",
+      effects: { Haste: 1 },
+    });
+    addTestEnemy(state, "e1", 3, 2, { name: "Stain Creep", hp: 1 });
+    state.roundPhase = "playerTurn";
+    state.turn = { role: "player", playerId: "p1" };
+    state.combat = createDefaultCombatState(1);
+
+    // Spend Support on equipment, then Haste another Support for Synesis
+    player.actionBudget!.support = false;
+    player.hasteActionTier = "support";
+
+    const msg = applyPlayerAction(state, "p1", {
+      action: "classActive",
+      kind: "synesis_conversion",
+      targetEnemyIds: ["e1"],
+    });
+    expect(msg).toContain("Equipment restored");
+    expect(player.equipmentUses).toBe(1);
+    expect(player.actionBudget?.support).toBe(false);
+    expect(player.hasteActionTier).toBeUndefined();
+    expect(player.effects?.Haste ?? 0).toBe(0);
+    // Charge is back but Support was spent on Synesis — Use needs Support again
+    expect(
+      validatePlayerAction(state, "p1", {
+        action: "useEquipment",
+        detail: player.equipment,
+      }),
+    ).toBe("Support action spent");
   });
 
   it("HEPHAESTUS Synesis does not restore when armor blocks the kill", () => {

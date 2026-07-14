@@ -97,6 +97,16 @@ const boardPlayer = computed(() =>
 
 const boardPlayerId = computed(() => boardPlayer.value?.id ?? null);
 
+// Read equipmentUses from gameState directly so charge UI updates on every state broadcast
+const equipmentUsesRemaining = computed(() => {
+  const players = gameState.value?.players;
+  if (!players) return 1;
+  const p = players.find((x) => x.characterSheetId === props.sheetId);
+  return p?.equipmentUses ?? 1;
+});
+
+const hasEquipmentCharge = computed(() => equipmentUsesRemaining.value > 0);
+
 const equippedWeaponName = computed(() => boardPlayer.value?.weapon ?? form.value.weapon);
 const carriedWeaponName = computed(() => boardPlayer.value?.weapon2 ?? form.value.weapon2);
 
@@ -178,12 +188,6 @@ const showWeaponGearRow = computed(
 );
 const showArmorGearRow = computed(() => classGrantsDualGear(form.value.class));
 const showYadathanTowerPick = computed(() => form.value.armor === YADATHAN_ARMOR_NAME);
-
-const hasEquipmentCharge = computed(() => {
-  const uses = boardPlayer.value?.equipmentUses;
-  if (uses === undefined) return true;
-  return uses > 0;
-});
 
 const canUseEquipmentCharge = computed(() => {
   if (!canSupport.value || !form.value.equipment) return false;
@@ -932,7 +936,9 @@ onUnmounted(() => {
               </SheetActionButton>
             </template>
             <template v-if="boardPlayer" #subline>
-              Equipment charges {{ hasEquipmentCharge ? "●" : "○" }}
+              <span :key="`eq-${equipmentUsesRemaining}`">
+                Equipment charges {{ hasEquipmentCharge ? "●" : "○" }}
+              </span>
             </template>
           </SheetGearFieldRow>
 

@@ -821,18 +821,21 @@ export function useGmTools() {
   }
 
   function selectBundledPaintbrushAppearance(key: string) {
+    paintbrushEnableAppearance.value = true;
     paintbrushAppearanceKey.value = key;
     syncPaintbrushAppearanceSetFromKey(key);
     setPaintbrushAppearancePreview(key);
   }
 
   function selectBundledPaintbrushOverlay(key: string) {
+    paintbrushEnableOverlay.value = true;
     paintbrushOverlayKey.value = key;
     syncPaintbrushOverlaySetFromKey(key);
     setPaintbrushOverlayPreview(key);
   }
 
   function selectBundledPaintbrushFeature(key: string) {
+    paintbrushEnableFeature.value = true;
     paintbrushFeatureKey.value = key;
     syncPaintbrushFeatureSetFromKey(key);
     setPaintbrushFeaturePreview(key);
@@ -874,16 +877,19 @@ export function useGmTools() {
   }
 
   function clearPaintbrushAppearance() {
+    paintbrushEnableAppearance.value = true;
     paintbrushAppearanceKey.value = null;
     clearPaintbrushAppearancePreview();
   }
 
   function clearPaintbrushOverlay() {
+    paintbrushEnableOverlay.value = true;
     paintbrushOverlayKey.value = null;
     clearPaintbrushOverlayPreview();
   }
 
   function clearPaintbrushFeature() {
+    paintbrushEnableFeature.value = true;
     paintbrushFeatureKey.value = null;
     clearPaintbrushFeaturePreview();
   }

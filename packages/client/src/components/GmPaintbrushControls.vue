@@ -100,7 +100,13 @@ const featureTintModalOpen = ref(false);
         class="option-enable"
         aria-label="Enable name"
       />
-      <input v-model="paintbrushTileName" type="text" class="text-input" placeholder="Optional" />
+      <input
+        v-model="paintbrushTileName"
+        type="text"
+        class="text-input"
+        placeholder="Optional"
+        @input="paintbrushEnableName = true"
+      />
     </div>
 
     <div class="control-group effect-group">
@@ -111,7 +117,11 @@ const featureTintModalOpen = ref(false);
         class="option-enable"
         aria-label="Enable terrain"
       />
-      <select v-model="paintbrushTerrain" class="effect-select">
+      <select
+        v-model="paintbrushTerrain"
+        class="effect-select"
+        @change="paintbrushEnableTerrain = true"
+      >
         <option v-for="terrain in TERRAIN_TYPES" :key="terrain" :value="terrain">
           {{ terrainTypeDisplayName(terrain) }}
         </option>
@@ -119,7 +129,18 @@ const featureTintModalOpen = ref(false);
       <TerrainTypeIcon :terrain-type="paintbrushTerrain" :size="16" />
       <template v-if="paintbrushTerrain === 'obstacle'">
         <span class="inline-label">HP</span>
-        <NumberStepper v-model="paintbrushObstacleHp" compact :min="1" :max="99" />
+        <NumberStepper
+          :model-value="paintbrushObstacleHp"
+          compact
+          :min="1"
+          :max="99"
+          @update:model-value="
+            (v) => {
+              paintbrushObstacleHp = v;
+              paintbrushEnableTerrain = true;
+            }
+          "
+        />
       </template>
     </div>
     <div class="control-group effect-group">
@@ -130,7 +151,11 @@ const featureTintModalOpen = ref(false);
         class="option-enable"
         aria-label="Enable effect"
       />
-      <select v-model="paintbrushEffectId" class="effect-select">
+      <select
+        v-model="paintbrushEffectId"
+        class="effect-select"
+        @change="paintbrushEnableEffect = true"
+      >
         <option :value="GM_TILE_EFFECT_NONE">None</option>
         <option v-for="effect in TILE_EFFECTS" :key="effect.id" :value="effect.id">
           {{ effect.id }}
@@ -141,7 +166,18 @@ const featureTintModalOpen = ref(false);
     <div v-if="paintbrushEffectId" class="control-group">
       <span class="control-label">Stacks</span>
       <span class="option-enable-spacer" aria-hidden="true" />
-      <NumberStepper v-model="paintbrushEffectStacks" compact :min="-99" :max="99" />
+      <NumberStepper
+        :model-value="paintbrushEffectStacks"
+        compact
+        :min="-99"
+        :max="99"
+        @update:model-value="
+          (v) => {
+            paintbrushEffectStacks = v;
+            paintbrushEnableEffect = true;
+          }
+        "
+      />
     </div>
 
     <div class="control-group">
@@ -152,7 +188,18 @@ const featureTintModalOpen = ref(false);
         class="option-enable"
         aria-label="Enable elevation"
       />
-      <NumberStepper v-model="paintbrushElevation" compact :min="-3" :max="3" />
+      <NumberStepper
+        :model-value="paintbrushElevation"
+        compact
+        :min="-3"
+        :max="3"
+        @update:model-value="
+          (v) => {
+            paintbrushElevation = v;
+            paintbrushEnableElevation = true;
+          }
+        "
+      />
     </div>
 
     <div class="control-group">
@@ -167,7 +214,10 @@ const featureTintModalOpen = ref(false);
         type="button"
         class="color-swatch-btn"
         :style="paintbrushBaseColor ? { background: paintbrushBaseColor } : undefined"
-        @click="colorModalOpen = true"
+        @click="
+          paintbrushEnableColor = true;
+          colorModalOpen = true;
+        "
       >
         <span v-if="!paintbrushBaseColor" class="color-swatch-placeholder">—</span>
       </button>
@@ -234,7 +284,10 @@ const featureTintModalOpen = ref(false);
             class="color-swatch-btn"
             :style="paintbrushAppearanceTint ? { background: paintbrushAppearanceTint.color } : undefined"
             aria-label="Base tint"
-            @click="appearanceTintModalOpen = true"
+            @click="
+              paintbrushEnableAppearanceTint = true;
+              appearanceTintModalOpen = true;
+            "
           >
             <span v-if="!paintbrushAppearanceTint" class="color-swatch-placeholder">—</span>
           </button>
@@ -301,7 +354,10 @@ const featureTintModalOpen = ref(false);
             class="color-swatch-btn"
             :style="paintbrushOverlayTint ? { background: paintbrushOverlayTint.color } : undefined"
             aria-label="Overlay tint"
-            @click="overlayTintModalOpen = true"
+            @click="
+              paintbrushEnableOverlayTint = true;
+              overlayTintModalOpen = true;
+            "
           >
             <span v-if="!paintbrushOverlayTint" class="color-swatch-placeholder">—</span>
           </button>
@@ -368,7 +424,10 @@ const featureTintModalOpen = ref(false);
             class="color-swatch-btn"
             :style="paintbrushFeatureTint ? { background: paintbrushFeatureTint.color } : undefined"
             aria-label="Feature tint"
-            @click="featureTintModalOpen = true"
+            @click="
+              paintbrushEnableFeatureTint = true;
+              featureTintModalOpen = true;
+            "
           >
             <span v-if="!paintbrushFeatureTint" class="color-swatch-placeholder">—</span>
           </button>
@@ -388,8 +447,8 @@ const featureTintModalOpen = ref(false);
         <input
           v-model="paintbrushAutoRotate"
           type="checkbox"
-          :disabled="!paintbrushEnableRotation"
           aria-label="Auto rotate"
+          @change="paintbrushEnableRotation = true"
         />
         Auto
       </label>

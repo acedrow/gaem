@@ -33,6 +33,7 @@ const {
   canUseAegis,
   aegisLabel,
   activePlayer,
+  hasEquipmentCharge,
   effectPills,
   resetMovement,
 } = useCombatActions(() => props.playerId);
@@ -102,6 +103,9 @@ function pickShoveMode() {
           @commit-haste="commitHaste"
           @restore-tier="restorePlayerActionTier"
         />
+        <span class="stat equip-charges" :data-charges="activePlayer.equipmentUses ?? 1">
+          Equip {{ hasEquipmentCharge ? "●" : "○" }}
+        </span>
       </div>
 
       <div class="speed-row">
@@ -241,6 +245,11 @@ function pickShoveMode() {
   font-size: 1rem;
   font-weight: 600;
   color: var(--color-muted);
+}
+
+.equip-charges {
+  margin-left: auto;
+  letter-spacing: 0.02em;
 }
 
 .effect-pills {
