@@ -176,6 +176,7 @@ const phaseAction = computed((): { label: string; action: PhaseAction } | null =
 const showTaccomWaiting = computed(
   () =>
     !hasGmCapabilities.value &&
+    !sandboxMode.value &&
     gameState.value?.roundPhase === "taccomNotStarted",
 );
 

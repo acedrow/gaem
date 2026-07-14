@@ -1,0 +1,94 @@
+import { describe, expect, it } from "vitest";
+import {
+  applyGmEnemyAction,
+  isAutoResolvableEnemyAttack,
+  isSelectTargetEnemyAttack,
+  parseEnemyAttackString,
+} from "./index.js";
+import { createDefaultCombatState } from "./types.js";
+import { addTestEnemy, addTestPlayer, makeGameState } from "../test/fixtures.js";
+
+function gmTurn(state: ReturnType<typeof makeGameState>) {
+  state.roundPhase = "gmTurn";
+  state.turn = { role: "gm" };
+  state.combat = createDefaultCombatState(state.players.length);
+}
+
+describe("auto-resolvable enemy attacks", () => {
+  it("classifies pattern, select-target, and push attacks", () => {
+    expect(isAutoResolvableEnemyAttack("Deal 10 damage to Burst:1, then decrease PRISTIR's scale by 1.")).toBe(
+      true,
+    );
+    expect(isAutoResolvableEnemyAttack("Damage:2, Range:1")).toBe(true);
+    expect(isAutoResolvableEnemyAttack("Push:2")).toBe(true);
+    expect(
+      isAutoResolvableEnemyAttack(
+        "Increase PRISTIR's scale by 2. Any occupied spaces take 5 damage and are pushed out.",
+      ),
+    ).toBe(false);
+    expect(isSelectTargetEnemyAttack(parseEnemyAttackString("Push:2"))).toBe(true);
+  });
+
+  it("pattern burst auto-hits and does not create pending enemyAttack", () => {
+    const state = makeGameState();
+    gmTurn(state);
+    addTestEnemy(state, "rose", 3, 3, { name: "Eyesting Rose", scale: 1, hp: 100 });
+    const player = addTestPlayer(state, "p1", { x: 3, y: 2, hp: 30, class: "HARPE" });
+    const msg = applyGmEnemyAction(state, {
+      action: "attack",
+      enemyId: "rose",
+      attackIndex: 1,
+      direction: "n",
+    });
+    expect(msg).toContain("Burst:1");
+    expect(msg).toContain("dmg");
+    expect(msg).not.toContain("pending");
+    expect(player.hp).toBe(20);
+    expect(state.combat!.pendingActions.filter((p) => p.kind === "enemyAttack")).toHaveLength(0);
+  });
+
+  it("push-only select-target applies push without pending", () => {
+    const state = makeGameState();
+    gmTurn(state);
+    addTestEnemy(state, "pudding", 2, 2, { name: "Latent Pudding", scale: 1, hp: 1 });
+    const player = addTestPlayer(state, "p1", { x: 2, y: 1, hp: 20, class: "HARPE" });
+    const msg = applyGmEnemyAction(state, {
+      action: "attack",
+      enemyId: "pudding",
+      attackIndex: 0,
+      targetPlayerId: "p1",
+    });
+    expect(msg).not.toContain("pending");
+    expect(msg).toMatch(/push|pushed/i);
+    expect(player.y).toBe(0);
+    expect(state.combat!.pendingActions.filter((p) => p.kind === "enemyAttack")).toHaveLength(0);
+  });
+
+  it("unresolvable attacks log guidance instead of pending", () => {
+    const state = makeGameState();
+    gmTurn(state);
+    addTestEnemy(state, "rose", 3, 3, { name: "Eyesting Rose", scale: 1, hp: 100 });
+    const msg = applyGmEnemyAction(state, {
+      action: "attack",
+      enemyId: "rose",
+      attackIndex: 0,
+    });
+    expect(msg).toContain("not auto-resolved");
+    expect(state.combat!.pendingActions.filter((p) => p.kind === "enemyAttack")).toHaveLength(0);
+  });
+
+  it("direct select-target damages adjacent creature enemy", () => {
+    const state = makeGameState();
+    gmTurn(state);
+    addTestEnemy(state, "creep", 2, 2, { name: "Stain Creep", scale: 1, hp: 1 });
+    const other = addTestEnemy(state, "other", 2, 1, { name: "Latent Pudding", scale: 1, hp: 1 });
+    const msg = applyGmEnemyAction(state, {
+      action: "attack",
+      enemyId: "creep",
+      attackIndex: 0,
+      targetEnemyId: "other",
+    });
+    expect(msg).toContain("dmg");
+    expect(other.hp).toBe(0);
+  });
+});

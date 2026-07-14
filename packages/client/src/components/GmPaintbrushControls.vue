@@ -438,7 +438,7 @@ const featureTintModalOpen = ref(false);
 
     <p v-if="paintbrushPresetError" class="preset-error">{{ paintbrushPresetError }}</p>
 
-    <p class="eyedropper-hint">Hold E to sample · R rotate · F flip</p>
+    <p class="eyedropper-hint">Hold E to sample · Hold S to select · R rotate · F flip</p>
 
     <TileBaseColorModal v-model="paintbrushBaseColor" :open="colorModalOpen" @close="colorModalOpen = false" />
     <TileColorTintModal

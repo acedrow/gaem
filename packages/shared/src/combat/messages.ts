@@ -62,8 +62,13 @@ import {
   effectiveRangeLimit,
   elevationBonusTileCandidates,
   enemiesInTiles,
+  enemyDirectAttackTargetEnemyIds,
+  enemyDirectAttackTargetPlayerIds,
   getWeaponAttackSpec,
+  isAutoResolvableEnemyAttack,
   isDirectTargetEnemyAttack,
+  isPatternEnemyAttack,
+  isSelectTargetEnemyAttack,
   isWarhookWeaponName,
   manhattanDistance,
   parseEnemyAttackString,
@@ -101,6 +106,17 @@ import {
 import { applyEffectStacks, applyTileEffectStacks, clearEffectStacks, clearTileEffects, hasTileEffects, parseEffectToken, replaceTileEffects, tickUnitEndOfTurn } from "./effects.js";
 import { isKnownEffectId } from "../effects-data.js";
 import { createPendingAction, addPendingAction, applyAssistedOutcome } from "./pending.js";
+import { appendCombatSideEffectMessages, maybeTriggerAgnosia } from "./agnosia.js";
+import {
+  applyGorgenautStainTeleport,
+  enemyAttackNeedsStainTeleport,
+  isGorgenaut,
+  validateGorgenautStainTeleport,
+} from "./gorgenaut.js";
+import {
+  applyPatternEnemyAttack,
+  applySelectTargetEnemyAttack,
+} from "./enemy-attack-resolve.js";
 import { setActiveEnemy } from "./enemy.js";
 import {
   buildSwarmGroups,
@@ -611,7 +627,7 @@ export function applyPlayerAction(
       if (defeated) msg += `; defeated ${defeated}`;
       if (defeatMsgs.length) msg += `; ${defeatMsgs.join("; ")}`;
       resetHeavenBurningLevelAfterAttack(player, weapon);
-      return msg;
+      return appendCombatSideEffectMessages(state, msg);
     }
     case "shove": {
       maybeSpendActionTier(state, player, "aux");
@@ -980,6 +996,10 @@ export function validateGmEnemyAction(state: GameState, action: GmEnemyAction): 
     case "attack": {
       const chipErr = requireSwarmChipResolved(state, action.enemyId);
       if (chipErr) return chipErr;
+      const attacks = enemy.name ? enemyAttacks(enemy.name) : [];
+      const attackText = attacks[action.attackIndex] ?? "";
+      const parsed = attackText ? parseEnemyAttackString(attackText) : { raw: "" };
+
       if (action.swarmStrikes != null) {
         const group = swarmGroupForEnemy(state, action.enemyId);
         if (!group) return "Not a swarm";
@@ -992,6 +1012,36 @@ export function validateGmEnemyAction(state: GameState, action: GmEnemyAction): 
           return "Invalid strike count";
         }
       }
+
+      if (enemyAttackNeedsStainTeleport(attackText) || (isGorgenaut(enemy) && action.attackIndex === 1)) {
+        return validateGorgenautStainTeleport(state, enemy, {
+          targetPlayerId: action.targetPlayerId,
+          targetEnemyId: action.targetEnemyId,
+          destX: action.destX,
+          destY: action.destY,
+        });
+      }
+
+      if (isPatternEnemyAttack(parsed)) {
+        if (!action.direction) return "Select direction";
+        return null;
+      }
+
+      if (isSelectTargetEnemyAttack(parsed)) {
+        if (action.targetPlayerId) {
+          const valid = enemyDirectAttackTargetPlayerIds(state, enemy.id, parsed);
+          if (!valid.includes(action.targetPlayerId)) return "Target out of range";
+          return null;
+        }
+        if (action.targetEnemyId) {
+          const valid = enemyDirectAttackTargetEnemyIds(state, enemy.id, parsed);
+          if (!valid.includes(action.targetEnemyId)) return "Target out of range";
+          return null;
+        }
+        return "Select target";
+      }
+
+      if (!isAutoResolvableEnemyAttack(attackText)) return null;
       return null;
     }
     case "assisted":
@@ -1038,9 +1088,46 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
       const attacks = enemy.name ? enemyAttacks(enemy.name) : [];
       const attackText = attacks[action.attackIndex];
       const parsed = attackText ? parseEnemyAttackString(attackText) : { raw: "" };
-      let msg = `${enemyLabel(enemy)} used attack ${action.attackIndex + 1}`;
+
+      if (
+        (isGorgenaut(enemy) && action.attackIndex === 1) ||
+        (attackText != null && enemyAttackNeedsStainTeleport(attackText))
+      ) {
+        if (
+          action.destX != null &&
+          action.destY != null &&
+          (action.targetPlayerId || action.targetEnemyId)
+        ) {
+          const dmg = action.damage ?? parsed.damage ?? 10;
+          return appendCombatSideEffectMessages(
+            state,
+            applyGorgenautStainTeleport(state, enemy, {
+              targetPlayerId: action.targetPlayerId,
+              targetEnemyId: action.targetEnemyId,
+              destX: action.destX,
+              destY: action.destY,
+              damage: dmg,
+            }),
+          );
+        }
+      }
+
+      if (isPatternEnemyAttack(parsed) && action.direction) {
+        return appendCombatSideEffectMessages(
+          state,
+          applyPatternEnemyAttack(state, enemy, parsed, action.direction, {
+            damage: action.damage,
+          }),
+        );
+      }
+
       const group = swarmGroupForEnemy(state, enemy.id);
-      if (parsed.damage && action.targetPlayerId && group && isDirectTargetEnemyAttack(parsed)) {
+      if (
+        parsed.damage &&
+        action.targetPlayerId &&
+        group &&
+        isDirectTargetEnemyAttack(parsed)
+      ) {
         const target = state.players.find((p) => p.id === action.targetPlayerId);
         if (target) {
           const preview = applySwarmEnemyAttackToPlayer(
@@ -1050,54 +1137,36 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
             action.targetPlayerId,
             { damage: action.damage ?? parsed.damage, strikeCount: action.swarmStrikes },
           );
+          let msg = `${enemyLabel(enemy)} used attack ${action.attackIndex + 1}`;
           msg += ` → ${playerLabel(target)} for ${preview.totalDamage} (${preview.detail})`;
-        }
-      } else if (parsed.damage && action.targetPlayerId) {
-        const target = state.players.find((p) => p.id === action.targetPlayerId);
-        if (target) {
-          const dmg = action.damage ?? parsed.damage;
-          applyDamageToPlayer(target, dmg, state);
-          if (parsed.effects) applyEffectStacks(target, parsed.effects);
-          msg += ` → ${playerLabel(target)} for ${dmg}`;
-        }
-      } else if (action.damage && action.targetPlayerId) {
-        const target = state.players.find((p) => p.id === action.targetPlayerId)!;
-        applyDamageToPlayer(target, action.damage, state);
-        msg += ` → ${playerLabel(target)} for ${action.damage}`;
-      } else {
-        addPendingAction(
-          state,
-          createPendingAction("enemyAttack", `${enemyLabel(enemy)} attack ${action.attackIndex + 1}`, {
-            actorEnemyId: enemy.id,
-            detail: attackText,
-            targetPlayerIds: action.targetPlayerId ? [action.targetPlayerId] : undefined,
-            direction: action.direction,
-            damage: action.damage,
-          }),
-        );
-        msg += " (pending GM)";
-      }
-      if (action.targetPlayerId && state.combat) {
-        const target = state.players.find((p) => p.id === action.targetPlayerId);
-        const armor = target ? getArmorByName(target.armor ?? "") : undefined;
-        const reversalOk =
-          isCampaignFeatureUnlocked("reversals", state.constructedBaseUpgrades ?? []) &&
-          target &&
-          armor?.reversal &&
-          (target.reversalCharges ?? 0) > 0 &&
-          (!isYadathanArmorName(target.armor) || yadathanReversalEligible(state, target.id));
-        if (reversalOk) {
-          const incomingDamage = action.damage ?? parsed.damage ?? 0;
-          state.combat.pendingReaction = {
-            playerId: target.id,
-            sourceEnemyId: enemy.id,
-            trigger: armor!.reversal!.trigger,
-            label: `${armor!.name} Reversal`,
-            incomingDamage: incomingDamage > 0 ? incomingDamage : undefined,
-          };
+          if (action.targetPlayerId && state.combat) {
+            maybeSetEnemyAttackReversal(state, action.targetPlayerId, enemy.id, action.damage ?? parsed.damage ?? 0);
+          }
+          return appendCombatSideEffectMessages(state, msg);
         }
       }
-      return msg;
+
+      if (isSelectTargetEnemyAttack(parsed) && (action.targetPlayerId || action.targetEnemyId)) {
+        const resolved = applySelectTargetEnemyAttack(state, enemy, parsed, {
+          targetPlayerId: action.targetPlayerId,
+          targetEnemyId: action.targetEnemyId,
+          damage: action.damage,
+        });
+        if (resolved) {
+          if (action.targetPlayerId && state.combat) {
+            maybeSetEnemyAttackReversal(
+              state,
+              action.targetPlayerId,
+              enemy.id,
+              action.damage ?? parsed.damage ?? 0,
+            );
+          }
+          return appendCombatSideEffectMessages(state, resolved);
+        }
+      }
+
+      const msg = `${enemyLabel(enemy)} attack ${action.attackIndex + 1} (not auto-resolved — use damage/force-move tools)`;
+      return appendCombatSideEffectMessages(state, msg);
     }
     case "assisted": {
       clearAttractorPullForEnemy(state, enemy.id);
@@ -1142,6 +1211,31 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
 
 import { getEnemyListingByName } from "../enemy-data.js";
 
+function maybeSetEnemyAttackReversal(
+  state: GameState,
+  targetPlayerId: string,
+  sourceEnemyId: string,
+  incomingDamage: number,
+): void {
+  if (!state.combat) return;
+  const target = state.players.find((p) => p.id === targetPlayerId);
+  const armor = target ? getArmorByName(target.armor ?? "") : undefined;
+  const reversalOk =
+    isCampaignFeatureUnlocked("reversals", state.constructedBaseUpgrades ?? []) &&
+    target &&
+    armor?.reversal &&
+    (target.reversalCharges ?? 0) > 0 &&
+    (!isYadathanArmorName(target.armor) || yadathanReversalEligible(state, target.id));
+  if (!reversalOk || !target || !armor?.reversal) return;
+  state.combat.pendingReaction = {
+    playerId: target.id,
+    sourceEnemyId,
+    trigger: armor.reversal.trigger,
+    label: `${armor.name} Reversal`,
+    incomingDamage: incomingDamage > 0 ? incomingDamage : undefined,
+  };
+}
+
 function enemyAttacks(name: string): string[] {
   return getEnemyListingByName(name)?.attacks ?? [];
 }
@@ -1158,6 +1252,7 @@ export function applySetEnemyHp(state: GameState, enemyId: string, hp: number): 
   const enemy = state.enemies.find((e) => e.id === enemyId)!;
   const group = swarmGroupForEnemy(state, enemyId);
   const maxHp = group ? group.maxHp : getEnemyMaxHp(enemy);
+  const hpBefore = enemy.hp ?? maxHp;
   const clamped = clampHp(Math.trunc(hp), maxHp);
   if (group) {
     for (const id of group.memberIds) {
@@ -1168,9 +1263,11 @@ export function applySetEnemyHp(state: GameState, enemyId: string, hp: number): 
     enemy.hp = clamped;
   }
   reconcileSwarmHp(state, prevGroups);
-  return group
+  maybeTriggerAgnosia(state, enemy, hpBefore);
+  const msg = group
     ? `Swarm HP set to ${clamped}`
     : `${enemyLabel(enemy)} HP set to ${clamped}`;
+  return appendCombatSideEffectMessages(state, msg);
 }
 
 export function validateGmApplyDamage(
@@ -1215,7 +1312,7 @@ export function applyGmApplyDamage(
   const enemy = state.enemies.find((e) => e.id === target.id);
   if (!enemy) return "Unknown enemy";
   const dealt = applyDamageToEnemy(enemy, damage, state);
-  return `Dealt ${dealt} to ${enemyLabel(enemy)}`;
+  return appendCombatSideEffectMessages(state, `Dealt ${dealt} to ${enemyLabel(enemy)}`);
 }
 
 export function validateApplyEffect(

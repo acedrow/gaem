@@ -3,13 +3,13 @@ import { ref } from "vue";
 const selectedSpawnEnemyName = ref<string | null>(null);
 
 export function useEnemySpawnSelection() {
-  function selectSpawnEnemy(name: string | null) {
-    if (name === selectedSpawnEnemyName.value) {
-      selectedSpawnEnemyName.value = null;
-      return;
-    }
-    selectedSpawnEnemyName.value = name;
+function selectSpawnEnemy(name: string | null) {
+  if (name === selectedSpawnEnemyName.value) {
+    selectedSpawnEnemyName.value = null;
+    return;
   }
+  selectedSpawnEnemyName.value = name;
+}
 
   function clearSpawnEnemySelection() {
     selectedSpawnEnemyName.value = null;

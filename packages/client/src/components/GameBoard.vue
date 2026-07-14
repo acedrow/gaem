@@ -48,6 +48,7 @@ import {
   isHylicAnnihilationCorridor,
   areOrthogonallyConnected,
   isDirectTargetEnemyAttack,
+  isSelectTargetEnemyAttack,
   listRedirectableEnemyAttackIndices,
   rejectionFieldTileKeys,
   forceProjectionTileKeys,
@@ -103,7 +104,11 @@ import {
   collectAttackTiles,
   elevationBonusTileCandidates,
   enemyDirectAttackTargetPlayerIds,
+  enemyAttackDirectionsAt,
+  isPatternEnemyAttack,
   parseEnemyAttackString,
+  enemyAttackNeedsStainTeleport,
+  tileIsStained,
   swarmChipEligibleTargets,
   swarmChipPromptRequired,
   swarmMembersHitByTiles,
@@ -138,6 +143,7 @@ import { useEnemyMoveAnimation } from "../composables/useEnemyMoveAnimation.js";
 import { usePlayerTeleportAnimation } from "../composables/usePlayerTeleportAnimation.js";
 import { useCharacterSheets } from "../composables/useCharacterSheets.js";
 import { useEnemySpawnSelection } from "../composables/useEnemySpawnSelection.js";
+import { useStainGeyserPlacement } from "../composables/useStainGeyserPlacement.js";
 import { clearActiveTool, useGmTools } from "../composables/useGmTools.js";
 import { gmToolCursor } from "../lib/gmToolCursors.js";
 import { showToast } from "../composables/useToasts.js";
@@ -157,7 +163,6 @@ import ChangeTileTerrainModal from "./ChangeTileTerrainModal.vue";
 import BreakerPromptModal from "./BreakerPromptModal.vue";
 import ProvokePromptModal from "./ProvokePromptModal.vue";
 import SwarmChipModal from "./SwarmChipModal.vue";
-import GmSwarmAttackModal from "./GmSwarmAttackModal.vue";
 import TargetPickerModal, { type TargetPickerEnemy } from "./TargetPickerModal.vue";
 
 const props = defineProps<{
@@ -204,7 +209,19 @@ const { portraitBackgroundFor } = useEnemyPortraitColors();
 const { dataCategory } = useInfoDataSelection();
 const { selectedSpawnEnemyName, clearSpawnEnemySelection } = useEnemySpawnSelection();
 const {
+  STAIN_GEYSER_NAME,
+  stainGeyserPlacementActive,
+  stainGeyserPreviewTiles,
+  stainGeyserPreviewKeys,
+  stainGeyserPreviewOverlayUrl,
+  beginStainGeyserPlacement,
+  clearStainGeyserPlacement,
+  setStainGeyserHover,
+  tryApplyStainGeyserPlacement,
+} = useStainGeyserPlacement();
+const {
   activeTool: gmActiveTool,
+  effectiveActiveTool: gmEffectiveActiveTool,
   selectTargetKind: gmSelectTargetKind,
   bulkSelection: gmBulkSelection,
   setBulkSelection: setGmBulkSelection,
@@ -218,6 +235,7 @@ const {
   samplePaintbrushFromTile,
   paintbrushEyedropperActive,
   setPaintbrushEyedropperActive,
+  setPaintbrushSelectHeld,
   cyclePaintbrushImageRotation,
   togglePaintbrushImageFlip,
   paintbrushEnableColor,
@@ -242,11 +260,11 @@ const {
 } = useGmTools();
 
 const gmViewportCursor = computed(() => {
-  if (!canUseGmTools.value || !gmActiveTool.value) return null;
-  if (gmActiveTool.value === "paintbrush" && paintbrushEyedropperActive.value) {
+  if (!canUseGmTools.value || !gmEffectiveActiveTool.value) return null;
+  if (gmEffectiveActiveTool.value === "paintbrush" && paintbrushEyedropperActive.value) {
     return gmToolCursor("eyedropper");
   }
-  return gmToolCursor(gmActiveTool.value);
+  return gmToolCursor(gmEffectiveActiveTool.value);
 });
 
 function isTypingTarget(el: EventTarget | null): boolean {
@@ -462,13 +480,6 @@ const pendingProvokeMove = ref<(() => void) | null>(null);
 const swarmChipOpen = ref(false);
 const swarmChipEnemyId = ref<string | null>(null);
 const swarmChipTargets = ref<import("@gaem/shared").SwarmChipTarget[]>([]);
-const swarmAttackModalOpen = ref(false);
-const swarmAttackPending = ref<{
-  enemyId: string;
-  attackIndex: number;
-  targetPlayerId: string;
-  damage?: number;
-} | null>(null);
 const targetPickerOpen = ref(false);
 const targetPickerEnemies = ref<TargetPickerEnemy[]>([]);
 const targetPickerMaxSelectable = ref(1);
@@ -559,25 +570,6 @@ const swarmChipEnemyName = computed(() => {
   const id = swarmChipEnemyId.value;
   if (!s || !id) return "Swarm";
   return s.enemies.find((e) => e.id === id)?.name ?? "Swarm";
-});
-
-const swarmAttackModalProps = computed(() => {
-  const pending = swarmAttackPending.value;
-  const s = gameState.value;
-  if (!pending || !s) return null;
-  const player = s.players.find((p) => p.id === pending.targetPlayerId);
-  const enemy = s.enemies.find((e) => e.id === pending.enemyId);
-  const attackText = getEnemyListingByName(enemy?.name)?.attacks?.[pending.attackIndex] ?? "";
-  const maxStrikes = player ? maxSwarmStrikesAgainstTarget(s, pending.enemyId, player) : 0;
-  return {
-    enemyId: pending.enemyId,
-    attackIndex: pending.attackIndex,
-    attackText,
-    targetPlayerId: pending.targetPlayerId,
-    targetPlayerName: player?.nickname ?? player?.id ?? "Player",
-    maxStrikes,
-    damageOverride: pending.damage,
-  };
 });
 const teleportOverlayAtDest = ref(false);
 
@@ -1573,6 +1565,7 @@ function buildLocalAttackPreview(): AttackPreviewState | null {
       enemyId: pending.enemyId,
       attackIndex: pending.attackIndex,
       direction: attackDirection.value,
+      aimed: attackAimed.value,
     };
   }
 
@@ -1845,15 +1838,62 @@ const gmEnemyAttackTargetKeys = computed(() => {
   const s = gameState.value;
   const occ = occupancy.value;
   if (!s || !occ) return keys;
-  const { enemyId, attackIndex } = gmEnemyAttack.value;
+  const pending = gmEnemyAttack.value;
+  const { enemyId, attackIndex } = pending;
   const enemy = s.enemies.find((e) => e.id === enemyId);
   const attackText = getEnemyListingByName(enemy?.name)?.attacks?.[attackIndex] ?? "";
   const parsed = parseEnemyAttackString(attackText);
+  if (isPatternEnemyAttack(parsed)) return keys;
+  const stainTeleport =
+    pending.stainTeleport || enemyAttackNeedsStainTeleport(attackText);
+
+  if (stainTeleport && (pending.targetPlayerId || pending.targetEnemyId)) {
+    for (const tile of s.tiles) {
+      if (tileIsStained(s, tile.x, tile.y)) keys.add(coordKey(tile.x, tile.y));
+    }
+    return keys;
+  }
+
   for (const playerId of enemyDirectAttackTargetPlayerIds(s, enemyId, parsed, occ)) {
     const player = s.players.find((p) => p.id === playerId);
     if (player) keys.add(coordKey(player.x, player.y));
   }
+  if (stainTeleport || isSelectTargetEnemyAttack(parsed)) {
+    for (const targetId of enemyDirectAttackTargetEnemyIds(s, enemyId, parsed, occ)) {
+      const target = s.enemies.find((e) => e.id === targetId);
+      if (!target) continue;
+      for (const tile of enemyFootprintTiles(target.x, target.y, getEnemyScale(target))) {
+        keys.add(coordKey(tile.x, tile.y));
+      }
+    }
+  }
   return keys;
+});
+
+const localGmEnemyAttackHighlights = computed(() => {
+  if (boardActionMode.value !== "gmEnemyAttack" || !canUseGmTools.value) return null;
+  const pending = gmEnemyAttack.value;
+  const s = gameState.value;
+  if (!pending || !s) return null;
+  return computeAttackPreviewHighlights(s, {
+    mode: "gmEnemyAttack",
+    enemyId: pending.enemyId,
+    attackIndex: pending.attackIndex,
+    direction: attackDirection.value,
+    aimed: attackAimed.value,
+  });
+});
+
+const gmEnemyPatternPrimaryKeys = computed(() => {
+  const hl = localGmEnemyAttackHighlights.value;
+  if (!hl) return new Set<string>();
+  return new Set(hl.primary);
+});
+
+const gmEnemyPatternSecondaryKeys = computed(() => {
+  const hl = localGmEnemyAttackHighlights.value;
+  if (!hl) return new Set<string>();
+  return new Set(hl.secondary);
 });
 
 const occupancy = computed(() =>
@@ -1876,6 +1916,14 @@ watch(boardActionMode, (mode) => {
     if (remaining > 0) sendPlayerAction({ action: "sprintCancel" });
   }
   sprintModePrev = mode;
+});
+
+watch(gmActiveTool, (tool) => {
+  if (tool) clearStainGeyserPlacement();
+});
+
+watch(selectedSpawnEnemyName, (name) => {
+  if (name) clearStainGeyserPlacement();
 });
 
 watch(
@@ -2038,6 +2086,7 @@ const cellStateByKey = computed(() => {
       (remoteSelected?.has(ck) ?? false) ||
       reversalLineKeys.value.damage.has(ck) ||
       gmEnemyAttackTargetKeys.value.has(ck) ||
+      gmEnemyPatternPrimaryKeys.value.has(ck) ||
       (remotePrimary?.has(ck) ?? false) ||
       (boardActionMode.value === "kataptyPick" && kataptySelectedCoordKeys.value.has(ck));
     const combatSecondary =
@@ -2055,6 +2104,7 @@ const cellStateByKey = computed(() => {
       assistedLaunchLineKeys.value.has(ck) ||
       kataptyPickKeys.value.has(ck) ||
       rezTargetKeys.value.has(ck) ||
+      gmEnemyPatternSecondaryKeys.value.has(ck) ||
       (elevationBonusCandidateKeys.value.has(ck) &&
         !(elevBonusTile.value && coordKey(elevBonusTile.value.x, elevBonusTile.value.y) === ck)) ||
       (remoteSecondary?.has(ck) ?? false);
@@ -2083,7 +2133,8 @@ const cellStateByKey = computed(() => {
       gmSpawnable:
         canUseGmTools.value &&
         (gmSpawnableKeys.value.has(c.key) || gmForceMovableKeys.value.has(c.key)),
-      patternPrimary: patternPrimaryKeys.value.has(ck),
+      patternPrimary:
+        patternPrimaryKeys.value.has(ck) || stainGeyserPreviewKeys.value.has(ck),
       patternSecondary: patternSecondaryKeys.value.has(ck),
       combatTargetPrimary: combatPrimary,
       combatTargetSecondary: combatSecondary,
@@ -2203,7 +2254,7 @@ const cellStateByKey = computed(() => {
 
   if (
     canUseGmTools.value &&
-    gmActiveTool.value === "paintbrush" &&
+    gmEffectiveActiveTool.value === "paintbrush" &&
     !paintbrushEyedropperActive.value &&
     hoveredCell.value &&
     paintbrushSuppressPreviewKey.value !==
@@ -2281,6 +2332,30 @@ const cellStateByKey = computed(() => {
           featureFlip: paintingFeature ? brushFlip : !!tile?.featureFlip,
         };
       }
+    }
+  }
+
+  if (canUseGmTools.value && stainGeyserPlacementActive.value) {
+    const overlayUrl = stainGeyserPreviewOverlayUrl.value;
+    for (const t of stainGeyserPreviewTiles.value) {
+      const previewCell = map.get(boardCellKey(t.x, t.y));
+      if (!previewCell || previewCell.paintbrushPreview) continue;
+      const tile = previewCell.tile;
+      previewCell.paintbrushPreview = {
+        baseColor: tile?.baseColor ?? null,
+        appearanceUrl: previewCell.tileAppearanceUrl,
+        overlayUrl: overlayUrl ?? previewCell.tileOverlayUrl,
+        featureUrl: previewCell.tileFeatureUrl,
+        appearanceTint: tile?.appearanceTint ?? null,
+        overlayTint: tile?.overlayTint ?? null,
+        featureTint: tile?.featureTint ?? null,
+        appearanceRotation: tile?.appearanceRotation ?? 0,
+        appearanceFlip: !!tile?.appearanceFlip,
+        overlayRotation: tile?.overlayRotation ?? 0,
+        overlayFlip: !!tile?.overlayFlip,
+        featureRotation: tile?.featureRotation ?? 0,
+        featureFlip: !!tile?.featureFlip,
+      };
     }
   }
 
@@ -2749,7 +2824,7 @@ function boardTargetingContext() {
 }
 
 function onEnemyCellClick(x: number, y: number, enemyId: string) {
-  if (canUseGmTools.value && gmActiveTool.value === "paintbrush") {
+  if (canUseGmTools.value && gmEffectiveActiveTool.value === "paintbrush") {
     handlePaintbrushCellAction(x, y);
     return;
   }
@@ -2792,7 +2867,7 @@ function onEnemyCellClick(x: number, y: number, enemyId: string) {
 }
 
 function onEnemyCellDblClick(_x: number, _y: number, enemyId: string) {
-  if (canUseGmTools.value && gmActiveTool.value === "paintbrush") return;
+  if (canUseGmTools.value && gmEffectiveActiveTool.value === "paintbrush") return;
   if (enemyClickTimer) {
     clearTimeout(enemyClickTimer);
     enemyClickTimer = null;
@@ -3920,7 +3995,7 @@ function handleCombatCellClick(x: number, y: number): boolean {
 }
 
 function onBoardPlayerClick(x: number, y: number, playerId: string, characterSheetId?: string) {
-  if (canUseGmTools.value && gmActiveTool.value === "paintbrush") {
+  if (canUseGmTools.value && gmEffectiveActiveTool.value === "paintbrush") {
     handlePaintbrushCellAction(x, y);
     return;
   }
@@ -3957,57 +4032,140 @@ function handleGmEnemyAttackCellClick(x: number, y: number): boolean {
   const occ = occupancy.value;
   if (!pending || !s || !occ) return false;
   const key = coordKey(x, y);
-  if (!gmEnemyAttackTargetKeys.value.has(key)) return false;
-  const player = occ.playerByKey.get(key);
-  if (!player) return false;
 
-  if (pending.swarm) {
-    swarmAttackPending.value = {
-      enemyId: pending.enemyId,
-      attackIndex: pending.attackIndex,
-      targetPlayerId: player.id,
-      damage: pending.damage,
-    };
-    swarmAttackModalOpen.value = true;
+  const attackText = getEnemyListingByName(
+    s.enemies.find((e) => e.id === pending.enemyId)?.name,
+  )?.attacks?.[pending.attackIndex] ?? "";
+  const parsed = parseEnemyAttackString(attackText);
+
+  if (isPatternEnemyAttack(parsed)) {
+    const dirs = enemyAttackDirectionsAt(s, pending.enemyId, parsed, x, y);
+    if (dirs.length === 0) return false;
+
+    if (attackAimed.value && gmEnemyPatternPrimaryKeys.value.has(key)) {
+      send({
+        type: "gmEnemyAction",
+        action: {
+          action: "attack",
+          enemyId: pending.enemyId,
+          attackIndex: pending.attackIndex,
+          direction: attackDirection.value,
+          damage: pending.damage,
+        },
+      });
+      clearBoardActionMode();
+      return true;
+    }
+
+    const nextDir = attackAimed.value
+      ? (dirs.find((d) => d !== attackDirection.value) ?? dirs[0])
+      : dirs[0];
+    attackDirection.value = nextDir!;
+    attackAimed.value = true;
+    return true;
+  }
+
+  if (!gmEnemyAttackTargetKeys.value.has(key)) return false;
+
+  const stainTeleport =
+    pending.stainTeleport || enemyAttackNeedsStainTeleport(attackText);
+
+  if (stainTeleport && (pending.targetPlayerId || pending.targetEnemyId)) {
+    send({
+      type: "gmEnemyAction",
+      action: {
+        action: "attack",
+        enemyId: pending.enemyId,
+        attackIndex: pending.attackIndex,
+        targetPlayerId: pending.targetPlayerId,
+        targetEnemyId: pending.targetEnemyId,
+        destX: x,
+        destY: y,
+        damage: pending.damage,
+      },
+    });
     clearBoardActionMode();
     return true;
   }
 
-  send({
-    type: "gmEnemyAction",
-    action: {
-      action: "attack",
-      enemyId: pending.enemyId,
-      attackIndex: pending.attackIndex,
-      targetPlayerId: player.id,
-      damage: pending.damage,
-    },
-  });
-  clearBoardActionMode();
-  return true;
-}
+  if (stainTeleport) {
+    const player = occ.playerByKey.get(key);
+    const enemy = occ.enemyByKey.get(key);
+    if (player) {
+      gmEnemyAttack.value = {
+        ...pending,
+        stainTeleport: true,
+        targetPlayerId: player.id,
+        targetEnemyId: undefined,
+      };
+      return true;
+    }
+    if (enemy && enemy.id !== pending.enemyId) {
+      const canon = swarmGroupForEnemy(s, enemy.id)?.canonicalId ?? enemy.id;
+      gmEnemyAttack.value = {
+        ...pending,
+        stainTeleport: true,
+        targetEnemyId: canon,
+        targetPlayerId: undefined,
+      };
+      return true;
+    }
+    return false;
+  }
 
-function onSwarmAttackConfirm(strikeCount: number) {
-  const pending = swarmAttackPending.value;
-  if (!pending) return;
-  send({
-    type: "gmEnemyAction",
-    action: {
-      action: "attack",
-      enemyId: pending.enemyId,
-      attackIndex: pending.attackIndex,
-      targetPlayerId: pending.targetPlayerId,
-      damage: pending.damage,
-      swarmStrikes: strikeCount,
-    },
-  });
-  swarmAttackModalOpen.value = false;
-  swarmAttackPending.value = null;
-}
+  const player = occ.playerByKey.get(key);
+  const enemyOnTile = occ.enemyByKey.get(key);
 
-function onSwarmAttackClose() {
-  swarmAttackModalOpen.value = false;
-  swarmAttackPending.value = null;
+  if (pending.swarm) {
+    if (!player) return false;
+    const maxStrikes = maxSwarmStrikesAgainstTarget(s, pending.enemyId, player);
+    send({
+      type: "gmEnemyAction",
+      action: {
+        action: "attack",
+        enemyId: pending.enemyId,
+        attackIndex: pending.attackIndex,
+        targetPlayerId: player.id,
+        damage: pending.damage,
+        swarmStrikes: maxStrikes,
+      },
+    });
+    clearBoardActionMode();
+    return true;
+  }
+
+  if (player) {
+    send({
+      type: "gmEnemyAction",
+      action: {
+        action: "attack",
+        enemyId: pending.enemyId,
+        attackIndex: pending.attackIndex,
+        targetPlayerId: player.id,
+        damage: pending.damage,
+      },
+    });
+    clearBoardActionMode();
+    return true;
+  }
+
+  if (enemyOnTile && enemyOnTile.id !== pending.enemyId) {
+    const canon = swarmGroupForEnemy(s, enemyOnTile.id)?.canonicalId ?? enemyOnTile.id;
+    send({
+      type: "gmEnemyAction",
+      action: {
+        action: "attack",
+        enemyId: pending.enemyId,
+        attackIndex: pending.attackIndex,
+        targetEnemyId: canon,
+        damage: pending.damage,
+      },
+    });
+    clearBoardActionMode();
+    return true;
+  }
+
+  return false;
 }
 
 function cellFromClientPoint(clientX: number, clientY: number): { x: number; y: number } | null {
@@ -4071,7 +4229,7 @@ function finishMarqueeSelection(startClient: { x: number; y: number }, endClient
 }
 
 function onMarqueePointerDown(e: PointerEvent) {
-  if (props.role !== "gm" || gmActiveTool.value !== "select") return;
+  if (props.role !== "gm" || gmEffectiveActiveTool.value !== "select") return;
   if (e.button !== 0) return;
   const target = e.target as HTMLElement;
   if (target.closest(".reset-zoom-btn")) return;
@@ -4103,7 +4261,7 @@ function onMarqueePointerDown(e: PointerEvent) {
 }
 
 function onPaintbrushPointerDown(e: PointerEvent) {
-  if (!canUseGmTools.value || gmActiveTool.value !== "paintbrush") return;
+  if (!canUseGmTools.value || gmEffectiveActiveTool.value !== "paintbrush") return;
   if (e.button !== 0) return;
   const target = e.target as HTMLElement;
   if (target.closest(".reset-zoom-btn")) return;
@@ -4202,6 +4360,10 @@ function trySpawnEnemyAt(x: number, y: number): boolean {
     return false;
   }
   send({ type: "addEnemy", x, y, name: spawnName });
+  if (spawnName === STAIN_GEYSER_NAME) {
+    clearSpawnEnemySelection();
+    beginStainGeyserPlacement(x, y);
+  }
   return true;
 }
 
@@ -4209,12 +4371,14 @@ function onGmCellClick(x: number, y: number) {
   const s = gameState.value;
   if (!s) return;
 
-  if (gmActiveTool.value === "paintbrush") {
+  if (tryApplyStainGeyserPlacement(x, y)) return;
+
+  if (gmEffectiveActiveTool.value === "paintbrush") {
     handlePaintbrushCellAction(x, y);
     return;
   }
 
-  if (gmActiveTool.value !== "select") {
+  if (gmEffectiveActiveTool.value !== "select") {
     const occ = occupancy.value;
     const key = coordKey(x, y);
     const hasOccupant =
@@ -4243,7 +4407,7 @@ function onGmCellClick(x: number, y: number) {
     return;
   }
 
-  if (gmActiveTool.value === "select") {
+  if (gmEffectiveActiveTool.value === "select") {
     if (!selectOccupantAt(x, y)) clearGmBulkSelection();
     return;
   }
@@ -4306,6 +4470,7 @@ function onCellHover(x: number, y: number, key: string) {
   }
   hoveredKey.value = key;
   hoveredCell.value = { x, y };
+  setStainGeyserHover(x, y);
   setPatternHoverOrigin({ x, y });
 }
 
@@ -4654,6 +4819,18 @@ function onKeydown(e: KeyboardEvent) {
   if (
     canUseGmTools.value &&
     gmActiveTool.value === "paintbrush" &&
+    (e.key === "s" || e.key === "S") &&
+    !e.metaKey &&
+    !e.ctrlKey &&
+    !e.altKey
+  ) {
+    setPaintbrushSelectHeld(true);
+    return;
+  }
+
+  if (
+    canUseGmTools.value &&
+    gmActiveTool.value === "paintbrush" &&
     (e.key === "e" || e.key === "E") &&
     !e.metaKey &&
     !e.ctrlKey &&
@@ -4747,6 +4924,10 @@ function onKeydown(e: KeyboardEvent) {
 
   if (canUseGmTools.value) {
     if (e.key === "Escape") {
+      if (stainGeyserPlacementActive.value) {
+        clearStainGeyserPlacement();
+        return;
+      }
       if (gmActiveTool.value === "forceMove" && (selectedPlayerId.value || selectedEnemyId.value)) {
         clearBoardSelection();
         return;
@@ -4798,10 +4979,12 @@ function onKeydown(e: KeyboardEvent) {
 
 function onKeyup(e: KeyboardEvent) {
   if (e.key === "e" || e.key === "E") setPaintbrushEyedropperActive(false);
+  if (e.key === "s" || e.key === "S") setPaintbrushSelectHeld(false);
 }
 
 function onWindowBlur() {
   setPaintbrushEyedropperActive(false);
+  setPaintbrushSelectHeld(false);
 }
 
 onMounted(() => {
@@ -4917,7 +5100,7 @@ onUnmounted(() => {
                 :enemy-defeated="row.enemyDefeated"
                 :player-teleporting="row.playerTeleporting"
                 :enemy-animating="row.enemyAnimating"
-                :paintbrush-active="canUseGmTools && gmActiveTool === 'paintbrush'"
+                :paintbrush-active="canUseGmTools && gmEffectiveActiveTool === 'paintbrush'"
                 :gm-inherit-cursor="!!gmViewportCursor"
                 @click="onCellClick(row.x, row.y)"
                 @hover="onCellHover(row.x, row.y, row.key)"
@@ -5134,20 +5317,6 @@ onUnmounted(() => {
       :targets="swarmChipTargets"
       @close="onSwarmChipClose"
       @confirm="onSwarmChipConfirm"
-    />
-
-    <GmSwarmAttackModal
-      v-if="swarmAttackModalProps"
-      :open="swarmAttackModalOpen"
-      :enemy-id="swarmAttackModalProps.enemyId"
-      :attack-index="swarmAttackModalProps.attackIndex"
-      :attack-text="swarmAttackModalProps.attackText"
-      :target-player-id="swarmAttackModalProps.targetPlayerId"
-      :target-player-name="swarmAttackModalProps.targetPlayerName"
-      :max-strikes="swarmAttackModalProps.maxStrikes"
-      :damage-override="swarmAttackModalProps.damageOverride"
-      @close="onSwarmAttackClose"
-      @confirm="onSwarmAttackConfirm"
     />
 
     <TargetPickerModal

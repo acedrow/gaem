@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import type { PatternDirection } from "@gaem/shared";
 import {
   getEnemyListingByName,
   getEnemySpeed,
   getSwarmMovementRemaining,
+  enemyAttackNeedsStainTeleport,
+  isAutoResolvableEnemyAttack,
   isDirectTargetEnemyAttack,
+  isPatternEnemyAttack,
+  isSelectTargetEnemyAttack,
   isTowerEnemy,
-  nextPatternDirection,
   parseEnemyAttackString,
   swarmGroupForEnemy,
 } from "@gaem/shared";
@@ -20,11 +22,10 @@ import { useGameState } from "../composables/useGameState.js";
 const { showGmCombatUi } = useCombatActions();
 const { selectedEnemyId } = useBoardSelection();
 const { gameState, send } = useGameState();
-const { mode, gmEnemyAttack, startGmEnemyAttack, startGmSwarmAttack, clearMode } = useBoardActionMode();
+const { mode, gmEnemyAttack, attackAimed, startGmEnemyAttack, startGmSwarmAttack, clearMode } =
+  useBoardActionMode();
 
 const attackIndex = ref(0);
-const attackDirection = ref<PatternDirection>("n");
-const damageOverride = ref<number | "">("");
 
 const activeEnemy = computed(() => {
   const id = selectedEnemyId.value;
@@ -68,14 +69,35 @@ const speedLabel = computed(() => {
   return `${remaining}/${max}`;
 });
 
-const parsedAttacks = computed(() =>
-  (listing.value?.attacks ?? []).map((text) => parseEnemyAttackString(text)),
+const resolvableAttackIndices = computed(() => {
+  const attacks = listing.value?.attacks ?? [];
+  return attacks
+    .map((text, i) => (isAutoResolvableEnemyAttack(text) ? i : -1))
+    .filter((i) => i >= 0);
+});
+
+const hasResolvableAttacks = computed(() => resolvableAttackIndices.value.length > 0);
+
+const selectedAttack = computed(() => {
+  const text = listing.value?.attacks?.[attackIndex.value];
+  return text ? parseEnemyAttackString(text) : undefined;
+});
+
+const isSelectTarget = computed(() =>
+  selectedAttack.value ? isSelectTargetEnemyAttack(selectedAttack.value) : false,
 );
 
-const selectedAttack = computed(() => parsedAttacks.value[attackIndex.value]);
+const isPatternAttack = computed(() =>
+  selectedAttack.value ? isPatternEnemyAttack(selectedAttack.value) : false,
+);
 
-const isDirectAttack = computed(() =>
-  selectedAttack.value ? isDirectTargetEnemyAttack(selectedAttack.value) : false,
+const needsStainTeleport = computed(() => {
+  const text = listing.value?.attacks?.[attackIndex.value] ?? "";
+  return enemyAttackNeedsStainTeleport(text);
+});
+
+const usesBoardTargeting = computed(
+  () => needsStainTeleport.value || isSelectTarget.value || isPatternAttack.value,
 );
 
 const targetingAttack = computed(
@@ -91,47 +113,49 @@ const targetingSwarmAttack = computed(
   () => targetingAttack.value && !!gmEnemyAttack.value?.swarm,
 );
 
+const targetingPatternAttack = computed(
+  () => targetingAttack.value && isPatternAttack.value,
+);
+
+const targetingStainDest = computed(
+  () =>
+    targetingAttack.value &&
+    !!gmEnemyAttack.value?.stainTeleport &&
+    !!(gmEnemyAttack.value.targetPlayerId || gmEnemyAttack.value.targetEnemyId),
+);
+
 watch(selectedEnemyId, () => {
-  attackIndex.value = 0;
-  attackDirection.value = "n";
-  damageOverride.value = "";
+  attackIndex.value = resolvableAttackIndices.value[0] ?? 0;
   clearMode();
+});
+
+watch(listing, () => {
+  if (!resolvableAttackIndices.value.includes(attackIndex.value)) {
+    attackIndex.value = resolvableAttackIndices.value[0] ?? 0;
+  }
 });
 
 watch(attackIndex, () => {
   if (mode.value === "gmEnemyAttack") clearMode();
 });
 
-function rotateDirection() {
-  attackDirection.value = nextPatternDirection(attackDirection.value);
-}
-
 function runSwarmAttack() {
   const enemy = activeEnemy.value;
   const index = swarmDirectAttackIndex.value;
   if (!enemy || index < 0) return;
-  const damage = damageOverride.value === "" ? undefined : Number(damageOverride.value);
-  startGmSwarmAttack(enemy.id, index, damage);
+  startGmSwarmAttack(enemy.id, index);
 }
 
 function runAttack() {
   const enemy = activeEnemy.value;
   if (!enemy) return;
-  const damage = damageOverride.value === "" ? undefined : Number(damageOverride.value);
-  if (isDirectAttack.value) {
-    startGmEnemyAttack(enemy.id, attackIndex.value, damage);
-    return;
+  const attackText = listing.value?.attacks?.[attackIndex.value] ?? "";
+  if (!isAutoResolvableEnemyAttack(attackText)) return;
+  if (needsStainTeleport.value || isSelectTarget.value || isPatternAttack.value) {
+    startGmEnemyAttack(enemy.id, attackIndex.value, undefined, {
+      stainTeleport: needsStainTeleport.value,
+    });
   }
-  send({
-    type: "gmEnemyAction",
-    action: {
-      action: "attack",
-      enemyId: enemy.id,
-      attackIndex: attackIndex.value,
-      direction: attackDirection.value,
-      damage,
-    },
-  });
 }
 
 function exhaustEnemy() {
@@ -149,46 +173,43 @@ function exhaustEnemy() {
       <span v-else-if="!activeIsTower" class="chip speed">Speed {{ speedLabel }}</span>
     </div>
     <div v-if="showSwarmAttack" class="actions-row">
-      <input
-        v-model="damageOverride"
-        type="number"
-        min="0"
-        class="damage-input"
-        placeholder="Dmg"
-      />
       <button type="button" class="action-btn primary" @click="runSwarmAttack">
         {{ targetingSwarmAttack ? "Targeting…" : "Swarm attack" }}
       </button>
       <button type="button" class="action-btn" @click="exhaustEnemy">Exhaust</button>
     </div>
-    <div v-else-if="listing?.attacks?.length && !activeIsTower" class="actions-row">
+    <div v-else-if="hasResolvableAttacks && !activeIsTower" class="actions-row">
       <select v-model="attackIndex" class="select">
-        <option v-for="(attack, i) in listing.attacks" :key="`${attack}-${i}`" :value="i">
+        <option
+          v-for="i in resolvableAttackIndices"
+          :key="i"
+          :value="i"
+        >
           Attack {{ i + 1 }}
         </option>
       </select>
-      <button
-        v-if="selectedAttack?.patternId"
-        type="button"
-        class="action-btn"
-        @click="rotateDirection"
-      >
-        Aim {{ attackDirection.toUpperCase() }}
-      </button>
-      <input
-        v-model="damageOverride"
-        type="number"
-        min="0"
-        class="damage-input"
-        placeholder="Dmg"
-      />
       <button type="button" class="action-btn" @click="runAttack">
-        {{ isDirectAttack ? (targetingAttack ? "Targeting…" : "Target") : "Attack" }}
+        {{
+          usesBoardTargeting
+            ? targetingAttack
+              ? "Targeting…"
+              : "Target"
+            : "Attack"
+        }}
       </button>
       <button type="button" class="action-btn" @click="exhaustEnemy">Exhaust</button>
     </div>
-    <p v-if="targetingSwarmAttack" class="attack-hint">Click a highlighted player, then choose strike count</p>
-    <p v-else-if="targetingAttack" class="attack-hint">Click a highlighted player to attack</p>
+    <div v-else-if="!activeIsTower" class="actions-row">
+      <button type="button" class="action-btn" @click="exhaustEnemy">Exhaust</button>
+    </div>
+    <p v-if="targetingSwarmAttack" class="attack-hint">Click a highlighted player to attack</p>
+    <p v-else-if="targetingStainDest" class="attack-hint">Click a stained square to move the target</p>
+    <p v-else-if="targetingAttack && needsStainTeleport" class="attack-hint">Click an adjacent unit, then a stained square</p>
+    <p v-else-if="targetingPatternAttack && !attackAimed" class="attack-hint">
+      Click a pattern tile to aim, then click the pattern to attack
+    </p>
+    <p v-else-if="targetingPatternAttack" class="attack-hint">Click the highlighted pattern to attack</p>
+    <p v-else-if="targetingAttack" class="attack-hint">Click a highlighted unit to attack</p>
   </div>
 </template>
 
@@ -216,42 +237,37 @@ function exhaustEnemy() {
 }
 
 .chip.enemy-name {
-  font-weight: 700;
-}
-
-.chip.speed {
-  margin-left: auto;
-}
-
-.action-btn {
-  background: var(--color-surface-raised);
-}
-
-.action-btn.primary {
-  border-color: var(--color-accent-muted);
-  background: var(--color-accent-subtle-bg);
-  color: var(--color-accent);
   font-weight: 600;
 }
 
-.select,
-.damage-input {
-  font-size: 0.78rem;
+.select {
+  max-width: 10rem;
   padding: 0.25rem 0.4rem;
-  border-radius: 0;
   border: 1px solid var(--color-border);
-  background: var(--color-surface-raised);
-  color: var(--color-text);
+  border-radius: 6px;
+  background: var(--color-bg);
+  color: inherit;
+  font: inherit;
 }
 
-.damage-input {
-  width: 3.5rem;
+.action-btn {
+  padding: 0.3rem 0.65rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.action-btn.primary {
+  border-color: var(--color-accent);
+  background: var(--color-accent-subtle-bg);
 }
 
 .attack-hint {
   margin: 0;
-  font-size: 0.72rem;
+  font-size: 0.8rem;
   color: var(--color-muted);
 }
-
 </style>

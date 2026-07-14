@@ -114,6 +114,7 @@ watch(
 
 const {
   showPlayerActionBar,
+  combatUiUnlocked,
   canMain,
   canSupport,
   canAux,
@@ -177,13 +178,6 @@ const showWeaponGearRow = computed(
 );
 const showArmorGearRow = computed(() => classGrantsDualGear(form.value.class));
 const showYadathanTowerPick = computed(() => form.value.armor === YADATHAN_ARMOR_NAME);
-
-const combatUiUnlocked = computed(
-  () =>
-    gameState.value != null &&
-    gameState.value.roundPhase !== "deployment" &&
-    gameState.value.roundPhase !== "taccomNotStarted",
-);
 
 const canUseEquipmentCharge = computed(() => {
   if (!canSupport.value || !form.value.equipment) return false;

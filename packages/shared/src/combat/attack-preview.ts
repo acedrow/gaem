@@ -247,20 +247,36 @@ function computeGmEnemyAttackHighlights(
     getEnemyListingByName(enemy.name)?.attacks?.[attackIndex] ?? "",
   );
   const direction = preview.direction ?? "n";
+  const aimed = preview.aimed ?? false;
   const occ = buildBoardOccupancy(state);
 
-  if (parsed.patternId && parsed.size) {
+  if (parsed.patternId && parsed.size != null && parsed.damage != null) {
     const spec = {
       patternId: parsed.patternId,
       size: parsed.size,
       range: parsed.range,
       width: parsed.width ?? 1,
-      damage: String(parsed.damage ?? 0),
+      damage: String(parsed.damage),
     };
-    const primary = tileKeys(
-      collectAttackTiles(state, { x: enemy.x, y: enemy.y }, spec, direction),
-    );
-    return { primary, secondary: [], invalid: [], selected: [], heal: false };
+    const origin = { x: enemy.x, y: enemy.y };
+    if (aimed) {
+      const primary = tileKeys(collectAttackTiles(state, origin, spec, direction));
+      const secondary: string[] = [];
+      for (const dir of PATTERN_DIRECTIONS) {
+        if (dir === direction) continue;
+        for (const key of tileKeys(collectAttackTiles(state, origin, spec, dir))) {
+          if (!primary.includes(key)) secondary.push(key);
+        }
+      }
+      return { primary, secondary, invalid: [], selected: [], heal: false };
+    }
+    const secondary = new Set<string>();
+    for (const dir of PATTERN_DIRECTIONS) {
+      for (const key of tileKeys(collectAttackTiles(state, origin, spec, dir))) {
+        secondary.add(key);
+      }
+    }
+    return { primary: [], secondary: [...secondary], invalid: [], selected: [], heal: false };
   }
 
   const selected: string[] = [];

@@ -207,6 +207,7 @@ export type CombatState = {
   kopisMarks?: Record<string, string>;
   countdownKinds?: Record<string, string>;
   equipmentTerrainSnapshots?: { x: number; y: number; terrain: TerrainType[] }[];
+  sideEffectMessages?: string[];
 };
 
 export type PlayerAction =
@@ -315,7 +316,18 @@ export type PlayerAction =
 
 export type GmEnemyAction =
   | { action: "move"; enemyId: string; path: { x: number; y: number }[] }
-  | { action: "attack"; enemyId: string; attackIndex: number; direction?: PatternDirection; damage?: number; targetPlayerId?: string; swarmStrikes?: number }
+  | {
+      action: "attack";
+      enemyId: string;
+      attackIndex: number;
+      direction?: PatternDirection;
+      damage?: number;
+      targetPlayerId?: string;
+      targetEnemyId?: string;
+      destX?: number;
+      destY?: number;
+      swarmStrikes?: number;
+    }
   | { action: "swarmChip"; enemyId: string; targetPlayerIds: string[] }
   | { action: "assisted"; enemyId: string; label: string; detail?: string; damage?: number; targetPlayerId?: string; effects?: string[] }
   | { action: "exhaust"; enemyId: string };

@@ -105,7 +105,14 @@ const paintbrushPresets = ref<Record<string, TilePaintPreset>>({});
 const paintbrushPresetLoadId = ref("");
 const paintbrushPresetError = ref("");
 const paintbrushEyedropperActive = ref(false);
+const paintbrushSelectHeld = ref(false);
 const paintbrushSuppressPreviewKey = ref<string | null>(null);
+
+const effectiveActiveTool = computed(() =>
+  activeTool.value === "paintbrush" && paintbrushSelectHeld.value
+    ? "select"
+    : activeTool.value,
+);
 
 type PendingTilePlacement = {
   brushAppearance: string | null | undefined;
@@ -325,6 +332,7 @@ export function useGmTools() {
     if (tool === "paintbrush") void refreshPaintbrushPresets();
     if (tool !== "paintbrush") {
       paintbrushEyedropperActive.value = false;
+      paintbrushSelectHeld.value = false;
       clearPendingTilePlacements();
       clearPaintbrushSuppressPreview();
     }
@@ -351,6 +359,14 @@ export function useGmTools() {
       return;
     }
     paintbrushEyedropperActive.value = active;
+  }
+
+  function setPaintbrushSelectHeld(active: boolean) {
+    if (activeTool.value !== "paintbrush") {
+      paintbrushSelectHeld.value = false;
+      return;
+    }
+    paintbrushSelectHeld.value = active;
   }
 
   function tileToPaintPreset(tile: MapTile): TilePaintPreset {
@@ -961,6 +977,7 @@ export function useGmTools() {
 
   return {
     activeTool,
+    effectiveActiveTool,
     selectTargetKind,
     bulkSelection,
     bulkSelectionCount,
@@ -1008,6 +1025,7 @@ export function useGmTools() {
     paintbrushPresetNames,
     paintbrushPresetError,
     paintbrushEyedropperActive,
+    paintbrushSelectHeld,
     setActiveTool,
     setBulkSelection,
     clearBulkSelection,
@@ -1026,6 +1044,7 @@ export function useGmTools() {
     applyPaintbrushToTile,
     samplePaintbrushFromTile,
     setPaintbrushEyedropperActive,
+    setPaintbrushSelectHeld,
     loadSelectedPreset,
     saveCurrentPreset,
     deleteSelectedPreset,

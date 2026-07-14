@@ -164,7 +164,7 @@ export async function gmSelectEnemyOnBoard(page: Page, coord: CellCoord): Promis
 }
 
 export async function gmDirectEnemyAttack(page: Page, targetCoord: CellCoord): Promise<void> {
-  await page.getByRole("button", { name: "Target" }).click();
+  await page.locator(".action-bar.gm-bar").getByRole("button", { name: "Target" }).click();
   await cell(page, targetCoord.x, targetCoord.y).click();
 }
 

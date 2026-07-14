@@ -10,12 +10,16 @@ import {
   getSwarmMaxHp,
   getSwarmMovementRemaining,
   getYadathanTowerDef,
+  isAutoResolvableEnemyAttack,
   isDirectTargetEnemyAttack,
+  isPatternEnemyAttack,
+  isSelectTargetEnemyAttack,
+  enemyAttackNeedsStainTeleport,
   isTowerEnemy,
   parseEnemyAttackString,
   swarmGroupForEnemy,
 } from "@gaem/shared";
-import { computed, ref } from "vue";
+import { computed } from "vue";
 
 import { useBoardActionMode } from "../composables/useBoardActionMode.js";
 import { useBoardSelection } from "../composables/useBoardSelection.js";
@@ -26,7 +30,7 @@ import { useApi } from "../composables/useApi.js";
 import { useEnemySpawnSelection } from "../composables/useEnemySpawnSelection.js";
 import { useEnemyPortraitColors } from "../composables/useEnemyPortraitColors.js";
 import { useSession } from "../composables/useSession.js";
-import GmEnemyAttackModal from "./GmEnemyAttackModal.vue";
+import { useStainGeyserPlacement } from "../composables/useStainGeyserPlacement.js";
 import HpBar from "./HpBar.vue";
 import PanelShell from "./PanelShell.vue";
 import RuleText from "./RuleText.vue";
@@ -46,9 +50,7 @@ const { closeRightPanel, boardSelection } = useBoardSelection();
 const { startGmEnemyAttack, startGmSwarmAttack } = useBoardActionMode();
 const { goBackFromDataFocus } = useInfoDataSelection();
 const { selectedSpawnEnemyName, selectSpawnEnemy } = useEnemySpawnSelection();
-
-const attackModalOpen = ref(false);
-const attackModalIndex = ref(0);
+const { stainGeyserPlacementActive } = useStainGeyserPlacement();
 
 const activeEnemy = computed(() =>
   props.enemyId ? gameState.value?.enemies.find((e) => e.id === props.enemyId) : undefined,
@@ -191,16 +193,25 @@ function useSwarmAttack() {
   startGmSwarmAttack(enemy.id, index);
 }
 
+function attackIsResolvable(index: number): boolean {
+  const attackText = listing.value?.attacks?.[index];
+  return !!attackText && isAutoResolvableEnemyAttack(attackText);
+}
+
 function useAttack(index: number) {
   const enemy = activeEnemy.value;
   const attackText = listing.value?.attacks?.[index];
-  if (!enemy || !attackText) return;
-  if (isDirectTargetEnemyAttack(parseEnemyAttackString(attackText))) {
-    startGmEnemyAttack(enemy.id, index);
-    return;
+  if (!enemy || !attackText || !isAutoResolvableEnemyAttack(attackText)) return;
+  const parsed = parseEnemyAttackString(attackText);
+  if (
+    enemyAttackNeedsStainTeleport(attackText) ||
+    isSelectTargetEnemyAttack(parsed) ||
+    isPatternEnemyAttack(parsed)
+  ) {
+    startGmEnemyAttack(enemy.id, index, undefined, {
+      stainTeleport: enemyAttackNeedsStainTeleport(attackText),
+    });
   }
-  attackModalIndex.value = index;
-  attackModalOpen.value = true;
 }
 
 function commitHp(hp: number) {
@@ -261,7 +272,10 @@ function spawnUnit() {
           >
             {{ spawnSelected ? "Selected for spawn" : "Spawn unit" }}
           </button>
-          <p v-if="spawnSelected" class="spawn-hint">Click an empty walkable tile on the board.</p>
+          <p v-if="stainGeyserPlacementActive" class="spawn-hint">
+            Click to place the stain area (Esc to skip).
+          </p>
+          <p v-else-if="spawnSelected" class="spawn-hint">Click an empty walkable tile on the board.</p>
         </div>
 
         <div
@@ -309,6 +323,7 @@ function spawnUnit() {
           class="stat exhausted"
         >Exhausted</span>
         <span v-if="hasGmCapabilities && listing?.agnosiaHp != null" class="stat">Agnosia HP: {{ listing.agnosiaHp }}</span>
+        <span v-if="activeEnemy?.agnosiaTriggered" class="stat">Agnosia triggered</span>
       </div>
 
       <div v-if="listing?.tags?.length || towerDef?.tags" class="tags">
@@ -328,14 +343,15 @@ function spawnUnit() {
         <div v-for="(attack, i) in listing.attacks" :key="i" class="ability">
           <span class="ability-label">Attack {{ i + 1 }}</span>
           <p class="ability-text">{{ attack }}</p>
-          <button
-            v-if="showUseAttack && !isInSwarm"
-            type="button"
-            class="use-attack-btn"
-            @click="useAttack(i)"
-          >
-            Use attack
-          </button>
+          <div v-if="showUseAttack && !isInSwarm && attackIsResolvable(i)" class="attack-actions">
+            <button
+              type="button"
+              class="use-attack-btn"
+              @click="useAttack(i)"
+            >
+              Target
+            </button>
+          </div>
         </div>
         <p v-if="listing.agnosia" class="ability">
           <span class="ability-label">Agnosia</span>
@@ -357,15 +373,6 @@ function spawnUnit() {
     </div>
 
     <p v-else class="muted">Enemy not found.</p>
-
-    <GmEnemyAttackModal
-      v-if="activeEnemy"
-      :open="attackModalOpen"
-      :enemy-id="activeEnemy.id"
-      :attack-index="attackModalIndex"
-      :attack-text="listing?.attacks?.[attackModalIndex] ?? ''"
-      @close="attackModalOpen = false"
-    />
   </PanelShell>
 </template>
 
@@ -463,6 +470,17 @@ function spawnUnit() {
   color: var(--color-accent);
   cursor: pointer;
   font-weight: 600;
+}
+
+.attack-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.15rem;
+}
+
+.attack-actions .use-attack-btn {
+  margin-top: 0;
 }
 
 .use-attack-btn:hover {

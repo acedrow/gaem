@@ -16,6 +16,7 @@ import { useExpandableSet } from "../composables/useExpandableSet.js";
 import { useGameState } from "../composables/useGameState.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import { useSession } from "../composables/useSession.js";
+import { useStainGeyserPlacement } from "../composables/useStainGeyserPlacement.js";
 import PanelShell from "./PanelShell.vue";
 
 const props = defineProps<{
@@ -25,6 +26,7 @@ const props = defineProps<{
 const { hasGmCapabilities } = useSession();
 const { closeRightPanel } = useBoardSelection();
 const { selectedSpawnEnemyName, selectSpawnEnemy } = useEnemySpawnSelection();
+const { stainGeyserPlacementActive } = useStainGeyserPlacement();
 const { dataCategoryReturnFactionId, goBackFromDataCategory } = useInfoDataSelection();
 const { enemyPortraitUrl } = useApi();
 const { gameState } = useGameState();
@@ -56,7 +58,10 @@ function crownGateLabel(enemy: EnemyListing): string | null {
     @close="closeRightPanel"
     @back="goBackFromDataCategory"
   >
-    <p v-if="hasGmCapabilities && selectedSpawnEnemyName" class="spawn-hint">
+    <p v-if="hasGmCapabilities && stainGeyserPlacementActive" class="spawn-hint">
+      Click to place the stain area (Esc to skip).
+    </p>
+    <p v-else-if="hasGmCapabilities && selectedSpawnEnemyName" class="spawn-hint">
       Click an empty walkable tile to spawn {{ selectedSpawnEnemyName }}.
     </p>
 

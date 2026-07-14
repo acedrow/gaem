@@ -31,6 +31,7 @@ import {
 } from "./damage.js";
 import { checkSharurEmergencyDefenses } from "./attractor.js";
 import { clampHp, getEnemyMaxHp, getPlayerMaxHp, getEffectiveEnemyMaxHp, removeEnemy } from "../game.js";
+import { maybeTriggerAgnosia } from "./agnosia.js";
 import { stainwalkDamageAdjustment } from "./stainwalk.js";
 import {
   buildSwarmGroups,
@@ -479,6 +480,7 @@ export function applyDamageToEnemy(
         state.damageEvents.push({ x: enemy.x, y: enemy.y, amount: adjusted });
       }
     }
+    maybeTriggerAgnosia(state, enemy, before);
   } else {
     enemy.hp = newHp;
   }
@@ -1366,6 +1368,80 @@ export function isDirectTargetEnemyAttack(parsed: ParsedEnemyAttack): boolean {
   if (/^(move|create|increase|decrease|transform)/i.test(raw)) return false;
   if (/^deal/i.test(raw)) return true;
   return parsed.range != null || /damage:/i.test(raw);
+}
+
+export function enemyAttackNeedsStainTeleport(attackText: string): boolean {
+  return /stained square/i.test(attackText);
+}
+
+export function enemyAttackPushDistance(parsed: ParsedEnemyAttack): number | null {
+  for (const token of parsed.effects ?? []) {
+    const m = token.match(/^Push:(\d+)$/i);
+    if (m) return Number(m[1]);
+  }
+  return null;
+}
+
+export function enemyAttackNonPushEffects(parsed: ParsedEnemyAttack): string[] {
+  return (parsed.effects ?? []).filter((token) => !/^Push:/i.test(token));
+}
+
+export function isSelectTargetEnemyAttack(parsed: ParsedEnemyAttack): boolean {
+  if (isDirectTargetEnemyAttack(parsed)) return true;
+  if (parsed.patternId) return false;
+  return enemyAttackPushDistance(parsed) != null;
+}
+
+export function isPatternEnemyAttack(parsed: ParsedEnemyAttack): boolean {
+  return !!(parsed.patternId && parsed.size != null && parsed.damage != null);
+}
+
+export function isAutoResolvableEnemyAttack(attackText: string): boolean {
+  if (enemyAttackNeedsStainTeleport(attackText)) return true;
+  const parsed = parseEnemyAttackString(attackText);
+  if (isPatternEnemyAttack(parsed)) return true;
+  return isSelectTargetEnemyAttack(parsed);
+}
+
+export function parseEnemyAttackPullDistance(raw: string): number | null {
+  const m = raw.match(/pull(?:\s+any\s+unit)?\s+(\d+)\s+space/i);
+  return m ? Number(m[1]) : null;
+}
+
+export function enemyPatternAttackSpec(parsed: ParsedEnemyAttack): {
+  patternId: string;
+  size: number;
+  range?: number;
+  width: number;
+  damage: string;
+} | null {
+  if (!parsed.patternId || parsed.size == null || parsed.damage == null) return null;
+  return {
+    patternId: parsed.patternId,
+    size: parsed.size,
+    range: parsed.range,
+    width: parsed.width ?? 1,
+    damage: String(parsed.damage),
+  };
+}
+
+export function enemyAttackDirectionsAt(
+  state: GameState,
+  enemyId: string,
+  parsed: ParsedEnemyAttack,
+  x: number,
+  y: number,
+): PatternDirection[] {
+  const enemy = state.enemies.find((e) => e.id === enemyId);
+  const spec = enemyPatternAttackSpec(parsed);
+  if (!enemy || !spec) return [];
+  const origin = { x: enemy.x, y: enemy.y };
+  const dirs: PatternDirection[] = [];
+  for (const direction of PATTERN_DIRECTIONS) {
+    const tiles = collectAttackTiles(state, origin, spec, direction);
+    if (tiles.some((t) => t.x === x && t.y === y)) dirs.push(direction);
+  }
+  return dirs;
 }
 
 function enemyAttackOriginTiles(state: GameState, enemyId: string): { x: number; y: number }[] {

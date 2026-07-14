@@ -10,7 +10,6 @@ import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import { selectedMapId } from "../composables/useMapSelection.js";
 import { selectedTableId } from "../composables/useTableSelection.js";
 import { useGmTools } from "../composables/useGmTools.js";
-import AssistedActionPanel from "./AssistedActionPanel.vue";
 import CharacterSheetPanel from "./CharacterSheetPanel.vue";
 import EnemyInfoPanel from "./EnemyInfoPanel.vue";
 import FactionInfoPanel from "./FactionInfoPanel.vue";
@@ -116,7 +115,6 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
       </div>
 
       <div class="tab-body">
-        <AssistedActionPanel v-if="activeTab === 'console'" />
         <GameConsolePanel v-if="activeTab === 'console'" />
         <div v-show="activeTab === 'info'" id="info-pane" class="info-pane">
           <TileBrushGalleryOverlay />

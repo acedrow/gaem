@@ -73,7 +73,15 @@ const forceProjectionStep = ref<ForceProjectionStep>("selectSquare");
 const redirectSourceEnemyId = ref<string | null>(null);
 const redirectAttackIndex = ref<number | null>(null);
 const redirectStep = ref<RedirectStep>("selectSource");
-const gmEnemyAttack = ref<{ enemyId: string; attackIndex: number; damage?: number; swarm?: boolean } | null>(null);
+const gmEnemyAttack = ref<{
+  enemyId: string;
+  attackIndex: number;
+  damage?: number;
+  swarm?: boolean;
+  stainTeleport?: boolean;
+  targetPlayerId?: string;
+  targetEnemyId?: string;
+} | null>(null);
 const rangeAttackConfirmHandler = ref<(() => void) | null>(null);
 
 function resetEquipmentCoverState() {
@@ -157,9 +165,19 @@ export function useBoardActionMode() {
     movePath.value = [];
   }
 
-  function startGmEnemyAttack(enemyId: string, attackIndex: number, damage?: number) {
+  function startGmEnemyAttack(
+    enemyId: string,
+    attackIndex: number,
+    damage?: number,
+    opts?: { stainTeleport?: boolean },
+  ) {
     setMode("gmEnemyAttack");
-    gmEnemyAttack.value = { enemyId, attackIndex, damage };
+    gmEnemyAttack.value = {
+      enemyId,
+      attackIndex,
+      damage,
+      stainTeleport: opts?.stainTeleport,
+    };
   }
 
   function startGmSwarmAttack(enemyId: string, attackIndex: number, damage?: number) {

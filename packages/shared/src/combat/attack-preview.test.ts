@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { computeAttackPreviewHighlights } from "./attack-preview.js";
 import type { GameState } from "../types.js";
 import { createDefaultCombatState } from "./types.js";
+import { addTestEnemy, makeGameState } from "../test/fixtures.js";
 
 function baseState(): GameState {
   return {
@@ -52,5 +53,29 @@ describe("computeAttackPreviewHighlights", () => {
       aimed: true,
     });
     expect(highlights.primary.length).toBeGreaterThan(0);
+  });
+
+  it("gm enemy pattern attack uses aim-then-confirm highlights", () => {
+    const state = makeGameState({ width: 10, height: 10 });
+    addTestEnemy(state, "g", 4, 4, { name: "Gorgenaut", scale: 2, hp: 100 });
+    const unaimed = computeAttackPreviewHighlights(state, {
+      mode: "gmEnemyAttack",
+      enemyId: "g",
+      attackIndex: 0,
+      direction: "n",
+      aimed: false,
+    });
+    expect(unaimed.primary).toHaveLength(0);
+    expect(unaimed.secondary.length).toBeGreaterThan(0);
+
+    const aimed = computeAttackPreviewHighlights(state, {
+      mode: "gmEnemyAttack",
+      enemyId: "g",
+      attackIndex: 0,
+      direction: "n",
+      aimed: true,
+    });
+    expect(aimed.primary.length).toBeGreaterThan(0);
+    expect(aimed.primary.every((key) => unaimed.secondary.includes(key))).toBe(true);
   });
 });

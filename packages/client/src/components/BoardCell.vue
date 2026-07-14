@@ -1097,14 +1097,8 @@ const tileEffectBadgeEntries = computed(() => tileEffectEntries.value);
   transform-origin: center;
 }
 
-.tile-appearance-image {
-  inset: 0;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  z-index: 0;
-}
-
+.tile-appearance-image,
+.tile-overlay-image,
 .tile-feature-image {
   inset: 0;
   background-size: cover;

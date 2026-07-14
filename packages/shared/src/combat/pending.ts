@@ -2,6 +2,7 @@ import type { AssistedActionKind, AssistedOutcome, PendingAction } from "./types
 import type { GameState } from "../types.js";
 import { applyEffectStacks } from "./effects.js";
 import { applyDamageToEnemy, applyDamageToPlayer } from "./attack.js";
+import { appendCombatSideEffectMessages } from "./agnosia.js";
 import { clampHp, getPlayerMaxHp } from "../game.js";
 
 function newPendingId(): string {
@@ -70,5 +71,5 @@ export function applyAssistedOutcome(state: GameState, outcome: AssistedOutcome)
       if (player) applyEffectStacks(player, effects);
     }
   }
-  return `Applied: ${pending.label}`;
+  return appendCombatSideEffectMessages(state, `Applied: ${pending.label}`);
 }

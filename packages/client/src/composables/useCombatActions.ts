@@ -57,11 +57,9 @@ export function useCombatActions(playerId?: () => string | null) {
 
   const combatUiUnlocked = computed(() => {
     const s = gameState.value;
-    return (
-      s != null &&
-      s.roundPhase !== "deployment" &&
-      s.roundPhase !== "taccomNotStarted"
-    );
+    if (s == null) return false;
+    if (sandboxMode.value) return true;
+    return s.roundPhase !== "deployment" && s.roundPhase !== "taccomNotStarted";
   });
 
   const showPlayerActionBar = computed(() => {
@@ -326,10 +324,6 @@ export function useCombatActions(playerId?: () => string | null) {
     send({ type: "movePath", path, ...(flying ? { flying: true } : {}) });
   }
 
-  function applyAssisted(outcome: import("@gaem/shared").AssistedOutcome) {
-    send({ type: "applyAssistedOutcome", outcome });
-  }
-
   function triggerReversal(extraAllyIds: string[] = []) {
     send({ type: "triggerReversal", extraAllyIds: extraAllyIds.length ? extraAllyIds : undefined });
     reversalExtraAllyIds.value = [];
@@ -359,6 +353,7 @@ export function useCombatActions(playerId?: () => string | null) {
     activePlayerId,
     sandboxMode,
     isPlayerTurn,
+    combatUiUnlocked,
     showPlayerActionBar,
     showGmCombatUi,
     budget,
@@ -404,7 +399,6 @@ export function useCombatActions(playerId?: () => string | null) {
     commitHaste,
     resetMovement,
     sendMovePath,
-    applyAssisted,
     triggerReversal,
     declineReversal,
     attackPreview,
