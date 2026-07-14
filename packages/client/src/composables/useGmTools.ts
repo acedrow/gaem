@@ -108,6 +108,139 @@ const paintbrushEyedropperActive = ref(false);
 const paintbrushSelectHeld = ref(false);
 const paintbrushSuppressPreviewKey = ref<string | null>(null);
 
+export type PaintbrushStickyPreview = {
+  baseColor: string | null;
+  appearanceUrl: string | null;
+  overlayUrl: string | null;
+  featureUrl: string | null;
+  appearanceTint: TileColorTint | null;
+  overlayTint: TileColorTint | null;
+  featureTint: TileColorTint | null;
+  appearanceRotation: TileImageRotation;
+  appearanceFlip: boolean;
+  overlayRotation: TileImageRotation;
+  overlayFlip: boolean;
+  featureRotation: TileImageRotation;
+  featureFlip: boolean;
+};
+
+type PaintbrushDragPaintFields = {
+  elevation?: number;
+  terrain?: TerrainType;
+  tileEffects?: string[];
+  tileName?: string;
+  obstacleHp?: number;
+  baseColor?: string | null;
+  appearanceKey?: string | null;
+  overlayKey?: string | null;
+  featureKey?: string | null;
+  appearanceTint?: TileColorTint | null;
+  overlayTint?: TileColorTint | null;
+  featureTint?: TileColorTint | null;
+  appearanceRotation?: TileImageRotation | null;
+  appearanceFlip?: boolean | null;
+  overlayRotation?: TileImageRotation | null;
+  overlayFlip?: boolean | null;
+  featureRotation?: TileImageRotation | null;
+  featureFlip?: boolean | null;
+};
+
+type PendingDragPaint = {
+  coord: { x: number; y: number };
+  fieldsKey: string;
+  fields: PaintbrushDragPaintFields;
+};
+
+const DRAG_FLUSH_IDLE_MS = 120;
+const DRAG_FLUSH_MAX_SIZE = 32;
+
+type StickyDragEntry = {
+  preview: PaintbrushStickyPreview;
+  fields: PaintbrushDragPaintFields;
+};
+
+const paintbrushDragStickyPreviews = ref<Record<string, StickyDragEntry>>({});
+let pendingDragPaints: PendingDragPaint[] = [];
+let dragFlushTimer: ReturnType<typeof setTimeout> | null = null;
+
+function tileKeyFieldMatches(
+  tileValue: string | undefined,
+  field: string | null | undefined,
+): boolean {
+  if (field === undefined) return true;
+  if (field == null || !field.trim()) return !tileValue;
+  return tileValue === field.trim();
+}
+
+function tileTintMatches(
+  tileValue: TileColorTint | undefined,
+  field: TileColorTint | null | undefined,
+): boolean {
+  if (field === undefined) return true;
+  if (field == null) return !tileValue;
+  return (
+    !!tileValue && tileValue.color === field.color && tileValue.opacity === field.opacity
+  );
+}
+
+function tileRotationMatches(
+  tileValue: TileImageRotation | undefined,
+  field: TileImageRotation | null | undefined,
+): boolean {
+  if (field === undefined) return true;
+  if (field == null || field === 0) return tileValue == null || tileValue === 0;
+  return tileValue === field;
+}
+
+function tileFlipMatches(tileValue: boolean | undefined, field: boolean | null | undefined): boolean {
+  if (field === undefined) return true;
+  if (field) return !!tileValue;
+  return !tileValue;
+}
+
+function tileMatchesDragPaint(tile: MapTile, fields: PaintbrushDragPaintFields): boolean {
+  if (fields.elevation !== undefined && tile.elevation !== fields.elevation) return false;
+  if (fields.terrain !== undefined && tile.terrain[0] !== fields.terrain) return false;
+  if (fields.obstacleHp !== undefined && getObstacleHp(tile) !== fields.obstacleHp) return false;
+  if (fields.tileName !== undefined) {
+    const expected = fields.tileName.trim();
+    if (expected) {
+      if (tile.name !== expected) return false;
+    } else if (tile.name) {
+      return false;
+    }
+  }
+  if (fields.tileEffects !== undefined) {
+    const live = Object.entries(tile.tileEffects ?? {})
+      .filter(([, stacks]) => stacks !== 0)
+      .map(([id, stacks]) => `${id}:${stacks}`)
+      .sort()
+      .join("|");
+    const expected = fields.tileEffects.slice().sort().join("|");
+    if (live !== expected) return false;
+  }
+  if (fields.baseColor !== undefined) {
+    if (fields.baseColor) {
+      if (tile.baseColor !== fields.baseColor) return false;
+    } else if (tile.baseColor) {
+      return false;
+    }
+  }
+  if (!tileKeyFieldMatches(tile.appearanceKey, fields.appearanceKey)) return false;
+  if (!tileKeyFieldMatches(tile.overlayKey, fields.overlayKey)) return false;
+  if (!tileKeyFieldMatches(tile.featureKey, fields.featureKey)) return false;
+  if (!tileTintMatches(tile.appearanceTint, fields.appearanceTint)) return false;
+  if (!tileTintMatches(tile.overlayTint, fields.overlayTint)) return false;
+  if (!tileTintMatches(tile.featureTint, fields.featureTint)) return false;
+  if (!tileRotationMatches(tile.appearanceRotation, fields.appearanceRotation)) return false;
+  if (!tileRotationMatches(tile.overlayRotation, fields.overlayRotation)) return false;
+  if (!tileRotationMatches(tile.featureRotation, fields.featureRotation)) return false;
+  if (!tileFlipMatches(tile.appearanceFlip, fields.appearanceFlip)) return false;
+  if (!tileFlipMatches(tile.overlayFlip, fields.overlayFlip)) return false;
+  if (!tileFlipMatches(tile.featureFlip, fields.featureFlip)) return false;
+  return true;
+}
+
 const effectiveActiveTool = computed(() =>
   activeTool.value === "paintbrush" && paintbrushSelectHeld.value
     ? "select"
@@ -132,6 +265,18 @@ function clearPendingTilePlacements() {
 
 function clearPaintbrushSuppressPreview() {
   paintbrushSuppressPreviewKey.value = null;
+}
+
+function clearPaintbrushDragStickyPreviews() {
+  if (Object.keys(paintbrushDragStickyPreviews.value).length === 0) return;
+  paintbrushDragStickyPreviews.value = {};
+}
+
+function clearDragFlushTimer() {
+  if (dragFlushTimer != null) {
+    clearTimeout(dragFlushTimer);
+    dragFlushTimer = null;
+  }
 }
 
 export function snapshotGmTools(): PersistedGmTools {
@@ -335,6 +480,8 @@ export function useGmTools() {
       paintbrushSelectHeld.value = false;
       clearPendingTilePlacements();
       clearPaintbrushSuppressPreview();
+      flushPaintbrushDrag();
+      clearPaintbrushDragStickyPreviews();
     }
   });
 
@@ -346,7 +493,33 @@ export function useGmTools() {
       paintbrushAutoRotate,
       paintbrushEnableRotation,
     ],
-    clearPendingTilePlacements,
+    () => {
+      clearPendingTilePlacements();
+      clearPaintbrushDragStickyPreviews();
+    },
+  );
+
+  watch(
+    () => gameState.value?.tiles,
+    (tiles) => {
+      const stickies = paintbrushDragStickyPreviews.value;
+      const stickyKeys = Object.keys(stickies);
+      if (!tiles || stickyKeys.length === 0) return;
+      let changed = false;
+      const next = { ...stickies };
+      for (const key of stickyKeys) {
+        const [xs, ys] = key.split(",");
+        const x = Number(xs);
+        const y = Number(ys);
+        if (pendingDragPaints.some((p) => p.coord.x === x && p.coord.y === y)) continue;
+        const tile = tileAt(tiles, x, y);
+        if (!tile || tileMatchesDragPaint(tile, stickies[key]!.fields)) {
+          delete next[key];
+          changed = true;
+        }
+      }
+      if (changed) paintbrushDragStickyPreviews.value = next;
+    },
   );
 
   watch([paintbrushEnableRotation, paintbrushAutoRotate], () => {
@@ -803,40 +976,43 @@ export function useGmTools() {
     return placement;
   }
 
+  function paintbrushAssetUrl(key: string | null | undefined): string | null {
+    if (!key) return null;
+    if (isBundledTileOverlayKey(key)) return bundledTileOverlayUrl(key);
+    if (isBundledTileFeatureKey(key)) return bundledTileFeatureUrl(key);
+    if (isBundledTileAppearanceKey(key)) return bundledTileAppearanceUrl(key);
+    if (key.startsWith("tiles/")) return `/${key}`;
+    if (key === paintbrushAppearanceKey.value) return paintbrushAppearancePreviewUrl.value;
+    if (key === paintbrushOverlayKey.value) return paintbrushOverlayPreviewUrl.value;
+    if (key === paintbrushFeatureKey.value) return paintbrushFeaturePreviewUrl.value;
+    return null;
+  }
+
   /** Resolved placement for hover preview — matches the next paint on this cell. */
   function peekPaintbrushPlacement(x: number, y: number) {
     const placement = ensurePendingTilePlacement(x, y);
-
-    function urlForKey(key: string | null | undefined): string | null {
-      if (!key) return null;
-      if (isBundledTileOverlayKey(key)) return bundledTileOverlayUrl(key);
-      if (isBundledTileFeatureKey(key)) return bundledTileFeatureUrl(key);
-      if (isBundledTileAppearanceKey(key)) return bundledTileAppearanceUrl(key);
-      if (key.startsWith("tiles/")) return `/${key}`;
-      if (key === paintbrushAppearanceKey.value) return paintbrushAppearancePreviewUrl.value;
-      if (key === paintbrushOverlayKey.value) return paintbrushOverlayPreviewUrl.value;
-      if (key === paintbrushFeatureKey.value) return paintbrushFeaturePreviewUrl.value;
-      return null;
-    }
-
     return {
       appearanceKey: placement.appearanceKey,
       overlayKey: placement.overlayKey,
       featureKey: placement.featureKey,
       appearanceUrl:
-        placement.appearanceKey !== undefined ? urlForKey(placement.appearanceKey) : null,
-      overlayUrl: placement.overlayKey !== undefined ? urlForKey(placement.overlayKey) : null,
-      featureUrl: placement.featureKey !== undefined ? urlForKey(placement.featureKey) : null,
+        placement.appearanceKey !== undefined ? paintbrushAssetUrl(placement.appearanceKey) : null,
+      overlayUrl: placement.overlayKey !== undefined ? paintbrushAssetUrl(placement.overlayKey) : null,
+      featureUrl: placement.featureKey !== undefined ? paintbrushAssetUrl(placement.featureKey) : null,
       imageRotation: placement.imageRotation,
     };
   }
 
-  function applyPaintbrushToTile(x: number, y: number) {
-    const sel = bulkSelection.value;
-    const coords =
-      sel?.kind === "tiles" && sel.coords.some((c) => c.x === x && c.y === y)
-        ? sel.coords
-        : [{ x, y }];
+  function buildPaintbrushSharedFields(): {
+    shared: Omit<PaintbrushDragPaintFields, "appearanceKey" | "overlayKey" | "featureKey">;
+    brushAppearance: string | null | undefined;
+    brushOverlay: string | null | undefined;
+    brushFeature: string | null | undefined;
+    autoRotate: boolean;
+    paintAppearance: boolean;
+    paintOverlay: boolean;
+    paintFeature: boolean;
+  } {
     const autoRotate = paintbrushEnableRotation.value && paintbrushAutoRotate.value;
     const paintAppearance = paintbrushEnableAppearance.value;
     const paintOverlay = paintbrushEnableOverlay.value;
@@ -846,23 +1022,7 @@ export function useGmTools() {
     const brushRotation = paintbrushImageRotation.value || null;
     const brushFlip = paintbrushImageFlip.value || null;
 
-    const shared: {
-      elevation?: number;
-      terrain?: TerrainType;
-      tileEffects?: string[];
-      tileName?: string;
-      obstacleHp?: number;
-      baseColor?: string | null;
-      appearanceTint?: TileColorTint | null;
-      overlayTint?: TileColorTint | null;
-      featureTint?: TileColorTint | null;
-      appearanceRotation?: TileImageRotation | null;
-      appearanceFlip?: boolean | null;
-      overlayRotation?: TileImageRotation | null;
-      overlayFlip?: boolean | null;
-      featureRotation?: TileImageRotation | null;
-      featureFlip?: boolean | null;
-    } = {};
+    const shared: Omit<PaintbrushDragPaintFields, "appearanceKey" | "overlayKey" | "featureKey"> = {};
     if (paintbrushEnableElevation.value) shared.elevation = paintbrushElevation.value;
     if (paintbrushEnableTerrain.value) {
       shared.terrain = paintbrushTerrain.value;
@@ -898,13 +1058,27 @@ export function useGmTools() {
       if (paintFeature) shared.featureFlip = brushFlip;
     }
 
-    const brushAppearance = paintAppearance ? paintbrushAppearanceKey.value : undefined;
-    // Enabled + no selection clears existing overlays/features (null), unlike appearance which
-    // leaves the tile unchanged when unset (undefined).
-    const brushOverlay = paintOverlay ? (paintbrushOverlayKey.value ?? null) : undefined;
-    const brushFeature = paintFeature ? (paintbrushFeatureKey.value ?? null) : undefined;
+    return {
+      shared,
+      brushAppearance: paintAppearance ? paintbrushAppearanceKey.value : undefined,
+      // Enabled + no selection clears existing overlays/features (null), unlike appearance which
+      // leaves the tile unchanged when unset (undefined).
+      brushOverlay: paintOverlay ? (paintbrushOverlayKey.value ?? null) : undefined,
+      brushFeature: paintFeature ? (paintbrushFeatureKey.value ?? null) : undefined,
+      autoRotate,
+      paintAppearance,
+      paintOverlay,
+      paintFeature,
+    };
+  }
 
-    if (
+  function hasAnyPaintbrushFields(
+    shared: Omit<PaintbrushDragPaintFields, "appearanceKey" | "overlayKey" | "featureKey">,
+    brushAppearance: string | null | undefined,
+    brushOverlay: string | null | undefined,
+    brushFeature: string | null | undefined,
+  ): boolean {
+    return !(
       shared.elevation === undefined &&
       shared.terrain === undefined &&
       shared.tileEffects === undefined &&
@@ -923,7 +1097,155 @@ export function useGmTools() {
       brushAppearance === undefined &&
       brushOverlay === undefined &&
       brushFeature === undefined
-    ) {
+    );
+  }
+
+  function resolveDragPaintFields(
+    x: number,
+    y: number,
+  ): PaintbrushDragPaintFields | null {
+    const {
+      shared,
+      brushAppearance,
+      brushOverlay,
+      brushFeature,
+      autoRotate,
+      paintAppearance,
+      paintOverlay,
+      paintFeature,
+    } = buildPaintbrushSharedFields();
+    if (!hasAnyPaintbrushFields(shared, brushAppearance, brushOverlay, brushFeature)) return null;
+
+    const placement = takePendingTilePlacement(x, y);
+    const rotation = autoRotate ? (placement.imageRotation ?? null) : undefined;
+    return {
+      ...shared,
+      ...(placement.appearanceKey !== undefined ? { appearanceKey: placement.appearanceKey } : {}),
+      ...(placement.overlayKey !== undefined ? { overlayKey: placement.overlayKey } : {}),
+      ...(placement.featureKey !== undefined ? { featureKey: placement.featureKey } : {}),
+      ...(autoRotate && paintAppearance ? { appearanceRotation: rotation } : {}),
+      ...(autoRotate && paintOverlay ? { overlayRotation: rotation } : {}),
+      ...(autoRotate && paintFeature ? { featureRotation: rotation } : {}),
+    };
+  }
+
+  function buildStickyPreviewForFields(
+    x: number,
+    y: number,
+    fields: PaintbrushDragPaintFields,
+  ): PaintbrushStickyPreview {
+    const tile = gameState.value ? tileAt(gameState.value.tiles, x, y) : undefined;
+    const paintingAppearance = fields.appearanceKey !== undefined;
+    const paintingOverlay = fields.overlayKey !== undefined;
+    const paintingFeature = fields.featureKey !== undefined;
+    const appearanceRotation =
+      fields.appearanceRotation !== undefined
+        ? (fields.appearanceRotation ?? 0)
+        : (tile?.appearanceRotation ?? 0);
+    const overlayRotation =
+      fields.overlayRotation !== undefined
+        ? (fields.overlayRotation ?? 0)
+        : (tile?.overlayRotation ?? 0);
+    const featureRotation =
+      fields.featureRotation !== undefined
+        ? (fields.featureRotation ?? 0)
+        : (tile?.featureRotation ?? 0);
+    return {
+      baseColor:
+        fields.baseColor !== undefined ? fields.baseColor : (tile?.baseColor ?? null),
+      appearanceUrl: paintingAppearance
+        ? paintbrushAssetUrl(fields.appearanceKey)
+        : tile?.appearanceKey
+          ? paintbrushAssetUrl(tile.appearanceKey)
+          : null,
+      overlayUrl: paintingOverlay
+        ? paintbrushAssetUrl(fields.overlayKey)
+        : tile?.overlayKey
+          ? paintbrushAssetUrl(tile.overlayKey)
+          : null,
+      featureUrl: paintingFeature
+        ? paintbrushAssetUrl(fields.featureKey)
+        : tile?.featureKey
+          ? paintbrushAssetUrl(tile.featureKey)
+          : null,
+      appearanceTint:
+        fields.appearanceTint !== undefined
+          ? fields.appearanceTint
+          : (tile?.appearanceTint ?? null),
+      overlayTint:
+        fields.overlayTint !== undefined ? fields.overlayTint : (tile?.overlayTint ?? null),
+      featureTint:
+        fields.featureTint !== undefined ? fields.featureTint : (tile?.featureTint ?? null),
+      appearanceRotation,
+      appearanceFlip:
+        fields.appearanceFlip !== undefined ? !!fields.appearanceFlip : !!tile?.appearanceFlip,
+      overlayRotation,
+      overlayFlip: fields.overlayFlip !== undefined ? !!fields.overlayFlip : !!tile?.overlayFlip,
+      featureRotation,
+      featureFlip: fields.featureFlip !== undefined ? !!fields.featureFlip : !!tile?.featureFlip,
+    };
+  }
+
+  function scheduleDragFlush() {
+    clearDragFlushTimer();
+    dragFlushTimer = setTimeout(() => {
+      dragFlushTimer = null;
+      flushPaintbrushDrag();
+    }, DRAG_FLUSH_IDLE_MS);
+  }
+
+  function flushPaintbrushDrag() {
+    clearDragFlushTimer();
+    if (pendingDragPaints.length === 0) return;
+    const batch = pendingDragPaints;
+    pendingDragPaints = [];
+    const groups = new Map<string, { fields: PaintbrushDragPaintFields; coords: { x: number; y: number }[] }>();
+    for (const paint of batch) {
+      const existing = groups.get(paint.fieldsKey);
+      if (existing) existing.coords.push(paint.coord);
+      else groups.set(paint.fieldsKey, { fields: paint.fields, coords: [paint.coord] });
+    }
+    for (const group of groups.values()) {
+      send({ type: "gmPaintTile", coords: group.coords, ...group.fields });
+    }
+  }
+
+  function queuePaintbrushDragTile(x: number, y: number) {
+    const fields = resolveDragPaintFields(x, y);
+    if (!fields) return;
+    const key = coordKey(x, y);
+    const preview = buildStickyPreviewForFields(x, y, fields);
+    paintbrushDragStickyPreviews.value = {
+      ...paintbrushDragStickyPreviews.value,
+      [key]: { preview, fields },
+    };
+    pendingDragPaints.push({ coord: { x, y }, fieldsKey: JSON.stringify(fields), fields });
+    if (pendingDragPaints.length >= DRAG_FLUSH_MAX_SIZE) flushPaintbrushDrag();
+    else scheduleDragFlush();
+  }
+
+  function endPaintbrushDrag() {
+    flushPaintbrushDrag();
+  }
+
+  function applyPaintbrushToTile(x: number, y: number) {
+    const sel = bulkSelection.value;
+    const coords =
+      sel?.kind === "tiles" && sel.coords.some((c) => c.x === x && c.y === y)
+        ? sel.coords
+        : [{ x, y }];
+    const {
+      shared,
+      brushAppearance,
+      brushOverlay,
+      brushFeature,
+      autoRotate,
+      paintAppearance,
+      paintOverlay,
+      paintFeature,
+    } = buildPaintbrushSharedFields();
+
+    if (!hasAnyPaintbrushFields(shared, brushAppearance, brushOverlay, brushFeature)) {
       return;
     }
 
@@ -1020,6 +1342,7 @@ export function useGmTools() {
     paintbrushEnableRotation,
     paintbrushEnableFlip,
     paintbrushSuppressPreviewKey,
+    paintbrushDragStickyPreviews,
     paintbrushPresets,
     paintbrushPresetLoadId,
     paintbrushPresetNames,
@@ -1041,6 +1364,8 @@ export function useGmTools() {
     togglePaintbrushImageFlip,
     peekPaintbrushPlacement,
     clearPaintbrushSuppressPreview,
+    queuePaintbrushDragTile,
+    endPaintbrushDrag,
     applyPaintbrushToTile,
     samplePaintbrushFromTile,
     setPaintbrushEyedropperActive,

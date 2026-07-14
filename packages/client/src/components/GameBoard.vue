@@ -28,7 +28,6 @@ import {
   isRangedPatternAttack,
   isWalkable,
   isInBounds,
-  isOrthogonallyAdjacent,
   manhattanDistance,
   movementStepCost,
   stepMoveCost,
@@ -232,6 +231,8 @@ const {
   isCellInBulkSelection,
   applyDamageEffectToToken,
   applyPaintbrushToTile,
+  queuePaintbrushDragTile,
+  endPaintbrushDrag,
   samplePaintbrushFromTile,
   paintbrushEyedropperActive,
   setPaintbrushEyedropperActive,
@@ -256,6 +257,7 @@ const {
   peekPaintbrushPlacement,
   paintbrushSuppressPreviewKey,
   clearPaintbrushSuppressPreview,
+  paintbrushDragStickyPreviews,
   paintbrushAutoRotate,
 } = useGmTools();
 
@@ -2282,7 +2284,8 @@ const cellStateByKey = computed(() => {
     !paintbrushEyedropperActive.value &&
     hoveredCell.value &&
     paintbrushSuppressPreviewKey.value !==
-      coordKey(hoveredCell.value.x, hoveredCell.value.y)
+      coordKey(hoveredCell.value.x, hoveredCell.value.y) &&
+    !paintbrushDragStickyPreviews.value[coordKey(hoveredCell.value.x, hoveredCell.value.y)]
   ) {
     const { x, y } = hoveredCell.value;
     const previewCell = map.get(boardCellKey(x, y));
@@ -2357,6 +2360,13 @@ const cellStateByKey = computed(() => {
         };
       }
     }
+  }
+
+  const dragStickies = paintbrushDragStickyPreviews.value;
+  for (const [stickyKey, entry] of Object.entries(dragStickies)) {
+    const [xs, ys] = stickyKey.split(",");
+    const stickyCell = map.get(boardCellKey(Number(xs), Number(ys)));
+    if (stickyCell) stickyCell.paintbrushPreview = entry.preview;
   }
 
   if (canUseGmTools.value && stainGeyserPlacementActive.value) {
@@ -4319,6 +4329,35 @@ function onMarqueePointerDown(e: PointerEvent) {
   window.addEventListener("pointerup", onUp);
 }
 
+function cellsOnGridLine(
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+): { x: number; y: number }[] {
+  const cells: { x: number; y: number }[] = [];
+  let x0 = from.x;
+  let y0 = from.y;
+  const x1 = to.x;
+  const y1 = to.y;
+  const dx = Math.abs(x1 - x0);
+  const dy = Math.abs(y1 - y0);
+  const sx = x0 < x1 ? 1 : -1;
+  const sy = y0 < y1 ? 1 : -1;
+  let err = dx - dy;
+  while (x0 !== x1 || y0 !== y1) {
+    const e2 = 2 * err;
+    if (e2 > -dy) {
+      err -= dy;
+      x0 += sx;
+    }
+    if (e2 < dx) {
+      err += dx;
+      y0 += sy;
+    }
+    cells.push({ x: x0, y: y0 });
+  }
+  return cells;
+}
+
 function onPaintbrushPointerDown(e: PointerEvent) {
   if (!canUseGmTools.value || gmEffectiveActiveTool.value !== "paintbrush") return;
   if (e.button !== 0) return;
@@ -4334,15 +4373,26 @@ function onPaintbrushPointerDown(e: PointerEvent) {
     return;
   }
 
+  const captureEl = e.currentTarget as HTMLElement | null;
+  if (captureEl?.setPointerCapture) {
+    try {
+      captureEl.setPointerCapture(e.pointerId);
+    } catch {
+      // ignore — capture can fail if the pointer is already released
+    }
+  }
+
   const visited = new Set<string>();
   let lastCell: { x: number; y: number } | null = null;
+  const width = gameState.value?.width ?? 0;
+  const height = gameState.value?.height ?? 0;
 
   function paintCell(cell: { x: number; y: number }) {
     const key = coordKey(cell.x, cell.y);
     if (visited.has(key)) return;
+    if (!isInBounds(cell.x, cell.y, width, height)) return;
     visited.add(key);
-    lastCell = cell;
-    applyPaintbrushToTile(cell.x, cell.y);
+    queuePaintbrushDragTile(cell.x, cell.y);
   }
 
   const sel = gmBulkSelection.value;
@@ -4352,23 +4402,32 @@ function onPaintbrushPointerDown(e: PointerEvent) {
     applyPaintbrushToTile(startCell.x, startCell.y);
   } else {
     paintCell(startCell);
+    lastCell = startCell;
   }
 
   const onMove = (ev: PointerEvent) => {
     const cell = cellFromClientPoint(ev.clientX, ev.clientY);
     if (!cell || !lastCell) return;
-    if (visited.has(coordKey(cell.x, cell.y))) return;
-    if (!isOrthogonallyAdjacent(lastCell, cell)) return;
-    paintCell(cell);
+    if (cell.x === lastCell.x && cell.y === lastCell.y) return;
+    for (const step of cellsOnGridLine(lastCell, cell)) {
+      paintCell(step);
+    }
+    lastCell = cell;
   };
 
-  const onUp = () => {
+  const onUp = (ev: PointerEvent) => {
     window.removeEventListener("pointermove", onMove);
     window.removeEventListener("pointerup", onUp);
+    window.removeEventListener("pointercancel", onUp);
+    if (captureEl?.hasPointerCapture?.(ev.pointerId)) {
+      captureEl.releasePointerCapture(ev.pointerId);
+    }
+    endPaintbrushDrag();
   };
 
   window.addEventListener("pointermove", onMove);
   window.addEventListener("pointerup", onUp);
+  window.addEventListener("pointercancel", onUp);
 }
 
 function onViewportPointerDown(e: PointerEvent) {
