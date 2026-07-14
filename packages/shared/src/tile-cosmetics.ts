@@ -1,5 +1,5 @@
-import type { TerrainType, TileImageRotation, TilePaintPreset } from "./types.js";
-import { TERRAIN_TYPES, TILE_IMAGE_ROTATIONS } from "./types.js";
+import type { TerrainType, TileColorTint, TileImageRotation, TilePaintPreset } from "./types.js";
+import { DEFAULT_OBSTACLE_HP, TERRAIN_TYPES, TILE_IMAGE_ROTATIONS } from "./types.js";
 
 export const TILE_NAME_MAX_LENGTH = 80;
 
@@ -11,6 +11,21 @@ export function isValidTileBaseColor(hex: string): boolean {
 
 export function isValidTileImageRotation(value: unknown): value is TileImageRotation {
   return typeof value === "number" && (TILE_IMAGE_ROTATIONS as readonly number[]).includes(value);
+}
+
+/** Returns a normalized tint, or null if `value` is not a valid TileColorTint. */
+export function parseTileColorTint(value: unknown): TileColorTint | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const t = value as Record<string, unknown>;
+  if (typeof t.color !== "string" || !isValidTileBaseColor(t.color)) return null;
+  if (typeof t.opacity !== "number" || !Number.isFinite(t.opacity) || t.opacity < 0 || t.opacity > 1) {
+    return null;
+  }
+  return { color: t.color, opacity: t.opacity };
+}
+
+export function isValidTileColorTint(value: unknown): value is TileColorTint {
+  return parseTileColorTint(value) != null;
 }
 
 export function normalizeTileName(name: string): string {
@@ -60,6 +75,19 @@ export function parseTilePaintPreset(raw: unknown, label: string): TilePaintPres
     tileName: normalizedTileName,
   };
 
+  const obstacleHp = p.obstacleHp;
+  if (obstacleHp !== undefined) {
+    if (!Number.isInteger(obstacleHp) || (obstacleHp as number) < 1) {
+      throw new Error(`${label} obstacleHp must be a positive integer`);
+    }
+    if (terrain !== "obstacle") {
+      throw new Error(`${label} obstacleHp is only valid when terrain is obstacle`);
+    }
+    preset.obstacleHp = obstacleHp as number;
+  } else if (terrain === "obstacle") {
+    preset.obstacleHp = DEFAULT_OBSTACLE_HP;
+  }
+
   const baseColor = p.baseColor;
   if (baseColor !== undefined) {
     if (typeof baseColor !== "string" || !isValidTileBaseColor(baseColor)) {
@@ -82,6 +110,28 @@ export function parseTilePaintPreset(raw: unknown, label: string): TilePaintPres
       throw new Error(`${label} featureKey must be a non-empty string`);
     }
     preset.featureKey = featureKey.trim();
+  }
+
+  const appearanceTint = p.appearanceTint;
+  if (appearanceTint !== undefined) {
+    const parsed = parseTileColorTint(appearanceTint);
+    if (!parsed) {
+      throw new Error(
+        `${label} appearanceTint must be { color: #RGB|#RRGGBB, opacity: 0–1 }`,
+      );
+    }
+    preset.appearanceTint = parsed;
+  }
+
+  const featureTint = p.featureTint;
+  if (featureTint !== undefined) {
+    const parsed = parseTileColorTint(featureTint);
+    if (!parsed) {
+      throw new Error(
+        `${label} featureTint must be { color: #RGB|#RRGGBB, opacity: 0–1 }`,
+      );
+    }
+    preset.featureTint = parsed;
   }
 
   function readRotation(key: string, legacyFallback: unknown): TileImageRotation | undefined {

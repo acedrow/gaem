@@ -17,8 +17,10 @@ import {
   getEnemyMaxHp,
   getEnemyScale,
   getEnemyScaleByName,
+  getObstacleHp,
   getPlayerMaxHp,
   isMovementStepAdjacent,
+  isObstacleTile,
   isPlayerDowned,
   isSandboxMode,
   isHealAttackSpec,
@@ -220,9 +222,13 @@ const {
   paintbrushEnableColor,
   paintbrushEnableAppearance,
   paintbrushEnableFeature,
+  paintbrushEnableAppearanceTint,
+  paintbrushEnableFeatureTint,
   paintbrushEnableRotation,
   paintbrushEnableFlip,
   paintbrushBaseColor,
+  paintbrushAppearanceTint,
+  paintbrushFeatureTint,
   paintbrushImageRotation,
   paintbrushImageFlip,
   peekPaintbrushPlacement,
@@ -292,6 +298,7 @@ const {
   attackAnchor,
   elevBonusTile,
   rangeAttackTargetIds,
+  rangeAttackObstacleCoords,
   pendingTargetEnemyId,
   armorPush,
   omnistrikeStep,
@@ -1512,11 +1519,14 @@ const combatAttackSecondaryKeys = computed(() => {
 
 const combatAttackSelectedKeys = computed(() => {
   const s = gameState.value;
-  if (!s || rangeAttackTargetIds.value.length === 0) return new Set<string>();
   const keys = new Set<string>();
+  if (!s) return keys;
   for (const id of rangeAttackTargetIds.value) {
     const enemy = s.enemies.find((e) => e.id === id);
     if (enemy) keys.add(coordKey(enemy.x, enemy.y));
+  }
+  for (const c of rangeAttackObstacleCoords.value) {
+    keys.add(coordKey(c.x, c.y));
   }
   return keys;
 });
@@ -1565,6 +1575,9 @@ function buildLocalAttackPreview(): AttackPreviewState | null {
       hoverX: previewHoverCell.value?.x,
       hoverY: previewHoverCell.value?.y,
       targetEnemyIds: rangeAttackTargetIds.value.length ? [...rangeAttackTargetIds.value] : undefined,
+      targetObstacleCoords: rangeAttackObstacleCoords.value.length
+        ? [...rangeAttackObstacleCoords.value]
+        : undefined,
       borrowAllyId: borrowAllyId.value ?? undefined,
     };
   }
@@ -1584,6 +1597,9 @@ function buildLocalAttackPreview(): AttackPreviewState | null {
       hoverX: previewHoverCell.value?.x,
       hoverY: previewHoverCell.value?.y,
       targetEnemyIds: rangeAttackTargetIds.value.length ? [...rangeAttackTargetIds.value] : undefined,
+      targetObstacleCoords: rangeAttackObstacleCoords.value.length
+        ? [...rangeAttackObstacleCoords.value]
+        : undefined,
       forceProjectionX: forceProjectionOrigin.value.x,
       forceProjectionY: forceProjectionOrigin.value.y,
     };
@@ -1635,6 +1651,7 @@ watch(
     attackAimed,
     attackAnchor,
     rangeAttackTargetIds,
+    rangeAttackObstacleCoords,
     borrowAllyId,
     forceProjectionStep,
     forceProjectionOrigin,
@@ -2123,6 +2140,8 @@ const cellStateByKey = computed(() => {
       tileAppearanceUrl: tile?.appearanceKey ? tileAppearanceUrlFor(tile.appearanceKey) : null,
       tileFeatureUrl: tile?.featureKey ? tileAppearanceUrlFor(tile.featureKey) : null,
       tileBaseColor: tile?.baseColor ?? null,
+      appearanceTint: tile?.appearanceTint ?? null,
+      featureTint: tile?.featureTint ?? null,
       appearanceRotation: tile?.appearanceRotation,
       appearanceFlip: tile?.appearanceFlip,
       featureRotation: tile?.featureRotation,
@@ -2146,9 +2165,19 @@ const cellStateByKey = computed(() => {
       const showColor = paintbrushEnableColor.value;
       const showAppearance = paintbrushEnableAppearance.value;
       const showFeature = paintbrushEnableFeature.value;
+      const showAppearanceTint = paintbrushEnableAppearanceTint.value;
+      const showFeatureTint = paintbrushEnableFeatureTint.value;
       const showRotation = paintbrushEnableRotation.value;
       const showFlip = paintbrushEnableFlip.value;
-      if (showColor || showAppearance || showFeature || showRotation || showFlip) {
+      if (
+        showColor ||
+        showAppearance ||
+        showFeature ||
+        showAppearanceTint ||
+        showFeatureTint ||
+        showRotation ||
+        showFlip
+      ) {
         const placement = peekPaintbrushPlacement(x, y);
         const brushRotation = showRotation
           ? paintbrushAutoRotate.value
@@ -2171,6 +2200,12 @@ const cellStateByKey = computed(() => {
             ? previewAppearanceUrl
             : previewCell.tileAppearanceUrl,
           featureUrl: paintingFeature ? previewFeatureUrl : previewCell.tileFeatureUrl,
+          appearanceTint: showAppearanceTint
+            ? paintbrushAppearanceTint.value
+            : (tile?.appearanceTint ?? null),
+          featureTint: showFeatureTint
+            ? paintbrushFeatureTint.value
+            : (tile?.featureTint ?? null),
           appearanceRotation: paintingAppearance
             ? brushRotation
             : (tile?.appearanceRotation ?? 0),
@@ -2845,11 +2880,18 @@ function onBreakerCancel() {
 }
 
 function submitRangeAttackFromSelection() {
-  if (rangeAttackTargetIds.value.length === 0) return;
+  if (rangeAttackTargetIds.value.length === 0 && rangeAttackObstacleCoords.value.length === 0) {
+    return;
+  }
   submitAttackAction({
     action: "attack",
     direction: attackDirection.value,
-    targetEnemyIds: [...rangeAttackTargetIds.value],
+    ...(rangeAttackTargetIds.value.length
+      ? { targetEnemyIds: [...rangeAttackTargetIds.value] }
+      : {}),
+    ...(rangeAttackObstacleCoords.value.length
+      ? { targetObstacleCoords: [...rangeAttackObstacleCoords.value] }
+      : {}),
   });
 }
 
@@ -2900,32 +2942,66 @@ function handleAttackCellClick(x: number, y: number, targetEnemyId?: string): bo
   if (isRangeTargetAttack(ctx.spec)) {
     if (!combatAttackSecondaryKeys.value.has(key)) return false;
 
+    const maxTargets = rangeTargetMax(ctx.spec);
+    const selectedCount =
+      rangeAttackTargetIds.value.length + rangeAttackObstacleCoords.value.length;
+
     if (targetEnemyId) {
       const enemy = s.enemies.find((e) => e.id === targetEnemyId);
       if (!enemy) return false;
       if (manhattanDistance(origin, enemy) > rangeTargetDistance(ctx.spec)) return false;
 
-      const maxTargets = rangeTargetMax(ctx.spec);
       const selected = rangeAttackTargetIds.value;
       if (selected.includes(targetEnemyId)) {
         rangeAttackTargetIds.value = selected.filter((id) => id !== targetEnemyId);
-      } else if (selected.length < maxTargets) {
+      } else if (selectedCount < maxTargets) {
         const next = [...selected, targetEnemyId];
         rangeAttackTargetIds.value = next;
-        if (next.length >= maxTargets) {
+        if (next.length + rangeAttackObstacleCoords.value.length >= maxTargets) {
           submitAttackAction({
             ...attackAction,
             targetEnemyIds: next,
+            ...(rangeAttackObstacleCoords.value.length
+              ? { targetObstacleCoords: [...rangeAttackObstacleCoords.value] }
+              : {}),
           });
         }
       }
       return true;
     }
 
-    if (rangeAttackTargetIds.value.length === 0) return true;
+    const tile = tileAt(s.tiles, x, y);
+    if (isObstacleTile(tile)) {
+      if (manhattanDistance(origin, { x, y }) > rangeTargetDistance(ctx.spec)) return false;
+      const selected = rangeAttackObstacleCoords.value;
+      const already = selected.some((c) => c.x === x && c.y === y);
+      if (already) {
+        rangeAttackObstacleCoords.value = selected.filter((c) => !(c.x === x && c.y === y));
+      } else if (selectedCount < maxTargets) {
+        const next = [...selected, { x, y }];
+        rangeAttackObstacleCoords.value = next;
+        if (rangeAttackTargetIds.value.length + next.length >= maxTargets) {
+          submitAttackAction({
+            ...attackAction,
+            ...(rangeAttackTargetIds.value.length
+              ? { targetEnemyIds: [...rangeAttackTargetIds.value] }
+              : {}),
+            targetObstacleCoords: next,
+          });
+        }
+      }
+      return true;
+    }
+
+    if (selectedCount === 0) return true;
     submitAttackAction({
       ...attackAction,
-      targetEnemyIds: [...rangeAttackTargetIds.value],
+      ...(rangeAttackTargetIds.value.length
+        ? { targetEnemyIds: [...rangeAttackTargetIds.value] }
+        : {}),
+      ...(rangeAttackObstacleCoords.value.length
+        ? { targetObstacleCoords: [...rangeAttackObstacleCoords.value] }
+        : {}),
     });
     return true;
   }
@@ -3048,6 +3124,7 @@ function handleForceProjectionSquareClick(x: number, y: number): boolean {
   attackAimed.value = false;
   attackAnchor.value = null;
   rangeAttackTargetIds.value = [];
+  rangeAttackObstacleCoords.value = [];
   return true;
 }
 
@@ -3482,6 +3559,7 @@ function handleCombatCellClick(x: number, y: number): boolean {
       attackAimed.value = false;
       attackAnchor.value = null;
       rangeAttackTargetIds.value = [];
+      rangeAttackObstacleCoords.value = [];
       return true;
     }
     if (borrowAllyId.value) {
@@ -3973,6 +4051,11 @@ function onGmCellClick(x: number, y: number) {
     const enemy = occ?.enemyByKey.get(key);
     if (enemy) {
       applyDamageEffectToToken({ kind: "enemy", id: enemy.id });
+      return;
+    }
+    const tile = tileAt(s.tiles, x, y);
+    if (isObstacleTile(tile)) {
+      applyDamageEffectToToken({ kind: "obstacle", x, y });
       return;
     }
     return;
@@ -4627,6 +4710,8 @@ onUnmounted(() => {
                   row.cell.tile?.name,
                   row.cell.tileAppearanceUrl,
                   row.cell.tileFeatureUrl,
+                  row.cell.appearanceTint,
+                  row.cell.featureTint,
                   row.cell.appearanceRotation,
                   row.cell.appearanceFlip,
                   row.cell.featureRotation,
@@ -4681,6 +4766,12 @@ onUnmounted(() => {
             <span class="tooltip-row">({{ tooltipData.x }}, {{ tooltipData.y }})</span>
             <span v-if="tooltipData.tileName" class="tooltip-row">{{ tooltipData.tileName }}</span>
             <span class="tooltip-row">Terrain: {{ terrainTooltipLabel(tooltipData.tile.terrain) }}</span>
+            <span
+              v-if="isObstacleTile(tooltipData.tile)"
+              class="tooltip-row"
+            >
+              Obstacle HP: {{ getObstacleHp(tooltipData.tile) }}
+            </span>
             <span class="tooltip-row">Elevation: {{ tooltipData.tile.elevation }}</span>
             <span v-if="tooltipData.moveCost != null" class="tooltip-row">
               Move cost: {{ tooltipData.moveCost }}

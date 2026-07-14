@@ -102,6 +102,9 @@ function computePlayerAttackHighlights(
       const enemy = state.enemies.find((e) => e.id === id);
       if (enemy) selected.push(coordKey(enemy.x, enemy.y));
     }
+    for (const c of preview.targetObstacleCoords ?? []) {
+      selected.push(coordKey(c.x, c.y));
+    }
     return { primary: [], secondary, invalid: [], selected, heal };
   }
 

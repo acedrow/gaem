@@ -8,7 +8,7 @@ import {
 } from "../weapon-patterns.js";
 import { getEnemyScale, enemyFootprintTiles } from "../enemy-data.js";
 import { buildBoardOccupancy } from "../game.js";
-import { coordKey, isInBounds, isWalkable, setTileTerrain, tileAt } from "../map.js";
+import { coordKey, ensureObstacleHp, isInBounds, isObstacleTile, isWalkable, setTileTerrain, tileAt } from "../map.js";
 import type { Enemy, GameState, MapTile, Player } from "../types.js";
 import { getWeaponByName } from "../player-data.js";
 import type { WeaponAttackSpec } from "./types.js";
@@ -59,6 +59,21 @@ export function resolveRangeAttackTargetIds(action: {
       ? [action.targetEnemyId]
       : [];
   return [...new Set(ids)];
+}
+
+export function resolveRangeAttackObstacleCoords(action: {
+  targetObstacleCoords?: { x: number; y: number }[];
+}): { x: number; y: number }[] {
+  const coords = action.targetObstacleCoords ?? [];
+  const seen = new Set<string>();
+  const out: { x: number; y: number }[] = [];
+  for (const c of coords) {
+    const key = coordKey(c.x, c.y);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ x: c.x, y: c.y });
+  }
+  return out;
 }
 
 export function manhattanDistance(a: { x: number; y: number }, b: { x: number; y: number }): number {
@@ -551,6 +566,44 @@ export function applyDamageToPlayer(
   return adjusted;
 }
 
+export function applyDamageToObstacle(
+  state: GameState,
+  x: number,
+  y: number,
+  amount: number,
+): number {
+  const tile = tileAt(state.tiles, x, y);
+  if (!tile || !isObstacleTile(tile)) return 0;
+  const hp = ensureObstacleHp(tile);
+  const dealt = Math.min(hp, Math.max(0, Math.trunc(amount)));
+  if (dealt <= 0) return 0;
+  const next = hp - dealt;
+  if (next <= 0) {
+    setTileTerrain(tile, "standard");
+  } else {
+    tile.obstacleHp = next;
+  }
+  if (!state.damageEvents) state.damageEvents = [];
+  state.damageEvents.push({ x, y, amount: dealt });
+  return dealt;
+}
+
+export function applyDamageToObstaclesInTiles(
+  state: GameState,
+  tiles: { x: number; y: number }[],
+  amount: number,
+): { x: number; y: number }[] {
+  const hit: { x: number; y: number }[] = [];
+  const seen = new Set<string>();
+  for (const t of tiles) {
+    const key = coordKey(t.x, t.y);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (applyDamageToObstacle(state, t.x, t.y, amount) > 0) hit.push({ x: t.x, y: t.y });
+  }
+  return hit;
+}
+
 export function applyAttackToEnemies(
   state: GameState,
   spec: WeaponAttackSpec,
@@ -565,6 +618,7 @@ export function applyAttackToEnemies(
 
   if (opts?.useBreaker && swarmMembersHitByTiles(state, tiles).length) {
     const { targets } = applyBreakerAttackToSwarm(state, tiles, total, effects);
+    applyDamageToObstaclesInTiles(state, tiles, total);
     return { damage: total, detail, targets, effects };
   }
 
@@ -573,7 +627,9 @@ export function applyAttackToEnemies(
     isSethianWeaponName(opts?.weaponName) &&
     swarmMembersHitByTiles(state, tiles).length
   ) {
-    return applySethianWholeSwarmAttack(state, spec, tiles, damageRoll);
+    const result = applySethianWholeSwarmAttack(state, spec, tiles, damageRoll);
+    applyDamageToObstaclesInTiles(state, tiles, result.damage);
+    return result;
   }
 
   const targets = enemiesInTiles(state, tiles);
@@ -584,6 +640,7 @@ export function applyAttackToEnemies(
     applyDamageToEnemy(enemy, total, state, { ...damageOpts, hitTile: { x: target.x, y: target.y } });
     applyUnitEffectStacks(state,enemy, effects);
   }
+  applyDamageToObstaclesInTiles(state, tiles, total);
   return { damage: total, detail, targets, effects };
 }
 
@@ -656,12 +713,17 @@ export function applyRangeAttackToEnemies(
   spec: WeaponAttackSpec,
   targetIds: string[],
   damageRoll?: number,
-  opts?: { useBreaker?: boolean; weaponName?: string },
+  opts?: {
+    useBreaker?: boolean;
+    weaponName?: string;
+    obstacleCoords?: { x: number; y: number }[];
+  },
 ): { damage: number; detail: string; targets: AttackTarget[]; effects: string[] } {
   const tiles = targetIds
     .map((id) => state.enemies.find((e) => e.id === id))
     .filter(Boolean)
     .map((e) => ({ x: e!.x, y: e!.y }));
+  const obstacleCoords = opts?.obstacleCoords ?? [];
 
   if (opts?.useBreaker && swarmMembersHitByTiles(state, tiles).length) {
     const { total, detail } = resolveAttackDamage(spec, damageRoll);
@@ -684,6 +746,7 @@ export function applyRangeAttackToEnemies(
         targets.push({ enemyId: enemy.id, x: enemy.x, y: enemy.y });
       }
     }
+    applyDamageToObstaclesInTiles(state, obstacleCoords, total);
     return { damage: total, detail, targets, effects };
   }
 
@@ -692,7 +755,9 @@ export function applyRangeAttackToEnemies(
     isSethianWeaponName(opts?.weaponName) &&
     swarmMembersHitByTiles(state, tiles).length
   ) {
-    return applySethianWholeSwarmAttack(state, spec, tiles, damageRoll);
+    const result = applySethianWholeSwarmAttack(state, spec, tiles, damageRoll);
+    applyDamageToObstaclesInTiles(state, obstacleCoords, result.damage);
+    return result;
   }
 
   const { total, detail } = resolveAttackDamage(spec, damageRoll);
@@ -705,6 +770,7 @@ export function applyRangeAttackToEnemies(
     applyUnitEffectStacks(state,enemy, effects);
     targets.push({ enemyId: enemy.id, x: enemy.x, y: enemy.y });
   }
+  applyDamageToObstaclesInTiles(state, obstacleCoords, total);
   return { damage: total, detail, targets, effects };
 }
 

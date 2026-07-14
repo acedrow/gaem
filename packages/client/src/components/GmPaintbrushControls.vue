@@ -10,6 +10,7 @@ import { useTileBrushGalleryUi } from "../composables/useTileBrushGalleryUi.js";
 import EffectIcon from "./EffectIcon.vue";
 import NumberStepper from "./NumberStepper.vue";
 import TileBaseColorModal from "./TileBaseColorModal.vue";
+import TileColorTintModal from "./TileColorTintModal.vue";
 
 const {
   paintbrushElevation,
@@ -17,15 +18,21 @@ const {
   paintbrushEffectId,
   paintbrushEffectStacks,
   paintbrushTileName,
+  paintbrushObstacleHp,
   paintbrushBaseColor,
+  paintbrushAppearanceTint,
+  paintbrushFeatureTint,
   paintbrushAppearancePreviewUrl,
   paintbrushEnableElevation,
   paintbrushEnableTerrain,
   paintbrushEnableEffect,
+  paintbrushEnableObstacleHp,
   paintbrushEnableName,
   paintbrushEnableColor,
   paintbrushEnableAppearance,
   paintbrushEnableFeature,
+  paintbrushEnableAppearanceTint,
+  paintbrushEnableFeatureTint,
   paintbrushEnableRotation,
   paintbrushEnableFlip,
   paintbrushImageRotation,
@@ -65,6 +72,8 @@ const {
 } = useTileBrushGalleryUi();
 
 const colorModalOpen = ref(false);
+const appearanceTintModalOpen = ref(false);
+const featureTintModalOpen = ref(false);
 
 function onAppearanceSelected(e: Event) {
   const input = e.target as HTMLInputElement;
@@ -112,6 +121,16 @@ function onFeatureSelected(e: Event) {
           {{ terrainTypeDisplayName(terrain) }}
         </option>
       </select>
+    </div>
+    <div v-if="paintbrushTerrain === 'obstacle'" class="control-group">
+      <span class="control-label">Obstacle HP</span>
+      <input
+        v-model="paintbrushEnableObstacleHp"
+        type="checkbox"
+        class="option-enable"
+        aria-label="Enable obstacle HP"
+      />
+      <NumberStepper v-model="paintbrushObstacleHp" :min="1" :max="99" />
     </div>
     <div class="control-group effect-group">
       <span class="control-label">Effect</span>
@@ -229,6 +248,25 @@ function onFeatureSelected(e: Event) {
       </div>
     </div>
 
+    <div class="control-group">
+      <span class="control-label">Color tint</span>
+      <input
+        v-model="paintbrushEnableAppearanceTint"
+        type="checkbox"
+        class="option-enable"
+        aria-label="Enable appearance color tint"
+      />
+      <button
+        type="button"
+        class="color-swatch-btn"
+        :style="paintbrushAppearanceTint ? { background: paintbrushAppearanceTint.color } : undefined"
+        aria-label="Appearance color tint"
+        @click="appearanceTintModalOpen = true"
+      >
+        <span v-if="!paintbrushAppearanceTint" class="color-swatch-placeholder">—</span>
+      </button>
+    </div>
+
     <div class="control-group appearance-group">
       <span class="control-label">Feature</span>
       <input
@@ -297,6 +335,25 @@ function onFeatureSelected(e: Event) {
     </div>
 
     <div class="control-group">
+      <span class="control-label">Color tint</span>
+      <input
+        v-model="paintbrushEnableFeatureTint"
+        type="checkbox"
+        class="option-enable"
+        aria-label="Enable feature color tint"
+      />
+      <button
+        type="button"
+        class="color-swatch-btn"
+        :style="paintbrushFeatureTint ? { background: paintbrushFeatureTint.color } : undefined"
+        aria-label="Feature color tint"
+        @click="featureTintModalOpen = true"
+      >
+        <span v-if="!paintbrushFeatureTint" class="color-swatch-placeholder">—</span>
+      </button>
+    </div>
+
+    <div class="control-group">
       <span class="control-label">Rotate</span>
       <input
         v-model="paintbrushEnableRotation"
@@ -362,6 +419,20 @@ function onFeatureSelected(e: Event) {
     <p class="eyedropper-hint">Hold E to sample · R rotate · F flip</p>
 
     <TileBaseColorModal v-model="paintbrushBaseColor" :open="colorModalOpen" @close="colorModalOpen = false" />
+    <TileColorTintModal
+      v-model="paintbrushAppearanceTint"
+      title="Appearance color tint"
+      :open="appearanceTintModalOpen"
+      :preview-url="paintbrushAppearancePreviewUrl"
+      @close="appearanceTintModalOpen = false"
+    />
+    <TileColorTintModal
+      v-model="paintbrushFeatureTint"
+      title="Feature color tint"
+      :open="featureTintModalOpen"
+      :preview-url="paintbrushFeaturePreviewUrl"
+      @close="featureTintModalOpen = false"
+    />
   </div>
 </template>
 

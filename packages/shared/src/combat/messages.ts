@@ -6,7 +6,7 @@ import type {
   GmEnemyAction,
   PlayerAction,
 } from "./types.js";
-import type { ClientMessage, Enemy, GameState, Player, TerrainType, TileImageRotation } from "../types.js";
+import type { ClientMessage, Enemy, GameState, Player, TerrainType, TileColorTint, TileImageRotation } from "../types.js";
 import { hasGmCapabilities, type AuthCapabilities } from "../auth-capabilities.js";
 import {
   canGmMoveEnemies,
@@ -24,9 +24,11 @@ import { getArmorByName, getArmorSpeed, getWeaponByName } from "../player-data.j
 import type { StructuredArmorAction } from "./types.js";
 import { createDefaultActionBudget, type ActionTier } from "./types.js";
 import { buildBoardOccupancy } from "../game.js";
-import { coordKey, isInBounds, isTerrainType, setTileTerrain, tileAt } from "../map.js";
+import { coordKey, isInBounds, isObstacleTile, isTerrainType, setTileTerrain, tileAt } from "../map.js";
+import { DEFAULT_OBSTACLE_HP } from "../types.js";
 import {
   isValidTileBaseColor,
+  isValidTileColorTint,
   isValidTileImageRotation,
   normalizeTileName,
   TILE_NAME_MAX_LENGTH,
@@ -50,6 +52,7 @@ import {
 import {
   applyAttackToEnemies,
   applyDamageToEnemy,
+  applyDamageToObstacle,
   applyDamageToPlayer,
   applyOmnistrike,
   applyRangeAttackToEnemies,
@@ -66,6 +69,7 @@ import {
   parseEnemyAttackString,
   resolveAttackWeapon,
   resolveCombatAttackSpec,
+  resolveRangeAttackObstacleCoords,
   resolveRangeAttackTargetIds,
   ensureSabaothCharges,
   ensureHeavenBurningLevel,
@@ -309,9 +313,12 @@ export function validatePlayerAction(
       if (!spec) return "Weapon has no attack profile";
       if (isRangeTargetAttack(spec)) {
         const targetIds = resolveRangeAttackTargetIds(action);
-        if (!targetIds.length) return "Select target";
+        const obstacleCoords = resolveRangeAttackObstacleCoords(action);
+        if (!targetIds.length && !obstacleCoords.length) return "Select target";
         const maxTargets = rangeTargetMax(spec);
-        if (targetIds.length > maxTargets) return `Too many targets (max ${maxTargets})`;
+        if (targetIds.length + obstacleCoords.length > maxTargets) {
+          return `Too many targets (max ${maxTargets})`;
+        }
         for (const targetId of targetIds) {
           const enemy = state.enemies.find((e) => e.id === targetId);
           if (!enemy) return "Unknown target";
@@ -320,6 +327,12 @@ export function validatePlayerAction(
             targetUnit: enemy,
           });
           if (manhattanDistance(player, enemy) > limit) return "Target out of range";
+        }
+        const obstacleRange = rangeTargetDistance(spec);
+        for (const coord of obstacleCoords) {
+          const tile = tileAt(state.tiles, coord.x, coord.y);
+          if (!isObstacleTile(tile)) return "Unknown target";
+          if (manhattanDistance(player, coord) > obstacleRange) return "Target out of range";
         }
       } else if (usesAnchoredPatternPlacement(spec)) {
         if (action.anchorX === undefined || action.anchorY === undefined) return "Select placement";
@@ -542,13 +555,15 @@ export function applyPlayerAction(
       const weaponName = weapon;
       if (isRangeTargetAttack(spec)) {
         const rangeTargetIds = resolveRangeAttackTargetIds(action);
+        const obstacleCoords = resolveRangeAttackObstacleCoords(action);
         const targetIds = action.useBreaker
           ? rangeTargetIds
           : dedupeSwarmTargetIds(state, rangeTargetIds);
-        if (targetIds.length) {
+        if (targetIds.length || obstacleCoords.length) {
           result = applyRangeAttackToEnemies(state, spec, targetIds, action.damageRoll, {
             useBreaker: action.useBreaker,
             weaponName,
+            obstacleCoords,
           });
         } else {
           result = applyAttackToEnemies(
@@ -1166,10 +1181,18 @@ export function applySetEnemyHp(state: GameState, enemyId: string, hp: number): 
 
 export function validateGmApplyDamage(
   state: GameState,
-  target: { kind: "player" | "enemy"; id: string },
+  target:
+    | { kind: "player" | "enemy"; id: string }
+    | { kind: "obstacle"; x: number; y: number },
   amount: number,
 ): string | null {
   if (!Number.isFinite(amount) || amount <= 0) return "Invalid damage amount";
+  if (target.kind === "obstacle") {
+    if (!isInBounds(target.x, target.y, state.width, state.height)) return "Out of bounds";
+    const tile = tileAt(state.tiles, target.x, target.y);
+    if (!isObstacleTile(tile)) return "Not an obstacle";
+    return null;
+  }
   if (target.kind === "player" && !state.players.some((p) => p.id === target.id)) return "Unknown player";
   if (target.kind === "enemy" && !state.enemies.some((e) => e.id === target.id)) return "Unknown enemy";
   return null;
@@ -1177,10 +1200,18 @@ export function validateGmApplyDamage(
 
 export function applyGmApplyDamage(
   state: GameState,
-  target: { kind: "player" | "enemy"; id: string },
+  target:
+    | { kind: "player" | "enemy"; id: string }
+    | { kind: "obstacle"; x: number; y: number },
   amount: number,
 ): string {
   const damage = Math.trunc(amount);
+  if (target.kind === "obstacle") {
+    const dealt = applyDamageToObstacle(state, target.x, target.y, damage);
+    const tile = tileAt(state.tiles, target.x, target.y);
+    if (!isObstacleTile(tile)) return `Dealt ${dealt} to obstacle (${target.x}, ${target.y}); destroyed`;
+    return `Dealt ${dealt} to obstacle (${target.x}, ${target.y})`;
+  }
   if (target.kind === "player") {
     const player = state.players.find((p) => p.id === target.id);
     if (!player) return "Unknown player";
@@ -1335,9 +1366,12 @@ export type GmPaintTileFields = {
   terrain?: TerrainType;
   tileEffects?: string[];
   tileName?: string;
+  obstacleHp?: number;
   baseColor?: string | null;
   appearanceKey?: string | null;
   featureKey?: string | null;
+  appearanceTint?: TileColorTint | null;
+  featureTint?: TileColorTint | null;
   appearanceRotation?: TileImageRotation | null;
   appearanceFlip?: boolean | null;
   featureRotation?: TileImageRotation | null;
@@ -1350,9 +1384,12 @@ function hasGmPaintTileFields(fields: GmPaintTileFields): boolean {
     fields.terrain !== undefined ||
     fields.tileEffects !== undefined ||
     fields.tileName !== undefined ||
+    fields.obstacleHp !== undefined ||
     fields.baseColor !== undefined ||
     fields.appearanceKey !== undefined ||
     fields.featureKey !== undefined ||
+    fields.appearanceTint !== undefined ||
+    fields.featureTint !== undefined ||
     fields.appearanceRotation !== undefined ||
     fields.appearanceFlip !== undefined ||
     fields.featureRotation !== undefined ||
@@ -1378,6 +1415,15 @@ export function validateGmPaintTile(
   if (fields.terrain !== undefined) {
     if (!isTerrainType(fields.terrain)) return `Invalid terrain type: ${fields.terrain}`;
   }
+  if (fields.obstacleHp !== undefined) {
+    if (!Number.isInteger(fields.obstacleHp) || fields.obstacleHp < 1) {
+      return "obstacleHp must be a positive integer";
+    }
+    const nextTerrain = fields.terrain ?? (tile.terrain.includes("obstacle") ? "obstacle" : null);
+    if (nextTerrain !== "obstacle") {
+      return "obstacleHp requires obstacle terrain";
+    }
+  }
   if (fields.tileEffects !== undefined) {
     const err = validatePaintTileEffectTokens(fields.tileEffects);
     if (err) return err;
@@ -1390,6 +1436,20 @@ export function validateGmPaintTile(
   }
   if (fields.baseColor !== undefined && fields.baseColor != null && !isValidTileBaseColor(fields.baseColor)) {
     return "baseColor must be a #RGB or #RRGGBB hex color";
+  }
+  if (
+    fields.appearanceTint !== undefined &&
+    fields.appearanceTint != null &&
+    !isValidTileColorTint(fields.appearanceTint)
+  ) {
+    return "appearanceTint must be { color: #RGB|#RRGGBB, opacity: 0–1 }";
+  }
+  if (
+    fields.featureTint !== undefined &&
+    fields.featureTint != null &&
+    !isValidTileColorTint(fields.featureTint)
+  ) {
+    return "featureTint must be { color: #RGB|#RRGGBB, opacity: 0–1 }";
   }
   if (
     fields.appearanceKey !== undefined &&
@@ -1445,6 +1505,11 @@ export function applyGmPaintTile(
   const tile = tileAt(state.tiles, x, y)!;
   if (fields.elevation !== undefined) tile.elevation = fields.elevation;
   if (fields.terrain !== undefined) setTileTerrain(tile, fields.terrain);
+  if (fields.obstacleHp !== undefined) {
+    if (isObstacleTile(tile)) tile.obstacleHp = fields.obstacleHp;
+  } else if (fields.terrain === "obstacle" && tile.obstacleHp == null) {
+    tile.obstacleHp = DEFAULT_OBSTACLE_HP;
+  }
   if (fields.tileEffects !== undefined) replaceTileEffects(tile, fields.tileEffects);
 
   if (fields.tileName !== undefined) {
@@ -1466,6 +1531,16 @@ export function applyGmPaintTile(
   if (fields.featureKey !== undefined) {
     if (fields.featureKey?.trim()) tile.featureKey = fields.featureKey.trim();
     else delete tile.featureKey;
+  }
+
+  if (fields.appearanceTint !== undefined) {
+    if (fields.appearanceTint) tile.appearanceTint = { ...fields.appearanceTint };
+    else delete tile.appearanceTint;
+  }
+
+  if (fields.featureTint !== undefined) {
+    if (fields.featureTint) tile.featureTint = { ...fields.featureTint };
+    else delete tile.featureTint;
   }
 
   if (fields.appearanceRotation !== undefined) {
@@ -1717,9 +1792,12 @@ export function handleCombatMessage(
         ...(parsed.terrain !== undefined ? { terrain: parsed.terrain } : {}),
         ...(parsed.tileEffects !== undefined ? { tileEffects: parsed.tileEffects } : {}),
         ...(parsed.tileName !== undefined ? { tileName: parsed.tileName } : {}),
+        ...(parsed.obstacleHp !== undefined ? { obstacleHp: parsed.obstacleHp } : {}),
         ...(parsed.baseColor !== undefined ? { baseColor: parsed.baseColor } : {}),
         ...(parsed.appearanceKey !== undefined ? { appearanceKey: parsed.appearanceKey } : {}),
         ...(parsed.featureKey !== undefined ? { featureKey: parsed.featureKey } : {}),
+        ...(parsed.appearanceTint !== undefined ? { appearanceTint: parsed.appearanceTint } : {}),
+        ...(parsed.featureTint !== undefined ? { featureTint: parsed.featureTint } : {}),
         ...(parsed.appearanceRotation !== undefined
           ? { appearanceRotation: parsed.appearanceRotation }
           : {}),

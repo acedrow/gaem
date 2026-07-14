@@ -242,6 +242,8 @@ describe("map", () => {
       baseColor: "#112233",
       appearanceKey: "tile-appearances/x.png",
       featureKey: "tiles/features/base/rock.png",
+      appearanceTint: { color: "#ff0000", opacity: 0.5 },
+      featureTint: { color: "#00aaff", opacity: 0.25 },
       appearanceRotation: 90,
       appearanceFlip: true,
       featureRotation: 180,
@@ -255,6 +257,8 @@ describe("map", () => {
     expect(saved.baseColor).toBe("#112233");
     expect(saved.appearanceKey).toBe("tile-appearances/x.png");
     expect(saved.featureKey).toBe("tiles/features/base/rock.png");
+    expect(saved.appearanceTint).toEqual({ color: "#ff0000", opacity: 0.5 });
+    expect(saved.featureTint).toEqual({ color: "#00aaff", opacity: 0.25 });
     expect(saved.appearanceRotation).toBe(90);
     expect(saved.appearanceFlip).toBe(true);
     expect(saved.featureRotation).toBe(180);
@@ -272,6 +276,8 @@ describe("map", () => {
             baseColor: "#abc",
             appearanceKey: "tile-appearances/test.png",
             featureKey: "tiles/features/base/rock.png",
+            appearanceTint: { color: "#ff0000", opacity: 0.5 },
+            featureTint: { color: "#00ff00", opacity: 0.2 },
             appearanceRotation: 180,
             appearanceFlip: true,
             featureRotation: 90,
@@ -293,6 +299,7 @@ describe("map", () => {
           tileName: "Forest",
           baseColor: "#112233",
           featureKey: "tiles/features/base/tree.png",
+          appearanceTint: { color: "#aabbcc", opacity: 0.7 },
           appearanceRotation: 90,
           appearanceFlip: true,
           featureRotation: 270,
@@ -304,12 +311,18 @@ describe("map", () => {
     expect(map.tiles[0]!.baseColor).toBe("#abc");
     expect(map.tiles[0]!.appearanceKey).toBe("tile-appearances/test.png");
     expect(map.tiles[0]!.featureKey).toBe("tiles/features/base/rock.png");
+    expect(map.tiles[0]!.appearanceTint).toEqual({ color: "#ff0000", opacity: 0.5 });
+    expect(map.tiles[0]!.featureTint).toEqual({ color: "#00ff00", opacity: 0.2 });
     expect(map.tiles[0]!.appearanceRotation).toBe(180);
     expect(map.tiles[0]!.appearanceFlip).toBe(true);
     expect(map.tiles[0]!.featureRotation).toBe(90);
     expect(map.tiles[0]!.featureFlip).toBe(true);
     expect(map.tilePresets?.Forest?.terrain).toBe("cover");
     expect(map.tilePresets?.Forest?.featureKey).toBe("tiles/features/base/tree.png");
+    expect(map.tilePresets?.Forest?.appearanceTint).toEqual({
+      color: "#aabbcc",
+      opacity: 0.7,
+    });
     expect(map.tilePresets?.Forest?.appearanceRotation).toBe(90);
     expect(map.tilePresets?.Forest?.appearanceFlip).toBe(true);
     expect(map.tilePresets?.Forest?.featureRotation).toBe(270);

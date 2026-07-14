@@ -1,9 +1,12 @@
 import {
+  DEFAULT_OBSTACLE_HP,
   coordKey,
+  getObstacleHp,
   tileAt,
   TILE_IMAGE_ROTATIONS,
   type MapTile,
   type TerrainType,
+  type TileColorTint,
   type TileImageRotation,
   type TilePaintPreset,
 } from "@gaem/shared";
@@ -59,7 +62,10 @@ const paintbrushTerrain = ref<TerrainType>(persistedGm.paintbrushTerrain);
 const paintbrushEffectId = ref(persistedGm.paintbrushEffectId);
 const paintbrushEffectStacks = ref(persistedGm.paintbrushEffectStacks);
 const paintbrushTileName = ref(persistedGm.paintbrushTileName);
+const paintbrushObstacleHp = ref(persistedGm.paintbrushObstacleHp);
 const paintbrushBaseColor = ref<string | null>(persistedGm.paintbrushBaseColor);
+const paintbrushAppearanceTint = ref<TileColorTint | null>(persistedGm.paintbrushAppearanceTint);
+const paintbrushFeatureTint = ref<TileColorTint | null>(persistedGm.paintbrushFeatureTint);
 const paintbrushAppearanceKey = ref<string | null | undefined>(persistedGm.paintbrushAppearanceKey);
 const paintbrushAppearancePreviewUrl = ref<string | null>(null);
 const paintbrushAppearanceSetId = ref(persistedGm.paintbrushAppearanceSetId);
@@ -69,10 +75,13 @@ const paintbrushFeatureSetId = ref(persistedGm.paintbrushFeatureSetId);
 const paintbrushEnableElevation = ref(persistedGm.paintbrushEnableElevation);
 const paintbrushEnableTerrain = ref(persistedGm.paintbrushEnableTerrain);
 const paintbrushEnableEffect = ref(persistedGm.paintbrushEnableEffect);
+const paintbrushEnableObstacleHp = ref(persistedGm.paintbrushEnableObstacleHp);
 const paintbrushEnableName = ref(persistedGm.paintbrushEnableName);
 const paintbrushEnableColor = ref(persistedGm.paintbrushEnableColor);
 const paintbrushEnableAppearance = ref(persistedGm.paintbrushEnableAppearance);
 const paintbrushEnableFeature = ref(persistedGm.paintbrushEnableFeature);
+const paintbrushEnableAppearanceTint = ref(persistedGm.paintbrushEnableAppearanceTint);
+const paintbrushEnableFeatureTint = ref(persistedGm.paintbrushEnableFeatureTint);
 const paintbrushImageRotation = ref<TileImageRotation>(persistedGm.paintbrushImageRotation);
 const paintbrushImageFlip = ref(persistedGm.paintbrushImageFlip);
 const paintbrushEnableRotation = ref(persistedGm.paintbrushEnableRotation);
@@ -116,7 +125,10 @@ export function snapshotGmTools(): PersistedGmTools {
     paintbrushEffectId: paintbrushEffectId.value,
     paintbrushEffectStacks: paintbrushEffectStacks.value,
     paintbrushTileName: paintbrushTileName.value,
+    paintbrushObstacleHp: paintbrushObstacleHp.value,
     paintbrushBaseColor: paintbrushBaseColor.value,
+    paintbrushAppearanceTint: paintbrushAppearanceTint.value,
+    paintbrushFeatureTint: paintbrushFeatureTint.value,
     paintbrushAppearanceKey: paintbrushAppearanceKey.value,
     paintbrushAppearanceSetId: paintbrushAppearanceSetId.value,
     paintbrushFeatureKey: paintbrushFeatureKey.value,
@@ -127,10 +139,13 @@ export function snapshotGmTools(): PersistedGmTools {
     paintbrushEnableElevation: paintbrushEnableElevation.value,
     paintbrushEnableTerrain: paintbrushEnableTerrain.value,
     paintbrushEnableEffect: paintbrushEnableEffect.value,
+    paintbrushEnableObstacleHp: paintbrushEnableObstacleHp.value,
     paintbrushEnableName: paintbrushEnableName.value,
     paintbrushEnableColor: paintbrushEnableColor.value,
     paintbrushEnableAppearance: paintbrushEnableAppearance.value,
     paintbrushEnableFeature: paintbrushEnableFeature.value,
+    paintbrushEnableAppearanceTint: paintbrushEnableAppearanceTint.value,
+    paintbrushEnableFeatureTint: paintbrushEnableFeatureTint.value,
     paintbrushEnableRotation: paintbrushEnableRotation.value,
     paintbrushEnableFlip: paintbrushEnableFlip.value,
   };
@@ -147,7 +162,10 @@ export const gmToolsWatchSources = [
   paintbrushEffectId,
   paintbrushEffectStacks,
   paintbrushTileName,
+  paintbrushObstacleHp,
   paintbrushBaseColor,
+  paintbrushAppearanceTint,
+  paintbrushFeatureTint,
   paintbrushAppearanceKey,
   paintbrushAppearanceSetId,
   paintbrushFeatureKey,
@@ -158,10 +176,13 @@ export const gmToolsWatchSources = [
   paintbrushEnableElevation,
   paintbrushEnableTerrain,
   paintbrushEnableEffect,
+  paintbrushEnableObstacleHp,
   paintbrushEnableName,
   paintbrushEnableColor,
   paintbrushEnableAppearance,
   paintbrushEnableFeature,
+  paintbrushEnableAppearanceTint,
+  paintbrushEnableFeatureTint,
   paintbrushEnableRotation,
   paintbrushEnableFlip,
 ];
@@ -187,7 +208,10 @@ export function applyPersistedGmTools(gm: PersistedGmTools) {
   paintbrushEffectId.value = gm.paintbrushEffectId;
   paintbrushEffectStacks.value = gm.paintbrushEffectStacks;
   paintbrushTileName.value = gm.paintbrushTileName;
+  paintbrushObstacleHp.value = gm.paintbrushObstacleHp;
   paintbrushBaseColor.value = gm.paintbrushBaseColor;
+  paintbrushAppearanceTint.value = gm.paintbrushAppearanceTint;
+  paintbrushFeatureTint.value = gm.paintbrushFeatureTint;
   paintbrushAppearanceKey.value = gm.paintbrushAppearanceKey;
   paintbrushAppearanceSetId.value = gm.paintbrushAppearanceSetId;
   paintbrushFeatureKey.value = gm.paintbrushFeatureKey;
@@ -198,10 +222,13 @@ export function applyPersistedGmTools(gm: PersistedGmTools) {
   paintbrushEnableElevation.value = gm.paintbrushEnableElevation;
   paintbrushEnableTerrain.value = gm.paintbrushEnableTerrain;
   paintbrushEnableEffect.value = gm.paintbrushEnableEffect;
+  paintbrushEnableObstacleHp.value = gm.paintbrushEnableObstacleHp;
   paintbrushEnableName.value = gm.paintbrushEnableName;
   paintbrushEnableColor.value = gm.paintbrushEnableColor;
   paintbrushEnableAppearance.value = gm.paintbrushEnableAppearance;
   paintbrushEnableFeature.value = gm.paintbrushEnableFeature;
+  paintbrushEnableAppearanceTint.value = gm.paintbrushEnableAppearanceTint;
+  paintbrushEnableFeatureTint.value = gm.paintbrushEnableFeatureTint;
   paintbrushEnableRotation.value = gm.paintbrushEnableRotation;
   paintbrushEnableFlip.value = gm.paintbrushEnableFlip;
   syncPaintbrushPreviewsFromKeys?.();
@@ -290,15 +317,19 @@ export function useGmTools() {
       .filter(([, stacks]) => stacks !== 0)
       .sort(([a], [b]) => a.localeCompare(b));
     const [effectId, effectStacks] = effects[0] ?? [GM_TILE_EFFECT_NONE, 1];
+    const terrain = tile.terrain[0] ?? "standard";
     return {
       elevation: tile.elevation,
-      terrain: tile.terrain[0] ?? "standard",
+      terrain,
       tileEffectId: effectId,
       tileEffectStacks: effectStacks,
       tileName: tile.name ?? "",
+      ...(terrain === "obstacle" ? { obstacleHp: getObstacleHp(tile) } : {}),
       ...(tile.baseColor ? { baseColor: tile.baseColor } : {}),
       ...(tile.appearanceKey ? { appearanceKey: tile.appearanceKey } : {}),
       ...(tile.featureKey ? { featureKey: tile.featureKey } : {}),
+      ...(tile.appearanceTint ? { appearanceTint: { ...tile.appearanceTint } } : {}),
+      ...(tile.featureTint ? { featureTint: { ...tile.featureTint } } : {}),
       ...(tile.appearanceRotation ? { appearanceRotation: tile.appearanceRotation } : {}),
       ...(tile.appearanceFlip ? { appearanceFlip: true } : {}),
       ...(tile.featureRotation ? { featureRotation: tile.featureRotation } : {}),
@@ -371,12 +402,16 @@ export function useGmTools() {
     return !!enemy && sel.ids.includes(enemy.id);
   }
 
-  function applyDamageEffectToToken(target: { kind: "player" | "enemy"; id: string }) {
+  function applyDamageEffectToToken(
+    target:
+      | { kind: "player" | "enemy"; id: string }
+      | { kind: "obstacle"; x: number; y: number },
+  ) {
     const damage = damageAmount.value;
     if (damage > 0) {
       send({ type: "gmApplyDamage", target, amount: damage });
     }
-    if (effectId.value && effectStacks.value !== 0) {
+    if (target.kind !== "obstacle" && effectId.value && effectStacks.value !== 0) {
       send({
         type: "applyEffect",
         target,
@@ -435,13 +470,18 @@ export function useGmTools() {
     paintbrushEffectId.value = GM_TILE_EFFECT_NONE;
     paintbrushEffectStacks.value = 1;
     paintbrushTileName.value = "";
+    paintbrushObstacleHp.value = DEFAULT_OBSTACLE_HP;
     paintbrushBaseColor.value = null;
+    paintbrushAppearanceTint.value = null;
+    paintbrushFeatureTint.value = null;
     paintbrushAppearanceKey.value = undefined;
     clearPaintbrushAppearancePreview();
     paintbrushFeatureKey.value = undefined;
     clearPaintbrushFeaturePreview();
     paintbrushImageRotation.value = 0;
     paintbrushImageFlip.value = false;
+    paintbrushEnableAppearanceTint.value = false;
+    paintbrushEnableFeatureTint.value = false;
     paintbrushEnableRotation.value = false;
     paintbrushEnableFlip.value = false;
     paintbrushAutoRotate.value = false;
@@ -456,9 +496,16 @@ export function useGmTools() {
       tileEffectId: paintbrushEffectId.value,
       tileEffectStacks: paintbrushEffectStacks.value,
       tileName: paintbrushTileName.value.trim(),
+      ...(paintbrushTerrain.value === "obstacle"
+        ? { obstacleHp: paintbrushObstacleHp.value }
+        : {}),
       ...(paintbrushBaseColor.value ? { baseColor: paintbrushBaseColor.value } : {}),
       ...(paintbrushAppearanceKey.value ? { appearanceKey: paintbrushAppearanceKey.value } : {}),
       ...(paintbrushFeatureKey.value ? { featureKey: paintbrushFeatureKey.value } : {}),
+      ...(paintbrushAppearanceTint.value
+        ? { appearanceTint: { ...paintbrushAppearanceTint.value } }
+        : {}),
+      ...(paintbrushFeatureTint.value ? { featureTint: { ...paintbrushFeatureTint.value } } : {}),
       ...(paintbrushAppearanceKey.value && paintbrushImageRotation.value
         ? { appearanceRotation: paintbrushImageRotation.value }
         : {}),
@@ -478,7 +525,15 @@ export function useGmTools() {
     paintbrushEffectId.value = preset.tileEffectId;
     paintbrushEffectStacks.value = preset.tileEffectStacks;
     paintbrushTileName.value = preset.tileName;
+    paintbrushObstacleHp.value =
+      preset.terrain === "obstacle"
+        ? (preset.obstacleHp ?? DEFAULT_OBSTACLE_HP)
+        : DEFAULT_OBSTACLE_HP;
     paintbrushBaseColor.value = preset.baseColor ?? null;
+    paintbrushAppearanceTint.value = preset.appearanceTint
+      ? { ...preset.appearanceTint }
+      : null;
+    paintbrushFeatureTint.value = preset.featureTint ? { ...preset.featureTint } : null;
     paintbrushAppearanceKey.value = preset.appearanceKey ?? null;
     syncPaintbrushAppearanceSetFromKey(preset.appearanceKey);
     if (preset.appearanceKey) setPaintbrushAppearancePreview(preset.appearanceKey);
@@ -595,10 +650,13 @@ export function useGmTools() {
     paintbrushEnableElevation.value = enabled;
     paintbrushEnableTerrain.value = enabled;
     paintbrushEnableEffect.value = enabled;
+    paintbrushEnableObstacleHp.value = enabled;
     paintbrushEnableName.value = enabled;
     paintbrushEnableColor.value = enabled;
     paintbrushEnableAppearance.value = enabled;
     paintbrushEnableFeature.value = enabled;
+    paintbrushEnableAppearanceTint.value = enabled;
+    paintbrushEnableFeatureTint.value = enabled;
     paintbrushEnableRotation.value = enabled;
     paintbrushEnableFlip.value = enabled;
   }
@@ -711,7 +769,10 @@ export function useGmTools() {
       terrain?: TerrainType;
       tileEffects?: string[];
       tileName?: string;
+      obstacleHp?: number;
       baseColor?: string | null;
+      appearanceTint?: TileColorTint | null;
+      featureTint?: TileColorTint | null;
       appearanceRotation?: TileImageRotation | null;
       appearanceFlip?: boolean | null;
       featureRotation?: TileImageRotation | null;
@@ -719,6 +780,9 @@ export function useGmTools() {
     } = {};
     if (paintbrushEnableElevation.value) shared.elevation = paintbrushElevation.value;
     if (paintbrushEnableTerrain.value) shared.terrain = paintbrushTerrain.value;
+    if (paintbrushEnableObstacleHp.value && paintbrushTerrain.value === "obstacle") {
+      shared.obstacleHp = paintbrushObstacleHp.value;
+    }
     if (paintbrushEnableEffect.value) {
       shared.tileEffects =
         paintbrushEffectId.value && paintbrushEffectStacks.value !== 0
@@ -727,6 +791,12 @@ export function useGmTools() {
     }
     if (paintbrushEnableName.value) shared.tileName = paintbrushTileName.value;
     if (paintbrushEnableColor.value) shared.baseColor = paintbrushBaseColor.value;
+    if (paintbrushEnableAppearanceTint.value) {
+      shared.appearanceTint = paintbrushAppearanceTint.value;
+    }
+    if (paintbrushEnableFeatureTint.value) {
+      shared.featureTint = paintbrushFeatureTint.value;
+    }
     if (rotateOn && !autoRotate) {
       if (paintAppearance) shared.appearanceRotation = brushRotation;
       if (paintFeature) shared.featureRotation = brushRotation;
@@ -746,7 +816,10 @@ export function useGmTools() {
       shared.terrain === undefined &&
       shared.tileEffects === undefined &&
       shared.tileName === undefined &&
+      shared.obstacleHp === undefined &&
       shared.baseColor === undefined &&
+      shared.appearanceTint === undefined &&
+      shared.featureTint === undefined &&
       shared.appearanceRotation === undefined &&
       shared.appearanceFlip === undefined &&
       shared.featureRotation === undefined &&
@@ -812,7 +885,10 @@ export function useGmTools() {
     paintbrushEffectId,
     paintbrushEffectStacks,
     paintbrushTileName,
+    paintbrushObstacleHp,
     paintbrushBaseColor,
+    paintbrushAppearanceTint,
+    paintbrushFeatureTint,
     paintbrushAppearanceKey,
     paintbrushAppearancePreviewUrl,
     paintbrushAppearanceSetId,
@@ -825,10 +901,13 @@ export function useGmTools() {
     paintbrushEnableElevation,
     paintbrushEnableTerrain,
     paintbrushEnableEffect,
+    paintbrushEnableObstacleHp,
     paintbrushEnableName,
     paintbrushEnableColor,
     paintbrushEnableAppearance,
     paintbrushEnableFeature,
+    paintbrushEnableAppearanceTint,
+    paintbrushEnableFeatureTint,
     paintbrushEnableRotation,
     paintbrushEnableFlip,
     paintbrushSuppressPreviewKey,

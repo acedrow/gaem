@@ -1,12 +1,13 @@
 import type { Enemy, GameMap, GameMapSummary, GameState, MapTile, TerrainType } from "./types.js";
 import { BOARD_HEIGHT, BOARD_WIDTH } from "./constants.js";
-import { TERRAIN_TYPES } from "./types.js";
+import { DEFAULT_OBSTACLE_HP, TERRAIN_TYPES } from "./types.js";
 import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles, refreshEnemyMovement } from "./enemy-data.js";
 import { defaultOverworldParty } from "./overworld.js";
 import {
   isValidTileBaseColor,
   isValidTileImageRotation,
   normalizeTileName,
+  parseTileColorTint,
   parseTilePresets,
   TILE_NAME_MAX_LENGTH,
 } from "./tile-cosmetics.js";
@@ -74,6 +75,11 @@ export function isTerrainType(value: string): value is TerrainType {
 export function setTileTerrain(tile: MapTile, terrain: TerrainType): void {
   tile.terrain = [terrain];
   delete tile.walkable;
+  if (terrain === "obstacle") {
+    if (tile.obstacleHp == null) tile.obstacleHp = DEFAULT_OBSTACLE_HP;
+  } else {
+    delete tile.obstacleHp;
+  }
 }
 
 export function isWalkable(tile: MapTile | undefined): boolean {
@@ -85,6 +91,23 @@ export function isWalkable(tile: MapTile | undefined): boolean {
 export function isImpassableOrObstacleTile(tile: MapTile | undefined): boolean {
   if (!tile) return false;
   return tile.terrain.includes("impassable") || tile.terrain.includes("obstacle");
+}
+
+export function isObstacleTile(tile: MapTile | undefined): boolean {
+  return !!tile?.terrain.includes("obstacle");
+}
+
+export function getObstacleHp(tile: MapTile): number {
+  if (!isObstacleTile(tile)) return 0;
+  return tile.obstacleHp ?? DEFAULT_OBSTACLE_HP;
+}
+
+export function ensureObstacleHp(tile: MapTile): number {
+  if (!isObstacleTile(tile)) return 0;
+  if (tile.obstacleHp == null || !Number.isInteger(tile.obstacleHp) || tile.obstacleHp < 1) {
+    tile.obstacleHp = DEFAULT_OBSTACLE_HP;
+  }
+  return tile.obstacleHp;
 }
 
 export function parseGameMap(raw: unknown): GameMap {
@@ -207,6 +230,28 @@ export function parseGameMap(raw: unknown): GameMap {
       tile.featureKey = featureKey.trim();
     }
 
+    const appearanceTint = t.appearanceTint;
+    if (appearanceTint !== undefined) {
+      const parsed = parseTileColorTint(appearanceTint);
+      if (!parsed) {
+        throw new Error(
+          `Tile (${x}, ${y}) appearanceTint must be { color: #RGB|#RRGGBB, opacity: 0–1 }`,
+        );
+      }
+      tile.appearanceTint = parsed;
+    }
+
+    const featureTint = t.featureTint;
+    if (featureTint !== undefined) {
+      const parsed = parseTileColorTint(featureTint);
+      if (!parsed) {
+        throw new Error(
+          `Tile (${x}, ${y}) featureTint must be { color: #RGB|#RRGGBB, opacity: 0–1 }`,
+        );
+      }
+      tile.featureTint = parsed;
+    }
+
     const legacyRotation = t.imageRotation;
     const legacyFlip = t.imageFlip;
     if (legacyRotation !== undefined && !isValidTileImageRotation(legacyRotation)) {
@@ -238,6 +283,19 @@ export function parseGameMap(raw: unknown): GameMap {
     readTileRotation("featureRotation");
     readTileFlip("appearanceFlip");
     readTileFlip("featureFlip");
+
+    const obstacleHp = t.obstacleHp;
+    if (obstacleHp !== undefined) {
+      if (!Number.isInteger(obstacleHp) || (obstacleHp as number) < 1) {
+        throw new Error(`Tile (${x}, ${y}) obstacleHp must be a positive integer`);
+      }
+      if (!terrain.includes("obstacle")) {
+        throw new Error(`Tile (${x}, ${y}) obstacleHp is only valid on obstacle terrain`);
+      }
+      tile.obstacleHp = obstacleHp as number;
+    } else if (terrain.includes("obstacle")) {
+      tile.obstacleHp = DEFAULT_OBSTACLE_HP;
+    }
 
     tile.walkable = computeWalkable(tile);
     tiles.push(tile);
@@ -362,10 +420,13 @@ export function cloneMapTile(tile: MapTile): MapTile {
     elevation: tile.elevation,
     terrain: [...tile.terrain],
     ...(tile.walkable !== undefined ? { walkable: tile.walkable } : {}),
+    ...(tile.obstacleHp !== undefined ? { obstacleHp: tile.obstacleHp } : {}),
     ...(tile.name ? { name: tile.name } : {}),
     ...(tile.baseColor ? { baseColor: tile.baseColor } : {}),
     ...(tile.appearanceKey ? { appearanceKey: tile.appearanceKey } : {}),
     ...(tile.featureKey ? { featureKey: tile.featureKey } : {}),
+    ...(tile.appearanceTint ? { appearanceTint: { ...tile.appearanceTint } } : {}),
+    ...(tile.featureTint ? { featureTint: { ...tile.featureTint } } : {}),
     ...(tile.appearanceRotation ? { appearanceRotation: tile.appearanceRotation } : {}),
     ...(tile.appearanceFlip ? { appearanceFlip: true } : {}),
     ...(tile.featureRotation ? { featureRotation: tile.featureRotation } : {}),
@@ -422,6 +483,11 @@ export function persistMapTileFromState(map: GameMap, source: MapTile): void {
   mapTile.elevation = source.elevation;
   mapTile.terrain = [...source.terrain];
   delete mapTile.walkable;
+  if (source.obstacleHp !== undefined && source.terrain.includes("obstacle")) {
+    mapTile.obstacleHp = source.obstacleHp;
+  } else {
+    delete mapTile.obstacleHp;
+  }
   if (source.name) mapTile.name = source.name;
   else delete mapTile.name;
   if (source.baseColor) mapTile.baseColor = source.baseColor;
@@ -430,6 +496,10 @@ export function persistMapTileFromState(map: GameMap, source: MapTile): void {
   else delete mapTile.appearanceKey;
   if (source.featureKey) mapTile.featureKey = source.featureKey;
   else delete mapTile.featureKey;
+  if (source.appearanceTint) mapTile.appearanceTint = { ...source.appearanceTint };
+  else delete mapTile.appearanceTint;
+  if (source.featureTint) mapTile.featureTint = { ...source.featureTint };
+  else delete mapTile.featureTint;
   if (source.appearanceRotation) mapTile.appearanceRotation = source.appearanceRotation;
   else delete mapTile.appearanceRotation;
   if (source.appearanceFlip) mapTile.appearanceFlip = true;

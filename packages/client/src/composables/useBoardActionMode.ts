@@ -45,6 +45,7 @@ const attackAimed = ref(false);
 const attackAnchor = ref<{ x: number; y: number } | null>(null);
 const elevBonusTile = ref<{ x: number; y: number } | null>(null);
 const rangeAttackTargetIds = ref<string[]>([]);
+const rangeAttackObstacleCoords = ref<{ x: number; y: number }[]>([]);
 const movePath = ref<{ x: number; y: number }[]>([]);
 const pendingTargetEnemyId = ref<string | null>(null);
 const pendingTargetPlayerId = ref<string | null>(null);
@@ -123,6 +124,7 @@ export function useBoardActionMode() {
     attackAnchor.value = null;
     elevBonusTile.value = null;
     rangeAttackTargetIds.value = [];
+    rangeAttackObstacleCoords.value = [];
     movePath.value = [];
     pendingTargetEnemyId.value = null;
     pendingTargetPlayerId.value = null;
@@ -184,6 +186,7 @@ export function useBoardActionMode() {
     attackAnchor,
     elevBonusTile,
     rangeAttackTargetIds,
+    rangeAttackObstacleCoords,
     movePath,
     pendingTargetEnemyId,
     pendingTargetPlayerId,

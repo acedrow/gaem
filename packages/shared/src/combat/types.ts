@@ -179,6 +179,7 @@ export type AttackPreviewState = {
   hoverX?: number;
   hoverY?: number;
   targetEnemyIds?: string[];
+  targetObstacleCoords?: { x: number; y: number }[];
   borrowAllyId?: string;
   forceProjectionX?: number;
   forceProjectionY?: number;
@@ -217,6 +218,7 @@ export type PlayerAction =
       damageRoll?: number;
       targetEnemyId?: string;
       targetEnemyIds?: string[];
+      targetObstacleCoords?: { x: number; y: number }[];
       weaponName?: string;
       useBreaker?: boolean;
       elevationBonusTile?: { x: number; y: number };

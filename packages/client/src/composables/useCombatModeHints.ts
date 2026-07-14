@@ -20,6 +20,7 @@ export function useCombatModeHints(opts: {
   const {
     mode,
     rangeAttackTargetIds,
+    rangeAttackObstacleCoords,
     omnistrikeStep,
     warhookStep,
     towerTeleportStep,
@@ -42,9 +43,9 @@ export function useCombatModeHints(opts: {
     if (!spec) return DEFAULT_ATTACK_HINT;
     if (isRangeTargetAttack(spec)) {
       const max = rangeTargetMax(spec);
-      const count = rangeAttackTargetIds.value.length;
-      if (max <= 1) return "Click an enemy in range to attack";
-      return `Select up to ${max} enemies (${count}/${max}). Click an enemy to toggle, then Attack or click empty tile.`;
+      const count = rangeAttackTargetIds.value.length + rangeAttackObstacleCoords.value.length;
+      if (max <= 1) return "Click an enemy or obstacle in range to attack";
+      return `Select up to ${max} targets (${count}/${max}). Click an enemy or obstacle to toggle, then Attack or click empty tile.`;
     }
     if (usesAnchoredPatternPlacement(spec)) {
       return "Hover to preview, click to place the pattern, press R to rotate, then click the pattern to attack";
@@ -60,9 +61,9 @@ export function useCombatModeHints(opts: {
     const spec = resolveCombatAttackSpec(opts.player.value, opts.weaponName.value);
     if (!spec || !isRangeTargetAttack(spec)) return null;
     const max = rangeTargetMax(spec);
-    const count = rangeAttackTargetIds.value.length;
-    if (max <= 1) return "Click an enemy in range to attack";
-    return `Select up to ${max} enemies (${count}/${max}). Click an enemy to toggle, then Attack or click empty tile.`;
+    const count = rangeAttackTargetIds.value.length + rangeAttackObstacleCoords.value.length;
+    if (max <= 1) return "Click an enemy or obstacle in range to attack";
+    return `Select up to ${max} targets (${count}/${max}). Click an enemy or obstacle to toggle, then Attack or click empty tile.`;
   });
 
   const rangedPatternAttackHint = computed(() => {

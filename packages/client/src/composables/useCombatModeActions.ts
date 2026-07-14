@@ -44,6 +44,7 @@ export function useCombatModeActions(opts?: {
     assistedLaunchAnchor,
     kataptyTargetIds,
     rangeAttackTargetIds,
+    rangeAttackObstacleCoords,
     forceProjectionStep,
     setMode,
     clearMode,
@@ -199,7 +200,7 @@ export function useCombatModeActions(opts?: {
     const spec = resolveCombatAttackSpec(p, weapon);
     if (!spec || !isRangeTargetAttack(spec)) return false;
     const max = rangeTargetMax(spec);
-    const count = rangeAttackTargetIds.value.length;
+    const count = rangeAttackTargetIds.value.length + rangeAttackObstacleCoords.value.length;
     return count > 0 && count < max;
   });
 

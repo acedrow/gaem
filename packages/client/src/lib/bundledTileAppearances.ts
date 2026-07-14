@@ -27,6 +27,7 @@ export type TileAppearanceGalleryEntry = {
 const SET_LABELS: Record<string, string> = {
   basic: "Basic",
   "black-tile": "Black Tile",
+  "generic-stone": "Generic Stone",
   paracletus: "Paracletus",
   "paracletus-e-fields": "Paracletus E-Fields",
   "paracletus-stain-springs": "Paracletus Stain Springs",
@@ -34,10 +35,11 @@ const SET_LABELS: Record<string, string> = {
   "paracletus-teethlands": "Paracletus Teethlands",
   "paracletus-v-nimbus": "Paracletus V-Nimbus",
   "rose-quartz": "Rose Quartz",
+  "salt-flats": "Salt Flats",
 };
 
 const appearanceModules = import.meta.glob(
-  "../../../assets/tiles/{basic,black-tile,paracletus,paracletus-e-fields,paracletus-stain-springs,paracletus-stygian-reef,paracletus-teethlands,paracletus-v-nimbus,rose-quartz}/**/*.jpg",
+  "../../../assets/tiles/{basic,black-tile,generic-stone,paracletus,paracletus-e-fields,paracletus-stain-springs,paracletus-stygian-reef,paracletus-teethlands,paracletus-v-nimbus,rose-quartz,salt-flats}/**/*.jpg",
   { eager: true, query: "?url", import: "default" },
 ) as Record<string, string>;
 

@@ -33,6 +33,8 @@ describe("gmPaintTile", () => {
       baseColor: "#aabbcc",
       appearanceKey: "tile-appearances/abc.png",
       featureKey: "tiles/features/base/rock.png",
+      appearanceTint: { color: "#ff0000", opacity: 0.5 },
+      featureTint: { color: "#00ff00", opacity: 0.3 },
       appearanceRotation: 90,
       appearanceFlip: true,
       featureRotation: 180,
@@ -43,6 +45,8 @@ describe("gmPaintTile", () => {
     expect(tile.baseColor).toBe("#aabbcc");
     expect(tile.appearanceKey).toBe("tile-appearances/abc.png");
     expect(tile.featureKey).toBe("tiles/features/base/rock.png");
+    expect(tile.appearanceTint).toEqual({ color: "#ff0000", opacity: 0.5 });
+    expect(tile.featureTint).toEqual({ color: "#00ff00", opacity: 0.3 });
     expect(tile.appearanceRotation).toBe(90);
     expect(tile.appearanceFlip).toBe(true);
     expect(tile.featureRotation).toBe(180);
@@ -59,6 +63,8 @@ describe("gmPaintTile", () => {
       baseColor: "#fff",
       appearanceKey: "key",
       featureKey: "feature-key",
+      appearanceTint: { color: "#ff0000", opacity: 0.5 },
+      featureTint: { color: "#00ff00", opacity: 0.5 },
       appearanceRotation: 180,
       appearanceFlip: true,
       featureRotation: 90,
@@ -72,6 +78,8 @@ describe("gmPaintTile", () => {
       baseColor: null,
       appearanceKey: null,
       featureKey: null,
+      appearanceTint: null,
+      featureTint: null,
       appearanceRotation: null,
       appearanceFlip: null,
       featureRotation: null,
@@ -82,6 +90,8 @@ describe("gmPaintTile", () => {
     expect(tile.baseColor).toBeUndefined();
     expect(tile.appearanceKey).toBeUndefined();
     expect(tile.featureKey).toBeUndefined();
+    expect(tile.appearanceTint).toBeUndefined();
+    expect(tile.featureTint).toBeUndefined();
     expect(tile.appearanceRotation).toBeUndefined();
     expect(tile.appearanceFlip).toBeUndefined();
     expect(tile.featureRotation).toBeUndefined();
@@ -185,6 +195,16 @@ describe("gmPaintTile", () => {
         appearanceKey: null,
       }),
     ).toBe("baseColor must be a #RGB or #RRGGBB hex color");
+    expect(
+      validateGmPaintTile(state, 0, 0, {
+        appearanceTint: { color: "red", opacity: 0.5 },
+      }),
+    ).toBe("appearanceTint must be { color: #RGB|#RRGGBB, opacity: 0–1 }");
+    expect(
+      validateGmPaintTile(state, 0, 0, {
+        featureTint: { color: "#ff0000", opacity: 1.5 },
+      }),
+    ).toBe("featureTint must be { color: #RGB|#RRGGBB, opacity: 0–1 }");
   });
 
   it("leaves omitted fields unchanged", () => {
@@ -197,6 +217,8 @@ describe("gmPaintTile", () => {
       baseColor: "#112233",
       appearanceKey: "keep.png",
       featureKey: "feature.png",
+      appearanceTint: { color: "#ff0000", opacity: 0.4 },
+      featureTint: { color: "#0000ff", opacity: 0.6 },
       appearanceRotation: 270,
       appearanceFlip: true,
       featureRotation: 90,
@@ -206,11 +228,14 @@ describe("gmPaintTile", () => {
     const tile = tileAt(state.tiles, 1, 1)!;
     expect(tile.elevation).toBe(2);
     expect(tile.terrain).toEqual(["obstacle"]);
+    expect(tile.obstacleHp).toBe(15);
     expect(tile.tileEffects).toEqual({ Fortified: 1 });
     expect(tile.name).toBe("Keep");
     expect(tile.baseColor).toBe("#112233");
     expect(tile.appearanceKey).toBe("keep.png");
     expect(tile.featureKey).toBe("feature.png");
+    expect(tile.appearanceTint).toEqual({ color: "#ff0000", opacity: 0.4 });
+    expect(tile.featureTint).toEqual({ color: "#0000ff", opacity: 0.6 });
     expect(tile.appearanceRotation).toBe(270);
     expect(tile.appearanceFlip).toBe(true);
     expect(tile.featureRotation).toBe(90);

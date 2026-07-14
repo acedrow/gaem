@@ -1,6 +1,6 @@
 import { watch, type Ref } from "vue";
-import type { FactionId, GaemRole, ReconTableId, TerrainType, TileImageRotation } from "@gaem/shared";
-import { RECON_TABLE_IDS, TERRAIN_TYPES, TILE_IMAGE_ROTATIONS } from "@gaem/shared";
+import type { FactionId, GaemRole, ReconTableId, TerrainType, TileColorTint, TileImageRotation } from "@gaem/shared";
+import { DEFAULT_OBSTACLE_HP, RECON_TABLE_IDS, TERRAIN_TYPES, TILE_IMAGE_ROTATIONS, parseTileColorTint } from "@gaem/shared";
 
 import type { BoardSelection } from "./useBoardSelection.js";
 import type { DataCategory, DataFocus } from "./useInfoDataSelection.js";
@@ -49,7 +49,10 @@ export type PersistedGmTools = {
   paintbrushEffectId: string;
   paintbrushEffectStacks: number;
   paintbrushTileName: string;
+  paintbrushObstacleHp: number;
   paintbrushBaseColor: string | null;
+  paintbrushAppearanceTint: TileColorTint | null;
+  paintbrushFeatureTint: TileColorTint | null;
   paintbrushAppearanceKey: string | null | undefined;
   paintbrushAppearanceSetId: string;
   paintbrushFeatureKey: string | null | undefined;
@@ -60,10 +63,13 @@ export type PersistedGmTools = {
   paintbrushEnableElevation: boolean;
   paintbrushEnableTerrain: boolean;
   paintbrushEnableEffect: boolean;
+  paintbrushEnableObstacleHp: boolean;
   paintbrushEnableName: boolean;
   paintbrushEnableColor: boolean;
   paintbrushEnableAppearance: boolean;
   paintbrushEnableFeature: boolean;
+  paintbrushEnableAppearanceTint: boolean;
+  paintbrushEnableFeatureTint: boolean;
   paintbrushEnableRotation: boolean;
   paintbrushEnableFlip: boolean;
 };
@@ -107,7 +113,10 @@ export const DEFAULT_GM_TOOLS: PersistedGmTools = {
   paintbrushEffectId: "",
   paintbrushEffectStacks: 1,
   paintbrushTileName: "",
+  paintbrushObstacleHp: DEFAULT_OBSTACLE_HP,
   paintbrushBaseColor: null,
+  paintbrushAppearanceTint: null,
+  paintbrushFeatureTint: null,
   paintbrushAppearanceKey: undefined,
   paintbrushAppearanceSetId: "basic",
   paintbrushFeatureKey: undefined,
@@ -118,10 +127,13 @@ export const DEFAULT_GM_TOOLS: PersistedGmTools = {
   paintbrushEnableElevation: true,
   paintbrushEnableTerrain: true,
   paintbrushEnableEffect: true,
+  paintbrushEnableObstacleHp: true,
   paintbrushEnableName: true,
   paintbrushEnableColor: true,
   paintbrushEnableAppearance: true,
   paintbrushEnableFeature: true,
+  paintbrushEnableAppearanceTint: false,
+  paintbrushEnableFeatureTint: false,
   paintbrushEnableRotation: false,
   paintbrushEnableFlip: false,
 };
@@ -229,12 +241,26 @@ export function parsePersistedGmTools(raw: unknown): PersistedGmTools {
     typeof g.paintbrushTileName === "string"
       ? g.paintbrushTileName
       : DEFAULT_GM_TOOLS.paintbrushTileName;
+  const paintbrushObstacleHp =
+    typeof g.paintbrushObstacleHp === "number" &&
+    Number.isInteger(g.paintbrushObstacleHp) &&
+    g.paintbrushObstacleHp >= 1
+      ? g.paintbrushObstacleHp
+      : DEFAULT_GM_TOOLS.paintbrushObstacleHp;
   const paintbrushBaseColor =
     g.paintbrushBaseColor === null
       ? null
       : typeof g.paintbrushBaseColor === "string"
         ? g.paintbrushBaseColor
         : DEFAULT_GM_TOOLS.paintbrushBaseColor;
+  const paintbrushAppearanceTint =
+    g.paintbrushAppearanceTint === null
+      ? null
+      : (parseTileColorTint(g.paintbrushAppearanceTint) ?? DEFAULT_GM_TOOLS.paintbrushAppearanceTint);
+  const paintbrushFeatureTint =
+    g.paintbrushFeatureTint === null
+      ? null
+      : (parseTileColorTint(g.paintbrushFeatureTint) ?? DEFAULT_GM_TOOLS.paintbrushFeatureTint);
   const paintbrushAppearanceSetId =
     typeof g.paintbrushAppearanceSetId === "string" && g.paintbrushAppearanceSetId.length > 0
       ? g.paintbrushAppearanceSetId
@@ -260,7 +286,10 @@ export function parsePersistedGmTools(raw: unknown): PersistedGmTools {
     paintbrushEffectId,
     paintbrushEffectStacks,
     paintbrushTileName,
+    paintbrushObstacleHp,
     paintbrushBaseColor,
+    paintbrushAppearanceTint,
+    paintbrushFeatureTint,
     paintbrushAppearanceKey: parseOptionalStringKey(g.paintbrushAppearanceKey),
     paintbrushAppearanceSetId,
     paintbrushFeatureKey: parseOptionalStringKey(g.paintbrushFeatureKey),
@@ -271,10 +300,13 @@ export function parsePersistedGmTools(raw: unknown): PersistedGmTools {
     paintbrushEnableElevation: g.paintbrushEnableElevation !== false,
     paintbrushEnableTerrain: g.paintbrushEnableTerrain !== false,
     paintbrushEnableEffect: g.paintbrushEnableEffect !== false,
+    paintbrushEnableObstacleHp: g.paintbrushEnableObstacleHp !== false,
     paintbrushEnableName: g.paintbrushEnableName !== false,
     paintbrushEnableColor: g.paintbrushEnableColor !== false,
     paintbrushEnableAppearance: g.paintbrushEnableAppearance !== false,
     paintbrushEnableFeature: g.paintbrushEnableFeature !== false,
+    paintbrushEnableAppearanceTint: g.paintbrushEnableAppearanceTint === true,
+    paintbrushEnableFeatureTint: g.paintbrushEnableFeatureTint === true,
     paintbrushEnableRotation: g.paintbrushEnableRotation === true,
     paintbrushEnableFlip: g.paintbrushEnableFlip === true,
   };

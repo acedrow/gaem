@@ -30,8 +30,17 @@ export const TERRAIN_TYPES = [
 
 export type TerrainType = (typeof TERRAIN_TYPES)[number];
 
+/** HP used when an obstacle tile has none set (legacy maps / unspecified). */
+export const DEFAULT_OBSTACLE_HP = 15;
+
 export const TILE_IMAGE_ROTATIONS = [0, 90, 180, 270] as const;
 export type TileImageRotation = (typeof TILE_IMAGE_ROTATIONS)[number];
+
+/** Color tint applied to a tile appearance or feature image. */
+export type TileColorTint = {
+  color: string;
+  opacity: number;
+};
 
 export type MapTile = {
   x: number;
@@ -40,10 +49,13 @@ export type MapTile = {
   elevation: number;
   walkable?: boolean;
   tileEffects?: EffectStacks;
+  obstacleHp?: number;
   name?: string;
   baseColor?: string;
   appearanceKey?: string;
   featureKey?: string;
+  appearanceTint?: TileColorTint;
+  featureTint?: TileColorTint;
   appearanceRotation?: TileImageRotation;
   appearanceFlip?: boolean;
   featureRotation?: TileImageRotation;
@@ -56,9 +68,12 @@ export type TilePaintPreset = {
   tileEffectId: string;
   tileEffectStacks: number;
   tileName: string;
+  obstacleHp?: number;
   baseColor?: string;
   appearanceKey?: string;
   featureKey?: string;
+  appearanceTint?: TileColorTint;
+  featureTint?: TileColorTint;
   appearanceRotation?: TileImageRotation;
   appearanceFlip?: boolean;
   featureRotation?: TileImageRotation;
@@ -383,7 +398,9 @@ export type ClientMessage =
     }
   | {
       type: "gmApplyDamage";
-      target: { kind: "player" | "enemy"; id: string };
+      target:
+        | { kind: "player" | "enemy"; id: string }
+        | { kind: "obstacle"; x: number; y: number };
       amount: number;
     }
   | {
@@ -410,9 +427,12 @@ export type ClientMessage =
       terrain?: TerrainType;
       tileEffects?: string[];
       tileName?: string;
+      obstacleHp?: number;
       baseColor?: string | null;
       appearanceKey?: string | null;
       featureKey?: string | null;
+      appearanceTint?: TileColorTint | null;
+      featureTint?: TileColorTint | null;
       appearanceRotation?: TileImageRotation | null;
       appearanceFlip?: boolean | null;
       featureRotation?: TileImageRotation | null;

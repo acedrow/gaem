@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import type { EffectStacks, Enemy, MapTile, Player } from "@gaem/shared";
+import type { EffectStacks, Enemy, MapTile, Player, TileColorTint } from "@gaem/shared";
 import { getEnemyMaxHp, getEnemyScale, getEffectSummary, getPlayerMaxHp, isFortificationEnemy, formatTileEffectTooltipLabel, primaryTerrainTypeForIcon, terrainTypeDisplayName, tileEffectDisplayName, tileEffectShowsStackCount } from "@gaem/shared";
 import { computed } from "vue";
 
 import { TILE_EFFECT_IMAGE_URLS } from "../lib/tileEffectOverlays.js";
 import { TERRAIN_TILE_IMAGE_URLS } from "../lib/terrainTileImages.js";
+import { tileImageLayerStyle } from "../lib/tileColorTint.js";
 import EffectIcon from "./EffectIcon.vue";
 import HpBar from "./HpBar.vue";
 import NoLosIcon from "./NoLosIcon.vue";
@@ -55,6 +56,8 @@ export type CellRenderState = {
   tileAppearanceUrl?: string | null;
   tileFeatureUrl?: string | null;
   tileBaseColor?: string | null;
+  appearanceTint?: TileColorTint | null;
+  featureTint?: TileColorTint | null;
   appearanceRotation?: 0 | 90 | 180 | 270;
   appearanceFlip?: boolean;
   featureRotation?: 0 | 90 | 180 | 270;
@@ -63,6 +66,8 @@ export type CellRenderState = {
     baseColor?: string | null;
     appearanceUrl?: string | null;
     featureUrl?: string | null;
+    appearanceTint?: TileColorTint | null;
+    featureTint?: TileColorTint | null;
     appearanceRotation: 0 | 90 | 180 | 270;
     appearanceFlip: boolean;
     featureRotation: 0 | 90 | 180 | 270;
@@ -247,6 +252,32 @@ const previewFeatureTransformStyle = computed(() => {
   return tileImageTransform(preview.featureRotation, preview.featureFlip);
 });
 
+const appearanceLayerStyle = computed(() => {
+  const url = props.cell.tileAppearanceUrl;
+  if (!url) return undefined;
+  return tileImageLayerStyle(url, props.cell.appearanceTint);
+});
+
+const featureLayerStyle = computed(() => {
+  const url = props.cell.tileFeatureUrl;
+  if (!url) return undefined;
+  return tileImageLayerStyle(url, props.cell.featureTint);
+});
+
+const previewAppearanceLayerStyle = computed(() => {
+  const preview = props.cell.paintbrushPreview;
+  const url = preview?.appearanceUrl;
+  if (!url) return undefined;
+  return tileImageLayerStyle(url, preview.appearanceTint);
+});
+
+const previewFeatureLayerStyle = computed(() => {
+  const preview = props.cell.paintbrushPreview;
+  const url = preview?.featureUrl;
+  if (!url) return undefined;
+  return tileImageLayerStyle(url, preview.featureTint);
+});
+
 const tileEffectImageOverlays = computed(() =>
   tileEffectEntries.value
     .filter((effect) => TILE_EFFECT_IMAGE_URLS[effect.id])
@@ -340,20 +371,24 @@ const terrainImageUrl = computed(() => {
     >
       <span
         v-if="cell.tileAppearanceUrl"
-        class="board-overlay tile-appearance-image tile-image"
-        :style="{
-          backgroundImage: `url(${cell.tileAppearanceUrl})`,
-          transform: appearanceImageTransformStyle,
-        }"
-      />
+        class="tile-image-layer"
+        :style="{ transform: appearanceImageTransformStyle }"
+      >
+        <span
+          class="board-overlay tile-appearance-image tile-image"
+          :style="appearanceLayerStyle"
+        />
+      </span>
       <span
         v-if="cell.tileFeatureUrl"
-        class="board-overlay tile-feature-image tile-image"
-        :style="{
-          backgroundImage: `url(${cell.tileFeatureUrl})`,
-          transform: featureImageTransformStyle,
-        }"
-      />
+        class="tile-image-layer"
+        :style="{ transform: featureImageTransformStyle }"
+      >
+        <span
+          class="board-overlay tile-feature-image tile-image"
+          :style="featureLayerStyle"
+        />
+      </span>
     </div>
     <div
       v-if="cell.paintbrushPreview"
@@ -368,20 +403,24 @@ const terrainImageUrl = computed(() => {
       <div class="tile-image-stack">
         <span
           v-if="cell.paintbrushPreview.appearanceUrl"
-          class="board-overlay tile-appearance-image tile-image"
-          :style="{
-            backgroundImage: `url(${cell.paintbrushPreview.appearanceUrl})`,
-            transform: previewAppearanceTransformStyle,
-          }"
-        />
+          class="tile-image-layer"
+          :style="{ transform: previewAppearanceTransformStyle }"
+        >
+          <span
+            class="board-overlay tile-appearance-image tile-image"
+            :style="previewAppearanceLayerStyle"
+          />
+        </span>
         <span
           v-if="cell.paintbrushPreview.featureUrl"
-          class="board-overlay tile-feature-image tile-image"
-          :style="{
-            backgroundImage: `url(${cell.paintbrushPreview.featureUrl})`,
-            transform: previewFeatureTransformStyle,
-          }"
-        />
+          class="tile-image-layer"
+          :style="{ transform: previewFeatureTransformStyle }"
+        >
+          <span
+            class="board-overlay tile-feature-image tile-image"
+            :style="previewFeatureLayerStyle"
+          />
+        </span>
       </div>
     </div>
     <span
@@ -965,6 +1004,12 @@ const terrainImageUrl = computed(() => {
   inset: 0;
   z-index: 0;
   pointer-events: none;
+  transform-origin: center;
+}
+
+.tile-image-layer {
+  position: absolute;
+  inset: 0;
   transform-origin: center;
 }
 
