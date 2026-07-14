@@ -77,7 +77,8 @@ describe("computeAttackPreviewHighlights", () => {
     });
     expect(aimed.primary.length).toBeGreaterThan(0);
     expect(aimed.primary.every((key) => unaimed.secondary.includes(key))).toBe(true);
-    // Scale:2 north face covers both columns adjacent to the footprint
-    expect(aimed.primary).toEqual(expect.arrayContaining(["4,3", "5,3"]));
+    // Scale:2 north face has two origins; default aim uses the west-most edge cell only
+    expect(aimed.primary).toContain("4,3");
+    expect(aimed.primary).not.toContain("5,3");
   });
 });

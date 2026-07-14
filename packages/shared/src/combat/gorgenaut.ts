@@ -6,6 +6,7 @@ import {
   applyDamageToPlayer,
   enemyDirectAttackTargetEnemyIds,
   enemyDirectAttackTargetPlayerIds,
+  enemyPatternOrigins,
   parseEnemyAttackString,
 } from "./attack.js";
 import { applyPatternEnemyAttack } from "./enemy-attack-resolve.js";
@@ -27,7 +28,11 @@ export function applyGorgenautConeAttack(
   const parsed = parseEnemyAttackString(
     "Cone:3. Deal 5 damage and pull any unit 1 space towards RETIARIUS.",
   );
-  return applyPatternEnemyAttack(state, enemy, parsed, direction, { damage });
+  const origins = enemyPatternOrigins(enemy, direction, "cone");
+  return applyPatternEnemyAttack(state, enemy, parsed, direction, {
+    damage,
+    origin: origins[0],
+  });
 }
 
 export function validateGorgenautStainTeleport(

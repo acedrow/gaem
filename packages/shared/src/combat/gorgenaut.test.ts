@@ -92,6 +92,8 @@ describe("gorgenaut attacks", () => {
         enemyId: "g",
         attackIndex: 0,
         direction: "n",
+        originX: 2,
+        originY: 2,
       }),
     ).toBeNull();
     const coneMsg = applyGmEnemyAction(state, {
@@ -99,6 +101,8 @@ describe("gorgenaut attacks", () => {
       enemyId: "g",
       attackIndex: 0,
       direction: "n",
+      originX: 2,
+      originY: 2,
     });
     expect(coneMsg).toContain("Cone");
     expect(coneMsg).not.toContain("pending");

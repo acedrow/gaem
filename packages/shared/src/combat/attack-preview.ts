@@ -11,6 +11,7 @@ import {
   collectEnemyPatternAttackTiles,
   enemyDirectAttackTargetPlayerIds,
   enemyPatternAttackSpec,
+  enemyPatternOrigins,
   evaluateOmnistrikePlacement,
   getWeaponAttackSpec,
   parseEnemyAttackString,
@@ -255,20 +256,42 @@ function computeGmEnemyAttackHighlights(
   if (parsed.patternId && parsed.size != null && parsed.damage != null) {
     const spec = enemyPatternAttackSpec(parsed)!;
     if (aimed) {
-      const primary = tileKeys(collectEnemyPatternAttackTiles(state, enemy, spec, direction));
+      const origin =
+        preview.anchorX != null && preview.anchorY != null
+          ? { x: preview.anchorX, y: preview.anchorY }
+          : null;
+      const resolved = origin
+        ? enemyPatternOrigins(enemy, direction, spec.patternId).find(
+            (o) => o.x === origin.x && o.y === origin.y,
+          )
+        : enemyPatternOrigins(enemy, direction, spec.patternId)[0];
+      if (!resolved) return EMPTY;
+      const primary = tileKeys(
+        collectEnemyPatternAttackTiles(state, enemy, spec, direction, resolved),
+      );
       const secondary: string[] = [];
       for (const dir of PATTERN_DIRECTIONS) {
-        if (dir === direction) continue;
-        for (const key of tileKeys(collectEnemyPatternAttackTiles(state, enemy, spec, dir))) {
-          if (!primary.includes(key)) secondary.push(key);
+        for (const edgeOrigin of enemyPatternOrigins(enemy, dir, spec.patternId)) {
+          if (dir === direction && edgeOrigin.x === resolved.x && edgeOrigin.y === resolved.y) {
+            continue;
+          }
+          for (const key of tileKeys(
+            collectEnemyPatternAttackTiles(state, enemy, spec, dir, edgeOrigin),
+          )) {
+            if (!primary.includes(key)) secondary.push(key);
+          }
         }
       }
       return { primary, secondary, invalid: [], selected: [], heal: false };
     }
     const secondary = new Set<string>();
     for (const dir of PATTERN_DIRECTIONS) {
-      for (const key of tileKeys(collectEnemyPatternAttackTiles(state, enemy, spec, dir))) {
-        secondary.add(key);
+      for (const edgeOrigin of enemyPatternOrigins(enemy, dir, spec.patternId)) {
+        for (const key of tileKeys(
+          collectEnemyPatternAttackTiles(state, enemy, spec, dir, edgeOrigin),
+        )) {
+          secondary.add(key);
+        }
       }
     }
     return { primary: [], secondary: [...secondary], invalid: [], selected: [], heal: false };

@@ -33,3 +33,13 @@ Impassable terrain does not block line of sight. Only Obstacle terrain blocks LO
 ### Launch anchors
 
 Assisted Launch can trigger when you start your turn adjacent to **Impassable terrain**, **Obstacle terrain**, or an allied unit (not only map-edge “walls” as in RAW). Map boundaries count as Impassable for this purpose.
+
+---
+
+## Scale and tile effects
+
+RAW (Scale / Zone of Control) says a unit’s whole zone counts as their space and that large creatures do not ignore terrain effects, but individual abilities like Stainwalk only say “occupies a stained square” without spelling out scale > 1.
+
+**Ruling:** A scale > 1 enemy is affected by a tile effect if **any** tile in its footprint has that effect. This includes Stainwalk (e.g. Gorgenaut recovers 10 HP at end of GM turn when any footprint tile is Stained).
+
+**Exception:** Void instant death still requires the enemy’s **entire** footprint to be on Void tiles (official errata).

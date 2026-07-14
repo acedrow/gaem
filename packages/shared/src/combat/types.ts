@@ -321,6 +321,8 @@ export type GmEnemyAction =
       enemyId: string;
       attackIndex: number;
       direction?: PatternDirection;
+      originX?: number;
+      originY?: number;
       damage?: number;
       targetPlayerId?: string;
       targetEnemyId?: string;

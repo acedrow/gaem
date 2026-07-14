@@ -92,7 +92,7 @@ describe("auto-resolvable enemy attacks", () => {
     expect(other.hp).toBe(0);
   });
 
-  it("scale-2 cone covers the full facing edge, not just the anchor", () => {
+  it("scale-2 cone uses a single edge origin, not the full facing edge", () => {
     const state = makeGameState({ width: 10, height: 10 });
     gmTurn(state);
     addTestEnemy(state, "g", 4, 4, { name: "Gorgenaut", scale: 2, hp: 100 });
@@ -103,8 +103,10 @@ describe("auto-resolvable enemy attacks", () => {
       enemyId: "g",
       attackIndex: 0,
       direction: "n",
+      originX: 4,
+      originY: 4,
     });
     expect(left.hp).toBe(15);
-    expect(right.hp).toBe(15);
+    expect(right.hp).toBe(20);
   });
 });

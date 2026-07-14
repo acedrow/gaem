@@ -1466,21 +1466,47 @@ export function collectEnemyPatternAttackTiles(
     damage: string;
   },
   direction: PatternDirection,
+  origin: { x: number; y: number },
 ): { x: number; y: number }[] {
   const footprintKeys = new Set(
     enemyFootprintTiles(enemy.x, enemy.y, getEnemyScale(enemy)).map((t) => coordKey(t.x, t.y)),
   );
-  const seen = new Set<string>();
   const tiles: { x: number; y: number }[] = [];
-  for (const origin of enemyPatternOrigins(enemy, direction, spec.patternId)) {
-    for (const tile of collectAttackTiles(state, origin, spec, direction)) {
-      const key = coordKey(tile.x, tile.y);
-      if (footprintKeys.has(key) || seen.has(key)) continue;
-      seen.add(key);
-      tiles.push(tile);
-    }
+  const seen = new Set<string>();
+  for (const tile of collectAttackTiles(state, origin, spec, direction)) {
+    const key = coordKey(tile.x, tile.y);
+    if (footprintKeys.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    tiles.push(tile);
   }
   return tiles;
+}
+
+export type EnemyPatternAimOption = {
+  direction: PatternDirection;
+  origin: { x: number; y: number };
+};
+
+export function enemyAttackPatternOptionsAt(
+  state: GameState,
+  enemyId: string,
+  parsed: ParsedEnemyAttack,
+  x: number,
+  y: number,
+): EnemyPatternAimOption[] {
+  const enemy = state.enemies.find((e) => e.id === enemyId);
+  const spec = enemyPatternAttackSpec(parsed);
+  if (!enemy || !spec) return [];
+  const options: EnemyPatternAimOption[] = [];
+  for (const direction of PATTERN_DIRECTIONS) {
+    for (const origin of enemyPatternOrigins(enemy, direction, spec.patternId)) {
+      const tiles = collectEnemyPatternAttackTiles(state, enemy, spec, direction, origin);
+      if (tiles.some((t) => t.x === x && t.y === y)) {
+        options.push({ direction, origin });
+      }
+    }
+  }
+  return options;
 }
 
 export function enemyAttackDirectionsAt(
@@ -1490,15 +1516,24 @@ export function enemyAttackDirectionsAt(
   x: number,
   y: number,
 ): PatternDirection[] {
-  const enemy = state.enemies.find((e) => e.id === enemyId);
-  const spec = enemyPatternAttackSpec(parsed);
-  if (!enemy || !spec) return [];
-  const dirs: PatternDirection[] = [];
-  for (const direction of PATTERN_DIRECTIONS) {
-    const tiles = collectEnemyPatternAttackTiles(state, enemy, spec, direction);
-    if (tiles.some((t) => t.x === x && t.y === y)) dirs.push(direction);
+  const dirs = new Set<PatternDirection>();
+  for (const option of enemyAttackPatternOptionsAt(state, enemyId, parsed, x, y)) {
+    dirs.add(option.direction);
   }
-  return dirs;
+  return [...dirs];
+}
+
+export function resolveEnemyPatternOrigin(
+  enemy: Enemy,
+  patternId: string,
+  direction: PatternDirection,
+  origin?: { x: number; y: number } | null,
+): { x: number; y: number } | null {
+  const valid = enemyPatternOrigins(enemy, direction, patternId);
+  if (origin) {
+    return valid.some((o) => o.x === origin.x && o.y === origin.y) ? origin : null;
+  }
+  return valid.length === 1 ? valid[0]! : null;
 }
 
 function enemyAttackOriginTiles(state: GameState, enemyId: string): { x: number; y: number }[] {

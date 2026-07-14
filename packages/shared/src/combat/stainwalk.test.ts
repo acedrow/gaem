@@ -75,6 +75,17 @@ describe("stainwalk", () => {
       expect(msgs.some((m) => m.includes("Lurking Freak") && m.includes("10 damage"))).toBe(true);
     });
 
+    it("heals Gorgenaut when only a non-anchor footprint tile is Stained", () => {
+      const state = makeGameState();
+      stainTile(state, 3, 3);
+      const gorgenaut = addTestEnemy(state, "g", 2, 2, { name: "Gorgenaut", scale: 2, hp: 50 });
+
+      expect(enemyOnStainedTile(state, gorgenaut)).toBe(true);
+      const msgs = applyStainwalkGmTurnEnd(state);
+      expect(gorgenaut.hp).toBe(60);
+      expect(msgs).toEqual(["Gorgenaut recovered 10 HP (Stainwalk)"]);
+    });
+
     it("skips Gorgenaut off Stain and Lurking Freak on Stain", () => {
       const state = makeGameState();
       stainTile(state, 5, 5);

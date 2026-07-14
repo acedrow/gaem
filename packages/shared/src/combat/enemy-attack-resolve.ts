@@ -11,6 +11,7 @@ import {
   enemyAttackPushDistance,
   enemyPatternAttackSpec,
   parseEnemyAttackPullDistance,
+  resolveEnemyPatternOrigin,
   type ParsedEnemyAttack,
 } from "./attack.js";
 import { parseAndRollDamage } from "./damage.js";
@@ -35,11 +36,15 @@ export function applyPatternEnemyAttack(
   enemy: Enemy,
   parsed: ParsedEnemyAttack,
   direction: PatternDirection,
-  opts?: { damage?: number },
+  opts?: { damage?: number; origin?: { x: number; y: number } },
 ): string {
   const spec = enemyPatternAttackSpec(parsed);
   if (!spec) {
     return `${enemyLabel(enemy)} attack (no pattern)`;
+  }
+  const origin = resolveEnemyPatternOrigin(enemy, spec.patternId, direction, opts?.origin);
+  if (!origin) {
+    return `${enemyLabel(enemy)} attack (select pattern origin)`;
   }
 
   const rolled =
@@ -49,10 +54,16 @@ export function applyPatternEnemyAttack(
   const damage = rolled.total;
   const pullDistance = parseEnemyAttackPullDistance(parsed.raw);
 
-  const tiles = collectEnemyPatternAttackTiles(state, enemy, {
-    ...spec,
-    damage: String(damage),
-  }, direction);
+  const tiles = collectEnemyPatternAttackTiles(
+    state,
+    enemy,
+    {
+      ...spec,
+      damage: String(damage),
+    },
+    direction,
+    origin,
+  );
   const occ = buildBoardOccupancy(state);
   const hitPlayers = new Set<string>();
   const hitEnemies = new Set<string>();

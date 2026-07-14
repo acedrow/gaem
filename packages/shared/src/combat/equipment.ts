@@ -7,6 +7,7 @@ import {
   applyRangeAttackToEnemies,
   collectEnemyPatternAttackTiles,
   enemyPatternAttackSpec,
+  resolveEnemyPatternOrigin,
   enemiesInTiles,
   enemyDirectAttackTargetEnemyIds,
   isDirectTargetEnemyAttack,
@@ -242,7 +243,16 @@ export function validateRedirectionCircuits(
   if (!action.direction) return "Select direction";
   const spec = enemyPatternAttackSpec(parsed);
   if (!spec) return "Attack not supported";
-  const tiles = collectEnemyPatternAttackTiles(state, source, spec, action.direction);
+  const origin = resolveEnemyPatternOrigin(
+    source,
+    spec.patternId,
+    action.direction,
+    action.anchorX != null && action.anchorY != null
+      ? { x: action.anchorX, y: action.anchorY }
+      : null,
+  );
+  if (!origin) return "Select pattern origin";
+  const tiles = collectEnemyPatternAttackTiles(state, source, spec, action.direction, origin);
   const hits = enemiesInTiles(state, tiles).filter(
     (t) => !isSameEnemyOrSwarm(state, source.id, t.enemyId),
   );
@@ -355,7 +365,21 @@ export function applyRedirectionCircuits(
       hitEnemyIds: [],
     };
   }
-  const tiles = collectEnemyPatternAttackTiles(state, source, spec, action.direction!);
+  const origin = resolveEnemyPatternOrigin(
+    source,
+    spec.patternId,
+    action.direction!,
+    action.anchorX != null && action.anchorY != null
+      ? { x: action.anchorX, y: action.anchorY }
+      : null,
+  );
+  if (!origin) {
+    return {
+      message: `${playerLabel(player)} redirected ${enemyLabel(source)} attack (select pattern origin)`,
+      hitEnemyIds: [],
+    };
+  }
+  const tiles = collectEnemyPatternAttackTiles(state, source, spec, action.direction!, origin);
   const hits = enemiesInTiles(state, tiles).filter(
     (t) => !isSameEnemyOrSwarm(state, source.id, t.enemyId),
   );

@@ -65,6 +65,7 @@ import {
   enemiesInTiles,
   enemyDirectAttackTargetEnemyIds,
   enemyDirectAttackTargetPlayerIds,
+  enemyPatternAttackSpec,
   getWeaponAttackSpec,
   isAutoResolvableEnemyAttack,
   isDirectTargetEnemyAttack,
@@ -75,6 +76,7 @@ import {
   parseEnemyAttackString,
   resolveAttackWeapon,
   resolveCombatAttackSpec,
+  resolveEnemyPatternOrigin,
   resolveRangeAttackObstacleCoords,
   resolveRangeAttackTargetIds,
   ensureSabaothCharges,
@@ -1025,6 +1027,17 @@ export function validateGmEnemyAction(state: GameState, action: GmEnemyAction): 
 
       if (isPatternEnemyAttack(parsed)) {
         if (!action.direction) return "Select direction";
+        const spec = enemyPatternAttackSpec(parsed);
+        if (!spec) return "Invalid attack";
+        const resolved = resolveEnemyPatternOrigin(
+          enemy,
+          spec.patternId,
+          action.direction,
+          action.originX != null && action.originY != null
+            ? { x: action.originX, y: action.originY }
+            : null,
+        );
+        if (!resolved) return "Select pattern origin";
         return null;
       }
 
@@ -1118,6 +1131,10 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
           state,
           applyPatternEnemyAttack(state, enemy, parsed, action.direction, {
             damage: action.damage,
+            origin:
+              action.originX != null && action.originY != null
+                ? { x: action.originX, y: action.originY }
+                : undefined,
           }),
         );
       }
@@ -1805,20 +1822,17 @@ export function previewEnemyAttack(
   enemyId: string,
   attackIndex: number,
   direction: import("../pattern-data.js").PatternDirection,
+  origin?: { x: number; y: number },
 ): { x: number; y: number }[] {
   const enemy = state.enemies.find((e) => e.id === enemyId);
   if (!enemy?.name) return [];
   const attacks = enemyAttacks(enemy.name);
   const parsed = parseEnemyAttackString(attacks[attackIndex] ?? "");
-  if (!parsed.patternId || !parsed.size) return [];
-  const spec = {
-    patternId: parsed.patternId,
-    size: parsed.size,
-    range: parsed.range,
-    width: parsed.width ?? 1,
-    damage: String(parsed.damage ?? 0),
-  };
-  return collectEnemyPatternAttackTiles(state, enemy, spec, direction);
+  const spec = enemyPatternAttackSpec(parsed);
+  if (!spec) return [];
+  const resolved = resolveEnemyPatternOrigin(enemy, spec.patternId, direction, origin ?? null);
+  if (!resolved) return [];
+  return collectEnemyPatternAttackTiles(state, enemy, spec, direction, resolved);
 }
 
 export function previewAttackTargets(
