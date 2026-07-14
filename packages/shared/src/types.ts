@@ -53,11 +53,15 @@ export type MapTile = {
   name?: string;
   baseColor?: string;
   appearanceKey?: string;
+  overlayKey?: string;
   featureKey?: string;
   appearanceTint?: TileColorTint;
+  overlayTint?: TileColorTint;
   featureTint?: TileColorTint;
   appearanceRotation?: TileImageRotation;
   appearanceFlip?: boolean;
+  overlayRotation?: TileImageRotation;
+  overlayFlip?: boolean;
   featureRotation?: TileImageRotation;
   featureFlip?: boolean;
 };
@@ -71,11 +75,15 @@ export type TilePaintPreset = {
   obstacleHp?: number;
   baseColor?: string;
   appearanceKey?: string;
+  overlayKey?: string;
   featureKey?: string;
   appearanceTint?: TileColorTint;
+  overlayTint?: TileColorTint;
   featureTint?: TileColorTint;
   appearanceRotation?: TileImageRotation;
   appearanceFlip?: boolean;
+  overlayRotation?: TileImageRotation;
+  overlayFlip?: boolean;
   featureRotation?: TileImageRotation;
   featureFlip?: boolean;
 };
@@ -431,11 +439,15 @@ export type ClientMessage =
       obstacleHp?: number;
       baseColor?: string | null;
       appearanceKey?: string | null;
+      overlayKey?: string | null;
       featureKey?: string | null;
       appearanceTint?: TileColorTint | null;
+      overlayTint?: TileColorTint | null;
       featureTint?: TileColorTint | null;
       appearanceRotation?: TileImageRotation | null;
       appearanceFlip?: boolean | null;
+      overlayRotation?: TileImageRotation | null;
+      overlayFlip?: boolean | null;
       featureRotation?: TileImageRotation | null;
       featureFlip?: boolean | null;
     }

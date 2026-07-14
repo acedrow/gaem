@@ -1363,11 +1363,15 @@ export type GmPaintTileFields = {
   obstacleHp?: number;
   baseColor?: string | null;
   appearanceKey?: string | null;
+  overlayKey?: string | null;
   featureKey?: string | null;
   appearanceTint?: TileColorTint | null;
+  overlayTint?: TileColorTint | null;
   featureTint?: TileColorTint | null;
   appearanceRotation?: TileImageRotation | null;
   appearanceFlip?: boolean | null;
+  overlayRotation?: TileImageRotation | null;
+  overlayFlip?: boolean | null;
   featureRotation?: TileImageRotation | null;
   featureFlip?: boolean | null;
 };
@@ -1381,11 +1385,15 @@ function hasGmPaintTileFields(fields: GmPaintTileFields): boolean {
     fields.obstacleHp !== undefined ||
     fields.baseColor !== undefined ||
     fields.appearanceKey !== undefined ||
+    fields.overlayKey !== undefined ||
     fields.featureKey !== undefined ||
     fields.appearanceTint !== undefined ||
+    fields.overlayTint !== undefined ||
     fields.featureTint !== undefined ||
     fields.appearanceRotation !== undefined ||
     fields.appearanceFlip !== undefined ||
+    fields.overlayRotation !== undefined ||
+    fields.overlayFlip !== undefined ||
     fields.featureRotation !== undefined ||
     fields.featureFlip !== undefined
   );
@@ -1446,11 +1454,25 @@ export function validateGmPaintTile(
     return "featureTint must be { color: #RGB|#RRGGBB, opacity: 0–1 }";
   }
   if (
+    fields.overlayTint !== undefined &&
+    fields.overlayTint != null &&
+    !isValidTileColorTint(fields.overlayTint)
+  ) {
+    return "overlayTint must be { color: #RGB|#RRGGBB, opacity: 0–1 }";
+  }
+  if (
     fields.appearanceKey !== undefined &&
     fields.appearanceKey != null &&
     (typeof fields.appearanceKey !== "string" || !fields.appearanceKey.trim())
   ) {
     return "appearanceKey must be a non-empty string";
+  }
+  if (
+    fields.overlayKey !== undefined &&
+    fields.overlayKey != null &&
+    (typeof fields.overlayKey !== "string" || !fields.overlayKey.trim())
+  ) {
+    return "overlayKey must be a non-empty string";
   }
   if (
     fields.featureKey !== undefined &&
@@ -1467,6 +1489,13 @@ export function validateGmPaintTile(
     return "appearanceRotation must be 0, 90, 180, or 270";
   }
   if (
+    fields.overlayRotation !== undefined &&
+    fields.overlayRotation != null &&
+    !isValidTileImageRotation(fields.overlayRotation)
+  ) {
+    return "overlayRotation must be 0, 90, 180, or 270";
+  }
+  if (
     fields.featureRotation !== undefined &&
     fields.featureRotation != null &&
     !isValidTileImageRotation(fields.featureRotation)
@@ -1479,6 +1508,13 @@ export function validateGmPaintTile(
     typeof fields.appearanceFlip !== "boolean"
   ) {
     return "appearanceFlip must be a boolean";
+  }
+  if (
+    fields.overlayFlip !== undefined &&
+    fields.overlayFlip != null &&
+    typeof fields.overlayFlip !== "boolean"
+  ) {
+    return "overlayFlip must be a boolean";
   }
   if (
     fields.featureFlip !== undefined &&
@@ -1522,6 +1558,11 @@ export function applyGmPaintTile(
     else delete tile.appearanceKey;
   }
 
+  if (fields.overlayKey !== undefined) {
+    if (fields.overlayKey?.trim()) tile.overlayKey = fields.overlayKey.trim();
+    else delete tile.overlayKey;
+  }
+
   if (fields.featureKey !== undefined) {
     if (fields.featureKey?.trim()) tile.featureKey = fields.featureKey.trim();
     else delete tile.featureKey;
@@ -1530,6 +1571,11 @@ export function applyGmPaintTile(
   if (fields.appearanceTint !== undefined) {
     if (fields.appearanceTint) tile.appearanceTint = { ...fields.appearanceTint };
     else delete tile.appearanceTint;
+  }
+
+  if (fields.overlayTint !== undefined) {
+    if (fields.overlayTint) tile.overlayTint = { ...fields.overlayTint };
+    else delete tile.overlayTint;
   }
 
   if (fields.featureTint !== undefined) {
@@ -1545,6 +1591,14 @@ export function applyGmPaintTile(
     }
   }
 
+  if (fields.overlayRotation !== undefined) {
+    if (fields.overlayRotation != null && fields.overlayRotation !== 0) {
+      tile.overlayRotation = fields.overlayRotation;
+    } else {
+      delete tile.overlayRotation;
+    }
+  }
+
   if (fields.featureRotation !== undefined) {
     if (fields.featureRotation != null && fields.featureRotation !== 0) {
       tile.featureRotation = fields.featureRotation;
@@ -1556,6 +1610,11 @@ export function applyGmPaintTile(
   if (fields.appearanceFlip !== undefined) {
     if (fields.appearanceFlip) tile.appearanceFlip = true;
     else delete tile.appearanceFlip;
+  }
+
+  if (fields.overlayFlip !== undefined) {
+    if (fields.overlayFlip) tile.overlayFlip = true;
+    else delete tile.overlayFlip;
   }
 
   if (fields.featureFlip !== undefined) {
@@ -1789,13 +1848,17 @@ export function handleCombatMessage(
         ...(parsed.obstacleHp !== undefined ? { obstacleHp: parsed.obstacleHp } : {}),
         ...(parsed.baseColor !== undefined ? { baseColor: parsed.baseColor } : {}),
         ...(parsed.appearanceKey !== undefined ? { appearanceKey: parsed.appearanceKey } : {}),
+        ...(parsed.overlayKey !== undefined ? { overlayKey: parsed.overlayKey } : {}),
         ...(parsed.featureKey !== undefined ? { featureKey: parsed.featureKey } : {}),
         ...(parsed.appearanceTint !== undefined ? { appearanceTint: parsed.appearanceTint } : {}),
+        ...(parsed.overlayTint !== undefined ? { overlayTint: parsed.overlayTint } : {}),
         ...(parsed.featureTint !== undefined ? { featureTint: parsed.featureTint } : {}),
         ...(parsed.appearanceRotation !== undefined
           ? { appearanceRotation: parsed.appearanceRotation }
           : {}),
         ...(parsed.appearanceFlip !== undefined ? { appearanceFlip: parsed.appearanceFlip } : {}),
+        ...(parsed.overlayRotation !== undefined ? { overlayRotation: parsed.overlayRotation } : {}),
+        ...(parsed.overlayFlip !== undefined ? { overlayFlip: parsed.overlayFlip } : {}),
         ...(parsed.featureRotation !== undefined ? { featureRotation: parsed.featureRotation } : {}),
         ...(parsed.featureFlip !== undefined ? { featureFlip: parsed.featureFlip } : {}),
       };

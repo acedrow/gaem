@@ -7,6 +7,7 @@ import { defaultOverworldParty } from "./overworld.js";
 import {
   isValidTileBaseColor,
   isValidTileImageRotation,
+  migrateLegacyStainFeatureKey,
   normalizeTileName,
   parseTileColorTint,
   parseTilePresets,
@@ -223,12 +224,26 @@ export function parseGameMap(raw: unknown): GameMap {
       tile.appearanceKey = appearanceKey.trim();
     }
 
+    const overlayKey = t.overlayKey;
+    if (overlayKey !== undefined) {
+      if (typeof overlayKey !== "string" || !overlayKey.trim()) {
+        throw new Error(`Tile (${x}, ${y}) overlayKey must be a non-empty string`);
+      }
+      tile.overlayKey = overlayKey.trim();
+    }
+
     const featureKey = t.featureKey;
     if (featureKey !== undefined) {
       if (typeof featureKey !== "string" || !featureKey.trim()) {
         throw new Error(`Tile (${x}, ${y}) featureKey must be a non-empty string`);
       }
-      tile.featureKey = featureKey.trim();
+      const trimmedFeature = featureKey.trim();
+      const migratedOverlay = migrateLegacyStainFeatureKey(trimmedFeature);
+      if (migratedOverlay) {
+        if (!tile.overlayKey) tile.overlayKey = migratedOverlay;
+      } else {
+        tile.featureKey = trimmedFeature;
+      }
     }
 
     const appearanceTint = t.appearanceTint;
@@ -240,6 +255,17 @@ export function parseGameMap(raw: unknown): GameMap {
         );
       }
       tile.appearanceTint = parsed;
+    }
+
+    const overlayTint = t.overlayTint;
+    if (overlayTint !== undefined) {
+      const parsed = parseTileColorTint(overlayTint);
+      if (!parsed) {
+        throw new Error(
+          `Tile (${x}, ${y}) overlayTint must be { color: #RGB|#RRGGBB, opacity: 0–1 }`,
+        );
+      }
+      tile.overlayTint = parsed;
     }
 
     const featureTint = t.featureTint;
@@ -262,8 +288,11 @@ export function parseGameMap(raw: unknown): GameMap {
       throw new Error(`Tile (${x}, ${y}) imageFlip must be a boolean`);
     }
 
-    function readTileRotation(key: "appearanceRotation" | "featureRotation"): void {
-      const raw = t[key] !== undefined ? t[key] : legacyRotation;
+    function readTileRotation(
+      key: "appearanceRotation" | "overlayRotation" | "featureRotation",
+      useLegacy: boolean,
+    ): void {
+      const raw = t[key] !== undefined ? t[key] : useLegacy ? legacyRotation : undefined;
       if (raw === undefined) return;
       if (!isValidTileImageRotation(raw)) {
         throw new Error(`Tile (${x}, ${y}) ${key} must be 0, 90, 180, or 270`);
@@ -271,8 +300,11 @@ export function parseGameMap(raw: unknown): GameMap {
       if (raw !== 0) tile[key] = raw;
     }
 
-    function readTileFlip(key: "appearanceFlip" | "featureFlip"): void {
-      const raw = t[key] !== undefined ? t[key] : legacyFlip;
+    function readTileFlip(
+      key: "appearanceFlip" | "overlayFlip" | "featureFlip",
+      useLegacy: boolean,
+    ): void {
+      const raw = t[key] !== undefined ? t[key] : useLegacy ? legacyFlip : undefined;
       if (raw === undefined) return;
       if (typeof raw !== "boolean") {
         throw new Error(`Tile (${x}, ${y}) ${key} must be a boolean`);
@@ -280,10 +312,12 @@ export function parseGameMap(raw: unknown): GameMap {
       if (raw) tile[key] = true;
     }
 
-    readTileRotation("appearanceRotation");
-    readTileRotation("featureRotation");
-    readTileFlip("appearanceFlip");
-    readTileFlip("featureFlip");
+    readTileRotation("appearanceRotation", true);
+    readTileRotation("overlayRotation", false);
+    readTileRotation("featureRotation", true);
+    readTileFlip("appearanceFlip", true);
+    readTileFlip("overlayFlip", false);
+    readTileFlip("featureFlip", true);
 
     const obstacleHp = t.obstacleHp;
     if (obstacleHp !== undefined) {
@@ -505,11 +539,15 @@ export function cloneMapTile(tile: MapTile): MapTile {
     ...(tile.name ? { name: tile.name } : {}),
     ...(tile.baseColor ? { baseColor: tile.baseColor } : {}),
     ...(tile.appearanceKey ? { appearanceKey: tile.appearanceKey } : {}),
+    ...(tile.overlayKey ? { overlayKey: tile.overlayKey } : {}),
     ...(tile.featureKey ? { featureKey: tile.featureKey } : {}),
     ...(tile.appearanceTint ? { appearanceTint: { ...tile.appearanceTint } } : {}),
+    ...(tile.overlayTint ? { overlayTint: { ...tile.overlayTint } } : {}),
     ...(tile.featureTint ? { featureTint: { ...tile.featureTint } } : {}),
     ...(tile.appearanceRotation ? { appearanceRotation: tile.appearanceRotation } : {}),
     ...(tile.appearanceFlip ? { appearanceFlip: true } : {}),
+    ...(tile.overlayRotation ? { overlayRotation: tile.overlayRotation } : {}),
+    ...(tile.overlayFlip ? { overlayFlip: true } : {}),
     ...(tile.featureRotation ? { featureRotation: tile.featureRotation } : {}),
     ...(tile.featureFlip ? { featureFlip: true } : {}),
   };
@@ -604,16 +642,24 @@ export function persistMapTileFromState(map: GameMap, source: MapTile): void {
   else delete mapTile.baseColor;
   if (source.appearanceKey) mapTile.appearanceKey = source.appearanceKey;
   else delete mapTile.appearanceKey;
+  if (source.overlayKey) mapTile.overlayKey = source.overlayKey;
+  else delete mapTile.overlayKey;
   if (source.featureKey) mapTile.featureKey = source.featureKey;
   else delete mapTile.featureKey;
   if (source.appearanceTint) mapTile.appearanceTint = { ...source.appearanceTint };
   else delete mapTile.appearanceTint;
+  if (source.overlayTint) mapTile.overlayTint = { ...source.overlayTint };
+  else delete mapTile.overlayTint;
   if (source.featureTint) mapTile.featureTint = { ...source.featureTint };
   else delete mapTile.featureTint;
   if (source.appearanceRotation) mapTile.appearanceRotation = source.appearanceRotation;
   else delete mapTile.appearanceRotation;
   if (source.appearanceFlip) mapTile.appearanceFlip = true;
   else delete mapTile.appearanceFlip;
+  if (source.overlayRotation) mapTile.overlayRotation = source.overlayRotation;
+  else delete mapTile.overlayRotation;
+  if (source.overlayFlip) mapTile.overlayFlip = true;
+  else delete mapTile.overlayFlip;
   if (source.featureRotation) mapTile.featureRotation = source.featureRotation;
   else delete mapTile.featureRotation;
   if (source.featureFlip) mapTile.featureFlip = true;

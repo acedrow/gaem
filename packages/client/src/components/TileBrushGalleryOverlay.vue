@@ -7,16 +7,22 @@ import TileBrushGallery from "./TileBrushGallery.vue";
 
 const {
   bundledTileSets,
+  bundledTileOverlaySets,
   bundledTileFeatureSets,
   bundledTileAppearancesForSet,
+  bundledTileOverlaysForSet,
   bundledTileFeaturesForSet,
   paintbrushAppearanceKey,
+  paintbrushOverlayKey,
   paintbrushFeatureKey,
   paintbrushAppearanceSetId,
+  paintbrushOverlaySetId,
   paintbrushFeatureSetId,
   selectBundledPaintbrushAppearance,
+  selectBundledPaintbrushOverlay,
   selectBundledPaintbrushFeature,
   clearPaintbrushAppearance,
+  clearPaintbrushOverlay,
   clearPaintbrushFeature,
   activeTool,
 } = useGmTools();
@@ -24,22 +30,27 @@ const {
 const {
   galleryOpen,
   appearanceGalleryOpen,
+  overlayGalleryOpen,
   closeGalleries,
 } = useTileBrushGalleryUi();
 
 let backdropArmed = false;
 
-const setOptions = computed(() =>
-  appearanceGalleryOpen.value ? bundledTileSets : bundledTileFeatureSets,
-);
+const setOptions = computed(() => {
+  if (appearanceGalleryOpen.value) return bundledTileSets;
+  if (overlayGalleryOpen.value) return bundledTileOverlaySets;
+  return bundledTileFeatureSets;
+});
 
 const activeSetId = computed({
-  get: () =>
-    appearanceGalleryOpen.value
-      ? paintbrushAppearanceSetId.value
-      : paintbrushFeatureSetId.value,
+  get: () => {
+    if (appearanceGalleryOpen.value) return paintbrushAppearanceSetId.value;
+    if (overlayGalleryOpen.value) return paintbrushOverlaySetId.value;
+    return paintbrushFeatureSetId.value;
+  },
   set: (id: string) => {
     if (appearanceGalleryOpen.value) paintbrushAppearanceSetId.value = id;
+    else if (overlayGalleryOpen.value) paintbrushOverlaySetId.value = id;
     else paintbrushFeatureSetId.value = id;
   },
 });
@@ -64,6 +75,16 @@ function onSelectAppearance(key: string) {
 
 function onSelectAppearanceNone() {
   clearPaintbrushAppearance();
+  closeGalleries();
+}
+
+function onSelectOverlay(key: string) {
+  selectBundledPaintbrushOverlay(key);
+  closeGalleries();
+}
+
+function onSelectOverlayNone() {
+  clearPaintbrushOverlay();
   closeGalleries();
 }
 
@@ -140,9 +161,17 @@ onUnmounted(() => {
         v-if="appearanceGalleryOpen"
         :entries="bundledTileAppearancesForSet"
         :selected-key="paintbrushAppearanceKey"
-        ariaLabel="Choose tile appearance"
+        ariaLabel="Choose tile base"
         @select="onSelectAppearance"
         @select-none="onSelectAppearanceNone"
+      />
+      <TileBrushGallery
+        v-else-if="overlayGalleryOpen"
+        :entries="bundledTileOverlaysForSet"
+        :selected-key="paintbrushOverlayKey"
+        ariaLabel="Choose tile overlay"
+        @select="onSelectOverlay"
+        @select-none="onSelectOverlayNone"
       />
       <TileBrushGallery
         v-else
@@ -181,17 +210,16 @@ onUnmounted(() => {
 }
 
 .gallery-set-bar {
-  display: grid;
-  grid-template-columns: 2rem 1fr 2rem;
+  display: flex;
   align-items: center;
+  gap: 0.35rem;
   flex-shrink: 0;
-  gap: 0.25rem;
-  padding: 0.35rem 0.4rem;
+  padding: 0.45rem 0.55rem;
   border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface-raised);
 }
 
 .set-title {
+  flex: 1;
   min-width: 0;
   text-align: center;
   font-size: 0.78rem;
@@ -203,23 +231,20 @@ onUnmounted(() => {
 }
 
 .set-step-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 1.75rem;
-  padding: 0;
+  flex-shrink: 0;
+  width: 1.6rem;
+  height: 1.6rem;
   border: 1px solid var(--color-border);
   border-radius: 6px;
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-size: 1.15rem;
+  background: var(--color-surface-raised);
+  color: var(--color-muted);
+  font-size: 1rem;
   line-height: 1;
-  font-family: inherit;
   cursor: pointer;
+  padding: 0;
 }
 
 .set-step-btn:hover {
-  background: var(--color-surface-hover, var(--color-surface-raised));
+  color: var(--color-text);
 }
 </style>

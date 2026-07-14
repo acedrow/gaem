@@ -32,6 +32,13 @@ export function normalizeTileName(name: string): string {
   return name.trim();
 }
 
+/** Old stain PNGs lived under features; rewrite to overlays path. */
+export function migrateLegacyStainFeatureKey(key: string): string | null {
+  const prefix = "tiles/features/stain/";
+  if (!key.startsWith(prefix)) return null;
+  return `tiles/overlays/stain/${key.slice(prefix.length)}`;
+}
+
 export function parseTilePaintPreset(raw: unknown, label: string): TilePaintPreset {
   if (!raw || typeof raw !== "object") {
     throw new Error(`${label} must be an object`);
@@ -104,12 +111,26 @@ export function parseTilePaintPreset(raw: unknown, label: string): TilePaintPres
     preset.appearanceKey = appearanceKey.trim();
   }
 
+  const overlayKey = p.overlayKey;
+  if (overlayKey !== undefined) {
+    if (typeof overlayKey !== "string" || !overlayKey.trim()) {
+      throw new Error(`${label} overlayKey must be a non-empty string`);
+    }
+    preset.overlayKey = overlayKey.trim();
+  }
+
   const featureKey = p.featureKey;
   if (featureKey !== undefined) {
     if (typeof featureKey !== "string" || !featureKey.trim()) {
       throw new Error(`${label} featureKey must be a non-empty string`);
     }
-    preset.featureKey = featureKey.trim();
+    const trimmedFeature = featureKey.trim();
+    const migratedOverlay = migrateLegacyStainFeatureKey(trimmedFeature);
+    if (migratedOverlay) {
+      if (!preset.overlayKey) preset.overlayKey = migratedOverlay;
+    } else {
+      preset.featureKey = trimmedFeature;
+    }
   }
 
   const appearanceTint = p.appearanceTint;
@@ -121,6 +142,17 @@ export function parseTilePaintPreset(raw: unknown, label: string): TilePaintPres
       );
     }
     preset.appearanceTint = parsed;
+  }
+
+  const overlayTint = p.overlayTint;
+  if (overlayTint !== undefined) {
+    const parsed = parseTileColorTint(overlayTint);
+    if (!parsed) {
+      throw new Error(
+        `${label} overlayTint must be { color: #RGB|#RRGGBB, opacity: 0–1 }`,
+      );
+    }
+    preset.overlayTint = parsed;
   }
 
   const featureTint = p.featureTint;
@@ -163,10 +195,13 @@ export function parseTilePaintPreset(raw: unknown, label: string): TilePaintPres
 
   const appearanceRotation = readRotation("appearanceRotation", legacyRotation);
   if (appearanceRotation !== undefined) preset.appearanceRotation = appearanceRotation;
+  const overlayRotation = readRotation("overlayRotation", undefined);
+  if (overlayRotation !== undefined) preset.overlayRotation = overlayRotation;
   const featureRotation = readRotation("featureRotation", legacyRotation);
   if (featureRotation !== undefined) preset.featureRotation = featureRotation;
 
   if (readFlip("appearanceFlip", legacyFlip)) preset.appearanceFlip = true;
+  if (readFlip("overlayFlip", undefined)) preset.overlayFlip = true;
   if (readFlip("featureFlip", legacyFlip)) preset.featureFlip = true;
 
   return preset;

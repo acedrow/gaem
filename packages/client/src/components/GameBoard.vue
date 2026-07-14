@@ -222,13 +222,16 @@ const {
   togglePaintbrushImageFlip,
   paintbrushEnableColor,
   paintbrushEnableAppearance,
+  paintbrushEnableOverlay,
   paintbrushEnableFeature,
   paintbrushEnableAppearanceTint,
+  paintbrushEnableOverlayTint,
   paintbrushEnableFeatureTint,
   paintbrushEnableRotation,
   paintbrushEnableFlip,
   paintbrushBaseColor,
   paintbrushAppearanceTint,
+  paintbrushOverlayTint,
   paintbrushFeatureTint,
   paintbrushImageRotation,
   paintbrushImageFlip,
@@ -2182,12 +2185,16 @@ const cellStateByKey = computed(() => {
       tileEffects: tile?.tileEffects,
       outOfLineOfSight: outOfLineOfSightKeys.value.has(ck),
       tileAppearanceUrl: tile?.appearanceKey ? tileAppearanceUrlFor(tile.appearanceKey) : null,
+      tileOverlayUrl: tile?.overlayKey ? tileAppearanceUrlFor(tile.overlayKey) : null,
       tileFeatureUrl: tile?.featureKey ? tileAppearanceUrlFor(tile.featureKey) : null,
       tileBaseColor: tile?.baseColor ?? null,
       appearanceTint: tile?.appearanceTint ?? null,
+      overlayTint: tile?.overlayTint ?? null,
       featureTint: tile?.featureTint ?? null,
       appearanceRotation: tile?.appearanceRotation,
       appearanceFlip: tile?.appearanceFlip,
+      overlayRotation: tile?.overlayRotation,
+      overlayFlip: tile?.overlayFlip,
       featureRotation: tile?.featureRotation,
       featureFlip: tile?.featureFlip,
       paintbrushPreview: null,
@@ -2208,16 +2215,20 @@ const cellStateByKey = computed(() => {
       const tile = previewCell.tile;
       const showColor = paintbrushEnableColor.value;
       const showAppearance = paintbrushEnableAppearance.value;
+      const showOverlay = paintbrushEnableOverlay.value;
       const showFeature = paintbrushEnableFeature.value;
       const showAppearanceTint = paintbrushEnableAppearanceTint.value;
+      const showOverlayTint = paintbrushEnableOverlayTint.value;
       const showFeatureTint = paintbrushEnableFeatureTint.value;
       const showRotation = paintbrushEnableRotation.value;
       const showFlip = paintbrushEnableFlip.value;
       if (
         showColor ||
         showAppearance ||
+        showOverlay ||
         showFeature ||
         showAppearanceTint ||
+        showOverlayTint ||
         showFeatureTint ||
         showRotation ||
         showFlip
@@ -2230,9 +2241,11 @@ const cellStateByKey = computed(() => {
           : 0;
         const brushFlip = showFlip ? paintbrushImageFlip.value : false;
         const paintingAppearance = showAppearance && placement.appearanceKey !== undefined;
+        const paintingOverlay = showOverlay && placement.overlayKey !== undefined;
         const paintingFeature = showFeature && placement.featureKey !== undefined;
         const previewBaseColor = showColor ? paintbrushBaseColor.value : null;
         const previewAppearanceUrl = showAppearance ? placement.appearanceUrl : null;
+        const previewOverlayUrl = showOverlay ? placement.overlayUrl : null;
         const previewFeatureUrl = showFeature ? placement.featureUrl : null;
         // Full cosmetic composite so we can hide the live layers under the preview.
         // When a layer is enabled and the brush has an explicit value (including null =
@@ -2243,10 +2256,14 @@ const cellStateByKey = computed(() => {
           appearanceUrl: paintingAppearance
             ? previewAppearanceUrl
             : previewCell.tileAppearanceUrl,
+          overlayUrl: paintingOverlay ? previewOverlayUrl : previewCell.tileOverlayUrl,
           featureUrl: paintingFeature ? previewFeatureUrl : previewCell.tileFeatureUrl,
           appearanceTint: showAppearanceTint
             ? paintbrushAppearanceTint.value
             : (tile?.appearanceTint ?? null),
+          overlayTint: showOverlayTint
+            ? paintbrushOverlayTint.value
+            : (tile?.overlayTint ?? null),
           featureTint: showFeatureTint
             ? paintbrushFeatureTint.value
             : (tile?.featureTint ?? null),
@@ -2254,6 +2271,10 @@ const cellStateByKey = computed(() => {
             ? brushRotation
             : (tile?.appearanceRotation ?? 0),
           appearanceFlip: paintingAppearance ? brushFlip : !!tile?.appearanceFlip,
+          overlayRotation: paintingOverlay
+            ? brushRotation
+            : (tile?.overlayRotation ?? 0),
+          overlayFlip: paintingOverlay ? brushFlip : !!tile?.overlayFlip,
           featureRotation: paintingFeature
             ? brushRotation
             : (tile?.featureRotation ?? 0),
@@ -4852,11 +4873,15 @@ onUnmounted(() => {
                   row.cell.tileBaseColor,
                   row.cell.tile?.name,
                   row.cell.tileAppearanceUrl,
+                  row.cell.tileOverlayUrl,
                   row.cell.tileFeatureUrl,
                   row.cell.appearanceTint,
+                  row.cell.overlayTint,
                   row.cell.featureTint,
                   row.cell.appearanceRotation,
                   row.cell.appearanceFlip,
+                  row.cell.overlayRotation,
+                  row.cell.overlayFlip,
                   row.cell.featureRotation,
                   row.cell.featureFlip,
                   row.cell.paintbrushPreview,

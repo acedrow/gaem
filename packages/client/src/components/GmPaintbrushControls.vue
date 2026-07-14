@@ -22,6 +22,7 @@ const {
   paintbrushObstacleHp,
   paintbrushBaseColor,
   paintbrushAppearanceTint,
+  paintbrushOverlayTint,
   paintbrushFeatureTint,
   paintbrushAppearancePreviewUrl,
   paintbrushEnableElevation,
@@ -31,8 +32,10 @@ const {
   paintbrushEnableName,
   paintbrushEnableColor,
   paintbrushEnableAppearance,
+  paintbrushEnableOverlay,
   paintbrushEnableFeature,
   paintbrushEnableAppearanceTint,
+  paintbrushEnableOverlayTint,
   paintbrushEnableFeatureTint,
   paintbrushEnableRotation,
   paintbrushEnableFlip,
@@ -42,8 +45,7 @@ const {
   paintbrushPresetLoadId,
   paintbrushPresetNames,
   paintbrushPresetError,
-  paintbrushAppearanceUploading,
-  paintbrushFeatureUploading,
+  paintbrushOverlayPreviewUrl,
   paintbrushFeaturePreviewUrl,
   resetPaintbrushSettings,
   enableAllPaintbrushOptions,
@@ -51,44 +53,36 @@ const {
   loadSelectedPreset,
   saveCurrentPreset,
   deleteSelectedPreset,
-  uploadPaintbrushAppearance,
   clearPaintbrushAppearance,
-  uploadPaintbrushFeature,
+  clearPaintbrushOverlay,
   clearPaintbrushFeature,
   bundledTileSets,
   bundledTileAppearancesForSet,
+  bundledTileOverlaySets,
+  bundledTileOverlaysForSet,
   bundledTileFeatureSets,
   bundledTileFeaturesForSet,
   paintbrushAppearanceSetId,
+  paintbrushOverlaySetId,
   paintbrushFeatureSetId,
 } = useGmTools();
 
 const {
   appearanceGalleryOpen,
+  overlayGalleryOpen,
   featureGalleryOpen,
   openAppearanceGallery,
+  openOverlayGallery,
   openFeatureGallery,
   toggleAppearanceGallery,
+  toggleOverlayGallery,
   toggleFeatureGallery,
 } = useTileBrushGalleryUi();
 
 const colorModalOpen = ref(false);
 const appearanceTintModalOpen = ref(false);
+const overlayTintModalOpen = ref(false);
 const featureTintModalOpen = ref(false);
-
-function onAppearanceSelected(e: Event) {
-  const input = e.target as HTMLInputElement;
-  const file = input.files?.[0];
-  input.value = "";
-  if (file) void uploadPaintbrushAppearance(file);
-}
-
-function onFeatureSelected(e: Event) {
-  const input = e.target as HTMLInputElement;
-  const file = input.files?.[0];
-  input.value = "";
-  if (file) void uploadPaintbrushFeature(file);
-}
 </script>
 
 <template>
@@ -100,15 +94,16 @@ function onFeatureSelected(e: Event) {
     </div>
 
     <div class="control-group">
-      <span class="control-label">Elevation</span>
+      <span class="control-label">Name</span>
       <input
-        v-model="paintbrushEnableElevation"
+        v-model="paintbrushEnableName"
         type="checkbox"
         class="option-enable"
-        aria-label="Enable elevation"
+        aria-label="Enable name"
       />
-      <NumberStepper v-model="paintbrushElevation" :min="-3" :max="3" />
+      <input v-model="paintbrushTileName" type="text" class="text-input" placeholder="Optional" />
     </div>
+
     <div class="control-group effect-group">
       <span class="control-label">Terrain</span>
       <input
@@ -157,15 +152,16 @@ function onFeatureSelected(e: Event) {
     </div>
 
     <div class="control-group">
-      <span class="control-label">Name</span>
+      <span class="control-label">Elevation</span>
       <input
-        v-model="paintbrushEnableName"
+        v-model="paintbrushEnableElevation"
         type="checkbox"
         class="option-enable"
-        aria-label="Enable name"
+        aria-label="Enable elevation"
       />
-      <input v-model="paintbrushTileName" type="text" class="text-input" placeholder="Optional" />
+      <NumberStepper v-model="paintbrushElevation" :min="-3" :max="3" />
     </div>
+
     <div class="control-group">
       <span class="control-label">Color</span>
       <input
@@ -183,19 +179,22 @@ function onFeatureSelected(e: Event) {
         <span v-if="!paintbrushBaseColor" class="color-swatch-placeholder">—</span>
       </button>
     </div>
+
+    <p class="section-header">Tile appearance</p>
+
     <div class="control-group appearance-group">
-      <span class="control-label">Appearance</span>
+      <span class="control-label">Base</span>
       <input
         v-model="paintbrushEnableAppearance"
         type="checkbox"
         class="option-enable"
-        aria-label="Enable appearance"
+        aria-label="Enable base"
       />
-      <div class="appearance-controls">
+      <div class="appearance-row">
         <select
           v-if="bundledTileSets.length"
           v-model="paintbrushAppearanceSetId"
-          class="effect-select"
+          class="effect-select set-select"
           aria-label="Tile set"
           @change="openAppearanceGallery"
         >
@@ -203,69 +202,115 @@ function onFeatureSelected(e: Event) {
             {{ set.label }}
           </option>
         </select>
-        <div class="appearance-row">
-          <div v-if="bundledTileAppearancesForSet.length" class="appearance-gallery">
-            <button
-              type="button"
-              class="appearance-thumb-btn"
-              :aria-expanded="appearanceGalleryOpen"
-              aria-haspopup="listbox"
-              aria-label="Choose tile appearance"
-              @click="toggleAppearanceGallery"
-            >
-              <img
-                v-if="paintbrushAppearancePreviewUrl"
-                :src="paintbrushAppearancePreviewUrl"
-                alt=""
-                class="appearance-thumb tile-image"
-              />
-              <span v-else class="appearance-thumb-placeholder">—</span>
-            </button>
-          </div>
+        <button
+          v-if="bundledTileAppearancesForSet.length"
+          type="button"
+          class="appearance-thumb-btn"
+          :aria-expanded="appearanceGalleryOpen"
+          aria-haspopup="listbox"
+          aria-label="Choose tile base"
+          @click="toggleAppearanceGallery"
+        >
           <img
-            v-else-if="paintbrushAppearancePreviewUrl"
+            v-if="paintbrushAppearancePreviewUrl"
             :src="paintbrushAppearancePreviewUrl"
             alt=""
             class="appearance-thumb tile-image"
           />
-          <label class="upload-btn" :class="{ uploading: paintbrushAppearanceUploading }">
-            {{ paintbrushAppearanceUploading ? "Uploading…" : "Upload" }}
-            <input
-              type="file"
-              accept="image/png"
-              class="hidden-input"
-              :disabled="paintbrushAppearanceUploading"
-              @change="onAppearanceSelected"
-            />
-          </label>
-          <button
-            v-if="paintbrushAppearancePreviewUrl"
-            type="button"
-            class="mini-btn"
-            @click="clearPaintbrushAppearance"
-          >
-            Clear
-          </button>
-        </div>
+          <span v-else class="appearance-thumb-placeholder">—</span>
+        </button>
+        <img
+          v-else-if="paintbrushAppearancePreviewUrl"
+          :src="paintbrushAppearancePreviewUrl"
+          alt=""
+          class="appearance-thumb tile-image"
+        />
+        <button type="button" class="mini-btn" @click="clearPaintbrushAppearance">Clear</button>
       </div>
     </div>
 
     <div class="control-group">
-      <span class="control-label">Color tint</span>
+      <span class="control-label">Tint</span>
       <input
         v-model="paintbrushEnableAppearanceTint"
         type="checkbox"
         class="option-enable"
-        aria-label="Enable appearance color tint"
+        aria-label="Enable base tint"
       />
       <button
         type="button"
         class="color-swatch-btn"
         :style="paintbrushAppearanceTint ? { background: paintbrushAppearanceTint.color } : undefined"
-        aria-label="Appearance color tint"
+        aria-label="Base tint"
         @click="appearanceTintModalOpen = true"
       >
         <span v-if="!paintbrushAppearanceTint" class="color-swatch-placeholder">—</span>
+      </button>
+    </div>
+
+    <div class="control-group appearance-group">
+      <span class="control-label">Overlay</span>
+      <input
+        v-model="paintbrushEnableOverlay"
+        type="checkbox"
+        class="option-enable"
+        aria-label="Enable overlay"
+      />
+      <div class="appearance-row">
+        <select
+          v-if="bundledTileOverlaySets.length"
+          v-model="paintbrushOverlaySetId"
+          class="effect-select set-select"
+          aria-label="Overlay set"
+          @change="openOverlayGallery"
+        >
+          <option v-for="set in bundledTileOverlaySets" :key="set.id" :value="set.id">
+            {{ set.label }}
+          </option>
+        </select>
+        <button
+          v-if="bundledTileOverlaysForSet.length"
+          type="button"
+          class="appearance-thumb-btn"
+          :aria-expanded="overlayGalleryOpen"
+          aria-haspopup="listbox"
+          aria-label="Choose tile overlay"
+          @click="toggleOverlayGallery"
+        >
+          <img
+            v-if="paintbrushOverlayPreviewUrl"
+            :src="paintbrushOverlayPreviewUrl"
+            alt=""
+            class="appearance-thumb tile-image"
+          />
+          <span v-else class="appearance-thumb-placeholder">—</span>
+        </button>
+        <img
+          v-else-if="paintbrushOverlayPreviewUrl"
+          :src="paintbrushOverlayPreviewUrl"
+          alt=""
+          class="appearance-thumb tile-image"
+        />
+        <button type="button" class="mini-btn" @click="clearPaintbrushOverlay">Clear</button>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <span class="control-label">Tint</span>
+      <input
+        v-model="paintbrushEnableOverlayTint"
+        type="checkbox"
+        class="option-enable"
+        aria-label="Enable overlay tint"
+      />
+      <button
+        type="button"
+        class="color-swatch-btn"
+        :style="paintbrushOverlayTint ? { background: paintbrushOverlayTint.color } : undefined"
+        aria-label="Overlay tint"
+        @click="overlayTintModalOpen = true"
+      >
+        <span v-if="!paintbrushOverlayTint" class="color-swatch-placeholder">—</span>
       </button>
     </div>
 
@@ -277,11 +322,11 @@ function onFeatureSelected(e: Event) {
         class="option-enable"
         aria-label="Enable feature"
       />
-      <div class="appearance-controls">
+      <div class="appearance-row">
         <select
           v-if="bundledTileFeatureSets.length"
           v-model="paintbrushFeatureSetId"
-          class="effect-select"
+          class="effect-select set-select"
           aria-label="Feature set"
           @change="openFeatureGallery"
         >
@@ -289,66 +334,46 @@ function onFeatureSelected(e: Event) {
             {{ set.label }}
           </option>
         </select>
-        <div class="appearance-row">
-          <div v-if="bundledTileFeaturesForSet.length" class="appearance-gallery">
-            <button
-              type="button"
-              class="appearance-thumb-btn"
-              :aria-expanded="featureGalleryOpen"
-              aria-haspopup="listbox"
-              aria-label="Choose tile feature"
-              @click="toggleFeatureGallery"
-            >
-              <img
-                v-if="paintbrushFeaturePreviewUrl"
-                :src="paintbrushFeaturePreviewUrl"
-                alt=""
-                class="appearance-thumb tile-image"
-              />
-              <span v-else class="appearance-thumb-placeholder">—</span>
-            </button>
-          </div>
+        <button
+          v-if="bundledTileFeaturesForSet.length"
+          type="button"
+          class="appearance-thumb-btn"
+          :aria-expanded="featureGalleryOpen"
+          aria-haspopup="listbox"
+          aria-label="Choose tile feature"
+          @click="toggleFeatureGallery"
+        >
           <img
-            v-else-if="paintbrushFeaturePreviewUrl"
+            v-if="paintbrushFeaturePreviewUrl"
             :src="paintbrushFeaturePreviewUrl"
             alt=""
             class="appearance-thumb tile-image"
           />
-          <label class="upload-btn" :class="{ uploading: paintbrushFeatureUploading }">
-            {{ paintbrushFeatureUploading ? "Uploading…" : "Upload" }}
-            <input
-              type="file"
-              accept="image/png"
-              class="hidden-input"
-              :disabled="paintbrushFeatureUploading"
-              @change="onFeatureSelected"
-            />
-          </label>
-          <button
-            v-if="paintbrushFeaturePreviewUrl"
-            type="button"
-            class="mini-btn"
-            @click="clearPaintbrushFeature"
-          >
-            Clear
-          </button>
-        </div>
+          <span v-else class="appearance-thumb-placeholder">—</span>
+        </button>
+        <img
+          v-else-if="paintbrushFeaturePreviewUrl"
+          :src="paintbrushFeaturePreviewUrl"
+          alt=""
+          class="appearance-thumb tile-image"
+        />
+        <button type="button" class="mini-btn" @click="clearPaintbrushFeature">Clear</button>
       </div>
     </div>
 
     <div class="control-group">
-      <span class="control-label">Color tint</span>
+      <span class="control-label">Tint</span>
       <input
         v-model="paintbrushEnableFeatureTint"
         type="checkbox"
         class="option-enable"
-        aria-label="Enable feature color tint"
+        aria-label="Enable feature tint"
       />
       <button
         type="button"
         class="color-swatch-btn"
         :style="paintbrushFeatureTint ? { background: paintbrushFeatureTint.color } : undefined"
-        aria-label="Feature color tint"
+        aria-label="Feature tint"
         @click="featureTintModalOpen = true"
       >
         <span v-if="!paintbrushFeatureTint" class="color-swatch-placeholder">—</span>
@@ -423,14 +448,21 @@ function onFeatureSelected(e: Event) {
     <TileBaseColorModal v-model="paintbrushBaseColor" :open="colorModalOpen" @close="colorModalOpen = false" />
     <TileColorTintModal
       v-model="paintbrushAppearanceTint"
-      title="Appearance color tint"
+      title="Base tint"
       :open="appearanceTintModalOpen"
       :preview-url="paintbrushAppearancePreviewUrl"
       @close="appearanceTintModalOpen = false"
     />
     <TileColorTintModal
+      v-model="paintbrushOverlayTint"
+      title="Overlay tint"
+      :open="overlayTintModalOpen"
+      :preview-url="paintbrushOverlayPreviewUrl"
+      @close="overlayTintModalOpen = false"
+    />
+    <TileColorTintModal
       v-model="paintbrushFeatureTint"
-      title="Feature color tint"
+      title="Feature tint"
       :open="featureTintModalOpen"
       :preview-url="paintbrushFeaturePreviewUrl"
       @close="featureTintModalOpen = false"
@@ -453,7 +485,15 @@ function onFeatureSelected(e: Event) {
 }
 
 .control-label {
-  flex: 0 0 5rem;
+  flex: 0 0 4.5rem;
+  font-size: 0.72rem;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.section-header {
+  margin: 0.15rem 0 0;
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--color-muted);
@@ -489,6 +529,11 @@ function onFeatureSelected(e: Event) {
   padding: 0.25rem 0.4rem;
 }
 
+.set-select {
+  flex: 1 1 6rem;
+  min-width: 5rem;
+}
+
 .color-swatch-btn {
   width: 1.6rem;
   height: 1.6rem;
@@ -505,22 +550,16 @@ function onFeatureSelected(e: Event) {
 }
 
 .appearance-group {
-  align-items: flex-start;
-}
-
-.appearance-controls {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
+  align-items: center;
 }
 
 .appearance-row {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .appearance-thumb {
@@ -530,6 +569,7 @@ function onFeatureSelected(e: Event) {
   border-radius: 4px;
   border: 1px solid var(--color-border);
   display: block;
+  flex-shrink: 0;
 }
 
 .appearance-thumb-btn {
@@ -543,6 +583,7 @@ function onFeatureSelected(e: Event) {
   border-radius: 4px;
   background: var(--color-surface-raised);
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .appearance-thumb-btn:hover,
@@ -559,27 +600,6 @@ function onFeatureSelected(e: Event) {
   font-size: 0.75rem;
   color: var(--color-muted);
   line-height: 1;
-}
-
-.upload-btn {
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  background: var(--color-surface);
-  color: var(--color-muted);
-  font-size: 0.78rem;
-  font-weight: 600;
-  font-family: inherit;
-  padding: 0.2rem 0.45rem;
-  cursor: pointer;
-}
-
-.upload-btn.uploading {
-  opacity: 0.6;
-  cursor: wait;
-}
-
-.hidden-input {
-  display: none;
 }
 
 .preset-controls {
@@ -608,6 +628,7 @@ function onFeatureSelected(e: Event) {
   font-family: inherit;
   padding: 0.2rem 0.45rem;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .mini-btn:disabled {

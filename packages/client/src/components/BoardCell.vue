@@ -65,22 +65,30 @@ export type CellRenderState = {
   tileEffects?: EffectStacks;
   outOfLineOfSight?: boolean;
   tileAppearanceUrl?: string | null;
+  tileOverlayUrl?: string | null;
   tileFeatureUrl?: string | null;
   tileBaseColor?: string | null;
   appearanceTint?: TileColorTint | null;
+  overlayTint?: TileColorTint | null;
   featureTint?: TileColorTint | null;
   appearanceRotation?: 0 | 90 | 180 | 270;
   appearanceFlip?: boolean;
+  overlayRotation?: 0 | 90 | 180 | 270;
+  overlayFlip?: boolean;
   featureRotation?: 0 | 90 | 180 | 270;
   featureFlip?: boolean;
   paintbrushPreview?: {
     baseColor?: string | null;
     appearanceUrl?: string | null;
+    overlayUrl?: string | null;
     featureUrl?: string | null;
     appearanceTint?: TileColorTint | null;
+    overlayTint?: TileColorTint | null;
     featureTint?: TileColorTint | null;
     appearanceRotation: 0 | 90 | 180 | 270;
     appearanceFlip: boolean;
+    overlayRotation: 0 | 90 | 180 | 270;
+    overlayFlip: boolean;
     featureRotation: 0 | 90 | 180 | 270;
     featureFlip: boolean;
   } | null;
@@ -266,6 +274,10 @@ const appearanceImageTransformStyle = computed(() =>
   tileImageTransform(props.cell.appearanceRotation, props.cell.appearanceFlip),
 );
 
+const overlayImageTransformStyle = computed(() =>
+  tileImageTransform(props.cell.overlayRotation, props.cell.overlayFlip),
+);
+
 const featureImageTransformStyle = computed(() =>
   tileImageTransform(props.cell.featureRotation, props.cell.featureFlip),
 );
@@ -274,6 +286,12 @@ const previewAppearanceTransformStyle = computed(() => {
   const preview = props.cell.paintbrushPreview;
   if (!preview) return undefined;
   return tileImageTransform(preview.appearanceRotation, preview.appearanceFlip);
+});
+
+const previewOverlayTransformStyle = computed(() => {
+  const preview = props.cell.paintbrushPreview;
+  if (!preview) return undefined;
+  return tileImageTransform(preview.overlayRotation, preview.overlayFlip);
 });
 
 const previewFeatureTransformStyle = computed(() => {
@@ -288,6 +306,12 @@ const appearanceLayerStyle = computed(() => {
   return tileImageLayerStyle(url, props.cell.appearanceTint);
 });
 
+const overlayLayerStyle = computed(() => {
+  const url = props.cell.tileOverlayUrl;
+  if (!url) return undefined;
+  return tileImageLayerStyle(url, props.cell.overlayTint);
+});
+
 const featureLayerStyle = computed(() => {
   const url = props.cell.tileFeatureUrl;
   if (!url) return undefined;
@@ -299,6 +323,13 @@ const previewAppearanceLayerStyle = computed(() => {
   const url = preview?.appearanceUrl;
   if (!url) return undefined;
   return tileImageLayerStyle(url, preview.appearanceTint);
+});
+
+const previewOverlayLayerStyle = computed(() => {
+  const preview = props.cell.paintbrushPreview;
+  const url = preview?.overlayUrl;
+  if (!url) return undefined;
+  return tileImageLayerStyle(url, preview.overlayTint);
 });
 
 const previewFeatureLayerStyle = computed(() => {
@@ -374,7 +405,7 @@ const tileEffectBadgeEntries = computed(() => tileEffectEntries.value);
     />
     <span v-if="cell.hasSeed" class="seed-marker" title="Seed" />
     <div
-      v-if="!cell.paintbrushPreview && (cell.tileAppearanceUrl || cell.tileFeatureUrl)"
+      v-if="!cell.paintbrushPreview && (cell.tileAppearanceUrl || cell.tileOverlayUrl || cell.tileFeatureUrl)"
       class="tile-image-stack"
       aria-hidden="true"
     >
@@ -386,6 +417,16 @@ const tileEffectBadgeEntries = computed(() => tileEffectEntries.value);
         <span
           class="board-overlay tile-appearance-image tile-image"
           :style="appearanceLayerStyle"
+        />
+      </span>
+      <span
+        v-if="cell.tileOverlayUrl"
+        class="tile-image-layer"
+        :style="{ transform: overlayImageTransformStyle }"
+      >
+        <span
+          class="board-overlay tile-overlay-image tile-image"
+          :style="overlayLayerStyle"
         />
       </span>
       <span
@@ -418,6 +459,16 @@ const tileEffectBadgeEntries = computed(() => tileEffectEntries.value);
           <span
             class="board-overlay tile-appearance-image tile-image"
             :style="previewAppearanceLayerStyle"
+          />
+        </span>
+        <span
+          v-if="cell.paintbrushPreview.overlayUrl"
+          class="tile-image-layer"
+          :style="{ transform: previewOverlayTransformStyle }"
+        >
+          <span
+            class="board-overlay tile-overlay-image tile-image"
+            :style="previewOverlayLayerStyle"
           />
         </span>
         <span

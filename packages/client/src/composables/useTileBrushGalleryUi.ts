@@ -1,16 +1,21 @@
 import { computed, ref } from "vue";
 
-export type TileBrushGalleryKind = "appearance" | "feature";
+export type TileBrushGalleryKind = "appearance" | "overlay" | "feature";
 
 const openKind = ref<TileBrushGalleryKind | null>(null);
 
 export function useTileBrushGalleryUi() {
   const appearanceGalleryOpen = computed(() => openKind.value === "appearance");
+  const overlayGalleryOpen = computed(() => openKind.value === "overlay");
   const featureGalleryOpen = computed(() => openKind.value === "feature");
   const galleryOpen = computed(() => openKind.value !== null);
 
   function openAppearanceGallery() {
     openKind.value = "appearance";
+  }
+
+  function openOverlayGallery() {
+    openKind.value = "overlay";
   }
 
   function openFeatureGallery() {
@@ -19,6 +24,10 @@ export function useTileBrushGalleryUi() {
 
   function toggleAppearanceGallery() {
     openKind.value = openKind.value === "appearance" ? null : "appearance";
+  }
+
+  function toggleOverlayGallery() {
+    openKind.value = openKind.value === "overlay" ? null : "overlay";
   }
 
   function toggleFeatureGallery() {
@@ -33,10 +42,13 @@ export function useTileBrushGalleryUi() {
     openKind,
     galleryOpen,
     appearanceGalleryOpen,
+    overlayGalleryOpen,
     featureGalleryOpen,
     openAppearanceGallery,
+    openOverlayGallery,
     openFeatureGallery,
     toggleAppearanceGallery,
+    toggleOverlayGallery,
     toggleFeatureGallery,
     closeGalleries,
   };

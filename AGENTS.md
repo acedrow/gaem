@@ -178,6 +178,7 @@ scripts/rulebook/.venv/bin/python scripts/rulebook/extract.py --page 200
 | Map tiles, walkability, spawn | `packages/shared/src/map.ts` |
 | Bundled tile appearance JPGs | `packages/assets/tiles/{setId}/` then `npm run sync-tile-assets -w @gaem/client` |
 | Bundled tile feature PNGs | `packages/assets/tiles/features/{setId}/` then sync (same command) |
+| Bundled tile overlay PNGs | `packages/assets/tiles/overlays/{setId}/` then sync (same command) |
 | Enemy/class/weapon definitions | `packages/shared/src/data/` + `*-data.ts` loaders |
 | Board rendering, input | `packages/client/src/components/GameBoard.vue`, `BoardCell.vue` |
 | UI panels | `packages/client/src/components/` |
@@ -221,6 +222,10 @@ No code change is needed for new files in an existing set or group — the glob 
 ### Feature sets
 
 Feature overlays (trenches, ruins, etc.) stay **PNG** (alpha) under `packages/assets/tiles/features/{setId}/` with the same single/group layout as appearances. Keys are `tiles/features/{setId}/...`. `bundledTileFeatures.ts` uses `FEATURE_SET_LABELS` + a set glob; new feature sets need both updated. The paintbrush Viewer dropdown filters the feature gallery per set.
+
+### Overlay sets
+
+Tile overlays (stains, etc.) are **PNG** (alpha) under `packages/assets/tiles/overlays/{setId}/` with the same single/group layout. Keys are `tiles/overlays/{setId}/...`. `bundledTileOverlays.ts` uses `OVERLAY_SET_LABELS` + a set glob; new overlay sets need both updated. On the board, layers stack **Color → Base → Overlay → Feature**.
 
 ## Client conventions
 

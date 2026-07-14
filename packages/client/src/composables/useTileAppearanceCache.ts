@@ -13,6 +13,7 @@ export function useTileAppearanceCache(gameState: Ref<GameState | null>) {
     const keys = new Set<string>();
     for (const tile of gameState.value?.tiles ?? []) {
       if (tile.appearanceKey) keys.add(tile.appearanceKey);
+      if (tile.overlayKey) keys.add(tile.overlayKey);
       if (tile.featureKey) keys.add(tile.featureKey);
     }
     return [...keys].sort().join("|");
@@ -23,6 +24,7 @@ export function useTileAppearanceCache(gameState: Ref<GameState | null>) {
     const needed = new Set<string>();
     for (const tile of gameState.value?.tiles ?? []) {
       if (tile.appearanceKey) needed.add(tile.appearanceKey);
+      if (tile.overlayKey) needed.add(tile.overlayKey);
       if (tile.featureKey) needed.add(tile.featureKey);
     }
 

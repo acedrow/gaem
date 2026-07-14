@@ -332,6 +332,16 @@ describe("map", () => {
     expect(map.tilePresets?.Forest?.featureFlip).toBe(true);
   });
 
+  it("parseGameMap migrates legacy stain featureKey to overlayKey", () => {
+    const tiles = makeTiles(1, 1).map((tile) => ({
+      ...tile,
+      featureKey: "tiles/features/stain/stain/3.png",
+    }));
+    const map = parseGameMap({ id: "stain-legacy", width: 1, height: 1, tiles });
+    expect(map.tiles[0]!.overlayKey).toBe("tiles/overlays/stain/stain/3.png");
+    expect(map.tiles[0]!.featureKey).toBeUndefined();
+  });
+
   it("parseGameMap maps legacy imageRotation/imageFlip onto both layers", () => {
     const tiles = makeTiles(1, 1).map((tile) => ({
       ...tile,

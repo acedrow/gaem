@@ -120,6 +120,9 @@ const bulkLabel = computed(() => {
   flex-direction: column;
   gap: 0.75rem;
   padding: 0 0.15rem 0.5rem;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .hint {

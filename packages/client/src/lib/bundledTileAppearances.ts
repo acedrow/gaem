@@ -121,7 +121,7 @@ for (const list of groupsByKey.values()) {
 
 /** Maps may still store legacy `.png` appearance keys; prefer the `.jpg` twin when present. */
 function canonicalAppearanceKey(key: string): string {
-  if (/\.png$/i.test(key) && !key.includes("/features/")) {
+  if (/\.png$/i.test(key) && !key.includes("/features/") && !key.includes("/overlays/")) {
     const jpgKey = key.replace(/\.png$/i, ".jpg");
     if (appearanceByKey.has(jpgKey)) return jpgKey;
   }

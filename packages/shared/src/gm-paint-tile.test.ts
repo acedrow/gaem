@@ -32,11 +32,15 @@ describe("gmPaintTile", () => {
       tileName: "Forest",
       baseColor: "#aabbcc",
       appearanceKey: "tile-appearances/abc.png",
+      overlayKey: "tiles/overlays/stain/stain/1.png",
       featureKey: "tiles/features/base/rock.png",
       appearanceTint: { color: "#ff0000", opacity: 0.5 },
+      overlayTint: { color: "#0000ff", opacity: 0.2 },
       featureTint: { color: "#00ff00", opacity: 0.3 },
       appearanceRotation: 90,
       appearanceFlip: true,
+      overlayRotation: 270,
+      overlayFlip: true,
       featureRotation: 180,
       featureFlip: true,
     });
@@ -44,11 +48,15 @@ describe("gmPaintTile", () => {
     expect(tile.name).toBe("Forest");
     expect(tile.baseColor).toBe("#aabbcc");
     expect(tile.appearanceKey).toBe("tile-appearances/abc.png");
+    expect(tile.overlayKey).toBe("tiles/overlays/stain/stain/1.png");
     expect(tile.featureKey).toBe("tiles/features/base/rock.png");
     expect(tile.appearanceTint).toEqual({ color: "#ff0000", opacity: 0.5 });
+    expect(tile.overlayTint).toEqual({ color: "#0000ff", opacity: 0.2 });
     expect(tile.featureTint).toEqual({ color: "#00ff00", opacity: 0.3 });
     expect(tile.appearanceRotation).toBe(90);
     expect(tile.appearanceFlip).toBe(true);
+    expect(tile.overlayRotation).toBe(270);
+    expect(tile.overlayFlip).toBe(true);
     expect(tile.featureRotation).toBe(180);
     expect(tile.featureFlip).toBe(true);
   });
@@ -62,11 +70,15 @@ describe("gmPaintTile", () => {
       tileName: "Named",
       baseColor: "#fff",
       appearanceKey: "key",
+      overlayKey: "overlay-key",
       featureKey: "feature-key",
       appearanceTint: { color: "#ff0000", opacity: 0.5 },
+      overlayTint: { color: "#00aaff", opacity: 0.4 },
       featureTint: { color: "#00ff00", opacity: 0.5 },
       appearanceRotation: 180,
       appearanceFlip: true,
+      overlayRotation: 90,
+      overlayFlip: true,
       featureRotation: 90,
       featureFlip: true,
     });
@@ -77,11 +89,15 @@ describe("gmPaintTile", () => {
       tileName: "",
       baseColor: null,
       appearanceKey: null,
+      overlayKey: null,
       featureKey: null,
       appearanceTint: null,
+      overlayTint: null,
       featureTint: null,
       appearanceRotation: null,
       appearanceFlip: null,
+      overlayRotation: null,
+      overlayFlip: null,
       featureRotation: null,
       featureFlip: null,
     });
@@ -89,11 +105,15 @@ describe("gmPaintTile", () => {
     expect(tile.name).toBeUndefined();
     expect(tile.baseColor).toBeUndefined();
     expect(tile.appearanceKey).toBeUndefined();
+    expect(tile.overlayKey).toBeUndefined();
     expect(tile.featureKey).toBeUndefined();
     expect(tile.appearanceTint).toBeUndefined();
+    expect(tile.overlayTint).toBeUndefined();
     expect(tile.featureTint).toBeUndefined();
     expect(tile.appearanceRotation).toBeUndefined();
     expect(tile.appearanceFlip).toBeUndefined();
+    expect(tile.overlayRotation).toBeUndefined();
+    expect(tile.overlayFlip).toBeUndefined();
     expect(tile.featureRotation).toBeUndefined();
     expect(tile.featureFlip).toBeUndefined();
   });

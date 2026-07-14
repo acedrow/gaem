@@ -52,9 +52,12 @@ export type PersistedGmTools = {
   paintbrushObstacleHp: number;
   paintbrushBaseColor: string | null;
   paintbrushAppearanceTint: TileColorTint | null;
+  paintbrushOverlayTint: TileColorTint | null;
   paintbrushFeatureTint: TileColorTint | null;
   paintbrushAppearanceKey: string | null | undefined;
   paintbrushAppearanceSetId: string;
+  paintbrushOverlayKey: string | null | undefined;
+  paintbrushOverlaySetId: string;
   paintbrushFeatureKey: string | null | undefined;
   paintbrushFeatureSetId: string;
   paintbrushImageRotation: TileImageRotation;
@@ -67,8 +70,10 @@ export type PersistedGmTools = {
   paintbrushEnableName: boolean;
   paintbrushEnableColor: boolean;
   paintbrushEnableAppearance: boolean;
+  paintbrushEnableOverlay: boolean;
   paintbrushEnableFeature: boolean;
   paintbrushEnableAppearanceTint: boolean;
+  paintbrushEnableOverlayTint: boolean;
   paintbrushEnableFeatureTint: boolean;
   paintbrushEnableRotation: boolean;
   paintbrushEnableFlip: boolean;
@@ -116,9 +121,12 @@ export const DEFAULT_GM_TOOLS: PersistedGmTools = {
   paintbrushObstacleHp: DEFAULT_OBSTACLE_HP,
   paintbrushBaseColor: null,
   paintbrushAppearanceTint: null,
+  paintbrushOverlayTint: null,
   paintbrushFeatureTint: null,
   paintbrushAppearanceKey: undefined,
   paintbrushAppearanceSetId: "basic",
+  paintbrushOverlayKey: undefined,
+  paintbrushOverlaySetId: "stain",
   paintbrushFeatureKey: undefined,
   paintbrushFeatureSetId: "base",
   paintbrushImageRotation: 0,
@@ -131,8 +139,10 @@ export const DEFAULT_GM_TOOLS: PersistedGmTools = {
   paintbrushEnableName: true,
   paintbrushEnableColor: true,
   paintbrushEnableAppearance: true,
+  paintbrushEnableOverlay: true,
   paintbrushEnableFeature: true,
   paintbrushEnableAppearanceTint: false,
+  paintbrushEnableOverlayTint: false,
   paintbrushEnableFeatureTint: false,
   paintbrushEnableRotation: false,
   paintbrushEnableFlip: false,
@@ -257,6 +267,10 @@ export function parsePersistedGmTools(raw: unknown): PersistedGmTools {
     g.paintbrushAppearanceTint === null
       ? null
       : (parseTileColorTint(g.paintbrushAppearanceTint) ?? DEFAULT_GM_TOOLS.paintbrushAppearanceTint);
+  const paintbrushOverlayTint =
+    g.paintbrushOverlayTint === null
+      ? null
+      : (parseTileColorTint(g.paintbrushOverlayTint) ?? DEFAULT_GM_TOOLS.paintbrushOverlayTint);
   const paintbrushFeatureTint =
     g.paintbrushFeatureTint === null
       ? null
@@ -265,6 +279,10 @@ export function parsePersistedGmTools(raw: unknown): PersistedGmTools {
     typeof g.paintbrushAppearanceSetId === "string" && g.paintbrushAppearanceSetId.length > 0
       ? g.paintbrushAppearanceSetId
       : DEFAULT_GM_TOOLS.paintbrushAppearanceSetId;
+  const paintbrushOverlaySetId =
+    typeof g.paintbrushOverlaySetId === "string" && g.paintbrushOverlaySetId.length > 0
+      ? g.paintbrushOverlaySetId
+      : DEFAULT_GM_TOOLS.paintbrushOverlaySetId;
   const paintbrushFeatureSetId =
     typeof g.paintbrushFeatureSetId === "string" && g.paintbrushFeatureSetId.length > 0
       ? g.paintbrushFeatureSetId
@@ -289,9 +307,12 @@ export function parsePersistedGmTools(raw: unknown): PersistedGmTools {
     paintbrushObstacleHp,
     paintbrushBaseColor,
     paintbrushAppearanceTint,
+    paintbrushOverlayTint,
     paintbrushFeatureTint,
     paintbrushAppearanceKey: parseOptionalStringKey(g.paintbrushAppearanceKey),
     paintbrushAppearanceSetId,
+    paintbrushOverlayKey: parseOptionalStringKey(g.paintbrushOverlayKey),
+    paintbrushOverlaySetId,
     paintbrushFeatureKey: parseOptionalStringKey(g.paintbrushFeatureKey),
     paintbrushFeatureSetId,
     paintbrushImageRotation,
@@ -304,8 +325,10 @@ export function parsePersistedGmTools(raw: unknown): PersistedGmTools {
     paintbrushEnableName: g.paintbrushEnableName !== false,
     paintbrushEnableColor: g.paintbrushEnableColor !== false,
     paintbrushEnableAppearance: g.paintbrushEnableAppearance !== false,
+    paintbrushEnableOverlay: g.paintbrushEnableOverlay !== false,
     paintbrushEnableFeature: g.paintbrushEnableFeature !== false,
     paintbrushEnableAppearanceTint: g.paintbrushEnableAppearanceTint === true,
+    paintbrushEnableOverlayTint: g.paintbrushEnableOverlayTint === true,
     paintbrushEnableFeatureTint: g.paintbrushEnableFeatureTint === true,
     paintbrushEnableRotation: g.paintbrushEnableRotation === true,
     paintbrushEnableFlip: g.paintbrushEnableFlip === true,

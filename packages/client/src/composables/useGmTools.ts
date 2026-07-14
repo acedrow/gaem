@@ -30,6 +30,15 @@ import {
   resolveFeatureKeyForPaint,
   setIdFromFeatureKey,
 } from "../lib/bundledTileFeatures.js";
+import {
+  BUNDLED_TILE_OVERLAY_SETS,
+  bundledTileOverlayUrl,
+  galleryEntriesForOverlaySet,
+  isBundledTileOverlayKey,
+  isOverlayGroupKey,
+  resolveOverlayKeyForPaint,
+  setIdFromOverlayKey,
+} from "../lib/bundledTileOverlays.js";
 import { useApi } from "./useApi.js";
 import { useBoardActionMode } from "./useBoardActionMode.js";
 import { useEnemySpawnSelection } from "./useEnemySpawnSelection.js";
@@ -65,10 +74,14 @@ const paintbrushTileName = ref(persistedGm.paintbrushTileName);
 const paintbrushObstacleHp = ref(persistedGm.paintbrushObstacleHp);
 const paintbrushBaseColor = ref<string | null>(persistedGm.paintbrushBaseColor);
 const paintbrushAppearanceTint = ref<TileColorTint | null>(persistedGm.paintbrushAppearanceTint);
+const paintbrushOverlayTint = ref<TileColorTint | null>(persistedGm.paintbrushOverlayTint);
 const paintbrushFeatureTint = ref<TileColorTint | null>(persistedGm.paintbrushFeatureTint);
 const paintbrushAppearanceKey = ref<string | null | undefined>(persistedGm.paintbrushAppearanceKey);
 const paintbrushAppearancePreviewUrl = ref<string | null>(null);
 const paintbrushAppearanceSetId = ref(persistedGm.paintbrushAppearanceSetId);
+const paintbrushOverlayKey = ref<string | null | undefined>(persistedGm.paintbrushOverlayKey);
+const paintbrushOverlayPreviewUrl = ref<string | null>(null);
+const paintbrushOverlaySetId = ref(persistedGm.paintbrushOverlaySetId);
 const paintbrushFeatureKey = ref<string | null | undefined>(persistedGm.paintbrushFeatureKey);
 const paintbrushFeaturePreviewUrl = ref<string | null>(null);
 const paintbrushFeatureSetId = ref(persistedGm.paintbrushFeatureSetId);
@@ -79,8 +92,10 @@ const paintbrushEnableObstacleHp = ref(persistedGm.paintbrushEnableObstacleHp);
 const paintbrushEnableName = ref(persistedGm.paintbrushEnableName);
 const paintbrushEnableColor = ref(persistedGm.paintbrushEnableColor);
 const paintbrushEnableAppearance = ref(persistedGm.paintbrushEnableAppearance);
+const paintbrushEnableOverlay = ref(persistedGm.paintbrushEnableOverlay);
 const paintbrushEnableFeature = ref(persistedGm.paintbrushEnableFeature);
 const paintbrushEnableAppearanceTint = ref(persistedGm.paintbrushEnableAppearanceTint);
+const paintbrushEnableOverlayTint = ref(persistedGm.paintbrushEnableOverlayTint);
 const paintbrushEnableFeatureTint = ref(persistedGm.paintbrushEnableFeatureTint);
 const paintbrushImageRotation = ref<TileImageRotation>(persistedGm.paintbrushImageRotation);
 const paintbrushImageFlip = ref(persistedGm.paintbrushImageFlip);
@@ -90,15 +105,15 @@ const paintbrushAutoRotate = ref(persistedGm.paintbrushAutoRotate);
 const paintbrushPresets = ref<Record<string, TilePaintPreset>>({});
 const paintbrushPresetLoadId = ref("");
 const paintbrushPresetError = ref("");
-const paintbrushAppearanceUploading = ref(false);
-const paintbrushFeatureUploading = ref(false);
 const paintbrushEyedropperActive = ref(false);
 const paintbrushSuppressPreviewKey = ref<string | null>(null);
 
 type PendingTilePlacement = {
   brushAppearance: string | null | undefined;
+  brushOverlay: string | null | undefined;
   brushFeature: string | null | undefined;
   appearanceKey: string | null | undefined;
+  overlayKey: string | null | undefined;
   featureKey: string | null | undefined;
   imageRotation: TileImageRotation | undefined;
 };
@@ -128,9 +143,12 @@ export function snapshotGmTools(): PersistedGmTools {
     paintbrushObstacleHp: paintbrushObstacleHp.value,
     paintbrushBaseColor: paintbrushBaseColor.value,
     paintbrushAppearanceTint: paintbrushAppearanceTint.value,
+    paintbrushOverlayTint: paintbrushOverlayTint.value,
     paintbrushFeatureTint: paintbrushFeatureTint.value,
     paintbrushAppearanceKey: paintbrushAppearanceKey.value,
     paintbrushAppearanceSetId: paintbrushAppearanceSetId.value,
+    paintbrushOverlayKey: paintbrushOverlayKey.value,
+    paintbrushOverlaySetId: paintbrushOverlaySetId.value,
     paintbrushFeatureKey: paintbrushFeatureKey.value,
     paintbrushFeatureSetId: paintbrushFeatureSetId.value,
     paintbrushImageRotation: paintbrushImageRotation.value,
@@ -143,8 +161,10 @@ export function snapshotGmTools(): PersistedGmTools {
     paintbrushEnableName: paintbrushEnableName.value,
     paintbrushEnableColor: paintbrushEnableColor.value,
     paintbrushEnableAppearance: paintbrushEnableAppearance.value,
+    paintbrushEnableOverlay: paintbrushEnableOverlay.value,
     paintbrushEnableFeature: paintbrushEnableFeature.value,
     paintbrushEnableAppearanceTint: paintbrushEnableAppearanceTint.value,
+    paintbrushEnableOverlayTint: paintbrushEnableOverlayTint.value,
     paintbrushEnableFeatureTint: paintbrushEnableFeatureTint.value,
     paintbrushEnableRotation: paintbrushEnableRotation.value,
     paintbrushEnableFlip: paintbrushEnableFlip.value,
@@ -165,9 +185,12 @@ export const gmToolsWatchSources = [
   paintbrushObstacleHp,
   paintbrushBaseColor,
   paintbrushAppearanceTint,
+  paintbrushOverlayTint,
   paintbrushFeatureTint,
   paintbrushAppearanceKey,
   paintbrushAppearanceSetId,
+  paintbrushOverlayKey,
+  paintbrushOverlaySetId,
   paintbrushFeatureKey,
   paintbrushFeatureSetId,
   paintbrushImageRotation,
@@ -180,8 +203,10 @@ export const gmToolsWatchSources = [
   paintbrushEnableName,
   paintbrushEnableColor,
   paintbrushEnableAppearance,
+  paintbrushEnableOverlay,
   paintbrushEnableFeature,
   paintbrushEnableAppearanceTint,
+  paintbrushEnableOverlayTint,
   paintbrushEnableFeatureTint,
   paintbrushEnableRotation,
   paintbrushEnableFlip,
@@ -211,9 +236,12 @@ export function applyPersistedGmTools(gm: PersistedGmTools) {
   paintbrushObstacleHp.value = gm.paintbrushObstacleHp;
   paintbrushBaseColor.value = gm.paintbrushBaseColor;
   paintbrushAppearanceTint.value = gm.paintbrushAppearanceTint;
+  paintbrushOverlayTint.value = gm.paintbrushOverlayTint;
   paintbrushFeatureTint.value = gm.paintbrushFeatureTint;
   paintbrushAppearanceKey.value = gm.paintbrushAppearanceKey;
   paintbrushAppearanceSetId.value = gm.paintbrushAppearanceSetId;
+  paintbrushOverlayKey.value = gm.paintbrushOverlayKey;
+  paintbrushOverlaySetId.value = gm.paintbrushOverlaySetId;
   paintbrushFeatureKey.value = gm.paintbrushFeatureKey;
   paintbrushFeatureSetId.value = gm.paintbrushFeatureSetId;
   paintbrushImageRotation.value = gm.paintbrushImageRotation;
@@ -226,8 +254,10 @@ export function applyPersistedGmTools(gm: PersistedGmTools) {
   paintbrushEnableName.value = gm.paintbrushEnableName;
   paintbrushEnableColor.value = gm.paintbrushEnableColor;
   paintbrushEnableAppearance.value = gm.paintbrushEnableAppearance;
+  paintbrushEnableOverlay.value = gm.paintbrushEnableOverlay;
   paintbrushEnableFeature.value = gm.paintbrushEnableFeature;
   paintbrushEnableAppearanceTint.value = gm.paintbrushEnableAppearanceTint;
+  paintbrushEnableOverlayTint.value = gm.paintbrushEnableOverlayTint;
   paintbrushEnableFeatureTint.value = gm.paintbrushEnableFeatureTint;
   paintbrushEnableRotation.value = gm.paintbrushEnableRotation;
   paintbrushEnableFlip.value = gm.paintbrushEnableFlip;
@@ -242,7 +272,6 @@ export function useGmTools() {
     fetchTilePresets,
     saveTilePreset,
     deleteTilePreset,
-    uploadTileAppearance,
     fetchTileAppearanceUrl,
   } = useApi();
 
@@ -261,6 +290,10 @@ export function useGmTools() {
     galleryEntriesForSet(paintbrushAppearanceSetId.value),
   );
 
+  const bundledTileOverlaysForSet = computed(() =>
+    galleryEntriesForOverlaySet(paintbrushOverlaySetId.value),
+  );
+
   const bundledTileFeaturesForSet = computed(() =>
     galleryEntriesForFeatureSet(paintbrushFeatureSetId.value),
   );
@@ -269,6 +302,12 @@ export function useGmTools() {
     if (!key) return;
     const setId = setIdFromAppearanceKey(key);
     if (setId) paintbrushAppearanceSetId.value = setId;
+  }
+
+  function syncPaintbrushOverlaySetFromKey(key: string | null | undefined) {
+    if (!key) return;
+    const setId = setIdFromOverlayKey(key);
+    if (setId) paintbrushOverlaySetId.value = setId;
   }
 
   function syncPaintbrushFeatureSetFromKey(key: string | null | undefined) {
@@ -296,7 +335,13 @@ export function useGmTools() {
   });
 
   watch(
-    [paintbrushAppearanceKey, paintbrushFeatureKey, paintbrushAutoRotate, paintbrushEnableRotation],
+    [
+      paintbrushAppearanceKey,
+      paintbrushOverlayKey,
+      paintbrushFeatureKey,
+      paintbrushAutoRotate,
+      paintbrushEnableRotation,
+    ],
     clearPendingTilePlacements,
   );
 
@@ -327,11 +372,15 @@ export function useGmTools() {
       ...(terrain === "obstacle" ? { obstacleHp: getObstacleHp(tile) } : {}),
       ...(tile.baseColor ? { baseColor: tile.baseColor } : {}),
       ...(tile.appearanceKey ? { appearanceKey: tile.appearanceKey } : {}),
+      ...(tile.overlayKey ? { overlayKey: tile.overlayKey } : {}),
       ...(tile.featureKey ? { featureKey: tile.featureKey } : {}),
       ...(tile.appearanceTint ? { appearanceTint: { ...tile.appearanceTint } } : {}),
+      ...(tile.overlayTint ? { overlayTint: { ...tile.overlayTint } } : {}),
       ...(tile.featureTint ? { featureTint: { ...tile.featureTint } } : {}),
       ...(tile.appearanceRotation ? { appearanceRotation: tile.appearanceRotation } : {}),
       ...(tile.appearanceFlip ? { appearanceFlip: true } : {}),
+      ...(tile.overlayRotation ? { overlayRotation: tile.overlayRotation } : {}),
+      ...(tile.overlayFlip ? { overlayFlip: true } : {}),
       ...(tile.featureRotation ? { featureRotation: tile.featureRotation } : {}),
       ...(tile.featureFlip ? { featureFlip: true } : {}),
     };
@@ -454,10 +503,30 @@ export function useGmTools() {
     });
   }
 
+  function clearPaintbrushOverlayPreview() {
+    const url = paintbrushOverlayPreviewUrl.value;
+    if (url?.startsWith("blob:")) URL.revokeObjectURL(url);
+    paintbrushOverlayPreviewUrl.value = null;
+  }
+
+  function setPaintbrushOverlayPreview(key: string) {
+    clearPaintbrushOverlayPreview();
+    if (isBundledTileOverlayKey(key)) {
+      paintbrushOverlayPreviewUrl.value = bundledTileOverlayUrl(key);
+      return;
+    }
+    void fetchTileAppearanceUrl(key).then((url) => {
+      if (url) paintbrushOverlayPreviewUrl.value = url;
+    });
+  }
+
   syncPaintbrushPreviewsFromKeys = () => {
     const appearance = paintbrushAppearanceKey.value;
     if (typeof appearance === "string") setPaintbrushAppearancePreview(appearance);
     else clearPaintbrushAppearancePreview();
+    const overlay = paintbrushOverlayKey.value;
+    if (typeof overlay === "string") setPaintbrushOverlayPreview(overlay);
+    else clearPaintbrushOverlayPreview();
     const feature = paintbrushFeatureKey.value;
     if (typeof feature === "string") setPaintbrushFeaturePreview(feature);
     else clearPaintbrushFeaturePreview();
@@ -473,14 +542,18 @@ export function useGmTools() {
     paintbrushObstacleHp.value = DEFAULT_OBSTACLE_HP;
     paintbrushBaseColor.value = null;
     paintbrushAppearanceTint.value = null;
+    paintbrushOverlayTint.value = null;
     paintbrushFeatureTint.value = null;
     paintbrushAppearanceKey.value = undefined;
     clearPaintbrushAppearancePreview();
+    paintbrushOverlayKey.value = undefined;
+    clearPaintbrushOverlayPreview();
     paintbrushFeatureKey.value = undefined;
     clearPaintbrushFeaturePreview();
     paintbrushImageRotation.value = 0;
     paintbrushImageFlip.value = false;
     paintbrushEnableAppearanceTint.value = false;
+    paintbrushEnableOverlayTint.value = false;
     paintbrushEnableFeatureTint.value = false;
     paintbrushEnableRotation.value = false;
     paintbrushEnableFlip.value = false;
@@ -501,10 +574,12 @@ export function useGmTools() {
         : {}),
       ...(paintbrushBaseColor.value ? { baseColor: paintbrushBaseColor.value } : {}),
       ...(paintbrushAppearanceKey.value ? { appearanceKey: paintbrushAppearanceKey.value } : {}),
+      ...(paintbrushOverlayKey.value ? { overlayKey: paintbrushOverlayKey.value } : {}),
       ...(paintbrushFeatureKey.value ? { featureKey: paintbrushFeatureKey.value } : {}),
       ...(paintbrushAppearanceTint.value
         ? { appearanceTint: { ...paintbrushAppearanceTint.value } }
         : {}),
+      ...(paintbrushOverlayTint.value ? { overlayTint: { ...paintbrushOverlayTint.value } } : {}),
       ...(paintbrushFeatureTint.value ? { featureTint: { ...paintbrushFeatureTint.value } } : {}),
       ...(paintbrushAppearanceKey.value && paintbrushImageRotation.value
         ? { appearanceRotation: paintbrushImageRotation.value }
@@ -512,6 +587,10 @@ export function useGmTools() {
       ...(paintbrushAppearanceKey.value && paintbrushImageFlip.value
         ? { appearanceFlip: true }
         : {}),
+      ...(paintbrushOverlayKey.value && paintbrushImageRotation.value
+        ? { overlayRotation: paintbrushImageRotation.value }
+        : {}),
+      ...(paintbrushOverlayKey.value && paintbrushImageFlip.value ? { overlayFlip: true } : {}),
       ...(paintbrushFeatureKey.value && paintbrushImageRotation.value
         ? { featureRotation: paintbrushImageRotation.value }
         : {}),
@@ -533,24 +612,39 @@ export function useGmTools() {
     paintbrushAppearanceTint.value = preset.appearanceTint
       ? { ...preset.appearanceTint }
       : null;
+    paintbrushOverlayTint.value = preset.overlayTint ? { ...preset.overlayTint } : null;
     paintbrushFeatureTint.value = preset.featureTint ? { ...preset.featureTint } : null;
     paintbrushAppearanceKey.value = preset.appearanceKey ?? null;
     syncPaintbrushAppearanceSetFromKey(preset.appearanceKey);
     if (preset.appearanceKey) setPaintbrushAppearancePreview(preset.appearanceKey);
     else clearPaintbrushAppearancePreview();
+    paintbrushOverlayKey.value = preset.overlayKey ?? null;
+    syncPaintbrushOverlaySetFromKey(preset.overlayKey);
+    if (preset.overlayKey) setPaintbrushOverlayPreview(preset.overlayKey);
+    else clearPaintbrushOverlayPreview();
     paintbrushFeatureKey.value = preset.featureKey ?? null;
     syncPaintbrushFeatureSetFromKey(preset.featureKey);
     if (preset.featureKey) setPaintbrushFeaturePreview(preset.featureKey);
     else clearPaintbrushFeaturePreview();
     paintbrushImageRotation.value =
-      preset.appearanceRotation ?? preset.featureRotation ?? 0;
-    paintbrushImageFlip.value = !!(preset.appearanceFlip || preset.featureFlip);
+      preset.appearanceRotation ?? preset.overlayRotation ?? preset.featureRotation ?? 0;
+    paintbrushImageFlip.value = !!(
+      preset.appearanceFlip ||
+      preset.overlayFlip ||
+      preset.featureFlip
+    );
   }
 
   function selectBundledPaintbrushAppearance(key: string) {
     paintbrushAppearanceKey.value = key;
     syncPaintbrushAppearanceSetFromKey(key);
     setPaintbrushAppearancePreview(key);
+  }
+
+  function selectBundledPaintbrushOverlay(key: string) {
+    paintbrushOverlayKey.value = key;
+    syncPaintbrushOverlaySetFromKey(key);
+    setPaintbrushOverlayPreview(key);
   }
 
   function selectBundledPaintbrushFeature(key: string) {
@@ -594,51 +688,14 @@ export function useGmTools() {
     paintbrushPresetLoadId.value = "";
   }
 
-  async function uploadPaintbrushAppearance(file: File) {
-    if (file.type !== "image/png") {
-      paintbrushPresetError.value = "Appearance must be a PNG file";
-      return;
-    }
-    paintbrushAppearanceUploading.value = true;
-    paintbrushPresetError.value = "";
-    try {
-      const key = await uploadTileAppearance(file);
-      if (!key) {
-        paintbrushPresetError.value = "Failed to upload appearance";
-        return;
-      }
-      paintbrushAppearanceKey.value = key;
-      clearPaintbrushAppearancePreview();
-      paintbrushAppearancePreviewUrl.value = URL.createObjectURL(file);
-    } finally {
-      paintbrushAppearanceUploading.value = false;
-    }
-  }
-
-  async function uploadPaintbrushFeature(file: File) {
-    if (file.type !== "image/png") {
-      paintbrushPresetError.value = "Feature must be a PNG file";
-      return;
-    }
-    paintbrushFeatureUploading.value = true;
-    paintbrushPresetError.value = "";
-    try {
-      const key = await uploadTileAppearance(file);
-      if (!key) {
-        paintbrushPresetError.value = "Failed to upload feature";
-        return;
-      }
-      paintbrushFeatureKey.value = key;
-      clearPaintbrushFeaturePreview();
-      paintbrushFeaturePreviewUrl.value = URL.createObjectURL(file);
-    } finally {
-      paintbrushFeatureUploading.value = false;
-    }
-  }
-
   function clearPaintbrushAppearance() {
     paintbrushAppearanceKey.value = null;
     clearPaintbrushAppearancePreview();
+  }
+
+  function clearPaintbrushOverlay() {
+    paintbrushOverlayKey.value = null;
+    clearPaintbrushOverlayPreview();
   }
 
   function clearPaintbrushFeature() {
@@ -654,8 +711,10 @@ export function useGmTools() {
     paintbrushEnableName.value = enabled;
     paintbrushEnableColor.value = enabled;
     paintbrushEnableAppearance.value = enabled;
+    paintbrushEnableOverlay.value = enabled;
     paintbrushEnableFeature.value = enabled;
     paintbrushEnableAppearanceTint.value = enabled;
+    paintbrushEnableOverlayTint.value = enabled;
     paintbrushEnableFeatureTint.value = enabled;
     paintbrushEnableRotation.value = enabled;
     paintbrushEnableFlip.value = enabled;
@@ -688,8 +747,11 @@ export function useGmTools() {
     const brushAppearance = paintbrushEnableAppearance.value
       ? paintbrushAppearanceKey.value
       : undefined;
-    // Enabled + no selection clears existing features (null), unlike appearance which
+    // Enabled + no selection clears existing overlays/features (null), unlike appearance which
     // leaves the tile unchanged when unset (undefined).
+    const brushOverlay = paintbrushEnableOverlay.value
+      ? (paintbrushOverlayKey.value ?? null)
+      : undefined;
     const brushFeature = paintbrushEnableFeature.value
       ? (paintbrushFeatureKey.value ?? null)
       : undefined;
@@ -698,6 +760,7 @@ export function useGmTools() {
     if (
       existing &&
       existing.brushAppearance === brushAppearance &&
+      existing.brushOverlay === brushOverlay &&
       existing.brushFeature === brushFeature &&
       (existing.imageRotation !== undefined) === autoRotate
     ) {
@@ -705,11 +768,14 @@ export function useGmTools() {
     }
     const placement: PendingTilePlacement = {
       brushAppearance,
+      brushOverlay,
       brushFeature,
       appearanceKey:
         brushAppearance !== undefined
           ? resolveAppearanceKeyForPaint(brushAppearance)
           : undefined,
+      overlayKey:
+        brushOverlay !== undefined ? resolveOverlayKeyForPaint(brushOverlay) : undefined,
       featureKey:
         brushFeature !== undefined ? resolveFeatureKeyForPaint(brushFeature) : undefined,
       imageRotation: autoRotate
@@ -732,19 +798,23 @@ export function useGmTools() {
 
     function urlForKey(key: string | null | undefined): string | null {
       if (!key) return null;
+      if (isBundledTileOverlayKey(key)) return bundledTileOverlayUrl(key);
       if (isBundledTileFeatureKey(key)) return bundledTileFeatureUrl(key);
       if (isBundledTileAppearanceKey(key)) return bundledTileAppearanceUrl(key);
       if (key.startsWith("tiles/")) return `/${key}`;
       if (key === paintbrushAppearanceKey.value) return paintbrushAppearancePreviewUrl.value;
+      if (key === paintbrushOverlayKey.value) return paintbrushOverlayPreviewUrl.value;
       if (key === paintbrushFeatureKey.value) return paintbrushFeaturePreviewUrl.value;
       return null;
     }
 
     return {
       appearanceKey: placement.appearanceKey,
+      overlayKey: placement.overlayKey,
       featureKey: placement.featureKey,
       appearanceUrl:
         placement.appearanceKey !== undefined ? urlForKey(placement.appearanceKey) : null,
+      overlayUrl: placement.overlayKey !== undefined ? urlForKey(placement.overlayKey) : null,
       featureUrl: placement.featureKey !== undefined ? urlForKey(placement.featureKey) : null,
       imageRotation: placement.imageRotation,
     };
@@ -758,6 +828,7 @@ export function useGmTools() {
         : [{ x, y }];
     const autoRotate = paintbrushEnableRotation.value && paintbrushAutoRotate.value;
     const paintAppearance = paintbrushEnableAppearance.value;
+    const paintOverlay = paintbrushEnableOverlay.value;
     const paintFeature = paintbrushEnableFeature.value;
     const rotateOn = paintbrushEnableRotation.value;
     const flipOn = paintbrushEnableFlip.value;
@@ -772,9 +843,12 @@ export function useGmTools() {
       obstacleHp?: number;
       baseColor?: string | null;
       appearanceTint?: TileColorTint | null;
+      overlayTint?: TileColorTint | null;
       featureTint?: TileColorTint | null;
       appearanceRotation?: TileImageRotation | null;
       appearanceFlip?: boolean | null;
+      overlayRotation?: TileImageRotation | null;
+      overlayFlip?: boolean | null;
       featureRotation?: TileImageRotation | null;
       featureFlip?: boolean | null;
     } = {};
@@ -794,21 +868,27 @@ export function useGmTools() {
     if (paintbrushEnableAppearanceTint.value) {
       shared.appearanceTint = paintbrushAppearanceTint.value;
     }
+    if (paintbrushEnableOverlayTint.value) {
+      shared.overlayTint = paintbrushOverlayTint.value;
+    }
     if (paintbrushEnableFeatureTint.value) {
       shared.featureTint = paintbrushFeatureTint.value;
     }
     if (rotateOn && !autoRotate) {
       if (paintAppearance) shared.appearanceRotation = brushRotation;
+      if (paintOverlay) shared.overlayRotation = brushRotation;
       if (paintFeature) shared.featureRotation = brushRotation;
     }
     if (flipOn) {
       if (paintAppearance) shared.appearanceFlip = brushFlip;
+      if (paintOverlay) shared.overlayFlip = brushFlip;
       if (paintFeature) shared.featureFlip = brushFlip;
     }
 
     const brushAppearance = paintAppearance ? paintbrushAppearanceKey.value : undefined;
-    // Enabled + no selection clears existing features (null), unlike appearance which
+    // Enabled + no selection clears existing overlays/features (null), unlike appearance which
     // leaves the tile unchanged when unset (undefined).
+    const brushOverlay = paintOverlay ? (paintbrushOverlayKey.value ?? null) : undefined;
     const brushFeature = paintFeature ? (paintbrushFeatureKey.value ?? null) : undefined;
 
     if (
@@ -819,12 +899,16 @@ export function useGmTools() {
       shared.obstacleHp === undefined &&
       shared.baseColor === undefined &&
       shared.appearanceTint === undefined &&
+      shared.overlayTint === undefined &&
       shared.featureTint === undefined &&
       shared.appearanceRotation === undefined &&
       shared.appearanceFlip === undefined &&
+      shared.overlayRotation === undefined &&
+      shared.overlayFlip === undefined &&
       shared.featureRotation === undefined &&
       shared.featureFlip === undefined &&
       brushAppearance === undefined &&
+      brushOverlay === undefined &&
       brushFeature === undefined
     ) {
       return;
@@ -835,6 +919,7 @@ export function useGmTools() {
       (brushAppearance !== undefined &&
         brushAppearance !== null &&
         isAppearanceGroupKey(brushAppearance)) ||
+      (brushOverlay !== undefined && brushOverlay !== null && isOverlayGroupKey(brushOverlay)) ||
       (brushFeature !== undefined && brushFeature !== null && isFeatureGroupKey(brushFeature));
 
     // Per-tile resolve (groups + auto-rotate + any cell with a pending hover pick) so preview matches paint.
@@ -849,8 +934,10 @@ export function useGmTools() {
           ...(placement.appearanceKey !== undefined
             ? { appearanceKey: placement.appearanceKey }
             : {}),
+          ...(placement.overlayKey !== undefined ? { overlayKey: placement.overlayKey } : {}),
           ...(placement.featureKey !== undefined ? { featureKey: placement.featureKey } : {}),
           ...(autoRotate && paintAppearance ? { appearanceRotation: rotation } : {}),
+          ...(autoRotate && paintOverlay ? { overlayRotation: rotation } : {}),
           ...(autoRotate && paintFeature ? { featureRotation: rotation } : {}),
         });
       }
@@ -864,6 +951,9 @@ export function useGmTools() {
       ...shared,
       ...(brushAppearance !== undefined
         ? { appearanceKey: resolveAppearanceKeyForPaint(brushAppearance) }
+        : {}),
+      ...(brushOverlay !== undefined
+        ? { overlayKey: resolveOverlayKeyForPaint(brushOverlay) }
         : {}),
       ...(brushFeature !== undefined
         ? { featureKey: resolveFeatureKeyForPaint(brushFeature) }
@@ -888,10 +978,14 @@ export function useGmTools() {
     paintbrushObstacleHp,
     paintbrushBaseColor,
     paintbrushAppearanceTint,
+    paintbrushOverlayTint,
     paintbrushFeatureTint,
     paintbrushAppearanceKey,
     paintbrushAppearancePreviewUrl,
     paintbrushAppearanceSetId,
+    paintbrushOverlayKey,
+    paintbrushOverlayPreviewUrl,
+    paintbrushOverlaySetId,
     paintbrushFeatureKey,
     paintbrushFeaturePreviewUrl,
     paintbrushFeatureSetId,
@@ -905,8 +999,10 @@ export function useGmTools() {
     paintbrushEnableName,
     paintbrushEnableColor,
     paintbrushEnableAppearance,
+    paintbrushEnableOverlay,
     paintbrushEnableFeature,
     paintbrushEnableAppearanceTint,
+    paintbrushEnableOverlayTint,
     paintbrushEnableFeatureTint,
     paintbrushEnableRotation,
     paintbrushEnableFlip,
@@ -915,8 +1011,6 @@ export function useGmTools() {
     paintbrushPresetLoadId,
     paintbrushPresetNames,
     paintbrushPresetError,
-    paintbrushAppearanceUploading,
-    paintbrushFeatureUploading,
     paintbrushEyedropperActive,
     setActiveTool,
     setBulkSelection,
@@ -939,14 +1033,16 @@ export function useGmTools() {
     loadSelectedPreset,
     saveCurrentPreset,
     deleteSelectedPreset,
-    uploadPaintbrushAppearance,
     clearPaintbrushAppearance,
     selectBundledPaintbrushAppearance,
-    uploadPaintbrushFeature,
+    clearPaintbrushOverlay,
+    selectBundledPaintbrushOverlay,
     clearPaintbrushFeature,
     selectBundledPaintbrushFeature,
     bundledTileSets: BUNDLED_TILE_SETS,
     bundledTileAppearancesForSet,
+    bundledTileOverlaySets: BUNDLED_TILE_OVERLAY_SETS,
+    bundledTileOverlaysForSet,
     bundledTileFeatureSets: BUNDLED_TILE_FEATURE_SETS,
     bundledTileFeaturesForSet,
     refreshPaintbrushPresets,
