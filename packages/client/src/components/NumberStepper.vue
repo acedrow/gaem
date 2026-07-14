@@ -6,6 +6,7 @@ const props = defineProps<{
   max?: number;
   step?: number;
   disabled?: boolean;
+  compact?: boolean;
   clamp?: (value: number) => number;
   invertButtons?: boolean;
 }>();
@@ -35,7 +36,7 @@ function adjust(delta: number) {
 </script>
 
 <template>
-  <div class="stepper">
+  <div :class="['stepper', { 'stepper--compact': compact }]">
     <button
       type="button"
       class="step-btn"

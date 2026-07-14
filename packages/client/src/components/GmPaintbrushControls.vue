@@ -28,7 +28,6 @@ const {
   paintbrushEnableElevation,
   paintbrushEnableTerrain,
   paintbrushEnableEffect,
-  paintbrushEnableObstacleHp,
   paintbrushEnableName,
   paintbrushEnableColor,
   paintbrushEnableAppearance,
@@ -118,16 +117,10 @@ const featureTintModalOpen = ref(false);
         </option>
       </select>
       <TerrainTypeIcon :terrain-type="paintbrushTerrain" :size="16" />
-    </div>
-    <div v-if="paintbrushTerrain === 'obstacle'" class="control-group">
-      <span class="control-label">Obstacle HP</span>
-      <input
-        v-model="paintbrushEnableObstacleHp"
-        type="checkbox"
-        class="option-enable"
-        aria-label="Enable obstacle HP"
-      />
-      <NumberStepper v-model="paintbrushObstacleHp" :min="1" :max="99" />
+      <template v-if="paintbrushTerrain === 'obstacle'">
+        <span class="inline-label">HP</span>
+        <NumberStepper v-model="paintbrushObstacleHp" compact :min="1" :max="99" />
+      </template>
     </div>
     <div class="control-group effect-group">
       <span class="control-label">Effect</span>
@@ -148,7 +141,7 @@ const featureTintModalOpen = ref(false);
     <div v-if="paintbrushEffectId" class="control-group">
       <span class="control-label">Stacks</span>
       <span class="option-enable-spacer" aria-hidden="true" />
-      <NumberStepper v-model="paintbrushEffectStacks" :min="-99" :max="99" />
+      <NumberStepper v-model="paintbrushEffectStacks" compact :min="-99" :max="99" />
     </div>
 
     <div class="control-group">
@@ -159,7 +152,7 @@ const featureTintModalOpen = ref(false);
         class="option-enable"
         aria-label="Enable elevation"
       />
-      <NumberStepper v-model="paintbrushElevation" :min="-3" :max="3" />
+      <NumberStepper v-model="paintbrushElevation" compact :min="-3" :max="3" />
     </div>
 
     <div class="control-group">
@@ -191,61 +184,62 @@ const featureTintModalOpen = ref(false);
         aria-label="Enable base"
       />
       <div class="appearance-row">
-        <select
-          v-if="bundledTileSets.length"
-          v-model="paintbrushAppearanceSetId"
-          class="effect-select set-select"
-          aria-label="Tile set"
-          @change="openAppearanceGallery"
-        >
-          <option v-for="set in bundledTileSets" :key="set.id" :value="set.id">
-            {{ set.label }}
-          </option>
-        </select>
-        <button
-          v-if="bundledTileAppearancesForSet.length"
-          type="button"
-          class="appearance-thumb-btn"
-          :aria-expanded="appearanceGalleryOpen"
-          aria-haspopup="listbox"
-          aria-label="Choose tile base"
-          @click="toggleAppearanceGallery"
-        >
+        <div class="appearance-row-main">
+          <select
+            v-if="bundledTileSets.length"
+            v-model="paintbrushAppearanceSetId"
+            class="effect-select set-select"
+            aria-label="Tile set"
+            @change="openAppearanceGallery"
+          >
+            <option v-for="set in bundledTileSets" :key="set.id" :value="set.id">
+              {{ set.label }}
+            </option>
+          </select>
+          <button
+            v-if="bundledTileAppearancesForSet.length"
+            type="button"
+            class="appearance-thumb-btn"
+            :aria-expanded="appearanceGalleryOpen"
+            aria-haspopup="listbox"
+            aria-label="Choose tile base"
+            @click="toggleAppearanceGallery"
+          >
+            <img
+              v-if="paintbrushAppearancePreviewUrl"
+              :src="paintbrushAppearancePreviewUrl"
+              alt=""
+              class="appearance-thumb tile-image"
+            />
+            <span v-else class="appearance-thumb-placeholder">—</span>
+          </button>
           <img
-            v-if="paintbrushAppearancePreviewUrl"
+            v-else-if="paintbrushAppearancePreviewUrl"
             :src="paintbrushAppearancePreviewUrl"
             alt=""
             class="appearance-thumb tile-image"
           />
-          <span v-else class="appearance-thumb-placeholder">—</span>
-        </button>
-        <img
-          v-else-if="paintbrushAppearancePreviewUrl"
-          :src="paintbrushAppearancePreviewUrl"
-          alt=""
-          class="appearance-thumb tile-image"
-        />
-        <button type="button" class="mini-btn" @click="clearPaintbrushAppearance">Clear</button>
+          <button type="button" class="mini-btn" @click="clearPaintbrushAppearance">Clear</button>
+        </div>
+        <div class="appearance-tint-row">
+          <span class="inline-label">Tint</span>
+          <input
+            v-model="paintbrushEnableAppearanceTint"
+            type="checkbox"
+            class="option-enable"
+            aria-label="Enable base tint"
+          />
+          <button
+            type="button"
+            class="color-swatch-btn"
+            :style="paintbrushAppearanceTint ? { background: paintbrushAppearanceTint.color } : undefined"
+            aria-label="Base tint"
+            @click="appearanceTintModalOpen = true"
+          >
+            <span v-if="!paintbrushAppearanceTint" class="color-swatch-placeholder">—</span>
+          </button>
+        </div>
       </div>
-    </div>
-
-    <div class="control-group">
-      <span class="control-label">Tint</span>
-      <input
-        v-model="paintbrushEnableAppearanceTint"
-        type="checkbox"
-        class="option-enable"
-        aria-label="Enable base tint"
-      />
-      <button
-        type="button"
-        class="color-swatch-btn"
-        :style="paintbrushAppearanceTint ? { background: paintbrushAppearanceTint.color } : undefined"
-        aria-label="Base tint"
-        @click="appearanceTintModalOpen = true"
-      >
-        <span v-if="!paintbrushAppearanceTint" class="color-swatch-placeholder">—</span>
-      </button>
     </div>
 
     <div class="control-group appearance-group">
@@ -257,61 +251,62 @@ const featureTintModalOpen = ref(false);
         aria-label="Enable overlay"
       />
       <div class="appearance-row">
-        <select
-          v-if="bundledTileOverlaySets.length"
-          v-model="paintbrushOverlaySetId"
-          class="effect-select set-select"
-          aria-label="Overlay set"
-          @change="openOverlayGallery"
-        >
-          <option v-for="set in bundledTileOverlaySets" :key="set.id" :value="set.id">
-            {{ set.label }}
-          </option>
-        </select>
-        <button
-          v-if="bundledTileOverlaysForSet.length"
-          type="button"
-          class="appearance-thumb-btn"
-          :aria-expanded="overlayGalleryOpen"
-          aria-haspopup="listbox"
-          aria-label="Choose tile overlay"
-          @click="toggleOverlayGallery"
-        >
+        <div class="appearance-row-main">
+          <select
+            v-if="bundledTileOverlaySets.length"
+            v-model="paintbrushOverlaySetId"
+            class="effect-select set-select"
+            aria-label="Overlay set"
+            @change="openOverlayGallery"
+          >
+            <option v-for="set in bundledTileOverlaySets" :key="set.id" :value="set.id">
+              {{ set.label }}
+            </option>
+          </select>
+          <button
+            v-if="bundledTileOverlaysForSet.length"
+            type="button"
+            class="appearance-thumb-btn"
+            :aria-expanded="overlayGalleryOpen"
+            aria-haspopup="listbox"
+            aria-label="Choose tile overlay"
+            @click="toggleOverlayGallery"
+          >
+            <img
+              v-if="paintbrushOverlayPreviewUrl"
+              :src="paintbrushOverlayPreviewUrl"
+              alt=""
+              class="appearance-thumb tile-image"
+            />
+            <span v-else class="appearance-thumb-placeholder">—</span>
+          </button>
           <img
-            v-if="paintbrushOverlayPreviewUrl"
+            v-else-if="paintbrushOverlayPreviewUrl"
             :src="paintbrushOverlayPreviewUrl"
             alt=""
             class="appearance-thumb tile-image"
           />
-          <span v-else class="appearance-thumb-placeholder">—</span>
-        </button>
-        <img
-          v-else-if="paintbrushOverlayPreviewUrl"
-          :src="paintbrushOverlayPreviewUrl"
-          alt=""
-          class="appearance-thumb tile-image"
-        />
-        <button type="button" class="mini-btn" @click="clearPaintbrushOverlay">Clear</button>
+          <button type="button" class="mini-btn" @click="clearPaintbrushOverlay">Clear</button>
+        </div>
+        <div class="appearance-tint-row">
+          <span class="inline-label">Tint</span>
+          <input
+            v-model="paintbrushEnableOverlayTint"
+            type="checkbox"
+            class="option-enable"
+            aria-label="Enable overlay tint"
+          />
+          <button
+            type="button"
+            class="color-swatch-btn"
+            :style="paintbrushOverlayTint ? { background: paintbrushOverlayTint.color } : undefined"
+            aria-label="Overlay tint"
+            @click="overlayTintModalOpen = true"
+          >
+            <span v-if="!paintbrushOverlayTint" class="color-swatch-placeholder">—</span>
+          </button>
+        </div>
       </div>
-    </div>
-
-    <div class="control-group">
-      <span class="control-label">Tint</span>
-      <input
-        v-model="paintbrushEnableOverlayTint"
-        type="checkbox"
-        class="option-enable"
-        aria-label="Enable overlay tint"
-      />
-      <button
-        type="button"
-        class="color-swatch-btn"
-        :style="paintbrushOverlayTint ? { background: paintbrushOverlayTint.color } : undefined"
-        aria-label="Overlay tint"
-        @click="overlayTintModalOpen = true"
-      >
-        <span v-if="!paintbrushOverlayTint" class="color-swatch-placeholder">—</span>
-      </button>
     </div>
 
     <div class="control-group appearance-group">
@@ -323,61 +318,62 @@ const featureTintModalOpen = ref(false);
         aria-label="Enable feature"
       />
       <div class="appearance-row">
-        <select
-          v-if="bundledTileFeatureSets.length"
-          v-model="paintbrushFeatureSetId"
-          class="effect-select set-select"
-          aria-label="Feature set"
-          @change="openFeatureGallery"
-        >
-          <option v-for="set in bundledTileFeatureSets" :key="set.id" :value="set.id">
-            {{ set.label }}
-          </option>
-        </select>
-        <button
-          v-if="bundledTileFeaturesForSet.length"
-          type="button"
-          class="appearance-thumb-btn"
-          :aria-expanded="featureGalleryOpen"
-          aria-haspopup="listbox"
-          aria-label="Choose tile feature"
-          @click="toggleFeatureGallery"
-        >
+        <div class="appearance-row-main">
+          <select
+            v-if="bundledTileFeatureSets.length"
+            v-model="paintbrushFeatureSetId"
+            class="effect-select set-select"
+            aria-label="Feature set"
+            @change="openFeatureGallery"
+          >
+            <option v-for="set in bundledTileFeatureSets" :key="set.id" :value="set.id">
+              {{ set.label }}
+            </option>
+          </select>
+          <button
+            v-if="bundledTileFeaturesForSet.length"
+            type="button"
+            class="appearance-thumb-btn"
+            :aria-expanded="featureGalleryOpen"
+            aria-haspopup="listbox"
+            aria-label="Choose tile feature"
+            @click="toggleFeatureGallery"
+          >
+            <img
+              v-if="paintbrushFeaturePreviewUrl"
+              :src="paintbrushFeaturePreviewUrl"
+              alt=""
+              class="appearance-thumb tile-image"
+            />
+            <span v-else class="appearance-thumb-placeholder">—</span>
+          </button>
           <img
-            v-if="paintbrushFeaturePreviewUrl"
+            v-else-if="paintbrushFeaturePreviewUrl"
             :src="paintbrushFeaturePreviewUrl"
             alt=""
             class="appearance-thumb tile-image"
           />
-          <span v-else class="appearance-thumb-placeholder">—</span>
-        </button>
-        <img
-          v-else-if="paintbrushFeaturePreviewUrl"
-          :src="paintbrushFeaturePreviewUrl"
-          alt=""
-          class="appearance-thumb tile-image"
-        />
-        <button type="button" class="mini-btn" @click="clearPaintbrushFeature">Clear</button>
+          <button type="button" class="mini-btn" @click="clearPaintbrushFeature">Clear</button>
+        </div>
+        <div class="appearance-tint-row">
+          <span class="inline-label">Tint</span>
+          <input
+            v-model="paintbrushEnableFeatureTint"
+            type="checkbox"
+            class="option-enable"
+            aria-label="Enable feature tint"
+          />
+          <button
+            type="button"
+            class="color-swatch-btn"
+            :style="paintbrushFeatureTint ? { background: paintbrushFeatureTint.color } : undefined"
+            aria-label="Feature tint"
+            @click="featureTintModalOpen = true"
+          >
+            <span v-if="!paintbrushFeatureTint" class="color-swatch-placeholder">—</span>
+          </button>
+        </div>
       </div>
-    </div>
-
-    <div class="control-group">
-      <span class="control-label">Tint</span>
-      <input
-        v-model="paintbrushEnableFeatureTint"
-        type="checkbox"
-        class="option-enable"
-        aria-label="Enable feature tint"
-      />
-      <button
-        type="button"
-        class="color-swatch-btn"
-        :style="paintbrushFeatureTint ? { background: paintbrushFeatureTint.color } : undefined"
-        aria-label="Feature tint"
-        @click="featureTintModalOpen = true"
-      >
-        <span v-if="!paintbrushFeatureTint" class="color-swatch-placeholder">—</span>
-      </button>
     </div>
 
     <div class="control-group">
@@ -416,7 +412,6 @@ const featureTintModalOpen = ref(false);
 
     <div class="control-group preset-group">
       <span class="control-label">Preset</span>
-      <span class="option-enable-spacer" aria-hidden="true" />
       <div class="preset-controls">
         <select v-model="paintbrushPresetLoadId" class="effect-select">
           <option value="">Load…</option>
@@ -485,7 +480,9 @@ const featureTintModalOpen = ref(false);
 }
 
 .control-label {
-  flex: 0 0 4.5rem;
+  flex: 0 0 5.75rem;
+  width: 5.75rem;
+  min-width: 5.75rem;
   font-size: 0.72rem;
   color: var(--color-muted);
   text-transform: uppercase;
@@ -494,11 +491,14 @@ const featureTintModalOpen = ref(false);
 
 .section-header {
   margin: 0.15rem 0 0;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--color-border);
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--color-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  text-align: center;
 }
 
 .option-enable {
@@ -513,7 +513,15 @@ const featureTintModalOpen = ref(false);
 }
 
 .effect-group {
-  gap: 0.35rem;
+  gap: 0.45rem;
+}
+
+.inline-label {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .effect-select,
@@ -550,16 +558,34 @@ const featureTintModalOpen = ref(false);
 }
 
 .appearance-group {
-  align-items: center;
+  align-items: flex-start;
+}
+
+.appearance-group > .control-label,
+.appearance-group > .option-enable {
+  margin-top: 0.35rem;
 }
 
 .appearance-row {
   flex: 1;
   min-width: 0;
   display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.appearance-row-main,
+.appearance-tint-row {
+  display: flex;
   align-items: center;
   gap: 0.4rem;
   flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.appearance-row-main .set-select {
+  flex: 1;
+  min-width: 0;
 }
 
 .appearance-thumb {
@@ -610,11 +636,19 @@ const featureTintModalOpen = ref(false);
   gap: 0.4rem;
 }
 
-.preset-actions,
-.action-row {
+.preset-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
+}
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .mini-btn,

@@ -88,7 +88,6 @@ const paintbrushFeatureSetId = ref(persistedGm.paintbrushFeatureSetId);
 const paintbrushEnableElevation = ref(persistedGm.paintbrushEnableElevation);
 const paintbrushEnableTerrain = ref(persistedGm.paintbrushEnableTerrain);
 const paintbrushEnableEffect = ref(persistedGm.paintbrushEnableEffect);
-const paintbrushEnableObstacleHp = ref(persistedGm.paintbrushEnableObstacleHp);
 const paintbrushEnableName = ref(persistedGm.paintbrushEnableName);
 const paintbrushEnableColor = ref(persistedGm.paintbrushEnableColor);
 const paintbrushEnableAppearance = ref(persistedGm.paintbrushEnableAppearance);
@@ -157,7 +156,6 @@ export function snapshotGmTools(): PersistedGmTools {
     paintbrushEnableElevation: paintbrushEnableElevation.value,
     paintbrushEnableTerrain: paintbrushEnableTerrain.value,
     paintbrushEnableEffect: paintbrushEnableEffect.value,
-    paintbrushEnableObstacleHp: paintbrushEnableObstacleHp.value,
     paintbrushEnableName: paintbrushEnableName.value,
     paintbrushEnableColor: paintbrushEnableColor.value,
     paintbrushEnableAppearance: paintbrushEnableAppearance.value,
@@ -199,7 +197,6 @@ export const gmToolsWatchSources = [
   paintbrushEnableElevation,
   paintbrushEnableTerrain,
   paintbrushEnableEffect,
-  paintbrushEnableObstacleHp,
   paintbrushEnableName,
   paintbrushEnableColor,
   paintbrushEnableAppearance,
@@ -250,7 +247,6 @@ export function applyPersistedGmTools(gm: PersistedGmTools) {
   paintbrushEnableElevation.value = gm.paintbrushEnableElevation;
   paintbrushEnableTerrain.value = gm.paintbrushEnableTerrain;
   paintbrushEnableEffect.value = gm.paintbrushEnableEffect;
-  paintbrushEnableObstacleHp.value = gm.paintbrushEnableObstacleHp;
   paintbrushEnableName.value = gm.paintbrushEnableName;
   paintbrushEnableColor.value = gm.paintbrushEnableColor;
   paintbrushEnableAppearance.value = gm.paintbrushEnableAppearance;
@@ -707,7 +703,6 @@ export function useGmTools() {
     paintbrushEnableElevation.value = enabled;
     paintbrushEnableTerrain.value = enabled;
     paintbrushEnableEffect.value = enabled;
-    paintbrushEnableObstacleHp.value = enabled;
     paintbrushEnableName.value = enabled;
     paintbrushEnableColor.value = enabled;
     paintbrushEnableAppearance.value = enabled;
@@ -853,9 +848,11 @@ export function useGmTools() {
       featureFlip?: boolean | null;
     } = {};
     if (paintbrushEnableElevation.value) shared.elevation = paintbrushElevation.value;
-    if (paintbrushEnableTerrain.value) shared.terrain = paintbrushTerrain.value;
-    if (paintbrushEnableObstacleHp.value && paintbrushTerrain.value === "obstacle") {
-      shared.obstacleHp = paintbrushObstacleHp.value;
+    if (paintbrushEnableTerrain.value) {
+      shared.terrain = paintbrushTerrain.value;
+      if (paintbrushTerrain.value === "obstacle") {
+        shared.obstacleHp = paintbrushObstacleHp.value;
+      }
     }
     if (paintbrushEnableEffect.value) {
       shared.tileEffects =
@@ -995,7 +992,6 @@ export function useGmTools() {
     paintbrushEnableElevation,
     paintbrushEnableTerrain,
     paintbrushEnableEffect,
-    paintbrushEnableObstacleHp,
     paintbrushEnableName,
     paintbrushEnableColor,
     paintbrushEnableAppearance,

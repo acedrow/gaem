@@ -260,6 +260,18 @@ h3,
   margin: 0;
 }
 
+.stepper--compact .step-btn {
+  width: 1.25rem;
+  height: 1.25rem;
+  font-size: 0.8rem;
+}
+
+.stepper--compact .step-input {
+  width: 1.85rem;
+  font-size: 0.72rem;
+  padding: 0.1rem 0;
+}
+
 .segmented-control {
   display: flex;
   border: 1px solid var(--color-border);
