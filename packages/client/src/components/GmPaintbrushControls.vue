@@ -9,6 +9,7 @@ import {
 import { useTileBrushGalleryUi } from "../composables/useTileBrushGalleryUi.js";
 import EffectIcon from "./EffectIcon.vue";
 import NumberStepper from "./NumberStepper.vue";
+import TerrainTypeIcon from "./TerrainTypeIcon.vue";
 import TileBaseColorModal from "./TileBaseColorModal.vue";
 import TileColorTintModal from "./TileColorTintModal.vue";
 
@@ -108,7 +109,7 @@ function onFeatureSelected(e: Event) {
       />
       <NumberStepper v-model="paintbrushElevation" :min="-3" :max="3" />
     </div>
-    <div class="control-group">
+    <div class="control-group effect-group">
       <span class="control-label">Terrain</span>
       <input
         v-model="paintbrushEnableTerrain"
@@ -121,6 +122,7 @@ function onFeatureSelected(e: Event) {
           {{ terrainTypeDisplayName(terrain) }}
         </option>
       </select>
+      <TerrainTypeIcon :terrain-type="paintbrushTerrain" :size="16" />
     </div>
     <div v-if="paintbrushTerrain === 'obstacle'" class="control-group">
       <span class="control-label">Obstacle HP</span>
