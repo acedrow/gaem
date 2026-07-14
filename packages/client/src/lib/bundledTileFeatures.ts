@@ -29,6 +29,7 @@ const FEATURES_PREFIX = "tiles/features/";
 const FEATURE_SET_LABELS: Record<string, string> = {
   base: "Base",
   "chaos-explosions": "Chaos Explosions",
+  hellpiercers: "Hellpiercers",
   "paracletus-ruins": "Paracletus Ruins",
   "paracletus-teethlands": "Paracletus Teethlands",
 };
@@ -39,7 +40,7 @@ const LEGACY_FEATURE_KEYS: Record<string, string> = {
 };
 
 const featureModules = import.meta.glob(
-  "../../../assets/tiles/features/{base,chaos-explosions,paracletus-ruins,paracletus-teethlands}/**/*.png",
+  "../../../assets/tiles/features/{base,chaos-explosions,hellpiercers,paracletus-ruins,paracletus-teethlands}/**/*.png",
   { eager: true, query: "?url", import: "default" },
 ) as Record<string, string>;
 
