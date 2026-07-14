@@ -10,6 +10,18 @@ import NoLosIcon from "./NoLosIcon.vue";
 import TerrainTypeIcon from "./TerrainTypeIcon.vue";
 import TowerIcon from "./TowerIcon.vue";
 
+export type StackedEnemyRender = {
+  enemy: Enemy;
+  portraitUrl: string | null;
+  portraitBg: string | null;
+  hp?: { currentHp: number; maxHp: number };
+  selected: boolean;
+  dying: boolean;
+  defeated: boolean;
+  turnEnded: boolean;
+  animating: boolean;
+};
+
 export type CellRenderState = {
   terrainClass: string | null;
   movable: boolean;
@@ -28,6 +40,7 @@ export type CellRenderState = {
   tile: MapTile | undefined;
   player: Player | undefined;
   enemyAnchor: Enemy | undefined;
+  stackedEnemies?: StackedEnemyRender[];
   enemyHp?: { currentHp: number; maxHp: number };
   showSwarmHp?: boolean;
   effectStacks?: EffectStacks;
@@ -102,8 +115,8 @@ const emit = defineEmits<{
   hover: [];
   unhover: [];
   playerClick: [];
-  enemyClick: [];
-  enemyDblclick: [];
+  enemyClick: [enemyId: string];
+  enemyDblclick: [enemyId: string];
   deployPointerDown: [event: PointerEvent];
 }>();
 
@@ -149,6 +162,23 @@ function enemyPieceStyle(enemy: Enemy): Record<string, string> {
   };
 }
 
+function stackedPieceStyle(index: number, total: number): Record<string, string> {
+  if (total <= 1) return {};
+  const corners: Record<string, string>[] = [
+    { top: "1px", left: "1px" },
+    { bottom: "1px", right: "1px" },
+    { top: "1px", right: "1px" },
+    { bottom: "1px", left: "1px" },
+  ];
+  return {
+    width: "62%",
+    height: "62%",
+    inset: "auto",
+    zIndex: String(2 + index),
+    ...corners[index % corners.length]!,
+  };
+}
+
 function effectBadgeStyle(enemy: Enemy | undefined): Record<string, string> {
   if (!enemy) return {};
   const scale = getEnemyScale(enemy);
@@ -159,6 +189,8 @@ function effectBadgeStyle(enemy: Enemy | undefined): Record<string, string> {
     right: `calc(-${extra * 100}% - ${extra * ENEMY_SCALE_GAP}px - ${ENEMY_PIECE_OFFSET}px + ${ENEMY_SCALE_INSET}px)`,
   };
 }
+
+const stackedEnemyCount = computed(() => 1 + (props.cell.stackedEnemies?.length ?? 0));
 
 const scaledEnemyEffects = computed(
   () => !!props.cell.enemyAnchor && getEnemyScale(props.cell.enemyAnchor) > 1 && effectEntries.value.length > 0,
@@ -176,16 +208,16 @@ function onPlayerPiecePointerDown(e: PointerEvent) {
   emit("deployPointerDown", e);
 }
 
-function onEnemyPieceClick(e: MouseEvent) {
+function onEnemyPieceClick(e: MouseEvent, enemyId: string) {
   if (props.paintbrushActive) return;
   e.stopPropagation();
-  emit("enemyClick");
+  emit("enemyClick", enemyId);
 }
 
-function onEnemyPieceDblClick(e: MouseEvent) {
+function onEnemyPieceDblClick(e: MouseEvent, enemyId: string) {
   if (props.paintbrushActive) return;
   e.stopPropagation();
-  emit("enemyDblclick");
+  emit("enemyDblclick", enemyId);
 }
 
 const playerHp = computed(() => {
@@ -414,17 +446,20 @@ const tileEffectBadgeEntries = computed(() => tileEffectEntries.value);
         'tower-piece': cell.enemyAnchor.kind === 'tower',
         'fortification-piece': isFortificationEnemy(cell.enemyAnchor),
         'has-portrait': !!cell.enemyPortraitUrl && cell.enemyAnchor.kind !== 'tower',
+        stacked: stackedEnemyCount > 1,
       }"
       :style="[
-        enemyPieceStyle(cell.enemyAnchor),
+        stackedEnemyCount > 1
+          ? stackedPieceStyle(0, stackedEnemyCount)
+          : enemyPieceStyle(cell.enemyAnchor),
         cell.enemyPortraitUrl && cell.enemyAnchor.kind !== 'tower'
           ? { background: cell.enemyPortraitBg ?? undefined }
           : cell.towerOwnerHue != null
             ? { background: `hsl(${cell.towerOwnerHue} 55% 38%)`, borderColor: `hsl(${cell.towerOwnerHue} 70% 55%)` }
             : undefined,
       ]"
-      @click="onEnemyPieceClick"
-      @dblclick="onEnemyPieceDblClick"
+      @click="onEnemyPieceClick($event, cell.enemyAnchor.id)"
+      @dblclick="onEnemyPieceDblClick($event, cell.enemyAnchor.id)"
     >
       <img
         v-if="cell.enemyPortraitUrl && cell.enemyAnchor.kind !== 'tower'"
@@ -449,6 +484,44 @@ const tileEffectBadgeEntries = computed(() => tileEffectEntries.value);
         compact
         :current-hp="enemyHp!.currentHp"
         :max-hp="enemyHp!.maxHp"
+      />
+    </span>
+    <span
+      v-for="(stacked, stackedIndex) in cell.stackedEnemies"
+      v-show="!stacked.animating"
+      :key="stacked.enemy.id"
+      class="piece enemy stacked"
+      :class="{
+        selected: stacked.selected,
+        'turn-ended': stacked.turnEnded,
+        dying: stacked.dying,
+        'tower-piece': stacked.enemy.kind === 'tower',
+        'fortification-piece': isFortificationEnemy(stacked.enemy),
+        'has-portrait': !!stacked.portraitUrl && stacked.enemy.kind !== 'tower',
+        'enemy-defeated': stacked.defeated,
+      }"
+      :style="[
+        stackedPieceStyle(stackedIndex + 1, stackedEnemyCount),
+        stacked.portraitUrl && stacked.enemy.kind !== 'tower'
+          ? { background: stacked.portraitBg ?? undefined }
+          : undefined,
+      ]"
+      @click="onEnemyPieceClick($event, stacked.enemy.id)"
+      @dblclick="onEnemyPieceDblClick($event, stacked.enemy.id)"
+    >
+      <img
+        v-if="stacked.portraitUrl && stacked.enemy.kind !== 'tower'"
+        :src="stacked.portraitUrl"
+        alt=""
+        class="portrait-img"
+      />
+      <span v-if="stacked.turnEnded" class="turn-ended-shade" aria-hidden="true"></span>
+      <HpBar
+        v-if="showEnemyHealthBars && stacked.hp"
+        class="token-hp-bar"
+        compact
+        :current-hp="stacked.hp.currentHp"
+        :max-hp="stacked.hp.maxHp"
       />
     </span>
     <span
@@ -702,6 +775,11 @@ const tileEffectBadgeEntries = computed(() => tileEffectEntries.value);
 
 .cell.enemy-defeated .piece.enemy,
 .cell.enemy-defeated .effect-badges {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.piece.enemy.enemy-defeated {
   opacity: 0;
   pointer-events: none;
 }

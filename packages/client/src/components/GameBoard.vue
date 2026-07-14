@@ -1797,7 +1797,7 @@ const gmEnemyMoveTargetKeys = computed(() => {
   for (const { dx, dy } of deltas) {
     const anchorX = enemy.x + dx;
     const anchorY = enemy.y + dy;
-    if (validateEnemyFootprint(s, anchorX, anchorY, scale, id, occupancy.value ?? undefined) !== null) {
+    if (validateEnemyFootprint(s, anchorX, anchorY, scale, id, occupancy.value ?? undefined, enemy) !== null) {
       continue;
     }
     for (const tile of enemyFootprintTiles(anchorX, anchorY, scale)) {
@@ -1814,7 +1814,11 @@ const gmSpawnableKeys = computed(() => {
   if (!s || !spawnName) return keys;
   const scale = getEnemyScaleByName(spawnName);
   for (const c of cells.value) {
-    if (validateEnemyFootprint(s, c.x, c.y, scale, undefined, occupancy.value ?? undefined) === null) {
+    if (
+      validateEnemyFootprint(s, c.x, c.y, scale, undefined, occupancy.value ?? undefined, { name: spawnName }, {
+        allowEnemyStack: true,
+      }) === null
+    ) {
       keys.add(c.key);
     }
   }
@@ -1929,12 +1933,33 @@ const cellStateByKey = computed(() => {
 
   const portraitBgCache = new Map<string, string | null>();
 
+  const enemiesByAnchorKey = new Map<string, Enemy[]>();
+  for (const e of s.enemies) {
+    const key = coordKey(e.x, e.y);
+    const list = enemiesByAnchorKey.get(key);
+    if (list) list.push(e);
+    else enemiesByAnchorKey.set(key, [e]);
+  }
+
+  function enemyPortraitBgFor(enemy: Enemy): string | null {
+    if (enemy.kind === "tower") return null;
+    const listing = getEnemyListingByName(enemy.name);
+    const url = enemyPortraitUrlForName(enemy.name);
+    if (!listing?.portrait || !url) return null;
+    const cacheKey = `${listing.portrait}:${url}`;
+    if (portraitBgCache.has(cacheKey)) return portraitBgCache.get(cacheKey)!;
+    const bg = portraitBackgroundFor(listing.portrait, url);
+    portraitBgCache.set(cacheKey, bg);
+    return bg;
+  }
+
   for (const c of cells.value) {
     const ck = coordKey(c.x, c.y);
     const tile = tileAt(s.tiles, c.x, c.y);
     const player = occ.playerByKey.get(ck);
     const enemy = occ.enemyByKey.get(ck);
-    const enemyAnchor = occ.enemyAnchorByKey.get(ck);
+    const enemiesAtTile = enemiesByAnchorKey.get(ck) ?? [];
+    const enemyAnchor = enemiesAtTile[0];
     const objects = occ.terrainObjectsByKey.get(ck) ?? [];
     const hasSeed = objects.some((o) => o.kind === "seed");
 
@@ -2064,6 +2089,24 @@ const cellStateByKey = computed(() => {
       tile,
       player,
       enemyAnchor,
+      stackedEnemies: enemiesAtTile.slice(1).map((stacked) => ({
+        enemy: stacked,
+        portraitUrl:
+          stacked.kind !== "tower" ? enemyPortraitUrlForName(stacked.name) : null,
+        portraitBg: enemyPortraitBgFor(stacked),
+        hp:
+          canUseGmTools.value
+            ? {
+                currentHp: getEffectiveEnemyHp(stacked, s),
+                maxHp: getEffectiveEnemyMaxHp(stacked, s),
+              }
+            : undefined,
+        selected: isEnemySelected(stacked.id) || isEnemyBulkSelected(stacked.id),
+        dying: isEnemyDying(stacked.id),
+        defeated: isEnemyDefeated(stacked.id),
+        turnEnded: !isTowerEnemy(stacked) && !isSandboxMode(s) && !!stacked.exhausted,
+        animating: stacked.id === animatingEnemyId.value,
+      })),
       enemyHp:
         enemyAnchor && s && canUseGmTools.value
           ? (() => {
@@ -2097,7 +2140,7 @@ const cellStateByKey = computed(() => {
         ? !isSandboxMode(s) &&
           s.roundPhase !== "deployment" &&
           s.actedPlayerIds.includes(player.id)
-        : !!(enemy && !isTowerEnemy(enemy) && !isSandboxMode(s) && enemy.exhausted),
+        : !!(enemyAnchor && !isTowerEnemy(enemyAnchor) && !isSandboxMode(s) && enemyAnchor.exhausted),
       playerDowned: player ? isPlayerDowned(player) : false,
       playerPortraitUrl: player?.characterSheetId
         ? portraitUrlFor(player.characterSheetId)
@@ -2106,17 +2149,7 @@ const cellStateByKey = computed(() => {
         enemyAnchor && enemyAnchor.kind !== "tower"
           ? enemyPortraitUrlForName(enemyAnchor.name)
           : null,
-      enemyPortraitBg: (() => {
-        if (!enemyAnchor || enemyAnchor.kind === "tower") return null;
-        const listing = getEnemyListingByName(enemyAnchor.name);
-        const url = enemyPortraitUrlForName(enemyAnchor.name);
-        if (!listing?.portrait || !url) return null;
-        const cacheKey = `${listing.portrait}:${url}`;
-        if (portraitBgCache.has(cacheKey)) return portraitBgCache.get(cacheKey)!;
-        const bg = portraitBackgroundFor(listing.portrait, url);
-        portraitBgCache.set(cacheKey, bg);
-        return bg;
-      })(),
+      enemyPortraitBg: enemyAnchor ? enemyPortraitBgFor(enemyAnchor) : null,
       hasSeed,
       kopisToken: (boardTokensByKey.value.get(coordKey(c.x, c.y)) ?? []).length > 0,
       kopisTokenMine: (boardTokensByKey.value.get(coordKey(c.x, c.y)) ?? []).some(
@@ -2239,16 +2272,25 @@ const boardCellRows = computed(() => {
       isHovered: hoveredKey.value === c.key,
       canDragDeploy: !!player && canDragDeploy(player),
       isPlayerSelected: !!player && (isPlayerSelected(player.id) || isPlayerBulkSelected(player.id)),
-      isEnemySelected: !!enemyAnchor && (isEnemySelected(enemyAnchor.id) || isEnemyBulkSelected(enemyAnchor.id)),
+      isEnemySelected:
+        (!!enemyAnchor && (isEnemySelected(enemyAnchor.id) || isEnemyBulkSelected(enemyAnchor.id))) ||
+        !!cell.stackedEnemies?.some((e) => e.selected),
       isBulkTileSelected: isTileBulkSelected(c.x, c.y),
       playerHue: player ? hueFromId(player.id) : null,
-      enemyDying: !!enemyAnchor && isEnemyDying(enemyAnchor.id),
-      enemyDefeated: !!enemyAnchor && isEnemyDefeated(enemyAnchor.id),
+      enemyDying:
+        (!!enemyAnchor && isEnemyDying(enemyAnchor.id)) ||
+        !!cell.stackedEnemies?.some((e) => e.dying),
+      enemyDefeated:
+        (!!enemyAnchor && isEnemyDefeated(enemyAnchor.id)) ||
+        !!cell.stackedEnemies?.some((e) => e.defeated),
       enemyPendingRemoval: !!enemyAnchor && isEnemyPendingRemoval(enemyAnchor.id),
       playerTeleporting: !!player && teleportingIds.has(player.id),
-      enemyAnimating: enemyAnchor?.id === animatingId,
+      enemyAnimating:
+        enemyAnchor?.id === animatingId ||
+        !!cell.stackedEnemies?.some((e) => e.enemy.id === animatingId),
       playerHp: player?.hp,
       enemyHp: enemyAnchor?.hp,
+      stackedEnemyKey: cell.stackedEnemies?.map((e) => `${e.enemy.id}:${e.selected}:${e.hp?.currentHp ?? ""}`).join("|") ?? "",
     };
   }).filter((row): row is NonNullable<typeof row> => row != null);
 });
@@ -2261,29 +2303,31 @@ const tooltipData = computed(() => {
   const key = coordKey(cell.x, cell.y);
   const tile = tileAt(s.tiles, cell.x, cell.y);
   if (!tile) return null;
-  const anchor = occ.enemyByKey.get(key);
-  const enemyEntry = (() => {
-    if (!anchor || isTowerEnemy(anchor)) return null;
-    const group = swarmGroupForEnemy(s, anchor.id);
-    const baseName = anchor.name ?? "Enemy";
-    if (group && group.size > 1) {
-      const solo =
-        isSoloSwarmMemberSelected.value && selectedEnemyId.value === anchor.id;
-      const memberHp = getSwarmMemberHp(group.currentHp, group.size);
+  const enemiesAtTile = s.enemies.filter((e) => e.x === cell.x && e.y === cell.y);
+  const enemyEntries = enemiesAtTile
+    .filter((e) => !isTowerEnemy(e))
+    .map((anchor) => {
+      const group = swarmGroupForEnemy(s, anchor.id);
+      const baseName = anchor.name ?? "Enemy";
+      if (group && group.size > 1) {
+        const solo =
+          isSoloSwarmMemberSelected.value && selectedEnemyId.value === anchor.id;
+        const memberHp = getSwarmMemberHp(group.currentHp, group.size);
+        return {
+          ...anchor,
+          displayName: solo ? `${baseName} (Swarm member)` : `${baseName} (Swarm · ${group.size})`,
+          displayHp: solo ? memberHp : group.currentHp,
+          displayMaxHp: solo ? getSwarmMaxHp(1) : group.maxHp,
+        };
+      }
       return {
         ...anchor,
-        displayName: solo ? `${baseName} (Swarm member)` : `${baseName} (Swarm · ${group.size})`,
-        displayHp: solo ? memberHp : group.currentHp,
-        displayMaxHp: solo ? getSwarmMaxHp(1) : group.maxHp,
+        displayName: baseName,
+        displayHp: getEffectiveEnemyHp(anchor, s),
+        displayMaxHp: getEffectiveEnemyMaxHp(anchor, s),
       };
-    }
-    return {
-      ...anchor,
-      displayName: baseName,
-      displayHp: getEffectiveEnemyHp(anchor, s),
-      displayMaxHp: getEffectiveEnemyMaxHp(anchor, s),
-    };
-  })();
+    });
+  const towers = enemiesAtTile.filter((e) => isTowerEnemy(e));
   const moveCost = (() => {
     const sel = boardSelection.value;
     if (!sel) return null;
@@ -2307,8 +2351,8 @@ const tooltipData = computed(() => {
     tileName: tile.name,
     moveCost,
     players: occ.playerByKey.has(key) ? [occ.playerByKey.get(key)!] : [],
-    enemies: enemyEntry ? [enemyEntry] : [],
-    towers: anchor && isTowerEnemy(anchor) ? [anchor] : [],
+    enemies: enemyEntries,
+    towers,
     objects: occ.terrainObjectsByKey.get(key) ?? [],
     attractors: (() => {
       const attractors = s.combat?.attractors ?? [];
@@ -2570,7 +2614,7 @@ function gmEnemyMoveDestAt(x: number, y: number): { x: number; y: number } | nul
   for (const { dx, dy } of deltas) {
     const anchorX = enemy.x + dx;
     const anchorY = enemy.y + dy;
-    if (validateEnemyFootprint(s, anchorX, anchorY, scale, id, occ) !== null) continue;
+    if (validateEnemyFootprint(s, anchorX, anchorY, scale, id, occ, enemy) !== null) continue;
     let matches = false;
     for (const tile of enemyFootprintTiles(anchorX, anchorY, scale)) {
       if (tile.x === x && tile.y === y) {
@@ -2639,7 +2683,7 @@ function tryMoveSelectedEnemyToDest(destX: number, destY: number): boolean {
   }
 
   const scale = getEnemyScale(enemy);
-  if (validateEnemyFootprint(s, destX, destY, scale, selected, occupancy.value ?? undefined) !== null) {
+  if (validateEnemyFootprint(s, destX, destY, scale, selected, occupancy.value ?? undefined, enemy) !== null) {
     return false;
   }
   sendEnemyMove(selected, destX, destY, { animateFrom: { x: enemy.x, y: enemy.y } });
@@ -2684,6 +2728,29 @@ function onEnemyCellClick(x: number, y: number, enemyId: string) {
   ) {
     handleCombatCellClick(x, y);
     return;
+  }
+  // Occupied destinations: piece click stops cell propagation, so complete
+  // pending spawn/move here instead of only toggling selection.
+  if (canUseGmTools.value) {
+    if (trySpawnEnemyAt(x, y)) return;
+    if (
+      selectedEnemyId.value &&
+      selectedEnemyId.value !== enemyId &&
+      gmActiveTool.value === "forceMove" &&
+      gmForceMovableKeys.value.has(boardCellKey(x, y))
+    ) {
+      send({
+        type: "gmForceMove",
+        target: { kind: "enemy", id: selectedEnemyId.value },
+        x,
+        y,
+        ...(isSoloSwarmMemberSelected.value ? { soloSwarmMember: true } : {}),
+      });
+      return;
+    }
+    if (selectedEnemyId.value && selectedEnemyId.value !== enemyId && tryMoveSelectedEnemy(x, y)) {
+      return;
+    }
   }
   if (enemyClickTimer) clearTimeout(enemyClickTimer);
   enemyClickTimer = setTimeout(() => {
@@ -4023,6 +4090,28 @@ function tryGmDamageEffectToken(target: { kind: "player" | "enemy"; id: string }
   return true;
 }
 
+function trySpawnEnemyAt(x: number, y: number): boolean {
+  const s = gameState.value;
+  const spawnName = selectedSpawnEnemyName.value;
+  if (!s || !spawnName) return false;
+  if (
+    validateEnemyFootprint(
+      s,
+      x,
+      y,
+      getEnemyScaleByName(spawnName),
+      undefined,
+      occupancy.value ?? undefined,
+      { name: spawnName },
+      { allowEnemyStack: true },
+    ) !== null
+  ) {
+    return false;
+  }
+  send({ type: "addEnemy", x, y, name: spawnName });
+  return true;
+}
+
 function onGmCellClick(x: number, y: number) {
   const s = gameState.value;
   if (!s) return;
@@ -4067,12 +4156,7 @@ function onGmCellClick(x: number, y: number) {
   }
 
   if (gmActiveTool.value === "forceMove") {
-    if (selectOccupantAt(x, y)) return;
-    if (!gmForceMovableKeys.value.has(boardCellKey(x, y))) {
-      clearBoardSelection();
-      return;
-    }
-    if (selectedPlayerId.value) {
+    if (selectedPlayerId.value && gmForceMovableKeys.value.has(boardCellKey(x, y))) {
       send({
         type: "gmForceMove",
         target: { kind: "player", id: selectedPlayerId.value },
@@ -4081,7 +4165,7 @@ function onGmCellClick(x: number, y: number) {
       });
       return;
     }
-    if (selectedEnemyId.value) {
+    if (selectedEnemyId.value && gmForceMovableKeys.value.has(boardCellKey(x, y))) {
       send({
         type: "gmForceMove",
         target: { kind: "enemy", id: selectedEnemyId.value },
@@ -4091,6 +4175,8 @@ function onGmCellClick(x: number, y: number) {
       });
       return;
     }
+    if (selectOccupantAt(x, y)) return;
+    clearBoardSelection();
     return;
   }
 
@@ -4100,25 +4186,10 @@ function onGmCellClick(x: number, y: number) {
     return;
   }
 
-  if (selectOccupantAt(x, y)) return;
-
-  const spawnName = selectedSpawnEnemyName.value;
-  if (
-    spawnName &&
-    validateEnemyFootprint(
-      s,
-      x,
-      y,
-      getEnemyScaleByName(spawnName),
-      undefined,
-      occupancy.value ?? undefined,
-    ) === null
-  ) {
-    send({ type: "addEnemy", x, y, name: spawnName });
-    return;
-  }
-
+  // Spawn and move before select so stacking onto occupied tiles works.
+  if (trySpawnEnemyAt(x, y)) return;
   if (tryMoveSelectedEnemy(x, y)) return;
+  if (selectOccupantAt(x, y)) return;
   clearBoardSelection();
 }
 
@@ -4731,6 +4802,7 @@ onUnmounted(() => {
                   row.playerTeleporting,
                   row.enemyPendingRemoval,
                   row.enemyDefeated,
+                  row.stackedEnemyKey,
                 ]"
                 :x="row.x"
                 :y="row.y"
@@ -4754,8 +4826,8 @@ onUnmounted(() => {
                 @hover="onCellHover(row.x, row.y, row.key)"
                 @unhover="onCellUnhover"
                 @player-click="onBoardPlayerClick(row.x, row.y, row.cell.player!.id, row.cell.player!.characterSheetId)"
-                @enemy-click="onEnemyCellClick(row.x, row.y, row.cell.enemyAnchor!.id)"
-                @enemy-dblclick="onEnemyCellDblClick(row.x, row.y, row.cell.enemyAnchor!.id)"
+                @enemy-click="onEnemyCellClick(row.x, row.y, $event)"
+                @enemy-dblclick="onEnemyCellDblClick(row.x, row.y, $event)"
                 @deploy-pointer-down="onDeployPointerDown($event, row.cell.player!)"
               />
           </div>

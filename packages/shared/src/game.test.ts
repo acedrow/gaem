@@ -137,6 +137,18 @@ describe("game", () => {
       expect(state.enemies[0]!.hp).toBe(1);
     });
 
+    it("allows spawning onto an enemy tile but not a player tile", () => {
+      const state = makeGameState();
+      addTestPlayer(state, "p1", { x: 3, y: 3 });
+      addTestEnemy(state, "e1", 4, 4, { name: "Latent Pudding" });
+
+      expect(validateAddEnemy(state, 3, 3)).toBe("Tile occupied");
+      expect(validateAddEnemy(state, 4, 4)).toBeNull();
+      expect(addEnemy(state, { id: "e2", x: 4, y: 4, name: "Latent Pudding" })).toBeNull();
+      expect(state.enemies).toHaveLength(2);
+      expect(state.enemies.every((e) => e.x === 4 && e.y === 4)).toBe(true);
+    });
+
     it("removeEnemy removes by id", () => {
       const state = makeGameState();
       addTestEnemy(state, "e1", 3, 3);
@@ -159,6 +171,31 @@ describe("game", () => {
       const wrongPhase = makeGameState({ roundPhase: "playerTurn", turn: { role: "player", playerId: "p1" } });
       addTestEnemy(wrongPhase, "e1", 3, 3);
       expect(validateEnemyMove(wrongPhase, "e1", 4, 3)).toBe("Not GM turn");
+    });
+
+    it("blocks normal enemy-enemy movement but allows Stainwalk sharing", () => {
+      const blocked = makeGameState({ roundPhase: "gmTurn", turn: { role: "gm" } });
+      addTestEnemy(blocked, "a", 3, 3, { name: "Latent Pudding" });
+      addTestEnemy(blocked, "b", 4, 3, { name: "Latent Pudding" });
+      blocked.enemies[0]!.movementRemaining = 2;
+      expect(validateEnemyMove(blocked, "a", 4, 3)).toBe("Tile occupied");
+
+      const stainOntoAlly = makeGameState({ roundPhase: "gmTurn", turn: { role: "gm" } });
+      addTestEnemy(stainOntoAlly, "creep", 3, 3, { name: "Stain Creep" });
+      addTestEnemy(stainOntoAlly, "ally", 4, 3, { name: "Latent Pudding" });
+      stainOntoAlly.enemies[0]!.movementRemaining = 2;
+      expect(validateEnemyMove(stainOntoAlly, "creep", 4, 3)).toBeNull();
+      applyEnemyMove(stainOntoAlly, "creep", 4, 3);
+      expect(stainOntoAlly.enemies.find((e) => e.id === "creep")).toMatchObject({ x: 4, y: 3 });
+      expect(stainOntoAlly.enemies.find((e) => e.id === "ally")).toMatchObject({ x: 4, y: 3 });
+
+      const allyOntoStain = makeGameState({ roundPhase: "gmTurn", turn: { role: "gm" } });
+      addTestEnemy(allyOntoStain, "ally", 3, 3, { name: "Latent Pudding" });
+      addTestEnemy(allyOntoStain, "creep", 4, 3, { name: "Stain Creep" });
+      allyOntoStain.enemies[0]!.movementRemaining = 2;
+      expect(validateEnemyMove(allyOntoStain, "ally", 4, 3)).toBeNull();
+      applyEnemyMove(allyOntoStain, "ally", 4, 3);
+      expect(allyOntoStain.enemies.every((e) => e.x === 4 && e.y === 3)).toBe(true);
     });
   });
 

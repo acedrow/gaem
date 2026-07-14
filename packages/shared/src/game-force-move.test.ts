@@ -48,7 +48,7 @@ describe("gmForceMove", () => {
     const blocked = new Set([coordKey(5, 5), coordKey(6, 6)]);
     const state = makeGameState({ tiles: makeTiles(8, 8, blocked) });
     addTestEnemy(state, "big", 1, 1, { scale: 2, name: "Gorgenaut" });
-    addTestEnemy(state, "block", 4, 4, { name: "Stain Creep" });
+    addTestEnemy(state, "block", 4, 4, { name: "Latent Pudding" });
 
     expect(validateGmForceMove(state, { kind: "enemy", id: "big" }, 5, 5)).toBeNull();
     expect(validateGmForceMove(state, { kind: "enemy", id: "big" }, 4, 4)).toBe("Tile occupied");
@@ -58,11 +58,22 @@ describe("gmForceMove", () => {
     expect(state.enemies.find((e) => e.id === "big")).toMatchObject({ x: 5, y: 5 });
   });
 
+  it("allows force-move onto Stain Creep via Stainwalk", () => {
+    const state = makeGameState();
+    addTestEnemy(state, "ally", 2, 2, { name: "Latent Pudding" });
+    addTestEnemy(state, "creep", 5, 5, { name: "Stain Creep" });
+
+    expect(validateGmForceMove(state, { kind: "enemy", id: "ally" }, 5, 5)).toBeNull();
+    applyGmForceMove(state, { kind: "enemy", id: "ally" }, 5, 5);
+    expect(state.enemies.find((e) => e.id === "ally")).toMatchObject({ x: 5, y: 5 });
+    expect(state.enemies.find((e) => e.id === "creep")).toMatchObject({ x: 5, y: 5 });
+  });
+
   it("moves a whole swarm as a rigid group and rejects collisions", () => {
     const state = makeGameState({ width: 10, height: 10, tiles: makeTiles(10, 10) });
     addTestEnemy(state, "a", 2, 2, { name: SWARM_NAME });
     addTestEnemy(state, "b", 3, 2, { name: SWARM_NAME });
-    addTestEnemy(state, "blocker", 5, 5, { name: "Stain Creep" });
+    addTestEnemy(state, "blocker", 5, 5, { name: "Latent Pudding" });
 
     const group = swarmGroupForEnemy(state, "a");
     expect(group).not.toBeNull();

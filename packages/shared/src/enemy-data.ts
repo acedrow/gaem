@@ -98,6 +98,11 @@ export function isFortificationEnemy(enemy: Pick<Enemy, "name">): boolean {
   return findEnemyListing(enemy.name)?.tags?.includes("Fortification") ?? false;
 }
 
+export function enemyAllowsStainwalk(enemy: Pick<Enemy, "name">): boolean {
+  const text = findEnemyListing(enemy.name)?.stainwalk;
+  return text != null && /same square/i.test(text);
+}
+
 export function getEnemyMaxHpByName(name: string | undefined): number {
   return findEnemyListing(name)?.hp ?? 0;
 }

@@ -6,7 +6,7 @@ import { tickRoundCountdowns, tickUnitEndOfTurn, tickUnitStartOfTurn } from "./c
 import { clearAegisFlyingUsed, ensureAssistedAscensionAegis } from "./combat/aegis.js";
 import { enemyHasFlyingTag, initializeUnitElevation, syncUnitElevationOnTile } from "./combat/elevation.js";
 import { resetEnemyExhaustion, resetGmTurnActions } from "./combat/enemy.js";
-import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles, ensureEnemyMovement, refreshEnemyMovement, spendEnemyMovement } from "./enemy-data.js";
+import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles, enemyOccupiesTile, ensureEnemyMovement, refreshEnemyMovement, spendEnemyMovement, enemyAllowsStainwalk } from "./enemy-data.js";
 import { ensureFactionStates } from "./faction-campaign.js";
 import { ensureOverworldLocations, ensureOverworldParty } from "./overworld.js";
 import { applyLoadoutToPlayer, getClassMaxHp, getArmorSpeed } from "./player-data.js";
@@ -684,6 +684,7 @@ export function validateEnemyFootprint(
   excludeEnemyId?: string,
   occupancy?: BoardOccupancy,
   enemy?: Pick<Enemy, "name">,
+  opts?: { allowEnemyStack?: boolean },
 ): string | null {
   if (scale < 1) return "Invalid scale";
   if (!isFootprintInBounds(x, y, scale, state.width, state.height)) {
@@ -691,12 +692,18 @@ export function validateEnemyFootprint(
   }
   const flying = enemy != null && enemyHasFlyingTag(enemy);
   const occ = occupancy ?? buildBoardOccupancy(state);
+  const moverStainwalk = enemy != null && enemyAllowsStainwalk(enemy);
   for (const tile of enemyFootprintTiles(x, y, scale)) {
     if (!flying && !isWalkable(tileAt(state.tiles, tile.x, tile.y))) return "Blocked";
     const key = coordKey(tile.x, tile.y);
     if (occ.playerByKey.has(key)) return "Tile occupied";
-    const occupant = occ.enemyByKey.get(key);
-    if (occupant && occupant.id !== excludeEnemyId) return "Tile occupied";
+    if (opts?.allowEnemyStack || moverStainwalk) continue;
+    const others = state.enemies.filter(
+      (e) => e.id !== excludeEnemyId && enemyOccupiesTile(e, tile.x, tile.y),
+    );
+    if (others.length === 0) continue;
+    if (others.some((e) => enemyAllowsStainwalk(e))) continue;
+    return "Tile occupied";
   }
   return null;
 }
@@ -709,6 +716,7 @@ export function validateForceMoveFootprint(
   scale: number,
   excludeEnemyIds?: ReadonlySet<string> | string,
   occupancy?: BoardOccupancy,
+  mover?: Pick<Enemy, "name">,
 ): string | null {
   if (scale < 1) return "Invalid scale";
   if (!isFootprintInBounds(x, y, scale, state.width, state.height)) {
@@ -719,11 +727,17 @@ export function validateForceMoveFootprint(
       ? new Set([excludeEnemyIds])
       : (excludeEnemyIds ?? new Set<string>());
   const occ = occupancy ?? buildBoardOccupancy(state);
+  const moverStainwalk = mover != null && enemyAllowsStainwalk(mover);
   for (const tile of enemyFootprintTiles(x, y, scale)) {
     const key = coordKey(tile.x, tile.y);
     if (occ.playerByKey.has(key)) return "Tile occupied";
-    const enemy = occ.enemyByKey.get(key);
-    if (enemy && !exclude.has(enemy.id)) return "Tile occupied";
+    if (moverStainwalk) continue;
+    const others = state.enemies.filter(
+      (e) => !exclude.has(e.id) && enemyOccupiesTile(e, tile.x, tile.y),
+    );
+    if (others.length === 0) continue;
+    if (others.some((e) => enemyAllowsStainwalk(e))) continue;
+    return "Tile occupied";
   }
   return null;
 }
@@ -769,6 +783,7 @@ export function validateGmForceMove(
         getEnemyScale(member),
         memberIds,
         occ,
+        member,
       );
       if (err) return err;
     }
@@ -776,7 +791,7 @@ export function validateGmForceMove(
   }
 
   if (enemy.x === toX && enemy.y === toY) return null;
-  return validateForceMoveFootprint(state, toX, toY, getEnemyScale(enemy), target.id);
+  return validateForceMoveFootprint(state, toX, toY, getEnemyScale(enemy), target.id, undefined, enemy);
 }
 
 export function applyGmForceMove(
@@ -982,12 +997,22 @@ export function validateAddEnemy(
     undefined,
     undefined,
     enemyName != null ? { name: enemyName } : undefined,
+    { allowEnemyStack: true },
   );
 }
 
 export function addEnemy(state: GameState, enemy: Enemy): string | null {
   const scale = getEnemyScale(enemy);
-  const err = validateEnemyFootprint(state, enemy.x, enemy.y, scale, undefined, undefined, enemy);
+  const err = validateEnemyFootprint(
+    state,
+    enemy.x,
+    enemy.y,
+    scale,
+    undefined,
+    undefined,
+    enemy,
+    { allowEnemyStack: true },
+  );
   if (err) return err;
   const prevGroups = buildSwarmGroups(state);
   const maxHp = getEnemyMaxHp(enemy);
