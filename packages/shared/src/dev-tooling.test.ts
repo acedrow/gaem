@@ -65,16 +65,18 @@ describe("dev:cf hot-reload wiring", () => {
     );
   });
 
-  it("client asset sync uses rsync (no rm -rf public/tiles wipe)", () => {
+  it("client asset sync mirrors without rm -rf public/tiles wipe", () => {
     // A full wipe races Vite :5173 during e2e/build while dev:cf is up.
+    // Node sync-dir.mjs is used instead of rsync (missing on CF Workers Builds).
     const scripts = (
       JSON.parse(read("packages/client/package.json")) as {
         scripts: Record<string, string>;
       }
     ).scripts;
-    expect(scripts["sync-tile-assets"]).toContain("rsync -a --delete");
+    expect(scripts["sync-tile-assets"]).toContain("scripts/sync-dir.mjs");
     expect(scripts["sync-tile-assets"]).not.toContain("rm -rf");
-    expect(scripts["sync-enemy-portraits"]).toContain("rsync -a --delete");
+    expect(scripts["sync-enemy-portraits"]).toContain("scripts/sync-dir.mjs");
+    expect(read("packages/client/scripts/sync-dir.mjs")).toContain("syncMirror");
   });
 
   it("e2e webServer skips forced shared rebuild when dist is fresh", () => {

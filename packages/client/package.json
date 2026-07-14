@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "sync-enemy-portraits": "mkdir -p public/enemies && rsync -a --delete ../assets/enemies/ public/enemies/",
-    "sync-tile-assets": "mkdir -p public/tiles && rsync -a --delete ../assets/tiles/ public/tiles/",
+    "sync-enemy-portraits": "node scripts/sync-dir.mjs ../assets/enemies public/enemies",
+    "sync-tile-assets": "node scripts/sync-dir.mjs ../assets/tiles public/tiles",
     "sync-assets": "npm run sync-enemy-portraits && npm run sync-tile-assets",
     "predev": "npm run sync-assets",
     "prebuild": "npm run sync-assets",

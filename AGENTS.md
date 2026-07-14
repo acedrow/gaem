@@ -72,7 +72,7 @@ npm run test:e2e
 
   Do **not** point e2e at `:5173` / `:3001`. The root `test:e2e` script and `@gaem/e2e` defaults already set these; Playwright starts a fresh Express + Vite stack (`reuseExistingServer: false`) with `VITE_API_BASE` / `VITE_WS_URL` so the browser client talks to `:3002`. CI runs the same script after unit tests pass.
 
-  **Alongside `dev:cf`:** port isolation alone used to be insufficient — e2e/`predev` wiped `public/tiles` and forced a shared `dist/` rebuild that raced `tsc --watch`, thrashing Vite HMR and WebSockets. Asset sync now uses `rsync -a --delete` (no full-tree wipe), e2e only rebuilds `@gaem/shared` when `dist/` is missing/stale (`packages/e2e/scripts/ensure-shared-built.mjs`), and the client auto-reconnects the game WebSocket after unexpected drops.
+  **Alongside `dev:cf`:** port isolation alone used to be insufficient — e2e/`predev` wiped `public/tiles` and forced a shared `dist/` rebuild that raced `tsc --watch`, thrashing Vite HMR and WebSockets. Asset sync uses `packages/client/scripts/sync-dir.mjs` (rsync-like mirror, no full-tree wipe; portable for CF Workers Builds which lack `rsync`), e2e only rebuilds `@gaem/shared` when `dist/` is missing/stale (`packages/e2e/scripts/ensure-shared-built.mjs`), and the client auto-reconnects the game WebSocket after unexpected drops.
 
 Do not skip verification because a change "looks small" or "only touches the client." Export omissions, missing shared rebuilds, and broken imports often surface only at build time. Asset-only imports (above) may skip `test:e2e`; still run `build` / `lint` if you touched TypeScript that registers those assets.
 
@@ -192,7 +192,7 @@ When adding a client message or game action, update `types.ts`, shared validator
 
 ## Importing board tile appearances
 
-GM paintbrush **appearances** are **JPG** under `packages/assets/tiles/{setId}/` (e.g. `basic/`, `paracletus/`). Do **not** commit appearance PNGs — JPG only. `bundledTileAppearances.ts` glob-discovers them (`**/*.jpg` under each set); `public/tiles/` is a mirror of assets (`rsync -a --delete` via `predev` / `prebuild` / `npm run sync-tile-assets -w @gaem/client`), so removals in assets prune public without wiping unchanged files first.
+GM paintbrush **appearances** are **JPG** under `packages/assets/tiles/{setId}/` (e.g. `basic/`, `paracletus/`). Do **not** commit appearance PNGs — JPG only. `bundledTileAppearances.ts` glob-discovers them (`**/*.jpg` under each set); `public/tiles/` is a mirror of assets (`sync-dir.mjs` via `predev` / `prebuild` / `npm run sync-tile-assets -w @gaem/client`), so removals in assets prune public without wiping unchanged files first.
 
 **All imported appearance tiles must be exactly 32×32 JPG.** Upscale or downscale with nearest-neighbor (`Image.Resampling.NEAREST`) so pixel art stays crisp. Save with high JPEG quality and `subsampling=0` (e.g. Pillow `quality=95, subsampling=0`). JPG has no alpha — matte gutters/rounded corners to black (or leave sheet black) before save. Do not leave source sheets or other resolutions in the assets folders.
 
