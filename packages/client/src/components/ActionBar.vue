@@ -18,6 +18,7 @@ const {
   budget,
   canMain,
   canSupport,
+  canUseEquipment,
   canAux,
   hasteRemaining,
   actionBudgetChips,
@@ -239,7 +240,7 @@ function weaponSwap() {
       >
         Weapon
       </button>
-      <button type="button" class="action-btn" :disabled="!canSupport" @click="useEquipment">
+      <button type="button" class="action-btn" :disabled="!canUseEquipment" @click="useEquipment">
         Equip
       </button>
       <button type="button" class="action-btn" :disabled="!canSupport && !canInteractSeed" @click="useInteract">

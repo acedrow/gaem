@@ -150,6 +150,7 @@ import { usePortraitCache } from "../composables/usePortraitCache.js";
 import { useTileAppearanceCache } from "../composables/useTileAppearanceCache.js";
 import { useApi } from "../composables/useApi.js";
 import { useEnemyPortraitColors } from "../composables/useEnemyPortraitColors.js";
+import { useGameConnection } from "../composables/useGameConnection.js";
 import { useGameState } from "../composables/useGameState.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import { usePatternSelection } from "../composables/usePatternSelection.js";
@@ -189,7 +190,13 @@ const {
 const selectedPlayerId = computed(() =>
   boardSelection.value?.kind === "player" ? boardSelection.value.id : null,
 );
+const { connection } = useGameConnection();
 const { gameState, yourPlayerId, send } = useGameState();
+const boardLoadingMessage = computed(() => {
+  if (connection.value === "connecting") return "Connecting to game server…";
+  if (connection.value === "connected") return "Joining session…";
+  return "Disconnected…";
+});
 const activePlayerSelected = computed(() => {
   const id = yourPlayerId.value;
   if (!id) return false;
@@ -5410,7 +5417,10 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <p v-else class="loading">Loading board…</p>
+    <div v-else class="board-loading" role="status" aria-live="polite">
+      <span class="board-loading-spinner" aria-hidden="true" />
+      <p class="board-loading-message">{{ boardLoadingMessage }}</p>
+    </div>
 
     <BoardContextMenu
       :open="contextMenu.open"
@@ -5483,6 +5493,36 @@ onUnmounted(() => {
   flex: 1;
   min-height: 0;
   width: 100%;
+}
+
+.board-loading {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  margin: 0;
+  padding: 1.5rem;
+}
+
+.board-loading-spinner {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-accent);
+  animation: board-loading-spin 0.7s linear infinite;
+}
+
+.board-loading-message {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 1.05rem;
+}
+
+@keyframes board-loading-spin {
+  to { transform: rotate(360deg); }
 }
 
 .board-display {

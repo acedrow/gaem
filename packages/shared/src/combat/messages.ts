@@ -514,11 +514,7 @@ export function validatePlayerAction(
     case "useEquipment": {
       const blocked = actionTierBlocked(player, "support", state);
       if (blocked) return blocked;
-      if (
-        areActionLimitsEnforced(state) &&
-        player.equipmentUses !== undefined &&
-        player.equipmentUses <= 0
-      ) {
+      if ((player.equipmentUses ?? 1) <= 0) {
         return "Equipment already used";
       }
       const equipmentName = action.detail ?? player.equipment;
@@ -918,7 +914,7 @@ export function applyPlayerAction(
     }
     case "useEquipment": {
       maybeSpendActionTier(state, player, "support");
-      if (areActionLimitsEnforced(state)) player.equipmentUses = 0;
+      player.equipmentUses = 0;
       if (playerArmorGearName(player) === EXPANDED_AGGRESSION_GEAR) {
         const gearMsg = activateExpandedAggressionGear(state, player);
         return `${playerLabel(player)} used equipment${gearMsg ? ` — ${gearMsg}` : ""}`;

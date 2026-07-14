@@ -62,7 +62,7 @@ describe("class-abilities", () => {
       equipmentUses: 0,
       actionBudget: true,
     });
-    addTestEnemy(state, "e1", 3, 2, { hp: 1 });
+    addTestEnemy(state, "e1", 3, 2, { name: "Stain Creep", hp: 1 });
     state.roundPhase = "playerTurn";
     state.turn = { role: "player", playerId: "p1" };
     state.combat = createDefaultCombatState(1);
@@ -74,6 +74,33 @@ describe("class-abilities", () => {
     });
     expect(msg).toContain("Equipment restored");
     expect(player.equipmentUses).toBe(1);
+  });
+
+  it("HEPHAESTUS Synesis does not restore when armor blocks the kill", () => {
+    const state = makeGameState();
+    const player = addTestPlayer(state, "p1", {
+      x: 2,
+      y: 2,
+      class: "HEPHAESTUS",
+      equipmentUses: 0,
+      actionBudget: true,
+    });
+    addTestEnemy(state, "e1", 3, 2, {
+      name: "Stain Creep",
+      hp: 1,
+      effects: { Armor: 10 },
+    });
+    state.roundPhase = "playerTurn";
+    state.turn = { role: "player", playerId: "p1" };
+    state.combat = createDefaultCombatState(1);
+
+    const msg = applyClassActive(state, "p1", {
+      action: "classActive",
+      kind: "synesis_conversion",
+      targetEnemyIds: ["e1"],
+    });
+    expect(msg).not.toContain("Equipment restored");
+    expect(player.equipmentUses).toBe(0);
   });
 
   it("HEPHAESTUS Synesis allows scale:2 enemy adjacent via non-anchor footprint", () => {

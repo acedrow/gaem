@@ -179,12 +179,18 @@ const showWeaponGearRow = computed(
 const showArmorGearRow = computed(() => classGrantsDualGear(form.value.class));
 const showYadathanTowerPick = computed(() => form.value.armor === YADATHAN_ARMOR_NAME);
 
-const canUseEquipmentCharge = computed(() => {
-  if (!canSupport.value || !form.value.equipment) return false;
+const hasEquipmentCharge = computed(() => {
   const uses = boardPlayer.value?.equipmentUses;
   if (uses === undefined) return true;
   return uses > 0;
 });
+
+const canUseEquipmentCharge = computed(() => {
+  if (!canSupport.value || !form.value.equipment) return false;
+  return hasEquipmentCharge.value;
+});
+
+const canUseBaselineCommunism = computed(() => hasEquipmentCharge.value);
 
 function weaponHasAttack(weaponName: string) {
   return !!getWeaponByName(weaponName)?.attack;
@@ -760,6 +766,7 @@ onUnmounted(() => {
               <SheetActionButton
                 v-if="form.class === 'HEPHAESTUS'"
                 :active="mode === 'hephaestusRestore'"
+                :disabled="!canUseBaselineCommunism"
                 @click="useHephaestusRestore"
               >
                 Passive
@@ -924,8 +931,8 @@ onUnmounted(() => {
                 </template>
               </SheetActionButton>
             </template>
-            <template v-if="boardPlayer?.equipmentUses != null" #subline>
-              Equipment charges {{ boardPlayer.equipmentUses ? "●" : "○" }}
+            <template v-if="boardPlayer" #subline>
+              Equipment charges {{ hasEquipmentCharge ? "●" : "○" }}
             </template>
           </SheetGearFieldRow>
 

@@ -109,6 +109,12 @@ export function useCombatActions(playerId?: () => string | null) {
     const p = activePlayer.value;
     return !!p && canUseActionTier(p, "support");
   });
+  const hasEquipmentCharge = computed(() => {
+    const uses = activePlayer.value?.equipmentUses;
+    if (uses === undefined) return true;
+    return uses > 0;
+  });
+  const canUseEquipment = computed(() => canSupport.value && hasEquipmentCharge.value);
   const canAux = computed(() => {
     if (sandboxMode.value) return true;
     const p = activePlayer.value;
@@ -380,6 +386,8 @@ export function useCombatActions(playerId?: () => string | null) {
     budget,
     canMain,
     canSupport,
+    hasEquipmentCharge,
+    canUseEquipment,
     canAux,
     hasteRemaining,
     hasteGrantedTier,

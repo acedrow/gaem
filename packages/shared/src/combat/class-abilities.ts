@@ -15,6 +15,7 @@ import {
   applyDamageToEnemy,
   collectAttackTiles,
   getWeaponAttackSpec,
+  initSabaothCharges,
   manhattanDistance,
   resolveCombatAttackSpec,
 } from "./attack.js";
@@ -228,11 +229,15 @@ export function applyClassActive(
   if (player.class === HEPHAESTUS_CLASS) {
     const enemy = state.enemies.find((e) => e.id === action.targetEnemyIds![0])!;
     const roll = rollDice(1, 6)[0]!;
-    applyDamageToEnemy(enemy, roll, state);
-    let msg = `${playerLabel(player)} Synesis Conversion → ${enemyLabel(enemy)} ${roll}`;
+    const dealt = applyDamageToEnemy(enemy, roll, state);
+    let msg = `${playerLabel(player)} Synesis Conversion → ${enemyLabel(enemy)} ${dealt}`;
+    if (dealt !== roll) msg += ` (rolled ${roll})`;
     if ((enemy.hp ?? 0) <= 0) {
       player.equipmentUses = 1;
+      initSabaothCharges(player);
+      const tokenMsg = handleEnemyDefeated(state, enemy, player.id);
       msg += "; Equipment restored";
+      if (tokenMsg) msg += `; ${tokenMsg}`;
     }
     return msg;
   }
@@ -317,6 +322,7 @@ export function applyClassPassive(
     const ally = state.players.find((p) => p.id === action.targetPlayerId)!;
     player.equipmentUses = 0;
     ally.equipmentUses = 1;
+    initSabaothCharges(ally);
     return `${playerLabel(player)} Baseline Communism → restored ${playerLabel(ally)} equipment`;
   }
   return "Unknown passive";
