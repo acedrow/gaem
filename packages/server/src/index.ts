@@ -447,6 +447,8 @@ const socketProfile = new Map<WebSocket, string | null>();
 const socketGmPermissions = new Map<WebSocket, boolean>();
 /** socket -> role after join */
 const socketRole = new Map<WebSocket, GaemRole | null>();
+/** sockets currently holding an active map ping */
+const socketMapPingActive = new Map<WebSocket, true>();
 
 /** The board token controlled by a socket, derived from its bound character sheet. */
 function playerIdForSocket(ws: WebSocket): string | null {
@@ -525,6 +527,35 @@ function broadcastConsoleEntry(entry: ConsoleLogEntry): void {
   for (const ws of wss.clients) {
     if (ws.readyState === ws.OPEN) ws.send(payload);
   }
+}
+
+function mapPingFromId(ws: WebSocket): string {
+  const role = socketRole.get(ws);
+  if (role === "gm") return "gm";
+  return socketProfile.get(ws) ?? "player";
+}
+
+function broadcastMapPing(msg: Extract<ServerMessage, { type: "mapPing" }>): void {
+  const payload = JSON.stringify(msg);
+  for (const client of wss.clients) {
+    if (client.readyState === client.OPEN) client.send(payload);
+  }
+}
+
+function clearMapPingForSocket(ws: WebSocket): void {
+  if (!socketMapPingActive.has(ws)) return;
+  socketMapPingActive.delete(ws);
+  const actor = actorForSocket(ws);
+  broadcastMapPing({
+    type: "mapPing",
+    fromId: mapPingFromId(ws),
+    fromName: actor.name,
+    role: actor.role,
+    surface: "taccom",
+    x: 0,
+    y: 0,
+    active: false,
+  });
 }
 
 function broadcastConsole(actor: ConsoleActor, message: string): void {
@@ -622,6 +653,37 @@ wss.on("connection", (ws: WebSocket) => {
     }
 
     const role = socketRole.get(ws);
+    if (parsed.type === "mapPing") {
+      if (!role) {
+        sendError(ws, "Not joined");
+        return;
+      }
+      if (parsed.surface !== "taccom" && parsed.surface !== "overworld") {
+        sendError(ws, "Invalid map ping");
+        return;
+      }
+      if (!Number.isFinite(parsed.x) || !Number.isFinite(parsed.y)) {
+        sendError(ws, "Invalid map ping");
+        return;
+      }
+      const actor = actorForSocket(ws);
+      if (parsed.active) {
+        socketMapPingActive.set(ws, true);
+      } else {
+        socketMapPingActive.delete(ws);
+      }
+      broadcastMapPing({
+        type: "mapPing",
+        fromId: mapPingFromId(ws),
+        fromName: actor.name,
+        role: actor.role,
+        surface: parsed.surface,
+        x: Math.trunc(parsed.x),
+        y: Math.trunc(parsed.y),
+        active: parsed.active === true,
+      });
+      return;
+    }
     if (parsed.type === "moveEnemy" || parsed.type === "addEnemy" || parsed.type === "removeEnemy") {
       if (parsed.type === "removeEnemy") {
         const enemy = gameState.enemies.find((e) => e.id === parsed.enemyId);
@@ -1083,6 +1145,7 @@ wss.on("connection", (ws: WebSocket) => {
 
   ws.on("close", () => {
     const actor = actorForSocket(ws);
+    clearMapPingForSocket(ws);
     if (socketRole.get(ws)) {
       broadcastConsole(actor, CONSOLE_MSG_DISCONNECTED);
     }

@@ -153,6 +153,10 @@ import { useEnemyPortraitColors } from "../composables/useEnemyPortraitColors.js
 import { useGameConnection } from "../composables/useGameConnection.js";
 import { useGameState } from "../composables/useGameState.js";
 import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
+import {
+  consumeSuppressMapPingClick,
+  useMapPing,
+} from "../composables/useMapPing.js";
 import { usePatternSelection } from "../composables/usePatternSelection.js";
 import { usePlayerSettings } from "../composables/usePlayerSettings.js";
 import BoardCell, { type CellRenderState } from "./BoardCell.vue";
@@ -173,6 +177,8 @@ const props = defineProps<{
 }>();
 
 const canUseGmTools = computed(() => props.role === "gm" || props.gmCapabilities === true);
+
+const { taccomPings, beginMapPingHold } = useMapPing();
 
 const {
   boardSelection,
@@ -229,6 +235,7 @@ const {
   activeTool: gmActiveTool,
   effectiveActiveTool: gmEffectiveActiveTool,
   selectTargetKind: gmSelectTargetKind,
+  selectSameEnemyType: gmSelectSameEnemyType,
   bulkSelection: gmBulkSelection,
   setBulkSelection: setGmBulkSelection,
   clearBulkSelection: clearGmBulkSelection,
@@ -397,6 +404,7 @@ const tileTerrainModalBulkCoords = ref<{ x: number; y: number }[] | undefined>(u
 const marqueeActive = ref(false);
 const marqueeStart = ref<{ x: number; y: number } | null>(null);
 const marqueeEnd = ref<{ x: number; y: number } | null>(null);
+const MARQUEE_DRAG_THRESHOLD_PX = 6;
 // A marquee drag across cells emits a trailing click on the board container,
 // which would otherwise clear the selection we just made; suppress that click.
 let suppressViewportClickAfterMarquee = false;
@@ -2897,6 +2905,9 @@ function onEnemyCellClick(x: number, y: number, enemyId: string) {
   enemyClickTimer = setTimeout(() => {
     enemyClickTimer = null;
     toggleBoardEnemy(enemyId);
+    if (canUseGmTools.value && gmEffectiveActiveTool.value === "select") {
+      applySameTypeBulkSelection(enemyId);
+    }
   }, 250);
 }
 
@@ -2911,6 +2922,17 @@ function onEnemyCellDblClick(_x: number, _y: number, enemyId: string) {
   const group = swarmGroupForEnemy(s, enemyId);
   if (!group || group.size < 2) return;
   selectBoardEnemyMember(enemyId);
+}
+
+function applySameTypeBulkSelection(enemyId: string) {
+  if (gmSelectTargetKind.value !== "enemies" || !gmSelectSameEnemyType.value) return;
+  const s = gameState.value;
+  const enemy = s?.enemies.find((e) => e.id === enemyId);
+  if (!s || !enemy) return;
+  const ids = enemy.name
+    ? s.enemies.filter((e) => !!e.name && e.name === enemy.name).map((e) => e.id)
+    : [enemy.id];
+  setGmBulkSelection({ kind: "enemies", ids });
 }
 
 function selectOccupantAt(x: number, y: number): boolean {
@@ -4265,7 +4287,11 @@ function cellsInGridRect(
   return coords;
 }
 
-function finishMarqueeSelection(startClient: { x: number; y: number }, endClient: { x: number; y: number }) {
+function finishMarqueeSelection(
+  startClient: { x: number; y: number },
+  endClient: { x: number; y: number },
+  sameTypeSeed: { id: string; name?: string } | null = null,
+) {
   const s = gameState.value;
   const occ = occupancy.value;
   if (!s || !occ) return;
@@ -4289,6 +4315,30 @@ function finishMarqueeSelection(startClient: { x: number; y: number }, endClient
     setGmBulkSelection(ids.size ? { kind: "players", ids: [...ids] } : null);
     return;
   }
+  if (gmSelectSameEnemyType.value) {
+    let seed = sameTypeSeed;
+    if (!seed) {
+      let best: { id: string; name?: string; dist: number } | null = null;
+      for (const cell of rectCells) {
+        const enemy = occ.enemyByKey.get(coordKey(cell.x, cell.y));
+        if (!enemy) continue;
+        const dist = Math.abs(cell.x - startCell.x) + Math.abs(cell.y - startCell.y);
+        if (!best || dist < best.dist) {
+          best = { id: enemy.id, name: enemy.name, dist };
+        }
+      }
+      if (best) seed = { id: best.id, name: best.name };
+    }
+    if (!seed) {
+      setGmBulkSelection(null);
+      return;
+    }
+    const ids = seed.name
+      ? s.enemies.filter((e) => !!e.name && e.name === seed.name).map((e) => e.id)
+      : [seed.id];
+    setGmBulkSelection(ids.length ? { kind: "enemies", ids } : null);
+    return;
+  }
   const ids = new Set<string>();
   for (const cell of rectCells) {
     const enemy = occ.enemyByKey.get(coordKey(cell.x, cell.y));
@@ -4303,11 +4353,26 @@ function onMarqueePointerDown(e: PointerEvent) {
   const target = e.target as HTMLElement;
   if (target.closest(".reset-zoom-btn")) return;
   e.preventDefault();
+  let sameTypeSeed: { id: string; name?: string } | null = null;
+  if (gmSelectSameEnemyType.value && gmSelectTargetKind.value === "enemies") {
+    const startCell = cellFromClientPoint(e.clientX, e.clientY);
+    const enemy = startCell
+      ? occupancy.value?.enemyByKey.get(coordKey(startCell.x, startCell.y))
+      : undefined;
+    if (enemy) sameTypeSeed = { id: enemy.id, name: enemy.name };
+  }
   marqueeActive.value = true;
   marqueeStart.value = { x: e.clientX, y: e.clientY };
   marqueeEnd.value = { x: e.clientX, y: e.clientY };
   let didDrag = false;
   const onMove = (ev: PointerEvent) => {
+    const start = marqueeStart.value;
+    if (!start) return;
+    const dx = ev.clientX - start.x;
+    const dy = ev.clientY - start.y;
+    if (!didDrag && dx * dx + dy * dy < MARQUEE_DRAG_THRESHOLD_PX * MARQUEE_DRAG_THRESHOLD_PX) {
+      return;
+    }
     didDrag = true;
     marqueeEnd.value = { x: ev.clientX, y: ev.clientY };
   };
@@ -4322,7 +4387,7 @@ function onMarqueePointerDown(e: PointerEvent) {
     if (!start || !end) return;
     if (didDrag) {
       suppressViewportClickAfterMarquee = true;
-      finishMarqueeSelection(start, end);
+      finishMarqueeSelection(start, end, sameTypeSeed);
     }
   };
   window.addEventListener("pointermove", onMove);
@@ -4435,6 +4500,41 @@ function onViewportPointerDown(e: PointerEvent) {
   suppressPaintbrushClickAfterPointerDown = false;
   onMarqueePointerDown(e);
   onPaintbrushPointerDown(e);
+  onMapPingPointerDown(e);
+}
+
+function canStartMapPing(): boolean {
+  if (boardActionMode.value != null) return false;
+  if (canUseGmTools.value && gmActiveTool.value != null) return false;
+  if (stainGeyserPlacementActive.value) return false;
+  return true;
+}
+
+function onMapPingPointerDown(e: PointerEvent) {
+  const target = e.target as HTMLElement;
+  if (target.closest(".reset-zoom-btn")) return;
+  beginMapPingHold({
+    e,
+    surface: "taccom",
+    getCell: (clientX, clientY) => cellFromClientPoint(clientX, clientY),
+    canStart: canStartMapPing,
+  });
+}
+
+function mapPingStyle(x: number, y: number) {
+  const s = gameState.value;
+  if (!s) return null;
+  const gridW = boardWidthPx.value;
+  const gridH = contentHeightPx.value;
+  const cellW = (gridW - (s.width - 1) * BOARD_CELL_GAP) / s.width;
+  const cellH = (gridH - (s.height - 1) * BOARD_CELL_GAP) / s.height;
+  const size = Math.min(cellW, cellH) * 0.85;
+  return {
+    left: `${x * (cellW + BOARD_CELL_GAP) + cellW / 2}px`,
+    top: `${y * (cellH + BOARD_CELL_GAP) + cellH / 2}px`,
+    width: `${size}px`,
+    height: `${size}px`,
+  };
 }
 
 const marqueeOverlayStyle = computed(() => {
@@ -4526,7 +4626,12 @@ function onGmCellClick(x: number, y: number) {
   }
 
   if (gmEffectiveActiveTool.value === "select") {
-    if (!selectOccupantAt(x, y)) clearGmBulkSelection();
+    if (!selectOccupantAt(x, y)) {
+      clearGmBulkSelection();
+      return;
+    }
+    const enemy = occupancy.value?.enemyByKey.get(coordKey(x, y));
+    if (enemy) applySameTypeBulkSelection(enemy.id);
     return;
   }
 
@@ -4576,6 +4681,7 @@ function tryPatternCellClick(x: number, y: number): boolean {
 }
 
 function onCellClick(x: number, y: number) {
+  if (consumeSuppressMapPingClick()) return;
   if (tryPatternCellClick(x, y)) return;
   if (canUseGmTools.value) onGmCellClick(x, y);
   else onPlayerCellClick(x, y);
@@ -4601,6 +4707,7 @@ function onCellUnhover() {
 
 function onViewportClick(e: MouseEvent) {
   closeContextMenu();
+  if (consumeSuppressMapPingClick()) return;
   if (suppressViewportClickAfterMarquee) {
     suppressViewportClickAfterMarquee = false;
     return;
@@ -5262,6 +5369,14 @@ onUnmounted(() => {
                 @enemy-dblclick="onEnemyCellDblClick(row.x, row.y, $event)"
                 @deploy-pointer-down="onDeployPointerDown($event, row.cell.player!)"
               />
+            <div
+              v-for="ping in taccomPings"
+              :key="ping.fromId"
+              class="map-ping"
+              :style="mapPingStyle(ping.x, ping.y) ?? undefined"
+              :title="ping.fromName"
+              aria-hidden="true"
+            />
           </div>
         </div>
 
@@ -5595,6 +5710,33 @@ onUnmounted(() => {
   height: 100%;
   pointer-events: none;
   z-index: 1;
+}
+
+.map-ping {
+  position: absolute;
+  z-index: 6;
+  pointer-events: none;
+  border-radius: 50%;
+  border: 2px solid var(--color-accent-bright);
+  background: color-mix(in srgb, var(--color-accent) 22%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 35%, transparent);
+  transform: translate(-50%, -50%);
+  animation: map-ping-pulse 1s ease-out infinite;
+}
+
+@keyframes map-ping-pulse {
+  0% {
+    opacity: 0.95;
+    transform: translate(-50%, -50%) scale(0.72);
+  }
+  70% {
+    opacity: 0.35;
+    transform: translate(-50%, -50%) scale(1.15);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.28);
+  }
 }
 
 .board-tooltip {

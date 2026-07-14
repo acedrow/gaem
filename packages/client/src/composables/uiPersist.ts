@@ -41,6 +41,7 @@ export type PersistedGmSelectTargetKind = "tiles" | "enemies" | "players";
 export type PersistedGmTools = {
   activeTool: PersistedGmTool | null;
   selectTargetKind: PersistedGmSelectTargetKind;
+  selectSameEnemyType: boolean;
   damageAmount: number;
   effectId: string;
   effectStacks: number;
@@ -109,6 +110,7 @@ export type PersistedUi = {
 export const DEFAULT_GM_TOOLS: PersistedGmTools = {
   activeTool: null,
   selectTargetKind: "enemies",
+  selectSameEnemyType: false,
   damageAmount: 0,
   effectId: "",
   effectStacks: 1,
@@ -220,6 +222,7 @@ export function parsePersistedGmTools(raw: unknown): PersistedGmTools {
     GM_SELECT_TARGET_KINDS.has(g.selectTargetKind as PersistedGmSelectTargetKind)
       ? (g.selectTargetKind as PersistedGmSelectTargetKind)
       : DEFAULT_GM_TOOLS.selectTargetKind;
+  const selectSameEnemyType = g.selectSameEnemyType === true;
   const damageAmount =
     typeof g.damageAmount === "number" && Number.isFinite(g.damageAmount)
       ? g.damageAmount
@@ -294,6 +297,7 @@ export function parsePersistedGmTools(raw: unknown): PersistedGmTools {
   return {
     activeTool,
     selectTargetKind,
+    selectSameEnemyType,
     damageAmount,
     effectId,
     effectStacks,

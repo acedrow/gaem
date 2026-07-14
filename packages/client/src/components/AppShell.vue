@@ -19,6 +19,7 @@ import { useFactionSelection } from "../composables/useFactionSelection.js";
 import { useTableSelection } from "../composables/useTableSelection.js";
 import { useSession } from "../composables/useSession.js";
 import { showToast } from "../composables/useToasts.js";
+import { useMapPing } from "../composables/useMapPing.js";
 import { initUiPersistence } from "../composables/uiPersist.js";
 import {
   applyPersistedGmTools,
@@ -57,8 +58,16 @@ const { connection } = useGameConnection();
 const { gameState, yourPlayerId, send } = useGameState();
 const { setMode } = useBoardActionMode();
 useGmTools();
+const { remotePingOnTaccom, remotePingOnOverworld } = useMapPing();
 
 const boardOverlaysEl = ref<HTMLElement | null>(null);
+
+const showTaccomPingBadge = computed(
+  () => remotePingOnTaccom.value && activeMainTab.value !== "taccom",
+);
+const showOverworldPingBadge = computed(
+  () => remotePingOnOverworld.value && activeMainTab.value !== "overworld",
+);
 
 const playerProfileRef = computed(() => playerProfile.value ?? null);
 const sessionRole = computed(() => role.value!);
@@ -274,7 +283,7 @@ function selectMainTab(tab: MainSectionTab) {
           <button
             type="button"
             class="chrome-tab"
-            :class="{ active: activeMainTab === 'taccom' }"
+            :class="{ active: activeMainTab === 'taccom', 'chrome-tab--ping': showTaccomPingBadge }"
             data-tooltip="TACCOM"
             aria-label="TACCOM"
             @click="selectMainTab('taccom')"
@@ -284,11 +293,12 @@ function selectMainTab(tab: MainSectionTab) {
               <path d="M8 2.5v2M8 11.5v2M2.5 8h2M11.5 8h2" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" />
               <circle cx="8" cy="8" r="1.25" fill="currentColor" />
             </svg>
+            <span v-if="showTaccomPingBadge" class="chrome-tab-ping" aria-hidden="true" />
           </button>
           <button
             type="button"
             class="chrome-tab"
-            :class="{ active: activeMainTab === 'overworld' }"
+            :class="{ active: activeMainTab === 'overworld', 'chrome-tab--ping': showOverworldPingBadge }"
             data-tooltip="Overworld"
             aria-label="Overworld"
             @click="selectMainTab('overworld')"
@@ -304,6 +314,7 @@ function selectMainTab(tab: MainSectionTab) {
               <path d="M2.5 7.5h11" stroke="currentColor" stroke-width="1.25" />
               <circle cx="6" cy="10" r="0.75" fill="currentColor" />
             </svg>
+            <span v-if="showOverworldPingBadge" class="chrome-tab-ping" aria-hidden="true" />
           </button>
           <button
             type="button"

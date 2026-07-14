@@ -25,6 +25,10 @@ import { useBoardViewport } from "../composables/useBoardViewport.js";
 import { useFactionSelection } from "../composables/useFactionSelection.js";
 import { useGameState } from "../composables/useGameState.js";
 import { activeMainTab } from "../composables/useMainSectionTab.js";
+import {
+  consumeSuppressMapPingClick,
+  useMapPing,
+} from "../composables/useMapPing.js";
 import { useSession } from "../composables/useSession.js";
 import { showToast } from "../composables/useToasts.js";
 import locationUrl from "../assets/location.svg";
@@ -48,8 +52,10 @@ const { gameState, send } = useGameState();
 const { hasGmCapabilities, isGm } = useSession();
 const { uploadRegionImage, fetchRegionImageUrl } = useApi();
 const { selectedFactionId, selectFaction, revealFactionLocation } = useFactionSelection();
+const { overworldPings, beginMapPingHold } = useMapPing();
 
 const viewportEl = ref<HTMLElement | null>(null);
+const overworldBoardEl = ref<HTMLElement | null>(null);
 const viewportKey = ref("overworld");
 const isReady = ref(true);
 const uploadingRegionId = ref<OverworldRegionId | null>(null);
@@ -151,6 +157,7 @@ function isRegionDefeated(regionId: OverworldRegionId): boolean {
 }
 
 function onSelectRegion(regionId: OverworldRegionId) {
+  if (consumeSuppressMapPingClick()) return;
   if (travelMode.value || deployMode.value) return;
   selectFaction(getFactionForRegion(regionId).id);
 }
@@ -323,6 +330,7 @@ const {
 } = useBoardViewport(viewportEl, contentWidthPx, contentHeightPx, isReady, viewportKey);
 
 function onLocationClick(loc: OverworldLocation) {
+  if (consumeSuppressMapPingClick()) return;
   if (travelMode.value || deployMode.value) return;
   if (selectedLocationId.value === loc.id) {
     selectedLocationId.value = null;
@@ -348,7 +356,56 @@ function onLocationClick(loc: OverworldLocation) {
 }
 
 function clearLocationSelection() {
+  if (consumeSuppressMapPingClick()) return;
   if (selectedLocationId.value) selectedLocationId.value = null;
+}
+
+function quarterFromClientPoint(clientX: number, clientY: number): { x: number; y: number } | null {
+  const board = overworldBoardEl.value;
+  if (!board) return null;
+  const rect = board.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return null;
+  const qx = Math.floor(((clientX - rect.left) / rect.width) * OVERWORLD_QUARTER_WIDTH);
+  const qy = Math.floor(((clientY - rect.top) / rect.height) * OVERWORLD_QUARTER_HEIGHT);
+  if (
+    !Number.isInteger(qx) ||
+    !Number.isInteger(qy) ||
+    qx < 0 ||
+    qy < 0 ||
+    qx >= OVERWORLD_QUARTER_WIDTH ||
+    qy >= OVERWORLD_QUARTER_HEIGHT
+  ) {
+    return null;
+  }
+  return { x: qx, y: qy };
+}
+
+function canStartOverworldMapPing(): boolean {
+  if (travelMode.value || deployMode.value) return false;
+  if (contextMenu.value.open) return false;
+  if (placeModal.value.open || removeModal.value.open) return false;
+  return true;
+}
+
+function onOverworldPingPointerDown(e: PointerEvent) {
+  const target = e.target as HTMLElement;
+  if (target.closest(".region-edit-btn, .reset-zoom-btn")) return;
+  beginMapPingHold({
+    e,
+    surface: "overworld",
+    getCell: quarterFromClientPoint,
+    canStart: canStartOverworldMapPing,
+  });
+}
+
+function overworldPingStyle(qx: number, qy: number) {
+  const size = QUARTER * 0.9;
+  return {
+    left: `${qx * QUARTER + QUARTER / 2}px`,
+    top: `${qy * QUARTER + QUARTER / 2}px`,
+    width: `${size}px`,
+    height: `${size}px`,
+  };
 }
 
 function onViewportWheel(e: WheelEvent) {
@@ -517,9 +574,11 @@ const gridCells = computed(() =>
         ]"
       >
         <div
+          ref="overworldBoardEl"
           class="overworld-board"
           :style="{ width: `${boardWidthPx}px`, height: `${boardHeightPx}px` }"
           @contextmenu="onBoardContextMenu"
+          @pointerdown="onOverworldPingPointerDown"
         >
           <div class="regions">
             <div
@@ -652,6 +711,14 @@ const gridCells = computed(() =>
           >
             <span class="party-token-dot" />
           </div>
+          <div
+            v-for="ping in overworldPings"
+            :key="ping.fromId"
+            class="map-ping"
+            :style="overworldPingStyle(ping.x, ping.y)"
+            :title="ping.fromName"
+            aria-hidden="true"
+          />
         </div>
         <div
           class="dis-spur"
@@ -774,6 +841,33 @@ const gridCells = computed(() =>
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   overflow: visible;
+}
+
+.map-ping {
+  position: absolute;
+  z-index: 8;
+  pointer-events: none;
+  border-radius: 50%;
+  border: 2px solid var(--color-accent-bright);
+  background: color-mix(in srgb, var(--color-accent) 22%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 35%, transparent);
+  transform: translate(-50%, -50%);
+  animation: map-ping-pulse 1s ease-out infinite;
+}
+
+@keyframes map-ping-pulse {
+  0% {
+    opacity: 0.95;
+    transform: translate(-50%, -50%) scale(0.72);
+  }
+  70% {
+    opacity: 0.35;
+    transform: translate(-50%, -50%) scale(1.15);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.28);
+  }
 }
 
 .dis-spur {

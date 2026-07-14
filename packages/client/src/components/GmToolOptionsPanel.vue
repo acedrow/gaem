@@ -16,6 +16,7 @@ import PanelShell from "./PanelShell.vue";
 const {
   activeTool,
   selectTargetKind,
+  selectSameEnemyType,
   bulkSelection,
   bulkSelectionCount,
   damageAmount,
@@ -78,8 +79,23 @@ const bulkLabel = computed(() => {
           {{ kind.label }}
         </button>
       </div>
+      <label v-if="selectTargetKind === 'enemies'" class="control-group same-type-row">
+        <input
+          v-model="selectSameEnemyType"
+          type="checkbox"
+          class="option-enable"
+          aria-label="Same type"
+        />
+        <span class="control-label same-type-label">Same type</span>
+      </label>
       <p v-if="bulkLabel" class="bulk-count">{{ bulkLabel }}</p>
-      <p v-else class="hint">Drag on the board to select</p>
+      <p v-else class="hint">
+        {{
+          selectTargetKind === "enemies" && selectSameEnemyType
+            ? "Click or drag to select all of that type"
+            : "Drag on the board to select"
+        }}
+      </p>
     </div>
 
     <div v-else-if="activeTool === 'damageEffect'" class="tool-options">
@@ -195,5 +211,23 @@ const bulkLabel = computed(() => {
   font-size: 0.8rem;
   font-family: inherit;
   padding: 0.25rem 0.4rem;
+}
+
+.same-type-row {
+  cursor: pointer;
+  gap: 0.4rem;
+}
+
+.same-type-label {
+  flex: 0 0 auto;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 0.8rem;
+  color: var(--color-text);
+}
+
+.option-enable {
+  margin: 0;
+  accent-color: var(--color-accent);
 }
 </style>

@@ -127,6 +127,35 @@ h3,
   border-bottom-color: var(--color-accent);
 }
 
+.chrome-tab-ping {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.35rem;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--color-accent-bright);
+  box-shadow: 0 0 0 1px var(--color-bg);
+  animation: chrome-tab-ping-pulse 1s ease-out infinite;
+  pointer-events: none;
+}
+
+.chrome-tab--ping {
+  color: var(--color-text);
+}
+
+@keyframes chrome-tab-ping-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(1.35);
+  }
+}
+
 .panel-header {
   display: flex;
   align-items: flex-start;

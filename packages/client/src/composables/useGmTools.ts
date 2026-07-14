@@ -62,6 +62,7 @@ const persistedGm = readPersistedUi().gmTools;
 
 const activeTool = ref<GmTool | null>(persistedGm.activeTool);
 const selectTargetKind = ref<GmSelectTargetKind>(persistedGm.selectTargetKind);
+const selectSameEnemyType = ref(persistedGm.selectSameEnemyType);
 const bulkSelection = ref<GmBulkSelection | null>(null);
 const damageAmount = ref(persistedGm.damageAmount);
 const effectId = ref(persistedGm.effectId);
@@ -283,6 +284,7 @@ export function snapshotGmTools(): PersistedGmTools {
   return {
     activeTool: activeTool.value,
     selectTargetKind: selectTargetKind.value,
+    selectSameEnemyType: selectSameEnemyType.value,
     damageAmount: damageAmount.value,
     effectId: effectId.value,
     effectStacks: effectStacks.value,
@@ -324,6 +326,7 @@ export function snapshotGmTools(): PersistedGmTools {
 export const gmToolsWatchSources = [
   activeTool,
   selectTargetKind,
+  selectSameEnemyType,
   damageAmount,
   effectId,
   effectStacks,
@@ -374,6 +377,7 @@ let syncPaintbrushPreviewsFromKeys: (() => void) | null = null;
 export function applyPersistedGmTools(gm: PersistedGmTools) {
   activeTool.value = gm.activeTool;
   selectTargetKind.value = gm.selectTargetKind;
+  selectSameEnemyType.value = gm.selectSameEnemyType;
   damageAmount.value = gm.damageAmount;
   effectId.value = gm.effectId;
   effectStacks.value = gm.effectStacks;
@@ -1307,6 +1311,7 @@ export function useGmTools() {
     activeTool,
     effectiveActiveTool,
     selectTargetKind,
+    selectSameEnemyType,
     bulkSelection,
     bulkSelectionCount,
     damageAmount,

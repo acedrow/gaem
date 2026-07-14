@@ -126,6 +126,7 @@ export class GameRoom {
   // other's writes. Chain them so each waits for the previous put to land before
   // reading the map again.
   private mapPersistChain: Promise<void> = Promise.resolve();
+  private readonly mapPingActiveSockets = new Set<WebSocket>();
 
   constructor(
     private readonly ctx: DurableObjectState,
@@ -280,6 +281,38 @@ export class GameRoom {
       } satisfies Attachment);
       await this.broadcastConsole(await this.actorForSocket(ws), CONSOLE_MSG_CONNECTED);
       await this.broadcastState();
+      return;
+    }
+
+    if (parsed.type === "mapPing") {
+      if (!att?.role) {
+        this.sendError(ws, "Not joined");
+        return;
+      }
+      if (parsed.surface !== "taccom" && parsed.surface !== "overworld") {
+        this.sendError(ws, "Invalid map ping");
+        return;
+      }
+      if (!Number.isFinite(parsed.x) || !Number.isFinite(parsed.y)) {
+        this.sendError(ws, "Invalid map ping");
+        return;
+      }
+      const actor = await this.actorForSocket(ws);
+      if (parsed.active) {
+        this.mapPingActiveSockets.add(ws);
+      } else {
+        this.mapPingActiveSockets.delete(ws);
+      }
+      this.broadcastMapPing({
+        type: "mapPing",
+        fromId: this.mapPingFromId(att),
+        fromName: actor.name,
+        role: actor.role,
+        surface: parsed.surface,
+        x: Math.trunc(parsed.x),
+        y: Math.trunc(parsed.y),
+        active: parsed.active === true,
+      });
       return;
     }
 
@@ -785,6 +818,7 @@ export class GameRoom {
 
   async webSocketClose(ws: WebSocket): Promise<void> {
     const att = ws.deserializeAttachment() as Attachment | null;
+    await this.clearMapPingForSocket(ws, att);
     if (att?.role) {
       await this.broadcastConsole(await this.actorForSocket(ws), CONSOLE_MSG_DISCONNECTED);
     }
@@ -877,6 +911,34 @@ export class GameRoom {
     for (const socket of this.ctx.getWebSockets()) {
       socket.send(payload);
     }
+  }
+
+  private mapPingFromId(att: Attachment | null): string {
+    if (att?.role === "gm") return "gm";
+    return att?.playerKey ?? "player";
+  }
+
+  private broadcastMapPing(msg: Extract<ServerMessage, { type: "mapPing" }>): void {
+    const payload = JSON.stringify(msg);
+    for (const socket of this.ctx.getWebSockets()) {
+      socket.send(payload);
+    }
+  }
+
+  private async clearMapPingForSocket(ws: WebSocket, att: Attachment | null): Promise<void> {
+    if (!this.mapPingActiveSockets.has(ws)) return;
+    this.mapPingActiveSockets.delete(ws);
+    const actor = await this.actorForSocket(ws);
+    this.broadcastMapPing({
+      type: "mapPing",
+      fromId: this.mapPingFromId(att),
+      fromName: actor.name,
+      role: actor.role,
+      surface: "taccom",
+      x: 0,
+      y: 0,
+      active: false,
+    });
   }
 
   private async sendConsoleSync(ws: WebSocket): Promise<void> {

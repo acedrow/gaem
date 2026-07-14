@@ -355,12 +355,24 @@ export type CharacterSheet = {
   updatedAt: string;
 };
 
+export type MapPingSurface = "taccom" | "overworld";
+
 /** Server → client */
 export type ServerMessage =
   | { type: "state"; state: GameState; yourPlayerId: string | null }
   | { type: "console"; entry: import("./console.js").ConsoleLogEntry }
   | { type: "consoleSync"; entries: import("./console.js").ConsoleLogEntry[] }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  | {
+      type: "mapPing";
+      fromId: string;
+      fromName: string;
+      role: "gm" | "player";
+      surface: MapPingSurface;
+      x: number;
+      y: number;
+      active: boolean;
+    };
 
 /** Client → server */
 export type ClientMessage =
@@ -468,4 +480,11 @@ export type ClientMessage =
   | { type: "removePlayerToken"; playerId: string }
   | { type: "activateMap"; mapId: string }
   | { type: "saveStartingState" }
-  | { type: "resetToStartingState" };
+  | { type: "resetToStartingState" }
+  | {
+      type: "mapPing";
+      surface: MapPingSurface;
+      x: number;
+      y: number;
+      active: boolean;
+    };

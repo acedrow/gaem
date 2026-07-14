@@ -4,6 +4,7 @@ import type { Ref } from "vue";
 import { appendConsoleEntry, setConsoleEntries } from "./useGameConsole.js";
 import { useGameConnection } from "./useGameConnection.js";
 import { useGameState } from "./useGameState.js";
+import { applyRemoteMapPing, clearAllMapPings } from "./useMapPing.js";
 import { useSession } from "./useSession.js";
 
 export const gameWsUrl = import.meta.env.VITE_CF_DEV
@@ -106,6 +107,8 @@ export function useGameSocket(opts: {
         setConsoleEntries(msg.entries);
       } else if (msg.type === "console") {
         appendConsoleEntry(msg.entry);
+      } else if (msg.type === "mapPing") {
+        applyRemoteMapPing(msg);
       } else if (msg.type === "error") {
         opts.onError(msg.message);
         if (msg.message === "Authentication required") {
@@ -132,6 +135,7 @@ export function useGameSocket(opts: {
     socketGen += 1;
     socket?.close();
     socket = null;
+    clearAllMapPings();
     clearGameState();
     connection.value = "disconnected";
   }
