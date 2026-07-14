@@ -5,7 +5,8 @@ import {
   applyAttackToEnemies,
   applyDamageToEnemy,
   applyRangeAttackToEnemies,
-  collectAttackTiles,
+  collectEnemyPatternAttackTiles,
+  enemyPatternAttackSpec,
   enemiesInTiles,
   enemyDirectAttackTargetEnemyIds,
   isDirectTargetEnemyAttack,
@@ -213,17 +214,6 @@ function enemyAttacks(name: string): string[] {
   return getEnemyListingByName(name)?.attacks ?? [];
 }
 
-function parsedEnemyAttackSpec(parsed: ParsedEnemyAttack): WeaponAttackSpec {
-  return {
-    patternId: parsed.patternId,
-    size: parsed.size,
-    range: parsed.range,
-    width: parsed.width ?? 1,
-    damage: String(parsed.damage ?? 0),
-    effects: parsed.effects,
-  };
-}
-
 export function validateRedirectionCircuits(
   state: GameState,
   player: Player,
@@ -250,9 +240,9 @@ export function validateRedirectionCircuits(
   }
 
   if (!action.direction) return "Select direction";
-  const spec = parsedEnemyAttackSpec(parsed);
-  const origin = { x: source.x, y: source.y };
-  const tiles = collectAttackTiles(state, origin, spec, action.direction);
+  const spec = enemyPatternAttackSpec(parsed);
+  if (!spec) return "Attack not supported";
+  const tiles = collectEnemyPatternAttackTiles(state, source, spec, action.direction);
   const hits = enemiesInTiles(state, tiles).filter(
     (t) => !isSameEnemyOrSwarm(state, source.id, t.enemyId),
   );
@@ -358,8 +348,14 @@ export function applyRedirectionCircuits(
     };
   }
 
-  const spec = parsedEnemyAttackSpec(parsed);
-  const tiles = collectAttackTiles(state, { x: source.x, y: source.y }, spec, action.direction!);
+  const spec = enemyPatternAttackSpec(parsed);
+  if (!spec) {
+    return {
+      message: `${playerLabel(player)} redirected ${enemyLabel(source)} attack (unsupported)`,
+      hitEnemyIds: [],
+    };
+  }
+  const tiles = collectEnemyPatternAttackTiles(state, source, spec, action.direction!);
   const hits = enemiesInTiles(state, tiles).filter(
     (t) => !isSameEnemyOrSwarm(state, source.id, t.enemyId),
   );

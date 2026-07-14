@@ -91,4 +91,20 @@ describe("auto-resolvable enemy attacks", () => {
     expect(msg).toContain("dmg");
     expect(other.hp).toBe(0);
   });
+
+  it("scale-2 cone covers the full facing edge, not just the anchor", () => {
+    const state = makeGameState({ width: 10, height: 10 });
+    gmTurn(state);
+    addTestEnemy(state, "g", 4, 4, { name: "Gorgenaut", scale: 2, hp: 100 });
+    const left = addTestPlayer(state, "p1", { x: 4, y: 3, hp: 20, class: "HARPE" });
+    const right = addTestPlayer(state, "p2", { x: 5, y: 3, hp: 20, class: "HARPE" });
+    applyGmEnemyAction(state, {
+      action: "attack",
+      enemyId: "g",
+      attackIndex: 0,
+      direction: "n",
+    });
+    expect(left.hp).toBe(15);
+    expect(right.hp).toBe(15);
+  });
 });

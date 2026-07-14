@@ -8,7 +8,9 @@ import {
   computeOmnistrikeRangeSpan,
   collectBombPatternTiles,
   collectAttackTiles,
+  collectEnemyPatternAttackTiles,
   enemyDirectAttackTargetPlayerIds,
+  enemyPatternAttackSpec,
   evaluateOmnistrikePlacement,
   getWeaponAttackSpec,
   parseEnemyAttackString,
@@ -251,20 +253,13 @@ function computeGmEnemyAttackHighlights(
   const occ = buildBoardOccupancy(state);
 
   if (parsed.patternId && parsed.size != null && parsed.damage != null) {
-    const spec = {
-      patternId: parsed.patternId,
-      size: parsed.size,
-      range: parsed.range,
-      width: parsed.width ?? 1,
-      damage: String(parsed.damage),
-    };
-    const origin = { x: enemy.x, y: enemy.y };
+    const spec = enemyPatternAttackSpec(parsed)!;
     if (aimed) {
-      const primary = tileKeys(collectAttackTiles(state, origin, spec, direction));
+      const primary = tileKeys(collectEnemyPatternAttackTiles(state, enemy, spec, direction));
       const secondary: string[] = [];
       for (const dir of PATTERN_DIRECTIONS) {
         if (dir === direction) continue;
-        for (const key of tileKeys(collectAttackTiles(state, origin, spec, dir))) {
+        for (const key of tileKeys(collectEnemyPatternAttackTiles(state, enemy, spec, dir))) {
           if (!primary.includes(key)) secondary.push(key);
         }
       }
@@ -272,7 +267,7 @@ function computeGmEnemyAttackHighlights(
     }
     const secondary = new Set<string>();
     for (const dir of PATTERN_DIRECTIONS) {
-      for (const key of tileKeys(collectAttackTiles(state, origin, spec, dir))) {
+      for (const key of tileKeys(collectEnemyPatternAttackTiles(state, enemy, spec, dir))) {
         secondary.add(key);
       }
     }

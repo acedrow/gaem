@@ -1425,6 +1425,64 @@ export function enemyPatternAttackSpec(parsed: ParsedEnemyAttack): {
   };
 }
 
+function isDirectionalEnemyPattern(patternId: string): boolean {
+  return (
+    patternId === "cone" ||
+    patternId === "line" ||
+    patternId === "blast" ||
+    patternId === "charge" ||
+    patternId === "wall"
+  );
+}
+
+export function enemyPatternOrigins(
+  enemy: Enemy,
+  direction: PatternDirection,
+  patternId: string,
+): { x: number; y: number }[] {
+  const scale = getEnemyScale(enemy);
+  const footprint = enemyFootprintTiles(enemy.x, enemy.y, scale);
+  if (scale <= 1 || !isDirectionalEnemyPattern(patternId)) return footprint;
+  switch (direction) {
+    case "n":
+      return footprint.filter((t) => t.y === enemy.y);
+    case "s":
+      return footprint.filter((t) => t.y === enemy.y + scale - 1);
+    case "w":
+      return footprint.filter((t) => t.x === enemy.x);
+    case "e":
+      return footprint.filter((t) => t.x === enemy.x + scale - 1);
+  }
+}
+
+export function collectEnemyPatternAttackTiles(
+  state: GameState,
+  enemy: Enemy,
+  spec: {
+    patternId: string;
+    size: number;
+    range?: number;
+    width?: number;
+    damage: string;
+  },
+  direction: PatternDirection,
+): { x: number; y: number }[] {
+  const footprintKeys = new Set(
+    enemyFootprintTiles(enemy.x, enemy.y, getEnemyScale(enemy)).map((t) => coordKey(t.x, t.y)),
+  );
+  const seen = new Set<string>();
+  const tiles: { x: number; y: number }[] = [];
+  for (const origin of enemyPatternOrigins(enemy, direction, spec.patternId)) {
+    for (const tile of collectAttackTiles(state, origin, spec, direction)) {
+      const key = coordKey(tile.x, tile.y);
+      if (footprintKeys.has(key) || seen.has(key)) continue;
+      seen.add(key);
+      tiles.push(tile);
+    }
+  }
+  return tiles;
+}
+
 export function enemyAttackDirectionsAt(
   state: GameState,
   enemyId: string,
@@ -1435,10 +1493,9 @@ export function enemyAttackDirectionsAt(
   const enemy = state.enemies.find((e) => e.id === enemyId);
   const spec = enemyPatternAttackSpec(parsed);
   if (!enemy || !spec) return [];
-  const origin = { x: enemy.x, y: enemy.y };
   const dirs: PatternDirection[] = [];
   for (const direction of PATTERN_DIRECTIONS) {
-    const tiles = collectAttackTiles(state, origin, spec, direction);
+    const tiles = collectEnemyPatternAttackTiles(state, enemy, spec, direction);
     if (tiles.some((t) => t.x === x && t.y === y)) dirs.push(direction);
   }
   return dirs;

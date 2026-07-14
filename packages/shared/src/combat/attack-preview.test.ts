@@ -77,5 +77,7 @@ describe("computeAttackPreviewHighlights", () => {
     });
     expect(aimed.primary.length).toBeGreaterThan(0);
     expect(aimed.primary.every((key) => unaimed.secondary.includes(key))).toBe(true);
+    // Scale:2 north face covers both columns adjacent to the footprint
+    expect(aimed.primary).toEqual(expect.arrayContaining(["4,3", "5,3"]));
   });
 });

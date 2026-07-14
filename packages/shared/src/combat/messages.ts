@@ -59,6 +59,7 @@ import {
   applySwarmEnemyAttackToPlayer,
   applyWarhook,
   collectAttackTiles,
+  collectEnemyPatternAttackTiles,
   effectiveRangeLimit,
   elevationBonusTileCandidates,
   enemiesInTiles,
@@ -1817,7 +1818,7 @@ export function previewEnemyAttack(
     width: parsed.width ?? 1,
     damage: String(parsed.damage ?? 0),
   };
-  return collectAttackTiles(state, { x: enemy.x, y: enemy.y }, spec, direction);
+  return collectEnemyPatternAttackTiles(state, enemy, spec, direction);
 }
 
 export function previewAttackTargets(

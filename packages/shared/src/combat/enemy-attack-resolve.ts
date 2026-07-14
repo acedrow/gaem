@@ -6,9 +6,10 @@ import type { EffectStacks, Enemy, GameState, Player } from "../types.js";
 import {
   applyDamageToEnemy,
   applyDamageToPlayer,
-  collectAttackTiles,
+  collectEnemyPatternAttackTiles,
   enemyAttackNonPushEffects,
   enemyAttackPushDistance,
+  enemyPatternAttackSpec,
   parseEnemyAttackPullDistance,
   type ParsedEnemyAttack,
 } from "./attack.js";
@@ -36,7 +37,8 @@ export function applyPatternEnemyAttack(
   direction: PatternDirection,
   opts?: { damage?: number },
 ): string {
-  if (!parsed.patternId || parsed.size == null) {
+  const spec = enemyPatternAttackSpec(parsed);
+  if (!spec) {
     return `${enemyLabel(enemy)} attack (no pattern)`;
   }
 
@@ -47,14 +49,10 @@ export function applyPatternEnemyAttack(
   const damage = rolled.total;
   const pullDistance = parseEnemyAttackPullDistance(parsed.raw);
 
-  const spec = {
-    patternId: parsed.patternId,
-    size: parsed.size,
-    range: parsed.range,
-    width: parsed.width ?? 1,
+  const tiles = collectEnemyPatternAttackTiles(state, enemy, {
+    ...spec,
     damage: String(damage),
-  };
-  const tiles = collectAttackTiles(state, { x: enemy.x, y: enemy.y }, spec, direction);
+  }, direction);
   const occ = buildBoardOccupancy(state);
   const hitPlayers = new Set<string>();
   const hitEnemies = new Set<string>();
@@ -98,7 +96,7 @@ export function applyPatternEnemyAttack(
     }
   }
 
-  const patternLabel = `${parsed.patternId[0]!.toUpperCase()}${parsed.patternId.slice(1)}:${parsed.size}`;
+  const patternLabel = `${spec.patternId[0]!.toUpperCase()}${spec.patternId.slice(1)}:${spec.size}`;
   const base = `${enemyLabel(enemy)} ${patternLabel} (${rolled.detail} dmg)`;
   if (!parts.length) return `${base} (no targets)`;
   return `${base} → ${parts.join("; ")}`;
