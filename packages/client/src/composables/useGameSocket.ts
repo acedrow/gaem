@@ -13,6 +13,9 @@ export const gameWsUrl = import.meta.env.VITE_CF_DEV
       ? `ws://${location.hostname}:3001/ws`
       : `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`));
 
+const RECONNECT_BASE_MS = 500;
+const RECONNECT_MAX_MS = 15_000;
+
 export function useGameSocket(opts: {
   wsUrl: string;
   role: Ref<"gm" | "player">;
@@ -25,17 +28,46 @@ export function useGameSocket(opts: {
   const { setGameState, registerSend, clearGameState } = useGameState();
   const { token, clearSession } = useSession();
   let socket: WebSocket | null = null;
+  let socketGen = 0;
+  let intentionalClose = false;
+  let reconnectAttempt = 0;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   function send(msg: ClientMessage) {
     if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(msg));
   }
 
-  function connect() {
+  function clearReconnect() {
+    if (reconnectTimer != null) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+  }
+
+  function scheduleReconnect() {
+    clearReconnect();
+    const delay = Math.min(RECONNECT_BASE_MS * 2 ** reconnectAttempt, RECONNECT_MAX_MS);
+    reconnectAttempt += 1;
     connection.value = "connecting";
-    socket = new WebSocket(opts.wsUrl);
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      openSocket();
+    }, delay);
+  }
+
+  function openSocket() {
+    const gen = ++socketGen;
+    if (socket) {
+      socket.close();
+      socket = null;
+    }
+    const ws = new WebSocket(opts.wsUrl);
+    socket = ws;
     registerSend(send);
 
-    socket.addEventListener("open", () => {
+    ws.addEventListener("open", () => {
+      if (gen !== socketGen) return;
+      reconnectAttempt = 0;
       connection.value = "connected";
       send({
         type: "join",
@@ -48,12 +80,18 @@ export function useGameSocket(opts: {
       });
     });
 
-    socket.addEventListener("close", () => {
-      connection.value = "disconnected";
+    ws.addEventListener("close", () => {
+      if (gen !== socketGen) return;
       socket = null;
+      if (intentionalClose) {
+        connection.value = "disconnected";
+        return;
+      }
+      scheduleReconnect();
     });
 
-    socket.addEventListener("message", (ev) => {
+    ws.addEventListener("message", (ev) => {
+      if (gen !== socketGen) return;
       let msg: ServerMessage;
       try {
         msg = JSON.parse(String(ev.data)) as ServerMessage;
@@ -71,6 +109,8 @@ export function useGameSocket(opts: {
       } else if (msg.type === "error") {
         opts.onError(msg.message);
         if (msg.message === "Authentication required") {
+          intentionalClose = true;
+          clearReconnect();
           clearSession();
           location.assign("/");
         }
@@ -78,8 +118,20 @@ export function useGameSocket(opts: {
     });
   }
 
+  function connect() {
+    intentionalClose = false;
+    clearReconnect();
+    reconnectAttempt = 0;
+    connection.value = "connecting";
+    openSocket();
+  }
+
   function disconnect() {
+    intentionalClose = true;
+    clearReconnect();
+    socketGen += 1;
     socket?.close();
+    socket = null;
     clearGameState();
     connection.value = "disconnected";
   }

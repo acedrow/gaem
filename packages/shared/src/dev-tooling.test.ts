@@ -64,4 +64,30 @@ describe("dev:cf hot-reload wiring", () => {
       "VITE_CF_DEV",
     );
   });
+
+  it("client asset sync uses rsync (no rm -rf public/tiles wipe)", () => {
+    // A full wipe races Vite :5173 during e2e/build while dev:cf is up.
+    const scripts = (
+      JSON.parse(read("packages/client/package.json")) as {
+        scripts: Record<string, string>;
+      }
+    ).scripts;
+    expect(scripts["sync-tile-assets"]).toContain("rsync -a --delete");
+    expect(scripts["sync-tile-assets"]).not.toContain("rm -rf");
+    expect(scripts["sync-enemy-portraits"]).toContain("rsync -a --delete");
+  });
+
+  it("e2e webServer skips forced shared rebuild when dist is fresh", () => {
+    const config = read("packages/e2e/playwright.config.ts");
+    expect(config).toContain("ensure-shared-built.mjs");
+    expect(config).not.toMatch(
+      /webServer:[\s\S]*command:\s*`npm run build -w @gaem\/shared/,
+    );
+  });
+
+  it("game WebSocket auto-reconnects after unexpected close", () => {
+    const src = read("packages/client/src/composables/useGameSocket.ts");
+    expect(src).toContain("scheduleReconnect");
+    expect(src).toContain("intentionalClose");
+  });
 });
