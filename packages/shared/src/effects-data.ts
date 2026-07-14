@@ -10,6 +10,7 @@ export type RuleEffect = {
   description: string;
   stacking?: EffectStacking;
   icon: string;
+  iconFill?: boolean;
 };
 
 export const UNIT_EFFECTS = unitEffectsJson as RuleEffect[];

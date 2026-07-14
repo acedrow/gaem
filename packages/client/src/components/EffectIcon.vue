@@ -17,6 +17,7 @@ const props = withDefaults(
 
 const effect = computed(() => getEffectById(props.effectId));
 const iconPath = computed(() => effect.value?.icon ?? "M2 8 H14");
+const iconFill = computed(() => effect.value?.iconFill === true);
 </script>
 
 <template>
@@ -29,14 +30,14 @@ const iconPath = computed(() => effect.value?.icon ?? "M2 8 H14");
       :width="size"
       :height="size"
       viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
+      :fill="iconFill ? 'currentColor' : 'none'"
+      :stroke="iconFill ? 'none' : 'currentColor'"
       stroke-width="1.25"
       stroke-linecap="round"
       stroke-linejoin="round"
       aria-hidden="true"
     >
-      <path :d="iconPath" />
+      <path :d="iconPath" :fill-rule="iconFill ? 'evenodd' : undefined" />
     </svg>
     <span v-if="showStacks && stacks != null && stacks > 0" class="stack-badge">{{ stacks }}</span>
   </span>

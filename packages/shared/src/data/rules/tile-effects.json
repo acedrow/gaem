@@ -26,6 +26,7 @@
     "summary": "Paracletus stain. Enemies and other factions cannot build on Stained squares.",
     "description": "Any square may be stained through various effects. Enemies or other factions cannot build on Stained squares. Stainwalk abilities trigger when a unit occupies a Stained square.",
     "stacking": "add",
-    "icon": "M3 11 C3 7.5 5.5 4.5 8 4.5 C10.5 4.5 13 7.5 13 11 C13 13.5 10.5 15 8 15 C5.5 15 3 13.5 3 11 Z"
+    "icon": "M8 12.09a1.74 1.74 0 0 1-1.25-.49 1.1 1.1 0 0 1-.36-.8.63.63 0 0 0-.63-.63.62.62 0 0 0-.62.63 2.33 2.33 0 0 0 .73 1.69 3 3 0 0 0 2.13.85.63.63 0 1 0 0-1.25zM9.25 1.25C9.06.23 8.43 0 8 0S6.94.23 6.75 1.25C6 5.2 2.5 7 2.5 10.82A5.35 5.35 0 0 0 8 16a5.35 5.35 0 0 0 5.5-5.18C13.5 7 10 5.2 9.25 1.25zM8 14.75a4.1 4.1 0 0 1-4.25-3.93c0-1.66.85-2.9 1.84-4.33A12.85 12.85 0 0 0 8 1.48v-.1.1a12.85 12.85 0 0 0 2.39 5c1 1.43 1.84 2.67 1.84 4.33A4.1 4.1 0 0 1 8 14.75z",
+    "iconFill": true
   }
 ]
