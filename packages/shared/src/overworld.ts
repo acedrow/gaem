@@ -1,6 +1,9 @@
 import type {
   GameState,
   OverworldCampaignAction,
+  OverworldConvoy,
+  OverworldConvoyAction,
+  OverworldConvoyType,
   OverworldLocation,
   OverworldLocationAction,
   OverworldParty,
@@ -19,6 +22,13 @@ import { type FactionId } from "./faction-data.js";
 
 const REGION_IDS: OverworldRegionId[] = ["west", "center", "east"];
 const FACTION_IDS: FactionId[] = ["syncrasis", "autophyes", "paracletus"];
+const CONVOY_TYPES: OverworldConvoyType[] = [
+  "supply",
+  "support",
+  "assault",
+  "diplomatic",
+  "decoy",
+];
 
 const REGION_IMAGE_KEY_RE = /^region-images\/[0-9a-f-]+\.(png|jpe?g|webp)$/i;
 
@@ -131,16 +141,22 @@ export function ensureOverworldLocations(state: GameState): OverworldLocation[] 
     const key = `${loc.qx},${loc.qy}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push({
+    const entry: OverworldLocation = {
       id: loc.id,
       qx: loc.qx,
       qy: loc.qy,
       name: loc.name.trim(),
       factionId: loc.factionId,
-    });
+    };
+    if (loc.infoVisibleToPlayers === false) entry.infoVisibleToPlayers = false;
+    out.push(entry);
   }
   state.overworldLocations = out;
   return out;
+}
+
+export function isLocationInfoVisibleToPlayers(loc: OverworldLocation): boolean {
+  return loc.infoVisibleToPlayers !== false;
 }
 
 export function locationAtQuarter(
@@ -149,6 +165,69 @@ export function locationAtQuarter(
   qy: number,
 ): OverworldLocation | undefined {
   return ensureOverworldLocations(state).find((loc) => loc.qx === qx && loc.qy === qy);
+}
+
+function newConvoyId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+export function ensureOverworldConvoys(state: GameState): OverworldConvoy[] {
+  if (!Array.isArray(state.overworldConvoys)) {
+    state.overworldConvoys = [];
+    return state.overworldConvoys;
+  }
+  const seen = new Set<string>();
+  const out: OverworldConvoy[] = [];
+  for (const convoy of state.overworldConvoys) {
+    if (!convoy || typeof convoy !== "object") continue;
+    if (typeof convoy.id !== "string" || !convoy.id) continue;
+    if (!CONVOY_TYPES.includes(convoy.type as OverworldConvoyType)) continue;
+    if (!FACTION_IDS.includes(convoy.factionId as FactionId)) continue;
+    if (!isOverworldQuarterInBounds(convoy.qx, convoy.qy)) continue;
+    const key = `${convoy.qx},${convoy.qy}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      id: convoy.id,
+      qx: convoy.qx,
+      qy: convoy.qy,
+      type: convoy.type,
+      factionId: convoy.factionId,
+      infoVisibleToPlayers: convoy.infoVisibleToPlayers === true,
+    });
+  }
+  state.overworldConvoys = out;
+  return out;
+}
+
+export function convoyAtQuarter(
+  state: GameState,
+  qx: number,
+  qy: number,
+): OverworldConvoy | undefined {
+  return ensureOverworldConvoys(state).find((c) => c.qx === qx && c.qy === qy);
+}
+
+export function listOverworldConvoyDestinations(
+  convoy: Pick<OverworldConvoy, "qx" | "qy">,
+  mapSpeed: number,
+  occupied: ReadonlySet<string>,
+): { qx: number; qy: number }[] {
+  const reach = overworldTravelReachQuarters(mapSpeed);
+  if (reach <= 0) return [];
+  const out: { qx: number; qy: number }[] = [];
+  const minQx = Math.max(0, Math.floor(convoy.qx - reach));
+  const maxQx = Math.min(OVERWORLD_QUARTER_WIDTH - 1, Math.ceil(convoy.qx + reach));
+  const minQy = Math.max(0, Math.floor(convoy.qy - reach));
+  const maxQy = Math.min(OVERWORLD_QUARTER_HEIGHT - 1, Math.ceil(convoy.qy + reach));
+  for (let qy = minQy; qy <= maxQy; qy++) {
+    for (let qx = minQx; qx <= maxQx; qx++) {
+      if (!isOverworldTravelDestination(convoy, { qx, qy }, mapSpeed)) continue;
+      if (occupied.has(`${qx},${qy}`)) continue;
+      out.push({ qx, qy });
+    }
+  }
+  return out;
 }
 
 export function validateOverworldLocationAction(
@@ -171,6 +250,16 @@ export function validateOverworldLocationAction(
       if (typeof action.locationId !== "string" || !action.locationId) {
         return "Location id is required";
       }
+      if (!state.overworldLocations!.some((loc) => loc.id === action.locationId)) {
+        return "Location not found";
+      }
+      return null;
+    }
+    case "setInfoVisible": {
+      if (typeof action.locationId !== "string" || !action.locationId) {
+        return "Location id is required";
+      }
+      if (typeof action.visible !== "boolean") return "Visibility must be a boolean";
       if (!state.overworldLocations!.some((loc) => loc.id === action.locationId)) {
         return "Location not found";
       }
@@ -201,6 +290,104 @@ export function applyOverworldLocationAction(
       const removed = locations[idx]!;
       locations.splice(idx, 1);
       return `Removed location "${removed.name}"`;
+    }
+    case "setInfoVisible": {
+      const loc = locations.find((l) => l.id === action.locationId)!;
+      if (action.visible) delete loc.infoVisibleToPlayers;
+      else loc.infoVisibleToPlayers = false;
+      return action.visible
+        ? `Revealed location "${loc.name}" to players`
+        : `Hid location "${loc.name}" from players`;
+    }
+  }
+}
+
+export function validateOverworldConvoyAction(
+  state: GameState,
+  action: OverworldConvoyAction,
+): string | null {
+  ensureOverworldConvoys(state);
+  const party = ensureOverworldParty(state);
+  switch (action.kind) {
+    case "place": {
+      if (!isOverworldQuarterInBounds(action.qx, action.qy)) return "Out of bounds";
+      if (!CONVOY_TYPES.includes(action.type)) return "Unknown convoy type";
+      if (!FACTION_IDS.includes(action.factionId as FactionId)) return "Unknown faction";
+      if (convoyAtQuarter(state, action.qx, action.qy)) {
+        return "A convoy is already placed here";
+      }
+      return null;
+    }
+    case "remove": {
+      if (typeof action.convoyId !== "string" || !action.convoyId) {
+        return "Convoy id is required";
+      }
+      if (!state.overworldConvoys!.some((c) => c.id === action.convoyId)) {
+        return "Convoy not found";
+      }
+      return null;
+    }
+    case "move": {
+      if (typeof action.convoyId !== "string" || !action.convoyId) {
+        return "Convoy id is required";
+      }
+      const convoy = state.overworldConvoys!.find((c) => c.id === action.convoyId);
+      if (!convoy) return "Convoy not found";
+      if (!isOverworldTravelDestination(convoy, { qx: action.qx, qy: action.qy }, party.mapSpeed)) {
+        return "Invalid convoy destination";
+      }
+      const other = convoyAtQuarter(state, action.qx, action.qy);
+      if (other && other.id !== convoy.id) return "A convoy is already placed here";
+      return null;
+    }
+    case "setInfoVisible": {
+      if (typeof action.convoyId !== "string" || !action.convoyId) {
+        return "Convoy id is required";
+      }
+      if (typeof action.visible !== "boolean") return "Visibility must be a boolean";
+      if (!state.overworldConvoys!.some((c) => c.id === action.convoyId)) {
+        return "Convoy not found";
+      }
+      return null;
+    }
+  }
+}
+
+export function applyOverworldConvoyAction(
+  state: GameState,
+  action: OverworldConvoyAction,
+): string {
+  const convoys = ensureOverworldConvoys(state);
+  switch (action.kind) {
+    case "place": {
+      convoys.push({
+        id: newConvoyId(),
+        qx: action.qx,
+        qy: action.qy,
+        type: action.type,
+        factionId: action.factionId,
+        infoVisibleToPlayers: false,
+      });
+      return `Deployed ${action.type} convoy at (${action.qx}, ${action.qy})`;
+    }
+    case "remove": {
+      const idx = convoys.findIndex((c) => c.id === action.convoyId);
+      const removed = convoys[idx]!;
+      convoys.splice(idx, 1);
+      return `Removed ${removed.type} convoy`;
+    }
+    case "move": {
+      const convoy = convoys.find((c) => c.id === action.convoyId)!;
+      convoy.qx = action.qx;
+      convoy.qy = action.qy;
+      return `Moved ${convoy.type} convoy to (${action.qx}, ${action.qy})`;
+    }
+    case "setInfoVisible": {
+      const convoy = convoys.find((c) => c.id === action.convoyId)!;
+      convoy.infoVisibleToPlayers = action.visible;
+      return action.visible
+        ? `Revealed ${convoy.type} convoy to players`
+        : `Hid ${convoy.type} convoy from players`;
     }
   }
 }

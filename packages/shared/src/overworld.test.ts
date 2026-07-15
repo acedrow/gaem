@@ -2,15 +2,18 @@ import { describe, expect, it } from "vitest";
 
 import {
   applyOverworldCampaignAction,
+  applyOverworldConvoyAction,
   applyOverworldLocationAction,
   defaultOverworldParty,
   isOverworldDeployDestination,
   isOverworldTravelDestination,
+  listOverworldConvoyDestinations,
   listOverworldDeployDestinations,
   listOverworldTravelDestinations,
   overworldTravelReachQuarters,
   regionIdForQuarter,
   validateOverworldCampaignAction,
+  validateOverworldConvoyAction,
   validateOverworldLocationAction,
 } from "./overworld.js";
 import { makeGameState } from "./test/fixtures.js";
@@ -282,5 +285,152 @@ describe("overworldLocationAction", () => {
     expect(validateOverworldLocationAction(state, { kind: "remove", locationId: "missing" })).toBe(
       "Location not found",
     );
+  });
+
+  it("toggles location info visibility for players", () => {
+    const state = makeGameState({
+      overworldLocations: [
+        { id: "loc-1", qx: 4, qy: 5, name: "Existing", factionId: "syncrasis" },
+      ],
+    });
+    expect(
+      validateOverworldLocationAction(state, {
+        kind: "setInfoVisible",
+        locationId: "loc-1",
+        visible: false,
+      }),
+    ).toBeNull();
+    expect(
+      applyOverworldLocationAction(state, {
+        kind: "setInfoVisible",
+        locationId: "loc-1",
+        visible: false,
+      }),
+    ).toContain("Hid location");
+    expect(state.overworldLocations![0]!.infoVisibleToPlayers).toBe(false);
+    applyOverworldLocationAction(state, {
+      kind: "setInfoVisible",
+      locationId: "loc-1",
+      visible: true,
+    });
+    expect(state.overworldLocations![0]!.infoVisibleToPlayers).toBeUndefined();
+  });
+});
+
+describe("overworldConvoyAction", () => {
+  it("places a convoy hidden from players by default", () => {
+    const state = makeGameState();
+    const action = {
+      kind: "place" as const,
+      qx: 8,
+      qy: 10,
+      type: "supply" as const,
+      factionId: "paracletus" as const,
+    };
+    expect(validateOverworldConvoyAction(state, action)).toBeNull();
+    const message = applyOverworldConvoyAction(state, action);
+    expect(message).toContain("Deployed supply convoy");
+    expect(state.overworldConvoys).toHaveLength(1);
+    expect(state.overworldConvoys![0]).toMatchObject({
+      qx: 8,
+      qy: 10,
+      type: "supply",
+      factionId: "paracletus",
+      infoVisibleToPlayers: false,
+    });
+  });
+
+  it("rejects place when the cell already has a convoy", () => {
+    const state = makeGameState({
+      overworldConvoys: [
+        {
+          id: "c-1",
+          qx: 8,
+          qy: 10,
+          type: "decoy",
+          factionId: "syncrasis",
+          infoVisibleToPlayers: false,
+        },
+      ],
+    });
+    expect(
+      validateOverworldConvoyAction(state, {
+        kind: "place",
+        qx: 8,
+        qy: 10,
+        type: "support",
+        factionId: "syncrasis",
+      }),
+    ).toBe("A convoy is already placed here");
+  });
+
+  it("moves a convoy within party map speed reach", () => {
+    const state = makeGameState({
+      overworldParty: partyOnMap({ qx: 0, qy: 0, mapSpeed: 1 }),
+      overworldConvoys: [
+        {
+          id: "c-1",
+          qx: 10,
+          qy: 10,
+          type: "assault",
+          factionId: "autophyes",
+          infoVisibleToPlayers: false,
+        },
+      ],
+    });
+    expect(
+      validateOverworldConvoyAction(state, { kind: "move", convoyId: "c-1", qx: 13, qy: 10 }),
+    ).toBeNull();
+    applyOverworldConvoyAction(state, { kind: "move", convoyId: "c-1", qx: 13, qy: 10 });
+    expect(state.overworldConvoys![0]).toMatchObject({ qx: 13, qy: 10 });
+  });
+
+  it("rejects convoy moves beyond map speed reach", () => {
+    const state = makeGameState({
+      overworldParty: partyOnMap({ mapSpeed: 1 }),
+      overworldConvoys: [
+        {
+          id: "c-1",
+          qx: 10,
+          qy: 10,
+          type: "assault",
+          factionId: "autophyes",
+          infoVisibleToPlayers: false,
+        },
+      ],
+    });
+    expect(
+      validateOverworldConvoyAction(state, { kind: "move", convoyId: "c-1", qx: 20, qy: 10 }),
+    ).toBe("Invalid convoy destination");
+  });
+
+  it("lists destinations excluding other convoys", () => {
+    const occupied = new Set(["12,10"]);
+    const dests = listOverworldConvoyDestinations({ qx: 10, qy: 10 }, 1, occupied);
+    expect(dests.some((d) => d.qx === 12 && d.qy === 10)).toBe(false);
+    expect(dests.some((d) => d.qx === 11 && d.qy === 10)).toBe(true);
+  });
+
+  it("removes and reveals convoys", () => {
+    const state = makeGameState({
+      overworldConvoys: [
+        {
+          id: "c-1",
+          qx: 8,
+          qy: 10,
+          type: "diplomatic",
+          factionId: "syncrasis",
+          infoVisibleToPlayers: false,
+        },
+      ],
+    });
+    applyOverworldConvoyAction(state, {
+      kind: "setInfoVisible",
+      convoyId: "c-1",
+      visible: true,
+    });
+    expect(state.overworldConvoys![0]!.infoVisibleToPlayers).toBe(true);
+    applyOverworldConvoyAction(state, { kind: "remove", convoyId: "c-1" });
+    expect(state.overworldConvoys).toEqual([]);
   });
 });

@@ -11,7 +11,7 @@ import { resetEnemyExhaustion, resetGmTurnActions } from "./combat/enemy.js";
 import { applyStainwalkGmTurnEnd, applyStainwalkMovement } from "./combat/stainwalk.js";
 import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles, ensureEnemyMovement, spendEnemyMovement } from "./enemy-data.js";
 import { ensureFactionStates } from "./faction-campaign.js";
-import { ensureOverworldLocations, ensureOverworldParty } from "./overworld.js";
+import { ensureOverworldConvoys, ensureOverworldLocations, ensureOverworldParty } from "./overworld.js";
 import { applyLoadoutToPlayer, getClassMaxHp, getArmorSpeed } from "./player-data.js";
 import { coordKey, createInitialStateFromMap, isFootprintInBounds, isInBounds, isWalkable, tileAt } from "./map.js";
 import { isOrthogonallyAdjacent } from "./patterns.js";
@@ -1372,6 +1372,7 @@ export function normalizeGameState(state: GameState, map?: GameMap): GameState {
   }
   ensureOverworldParty(state);
   ensureOverworldLocations(state);
+  ensureOverworldConvoys(state);
   ensureFactionStates(state);
   if (
     !state.combat &&
@@ -1411,6 +1412,7 @@ export function applyActivateMap(state: GameState, map: GameMap): string {
   const overworldRegions = state.overworldRegions;
   const overworldParty = state.overworldParty;
   const overworldLocations = state.overworldLocations;
+  const overworldConvoys = state.overworldConvoys;
   const factionStates = state.factionStates;
   const sandboxMode = state.sandboxMode;
 
@@ -1438,6 +1440,7 @@ export function applyActivateMap(state: GameState, map: GameMap): string {
   if (overworldRegions) state.overworldRegions = overworldRegions;
   if (overworldParty) state.overworldParty = overworldParty;
   if (overworldLocations) state.overworldLocations = overworldLocations;
+  if (overworldConvoys) state.overworldConvoys = overworldConvoys;
   if (factionStates) state.factionStates = factionStates;
   if (sandboxMode !== undefined) state.sandboxMode = sandboxMode;
 

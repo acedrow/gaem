@@ -46,6 +46,14 @@ RAW (Scale / Zone of Control) says a unit’s whole zone counts as their space a
 
 ---
 
+## Overworld convoys
+
+RAW Deploy Convoy arrives at the start of the second STRATCOM after deployment regardless of distance, with destination kept secret.
+
+**Ruling:** This table places convoys as interactive Map Speed tokens on the overworld. Each turn the GM may move a convoy up to the party’s current Map Speed (same 2.5″ per Map Speed 1 scale as player Travel). Type remains hidden from players until the GM reveals it. There is no automatic 2-STRATCOM arrival clock.
+
+---
+
 ## CHRYSAOR Brand
 
 ### End-of-round tick

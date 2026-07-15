@@ -8,6 +8,7 @@ import {
   applyActivateMap,
   applyBaseCampaignAction,
   applyOverworldCampaignAction,
+  applyOverworldConvoyAction,
   applyOverworldLocationAction,
   applySetSandboxMode,
   applySetOverworldRegionImage,
@@ -40,6 +41,7 @@ import {
   validatePhaseAction,
   validateBaseCampaignAction,
   validateOverworldCampaignAction,
+  validateOverworldConvoyAction,
   validateOverworldLocationAction,
   validateSetOverworldRegionImage,
   validateFactionCampaignAction,
@@ -759,6 +761,23 @@ export class GameRoom {
         return;
       }
       const message = applyOverworldLocationAction(this.gameState, parsed.action);
+      const actor = await this.actorForSocket(ws);
+      await this.broadcastConsole(actor, message);
+      await this.broadcastState();
+      return;
+    }
+
+    if (parsed.type === "overworldConvoyAction") {
+      if (!this.attHasGmCapabilities(att)) {
+        this.sendError(ws, "Only the game master can do that");
+        return;
+      }
+      const err = validateOverworldConvoyAction(this.gameState, parsed.action);
+      if (err) {
+        this.sendError(ws, err);
+        return;
+      }
+      const message = applyOverworldConvoyAction(this.gameState, parsed.action);
       const actor = await this.actorForSocket(ws);
       await this.broadcastConsole(actor, message);
       await this.broadcastState();

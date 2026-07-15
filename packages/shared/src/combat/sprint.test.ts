@@ -17,11 +17,11 @@ function combatPlayerTurn(state: ReturnType<typeof makeGameState>, playerId: str
 }
 
 describe("sprint", () => {
-  it("maxSprintCost is half Speed floored", () => {
+  it("maxSprintCost is half Speed rounded up", () => {
     const state = makeGameState();
     expect(maxSprintCost(addTestPlayer(state, "a", { speed: 4 }))).toBe(2);
-    expect(maxSprintCost(addTestPlayer(state, "b", { speed: 5 }))).toBe(2);
-    expect(maxSprintCost(addTestPlayer(state, "c", { speed: 7 }))).toBe(3);
+    expect(maxSprintCost(addTestPlayer(state, "b", { speed: 5 }))).toBe(3);
+    expect(maxSprintCost(addTestPlayer(state, "c", { speed: 7 }))).toBe(4);
   });
 
   it("begin spends Aux and grants half Speed", () => {
@@ -123,6 +123,7 @@ describe("sprint", () => {
     applyPlayerAction(state, "p1", { action: "sprint" });
     applyPlayerAction(state, "p1", { action: "sprintMove", x: 3, y: 2 });
     applyPlayerAction(state, "p1", { action: "sprintMove", x: 4, y: 2 });
+    applyPlayerAction(state, "p1", { action: "sprintMove", x: 5, y: 2 });
     expect(player.actionBudget!.movementRemaining).toBe(5);
     expect(player.actionBudget!.sprintRemaining).toBe(0);
   });

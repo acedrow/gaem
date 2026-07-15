@@ -272,11 +272,41 @@ export type OverworldLocation = {
   qy: number;
   name: string;
   factionId: keyof FactionStates;
+  infoVisibleToPlayers?: boolean;
 };
 
 export type OverworldLocationAction =
   | { kind: "place"; qx: number; qy: number; name: string; factionId: keyof FactionStates }
-  | { kind: "remove"; locationId: string };
+  | { kind: "remove"; locationId: string }
+  | { kind: "setInfoVisible"; locationId: string; visible: boolean };
+
+export type OverworldConvoyType =
+  | "supply"
+  | "support"
+  | "assault"
+  | "diplomatic"
+  | "decoy";
+
+export type OverworldConvoy = {
+  id: string;
+  qx: number;
+  qy: number;
+  type: OverworldConvoyType;
+  factionId: keyof FactionStates;
+  infoVisibleToPlayers: boolean;
+};
+
+export type OverworldConvoyAction =
+  | {
+      kind: "place";
+      qx: number;
+      qy: number;
+      type: OverworldConvoyType;
+      factionId: keyof FactionStates;
+    }
+  | { kind: "remove"; convoyId: string }
+  | { kind: "move"; convoyId: string; qx: number; qy: number }
+  | { kind: "setInfoVisible"; convoyId: string; visible: boolean };
 
 export type FactionCampaignAction =
   | {
@@ -317,6 +347,7 @@ export type GameState = {
   overworldRegions?: OverworldRegion[];
   overworldParty?: OverworldParty;
   overworldLocations?: OverworldLocation[];
+  overworldConvoys?: OverworldConvoy[];
   factionStates?: FactionStates;
 };
 
@@ -476,6 +507,7 @@ export type ClientMessage =
     }
   | { type: "factionCampaignAction"; action: FactionCampaignAction }
   | { type: "overworldLocationAction"; action: OverworldLocationAction }
+  | { type: "overworldConvoyAction"; action: OverworldConvoyAction }
   | { type: "spawnPlayerToken"; characterSheetId: string }
   | { type: "removePlayerToken"; playerId: string }
   | { type: "activateMap"; mapId: string }

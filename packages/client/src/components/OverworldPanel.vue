@@ -2,8 +2,11 @@
 import {
   defaultOverworldParty,
   FACTION_QUALITY_KEYS,
+  getConvoyTypeInfo,
   getFactionById,
   getFactionForRegion,
+  isLocationInfoVisibleToPlayers,
+  listOverworldConvoyDestinations,
   listOverworldDeployDestinations,
   listOverworldTravelDestinations,
   OVERWORLD_HEIGHT,
@@ -14,6 +17,7 @@ import {
   OVERWORLD_WIDTH,
   type FactionLocation,
   type FactionQualityDots,
+  type OverworldConvoy,
   type OverworldLocation,
   type OverworldRegion,
   type OverworldRegionId,
@@ -29,11 +33,13 @@ import {
   consumeSuppressMapPingClick,
   useMapPing,
 } from "../composables/useMapPing.js";
+import { useOverworldEntitySelection } from "../composables/useOverworldEntitySelection.js";
 import { useSession } from "../composables/useSession.js";
 import { showToast } from "../composables/useToasts.js";
 import locationUrl from "../assets/location.svg";
 import skullUrl from "../assets/skull.svg";
 import BoardContextMenu, { type BoardContextMenuItem } from "./BoardContextMenu.vue";
+import DeployOverworldConvoyModal from "./DeployOverworldConvoyModal.vue";
 import ModalDialog from "./ModalDialog.vue";
 import OverworldGmIchorOverlay from "./OverworldGmIchorOverlay.vue";
 import OverworldReconOverlay from "./OverworldReconOverlay.vue";
@@ -41,6 +47,7 @@ import PlaceOverworldLocationModal from "./PlaceOverworldLocationModal.vue";
 
 const CELL = 64;
 const QUARTER = CELL / 2;
+const COLOCATED_CONVOY_OFFSET = 6;
 const DIS_NODE = 72;
 const DIS_GAP = 56;
 const boardWidthPx = OVERWORLD_WIDTH * CELL;
@@ -52,6 +59,13 @@ const { gameState, send } = useGameState();
 const { hasGmCapabilities, isGm } = useSession();
 const { uploadRegionImage, fetchRegionImageUrl } = useApi();
 const { selectedFactionId, selectFaction, revealFactionLocation } = useFactionSelection();
+const {
+  selectedOverworldConvoyId,
+  selectedOverworldLocationId,
+  selectOverworldConvoy,
+  selectOverworldLocation,
+  clearOverworldEntitySelection,
+} = useOverworldEntitySelection();
 const { overworldPings, beginMapPingHold } = useMapPing();
 
 const viewportEl = ref<HTMLElement | null>(null);
@@ -63,7 +77,6 @@ const fileInputEl = ref<HTMLInputElement | null>(null);
 const pendingUploadRegionId = ref<OverworldRegionId | null>(null);
 const travelMode = ref(false);
 const deployMode = ref(false);
-const selectedLocationId = ref<string | null>(null);
 
 const contextMenu = ref<{
   open: boolean;
@@ -80,9 +93,20 @@ const placeModal = ref<{ open: boolean; qx: number | null; qy: number | null }>(
   qy: null,
 });
 
+const convoyModal = ref<{ open: boolean; qx: number | null; qy: number | null }>({
+  open: false,
+  qx: null,
+  qy: null,
+});
+
 const removeModal = ref<{ open: boolean; location: OverworldLocation | null }>({
   open: false,
   location: null,
+});
+
+const removeConvoyModal = ref<{ open: boolean; convoy: OverworldConvoy | null }>({
+  open: false,
+  convoy: null,
 });
 
 const imageUrls = ref<Partial<Record<OverworldRegionId, string>>>({});
@@ -97,6 +121,7 @@ const regions = computed((): OverworldRegion[] => {
 const party = computed(() => gameState.value?.overworldParty ?? defaultOverworldParty());
 const atDis = computed(() => party.value.atDis === true);
 const locations = computed(() => gameState.value?.overworldLocations ?? []);
+const convoys = computed(() => gameState.value?.overworldConvoys ?? []);
 const locationByKey = computed(() => {
   const map = new Map<string, OverworldLocation>();
   for (const loc of locations.value) {
@@ -104,6 +129,30 @@ const locationByKey = computed(() => {
   }
   return map;
 });
+const convoyByKey = computed(() => {
+  const map = new Map<string, OverworldConvoy>();
+  for (const convoy of convoys.value) {
+    map.set(`${convoy.qx},${convoy.qy}`, convoy);
+  }
+  return map;
+});
+
+const selectedConvoy = computed(
+  () => convoys.value.find((c) => c.id === selectedOverworldConvoyId.value) ?? null,
+);
+
+const convoyOccupiedKeys = computed(() => {
+  const keys = new Set<string>();
+  for (const convoy of convoys.value) {
+    if (convoy.id === selectedOverworldConvoyId.value) continue;
+    keys.add(`${convoy.qx},${convoy.qy}`);
+  }
+  return keys;
+});
+
+const convoyMoveMode = computed(
+  () => hasGmCapabilities.value && selectedConvoy.value != null && !travelMode.value && !deployMode.value,
+);
 
 const travelDestKeys = computed(() => {
   if (!travelMode.value || atDis.value) return new Set<string>();
@@ -117,6 +166,17 @@ const deployDestKeys = computed(() => {
   return new Set(listOverworldDeployDestinations().map((d) => `${d.qx},${d.qy}`));
 });
 
+const convoyDestKeys = computed(() => {
+  if (!convoyMoveMode.value || !selectedConvoy.value) return new Set<string>();
+  return new Set(
+    listOverworldConvoyDestinations(
+      selectedConvoy.value,
+      party.value.mapSpeed,
+      convoyOccupiedKeys.value,
+    ).map((d) => `${d.qx},${d.qy}`),
+  );
+});
+
 const quarterCells = computed(() =>
   Array.from({ length: OVERWORLD_QUARTER_WIDTH * OVERWORLD_QUARTER_HEIGHT }, (_, i) => {
     const qx = i % OVERWORLD_QUARTER_WIDTH;
@@ -125,12 +185,26 @@ const quarterCells = computed(() =>
   }),
 );
 
-const partyTokenStyle = computed(() => ({
-  left: `${party.value.qx * QUARTER}px`,
-  top: `${party.value.qy * QUARTER}px`,
-  width: `${QUARTER}px`,
-  height: `${QUARTER}px`,
-}));
+// Skip the first position apply so load/reconnect doesn't animate from DIS defaults.
+const partyTransitionReady = ref(false);
+
+const partyTokenStyle = computed(() => {
+  if (atDis.value) {
+    // Sit in the lower half of the DIS node so the label stays readable.
+    return {
+      left: `${(boardWidthPx - QUARTER) / 2}px`,
+      top: `${boardHeightPx + DIS_GAP + DIS_NODE * 0.58 - QUARTER / 2}px`,
+      width: `${QUARTER}px`,
+      height: `${QUARTER}px`,
+    };
+  }
+  return {
+    left: `${party.value.qx * QUARTER}px`,
+    top: `${party.value.qy * QUARTER}px`,
+    width: `${QUARTER}px`,
+    height: `${QUARTER}px`,
+  };
+});
 
 const disLineEnds = computed(() => {
   const topY = 0;
@@ -158,7 +232,8 @@ function isRegionDefeated(regionId: OverworldRegionId): boolean {
 
 function onSelectRegion(regionId: OverworldRegionId) {
   if (consumeSuppressMapPingClick()) return;
-  if (travelMode.value || deployMode.value) return;
+  if (travelMode.value || deployMode.value || convoyMoveMode.value) return;
+  selectOverworldLocation(null);
   selectFaction(getFactionForRegion(regionId).id);
 }
 
@@ -170,8 +245,12 @@ function isDeployDest(qx: number, qy: number): boolean {
   return deployDestKeys.value.has(`${qx},${qy}`);
 }
 
+function isConvoyDest(qx: number, qy: number): boolean {
+  return convoyDestKeys.value.has(`${qx},${qy}`);
+}
+
 function isHitDest(qx: number, qy: number): boolean {
-  return isTravelDest(qx, qy) || isDeployDest(qx, qy);
+  return isTravelDest(qx, qy) || isDeployDest(qx, qy) || isConvoyDest(qx, qy);
 }
 
 function onQuarterClick(qx: number, qy: number) {
@@ -184,17 +263,29 @@ function onQuarterClick(qx: number, qy: number) {
     deployMode.value = false;
     return;
   }
-  if (!travelMode.value) return;
-  if (!isTravelDest(qx, qy)) {
+  if (travelMode.value) {
+    if (!isTravelDest(qx, qy)) {
+      travelMode.value = false;
+      return;
+    }
+    if (party.value.fuel < OVERWORLD_TRAVEL_FUEL_COST) {
+      showToast("Not enough fuel", "error");
+      return;
+    }
+    send({ type: "overworldCampaignAction", action: { kind: "travel", qx, qy } });
     travelMode.value = false;
     return;
   }
-  if (party.value.fuel < OVERWORLD_TRAVEL_FUEL_COST) {
-    showToast("Not enough fuel", "error");
-    return;
+  if (convoyMoveMode.value && selectedConvoy.value) {
+    if (!isConvoyDest(qx, qy)) {
+      selectOverworldConvoy(null);
+      return;
+    }
+    send({
+      type: "overworldConvoyAction",
+      action: { kind: "move", convoyId: selectedConvoy.value.id, qx, qy },
+    });
   }
-  send({ type: "overworldCampaignAction", action: { kind: "travel", qx, qy } });
-  travelMode.value = false;
 }
 
 function closeContextMenu() {
@@ -223,16 +314,26 @@ function onBoardContextMenu(e: MouseEvent) {
     closeContextMenu();
     return;
   }
-  const existing = locationByKey.value.get(`${qx},${qy}`);
+  const existingLoc = locationByKey.value.get(`${qx},${qy}`);
+  const existingConvoy = convoyByKey.value.get(`${qx},${qy}`);
+  const items: BoardContextMenuItem[] = [];
+  if (existingLoc) {
+    items.push({ id: "remove-location", label: "Remove location", danger: true });
+  } else {
+    items.push({ id: "place-location", label: "Place location" });
+  }
+  if (existingConvoy) {
+    items.push({ id: "remove-convoy", label: "Remove convoy", danger: true });
+  } else {
+    items.push({ id: "deploy-convoy", label: "Deploy convoy" });
+  }
   contextMenu.value = {
     open: true,
     x: e.clientX,
     y: e.clientY,
     qx,
     qy,
-    items: existing
-      ? [{ id: "remove-location", label: "Remove location", danger: true }]
-      : [{ id: "place-location", label: "Place location" }],
+    items,
   };
 }
 
@@ -243,10 +344,20 @@ function onContextMenuSelect(id: string) {
     placeModal.value = { open: true, qx, qy };
     return;
   }
+  if (id === "deploy-convoy") {
+    convoyModal.value = { open: true, qx, qy };
+    return;
+  }
   if (id === "remove-location") {
     const existing = locationByKey.value.get(`${qx},${qy}`);
     if (!existing) return;
     removeModal.value = { open: true, location: existing };
+    return;
+  }
+  if (id === "remove-convoy") {
+    const existing = convoyByKey.value.get(`${qx},${qy}`);
+    if (!existing) return;
+    removeConvoyModal.value = { open: true, convoy: existing };
   }
 }
 
@@ -254,8 +365,16 @@ function closePlaceModal() {
   placeModal.value = { open: false, qx: null, qy: null };
 }
 
+function closeConvoyModal() {
+  convoyModal.value = { open: false, qx: null, qy: null };
+}
+
 function closeRemoveModal() {
   removeModal.value = { open: false, location: null };
+}
+
+function closeRemoveConvoyModal() {
+  removeConvoyModal.value = { open: false, convoy: null };
 }
 
 function confirmRemoveLocation() {
@@ -265,10 +384,29 @@ function confirmRemoveLocation() {
   closeRemoveModal();
 }
 
+function confirmRemoveConvoy() {
+  const convoy = removeConvoyModal.value.convoy;
+  if (!convoy) return;
+  send({ type: "overworldConvoyAction", action: { kind: "remove", convoyId: convoy.id } });
+  if (selectedOverworldConvoyId.value === convoy.id) selectOverworldConvoy(null);
+  closeRemoveConvoyModal();
+}
+
 function locationMarkerStyle(loc: OverworldLocation) {
   return {
     left: `${loc.qx * QUARTER}px`,
     top: `${loc.qy * QUARTER}px`,
+    width: `${QUARTER}px`,
+    height: `${QUARTER}px`,
+  };
+}
+
+function convoyMarkerStyle(convoy: OverworldConvoy) {
+  const colocated = locationByKey.value.has(`${convoy.qx},${convoy.qy}`);
+  const offset = colocated ? COLOCATED_CONVOY_OFFSET : 0;
+  return {
+    left: `${convoy.qx * QUARTER + offset}px`,
+    top: `${convoy.qy * QUARTER + offset}px`,
     width: `${QUARTER}px`,
     height: `${QUARTER}px`,
   };
@@ -299,10 +437,25 @@ function locationHoverMeta(loc: FactionLocation): string {
 
 const locationMarkers = computed(() =>
   locations.value.map((loc) => {
-    const catalog = catalogLocation(loc);
+    const infoVisible = hasGmCapabilities.value || isLocationInfoVisibleToPlayers(loc);
+    const catalog = infoVisible ? catalogLocation(loc) : undefined;
     return {
       loc,
+      label: infoVisible ? loc.name : "Location",
       hoverMeta: catalog ? locationHoverMeta(catalog) : "",
+      infoVisible,
+    };
+  }),
+);
+
+const convoyMarkers = computed(() =>
+  convoys.value.map((convoy) => {
+    const infoVisible = hasGmCapabilities.value || convoy.infoVisibleToPlayers;
+    const typeInfo = infoVisible ? getConvoyTypeInfo(convoy.type) : undefined;
+    return {
+      convoy,
+      label: typeInfo?.name ?? "Convoy",
+      infoVisible,
     };
   }),
 );
@@ -312,7 +465,8 @@ function onKeydown(e: KeyboardEvent) {
     if (travelMode.value) travelMode.value = false;
     if (deployMode.value) deployMode.value = false;
     if (contextMenu.value.open) closeContextMenu();
-    if (selectedLocationId.value) selectedLocationId.value = null;
+    if (selectedOverworldConvoyId.value) selectOverworldConvoy(null);
+    else if (selectedOverworldLocationId.value) selectOverworldLocation(null);
   }
 }
 
@@ -332,12 +486,19 @@ const {
 function onLocationClick(loc: OverworldLocation) {
   if (consumeSuppressMapPingClick()) return;
   if (travelMode.value || deployMode.value) return;
-  if (selectedLocationId.value === loc.id) {
-    selectedLocationId.value = null;
+  if (convoyMoveMode.value) return;
+  if (selectedOverworldLocationId.value === loc.id) {
+    selectOverworldLocation(null);
     return;
   }
-  selectedLocationId.value = loc.id;
+  selectOverworldLocation(loc.id);
   panToRect(loc.qx * QUARTER, loc.qy * QUARTER, QUARTER, QUARTER);
+
+  const infoVisible = hasGmCapabilities.value || isLocationInfoVisibleToPlayers(loc);
+  if (!infoVisible) {
+    selectFaction(loc.factionId);
+    return;
+  }
 
   const faction = getFactionById(loc.factionId);
   if (!faction) {
@@ -355,9 +516,21 @@ function onLocationClick(loc: OverworldLocation) {
   selectFaction(loc.factionId);
 }
 
-function clearLocationSelection() {
+function onConvoyClick(convoy: OverworldConvoy) {
   if (consumeSuppressMapPingClick()) return;
-  if (selectedLocationId.value) selectedLocationId.value = null;
+  if (travelMode.value || deployMode.value) return;
+  if (selectedOverworldConvoyId.value === convoy.id) {
+    selectOverworldConvoy(null);
+    return;
+  }
+  selectFaction(null);
+  selectOverworldConvoy(convoy.id);
+  panToRect(convoy.qx * QUARTER, convoy.qy * QUARTER, QUARTER, QUARTER);
+}
+
+function clearBoardEntitySelection() {
+  if (consumeSuppressMapPingClick()) return;
+  clearOverworldEntitySelection();
 }
 
 function quarterFromClientPoint(clientX: number, clientY: number): { x: number; y: number } | null {
@@ -381,9 +554,16 @@ function quarterFromClientPoint(clientX: number, clientY: number): { x: number; 
 }
 
 function canStartOverworldMapPing(): boolean {
-  if (travelMode.value || deployMode.value) return false;
+  if (travelMode.value || deployMode.value || convoyMoveMode.value) return false;
   if (contextMenu.value.open) return false;
-  if (placeModal.value.open || removeModal.value.open) return false;
+  if (
+    placeModal.value.open ||
+    convoyModal.value.open ||
+    removeModal.value.open ||
+    removeConvoyModal.value.open
+  ) {
+    return false;
+  }
   return true;
 }
 
@@ -409,7 +589,6 @@ function overworldPingStyle(qx: number, qy: number) {
 }
 
 function onViewportWheel(e: WheelEvent) {
-  clearLocationSelection();
   onWheel(e);
 }
 
@@ -417,6 +596,7 @@ const showQuarters = computed(
   () =>
     travelMode.value ||
     deployMode.value ||
+    convoyMoveMode.value ||
     (fitScale.value > 0 && scale.value / fitScale.value >= 2),
 );
 
@@ -431,18 +611,30 @@ watch(
     else {
       travelMode.value = false;
       deployMode.value = false;
-      selectedLocationId.value = null;
+      clearOverworldEntitySelection();
     }
   },
 );
 
 watch([travelMode, deployMode], ([travel, deploy]) => {
-  if (travel || deploy) selectedLocationId.value = null;
+  if (travel || deploy) clearOverworldEntitySelection();
 });
 
 watch(locations, (list) => {
-  if (selectedLocationId.value && !list.some((loc) => loc.id === selectedLocationId.value)) {
-    selectedLocationId.value = null;
+  if (
+    selectedOverworldLocationId.value &&
+    !list.some((loc) => loc.id === selectedOverworldLocationId.value)
+  ) {
+    selectOverworldLocation(null);
+  }
+});
+
+watch(convoys, (list) => {
+  if (
+    selectedOverworldConvoyId.value &&
+    !list.some((c) => c.id === selectedOverworldConvoyId.value)
+  ) {
+    selectOverworldConvoy(null);
   }
 });
 
@@ -450,6 +642,17 @@ watch(atDis, (inDis) => {
   if (inDis) travelMode.value = false;
   else deployMode.value = false;
 });
+
+watch(
+  () => gameState.value?.overworldParty,
+  (p) => {
+    if (!p || partyTransitionReady.value) return;
+    nextTick(() => {
+      partyTransitionReady.value = true;
+    });
+  },
+  { immediate: true },
+);
 
 async function syncRegionImages(list: OverworldRegion[]) {
   const nextUrls: Partial<Record<OverworldRegionId, string>> = { ...imageUrls.value };
@@ -511,7 +714,7 @@ onUnmounted(() => {
 });
 
 function resetZoom() {
-  selectedLocationId.value = null;
+  clearOverworldEntitySelection();
   fitToView(true);
 }
 
@@ -564,7 +767,7 @@ const gridCells = computed(() =>
       ref="viewportEl"
       class="overworld-viewport"
       @wheel.prevent="onViewportWheel"
-      @click="clearLocationSelection"
+      @click="clearBoardEntitySelection"
     >
       <div
         class="overworld-stage"
@@ -653,7 +856,7 @@ const gridCells = computed(() =>
             />
           </div>
           <div
-            v-if="travelMode || deployMode"
+            v-if="travelMode || deployMode || convoyMoveMode"
             class="quarter-hit-layer"
             :style="{
               gridTemplateColumns: `repeat(${OVERWORLD_QUARTER_WIDTH}, 1fr)`,
@@ -671,7 +874,9 @@ const gridCells = computed(() =>
                   ? `Travel to ${cell.qx}, ${cell.qy}`
                   : isDeployDest(cell.qx, cell.qy)
                     ? `Deploy to ${cell.qx}, ${cell.qy}`
-                    : undefined
+                    : isConvoyDest(cell.qx, cell.qy)
+                      ? `Move convoy to ${cell.qx}, ${cell.qy}`
+                      : undefined
               "
               :tabindex="isHitDest(cell.qx, cell.qy) ? 0 : -1"
               @click="onQuarterClick(cell.qx, cell.qy)"
@@ -682,34 +887,47 @@ const gridCells = computed(() =>
             :key="marker.loc.id"
             class="location-marker"
             :class="{
-              'location-marker--selected': selectedLocationId === marker.loc.id,
-              'location-marker--inert': travelMode || deployMode,
+              'location-marker--selected': selectedOverworldLocationId === marker.loc.id,
+              'location-marker--inert': travelMode || deployMode || convoyMoveMode,
             }"
             :style="locationMarkerStyle(marker.loc)"
             role="button"
             tabindex="0"
-            :aria-label="marker.loc.name"
-            :aria-pressed="selectedLocationId === marker.loc.id"
+            :aria-label="marker.label"
+            :aria-pressed="selectedOverworldLocationId === marker.loc.id"
             @click.stop="onLocationClick(marker.loc)"
             @keydown.enter.prevent="onLocationClick(marker.loc)"
             @keydown.space.prevent="onLocationClick(marker.loc)"
           >
             <img class="location-marker-icon" :src="locationUrl" alt="" draggable="false" />
             <div class="location-tooltip popover-tooltip">
-              <div class="location-tooltip-name">{{ marker.loc.name }}</div>
+              <div class="location-tooltip-name">{{ marker.label }}</div>
               <div v-if="marker.hoverMeta" class="location-tooltip-meta">
                 {{ marker.hoverMeta }}
               </div>
             </div>
           </div>
           <div
-            v-if="!atDis"
-            class="party-token"
-            :style="partyTokenStyle"
-            aria-label="Party"
-            title="Party"
+            v-for="marker in convoyMarkers"
+            :key="marker.convoy.id"
+            class="convoy-marker"
+            :class="{
+              'convoy-marker--selected': selectedOverworldConvoyId === marker.convoy.id,
+              'convoy-marker--inert': travelMode || deployMode,
+            }"
+            :style="convoyMarkerStyle(marker.convoy)"
+            role="button"
+            tabindex="0"
+            :aria-label="marker.label"
+            :aria-pressed="selectedOverworldConvoyId === marker.convoy.id"
+            @click.stop="onConvoyClick(marker.convoy)"
+            @keydown.enter.prevent="onConvoyClick(marker.convoy)"
+            @keydown.space.prevent="onConvoyClick(marker.convoy)"
           >
-            <span class="party-token-dot" />
+            <span class="convoy-marker-icon" aria-hidden="true" />
+            <div class="location-tooltip popover-tooltip">
+              <div class="location-tooltip-name">{{ marker.label }}</div>
+            </div>
           </div>
           <div
             v-for="ping in overworldPings"
@@ -745,13 +963,16 @@ const gridCells = computed(() =>
             title="DIS"
           >
             <span class="dis-node-label">DIS</span>
-            <span
-              v-if="atDis"
-              class="party-token-dot party-token-dot--on-dis"
-              aria-label="Party in DIS"
-              title="Party in DIS"
-            />
           </div>
+        </div>
+        <div
+          class="party-token"
+          :class="{ 'party-token--no-transition': !partyTransitionReady }"
+          :style="partyTokenStyle"
+          :aria-label="atDis ? 'Party in DIS' : 'Party'"
+          :title="atDis ? 'Party in DIS' : 'Party'"
+        >
+          <span class="party-token-dot" />
         </div>
       </div>
       <button
@@ -780,6 +1001,13 @@ const gridCells = computed(() =>
       @close="closePlaceModal"
     />
 
+    <DeployOverworldConvoyModal
+      :open="convoyModal.open"
+      :qx="convoyModal.qx"
+      :qy="convoyModal.qy"
+      @close="closeConvoyModal"
+    />
+
     <ModalDialog
       title="Remove location?"
       :open="removeModal.open"
@@ -791,6 +1019,18 @@ const gridCells = computed(() =>
         Remove
         <strong>{{ removeModal.location?.name }}</strong>
         from the overworld map?
+      </p>
+    </ModalDialog>
+
+    <ModalDialog
+      title="Remove convoy?"
+      :open="removeConvoyModal.open"
+      ok-label="Remove"
+      @close="closeRemoveConvoyModal"
+      @confirm="confirmRemoveConvoy"
+    >
+      <p class="remove-location-copy">
+        Remove this convoy from the overworld map?
       </p>
     </ModalDialog>
   </div>
@@ -1097,10 +1337,11 @@ const gridCells = computed(() =>
   display: flex;
   align-items: center;
   justify-content: center;
-  pointer-events: auto;
+  pointer-events: none;
   cursor: pointer;
   transform: scale(calc(2 * var(--board-fit-scale, 1) / var(--board-scale, 1)));
   transform-origin: center;
+  transition: left 350ms ease, top 350ms ease;
 }
 
 .location-marker:hover,
@@ -1124,9 +1365,57 @@ const gridCells = computed(() =>
   width: 70%;
   height: 70%;
   object-fit: contain;
-  pointer-events: none;
+  pointer-events: auto;
   user-select: none;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.75));
+}
+
+.location-marker--inert .location-marker-icon {
+  pointer-events: none;
+}
+
+.convoy-marker {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  cursor: pointer;
+  transform: scale(calc(2 * var(--board-fit-scale, 1) / var(--board-scale, 1)));
+  transform-origin: center;
+  transition: left 350ms ease, top 350ms ease;
+}
+
+.convoy-marker:hover,
+.convoy-marker:focus-visible {
+  z-index: 6;
+}
+
+.convoy-marker--inert {
+  pointer-events: none;
+  cursor: default;
+}
+
+.convoy-marker--selected .convoy-marker-icon {
+  box-shadow:
+    0 0 0 2px var(--color-accent),
+    0 0 6px var(--color-accent-bright);
+}
+
+.convoy-marker-icon {
+  width: 48%;
+  height: 48%;
+  border-radius: 3px;
+  background: var(--color-danger, #c44);
+  border: 2px solid var(--color-bg);
+  box-shadow: 0 0 0 1px var(--color-border);
+  pointer-events: auto;
+  transform: rotate(45deg);
+}
+
+.convoy-marker--inert .convoy-marker-icon {
+  pointer-events: none;
 }
 
 .location-tooltip {
@@ -1140,10 +1429,13 @@ const gridCells = computed(() =>
   min-width: 140px;
   max-width: 240px;
   text-align: left;
+  pointer-events: none;
 }
 
 .location-marker:hover .location-tooltip,
-.location-marker:focus-visible .location-tooltip {
+.location-marker:focus-visible .location-tooltip,
+.convoy-marker:hover .location-tooltip,
+.convoy-marker:focus-visible .location-tooltip {
   opacity: 1;
 }
 
@@ -1161,13 +1453,18 @@ const gridCells = computed(() =>
 
 .party-token {
   position: absolute;
-  z-index: 4;
+  z-index: 5;
   display: flex;
   align-items: center;
   justify-content: center;
   pointer-events: none;
   transform: scale(calc(2 * var(--board-fit-scale, 1) / var(--board-scale, 1)));
   transform-origin: center;
+  transition: left 350ms ease, top 350ms ease;
+}
+
+.party-token--no-transition {
+  transition: none;
 }
 
 .party-token-dot {
@@ -1177,14 +1474,6 @@ const gridCells = computed(() =>
   background: var(--color-accent);
   border: 2px solid var(--color-bg);
   box-shadow: 0 0 0 1px var(--color-accent-bright);
-}
-
-.party-token-dot--on-dis {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-  transform: scale(calc(2 * var(--board-fit-scale, 1) / var(--board-scale, 1)));
-  transform-origin: center;
 }
 
 .remove-location-copy {

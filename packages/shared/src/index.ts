@@ -12,6 +12,7 @@ export * from "./enemy-data.js";
 export * from "./faction-data.js";
 export * from "./faction-campaign.js";
 export * from "./gm-stratcom-actions-data.js";
+export * from "./convoys-data.js";
 export * from "./pattern-data.js";
 export * from "./effects-data.js";
 export * from "./terrain-data.js";

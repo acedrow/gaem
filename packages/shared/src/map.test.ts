@@ -139,6 +139,16 @@ describe("map", () => {
     state.overworldLocations = [
       { id: "loc-1", qx: 2, qy: 3, name: "Test Site", factionId: "syncrasis" },
     ];
+    state.overworldConvoys = [
+      {
+        id: "convoy-1",
+        qx: 5,
+        qy: 7,
+        type: "supply",
+        factionId: "paracletus",
+        infoVisibleToPlayers: false,
+      },
+    ];
     state.factionStates = {
       syncrasis: {
         crown: 4,
@@ -197,6 +207,16 @@ describe("map", () => {
     });
     expect(state.overworldLocations).toEqual([
       { id: "loc-1", qx: 2, qy: 3, name: "Test Site", factionId: "syncrasis" },
+    ]);
+    expect(state.overworldConvoys).toEqual([
+      {
+        id: "convoy-1",
+        qx: 5,
+        qy: 7,
+        type: "supply",
+        factionId: "paracletus",
+        infoVisibleToPlayers: false,
+      },
     ]);
     expect(state.factionStates).toEqual({
       syncrasis: {

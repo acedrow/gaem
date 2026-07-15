@@ -133,6 +133,7 @@ export function computePathCost(
 
 export function maxSprintCost(player: Player): number {
   const speed = player.speed ?? getArmorSpeed(player.armor);
+  // RAW p.98: round in the way most favorable to players
   return Math.ceil(speed / 2);
 }
 

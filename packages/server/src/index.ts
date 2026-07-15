@@ -20,6 +20,7 @@ import {
   applyActivateMap,
   applyBaseCampaignAction,
   applyOverworldCampaignAction,
+  applyOverworldConvoyAction,
   applyOverworldLocationAction,
   applySetSandboxMode,
   applySetOverworldRegionImage,
@@ -49,6 +50,7 @@ import {
   validatePhaseAction,
   validateBaseCampaignAction,
   validateOverworldCampaignAction,
+  validateOverworldConvoyAction,
   validateOverworldLocationAction,
   validateSetOverworldRegionImage,
   validateFactionCampaignAction,
@@ -1104,6 +1106,22 @@ wss.on("connection", (ws: WebSocket) => {
         return;
       }
       const message = applyOverworldLocationAction(gameState, parsed.action);
+      broadcastConsole(actorForSocket(ws), message);
+      broadcastState();
+      return;
+    }
+
+    if (parsed.type === "overworldConvoyAction") {
+      if (!socketHasGmCapabilities(ws)) {
+        sendError(ws, "Only the game master can do that");
+        return;
+      }
+      const err = validateOverworldConvoyAction(gameState, parsed.action);
+      if (err) {
+        sendError(ws, err);
+        return;
+      }
+      const message = applyOverworldConvoyAction(gameState, parsed.action);
       broadcastConsole(actorForSocket(ws), message);
       broadcastState();
       return;

@@ -8,6 +8,10 @@ import { activeTab } from "./useGameConsole.js";
 import { clearActiveTool } from "./useGmTools.js";
 import { useInfoDataSelection } from "./useInfoDataSelection.js";
 import { selectedMapId } from "./useMapSelection.js";
+import {
+  selectedOverworldConvoyId,
+  selectedOverworldLocationId,
+} from "./useOverworldEntitySelection.js";
 import { selectedTableId } from "./useTableSelection.js";
 
 const FACTION_IDS = new Set<FactionId>(["syncrasis", "autophyes", "paracletus"]);
@@ -41,6 +45,7 @@ export function useFactionSelection() {
       selectedMapId.value = null;
       selectedTableId.value = null;
       clearDataCategory();
+      selectedOverworldConvoyId.value = null;
       activeTab.value = "info";
     }
     selectedFactionId.value = id;
@@ -62,6 +67,7 @@ export function useFactionSelection() {
 
   function clearFaction() {
     selectedFactionId.value = null;
+    selectedOverworldLocationId.value = null;
   }
 
   return {

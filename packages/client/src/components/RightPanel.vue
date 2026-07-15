@@ -11,6 +11,7 @@ import { selectedMapId } from "../composables/useMapSelection.js";
 import { selectedTableId } from "../composables/useTableSelection.js";
 import { useGmTools } from "../composables/useGmTools.js";
 import CharacterSheetPanel from "./CharacterSheetPanel.vue";
+import ConvoyInfoPanel from "./ConvoyInfoPanel.vue";
 import EnemyInfoPanel from "./EnemyInfoPanel.vue";
 import FactionInfoPanel from "./FactionInfoPanel.vue";
 import GameConsolePanel from "./GameConsolePanel.vue";
@@ -20,6 +21,7 @@ import GameDataDetailPanel from "./GameDataDetailPanel.vue";
 import GmToolOptionsPanel from "./GmToolOptionsPanel.vue";
 import InfoSearchPanel from "./InfoSearchPanel.vue";
 import MapPanel from "./MapPanel.vue";
+import OverworldLocationVisibilityPanel from "./OverworldLocationVisibilityPanel.vue";
 import PlayerBoardPanel from "./PlayerBoardPanel.vue";
 import PlayerDataPanel from "./PlayerDataPanel.vue";
 import FactionEnemiesPanel from "./FactionEnemiesPanel.vue";
@@ -29,6 +31,7 @@ import SettingsPanel from "./SettingsPanel.vue";
 import TableInfoPanel from "./TableInfoPanel.vue";
 import TileBrushGalleryOverlay from "./TileBrushGalleryOverlay.vue";
 import TurnOrderPanel from "./TurnOrderPanel.vue";
+import { selectedOverworldConvoyId } from "../composables/useOverworldEntitySelection.js";
 
 const { selectedSheetId, gearPickCategory } = useCharacterSheetSelection();
 const { boardSelection } = useBoardSelection();
@@ -174,11 +177,18 @@ const activeSheetId = computed(() => boardPlayerSheetId.value ?? selectedSheetId
             :key="dataCategory"
             :category="dataCategory"
           />
-          <FactionInfoPanel
-            v-else-if="selectedFactionId"
-            :key="selectedFactionId"
-            :faction-id="selectedFactionId"
+          <ConvoyInfoPanel
+            v-else-if="selectedOverworldConvoyId"
+            :key="selectedOverworldConvoyId"
+            :convoy-id="selectedOverworldConvoyId"
           />
+          <template v-else-if="selectedFactionId">
+            <OverworldLocationVisibilityPanel />
+            <FactionInfoPanel
+              :key="selectedFactionId"
+              :faction-id="selectedFactionId"
+            />
+          </template>
           <TableInfoPanel
             v-else-if="selectedTableId"
             :key="selectedTableId"
