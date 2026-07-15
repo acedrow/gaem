@@ -994,6 +994,14 @@ wss.on("connection", (ws: WebSocket) => {
         const map = savedMaps.get(gameState.mapId);
         if (map) persistMapTilesAt(gameState, map, parsed.coords);
       }
+      if (
+        parsed.type === "confirmGorgenautAgnosia" &&
+        "persistCoords" in combatResult &&
+        combatResult.persistCoords
+      ) {
+        const map = savedMaps.get(gameState.mapId);
+        if (map) persistMapTilesAt(gameState, map, combatResult.persistCoords);
+      }
       if (parsed.type === "setTileTerrain") {
         const map = savedMaps.get(gameState.mapId);
         if (map) persistMapTileAt(gameState, map, parsed.x, parsed.y);

@@ -18,6 +18,7 @@ import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 import { useSession } from "../composables/useSession.js";
 import { useStainGeyserPlacement } from "../composables/useStainGeyserPlacement.js";
 import PanelShell from "./PanelShell.vue";
+import RuleText from "./RuleText.vue";
 
 const props = defineProps<{
   factionId: FactionId;
@@ -101,7 +102,9 @@ function crownGateLabel(enemy: EnemyListing): string | null {
               class="enemy-portrait"
             />
 
-            <p v-if="enemy.summary" class="enemy-summary">{{ enemy.summary }}</p>
+            <p v-if="enemy.summary" class="enemy-summary">
+              <RuleText :text="enemy.summary" />
+            </p>
 
             <div class="stats">
               <span v-if="hasGmCapabilities" class="stat">HP: {{ enemy.hp }}</span>
@@ -114,23 +117,25 @@ function crownGateLabel(enemy: EnemyListing): string | null {
 
             <p v-if="enemy.title" class="enemy-title">{{ enemy.title }}</p>
             <p v-if="enemy.codename" class="codename"><em>{{ enemy.codename }}</em></p>
-            <p v-if="enemy.description" class="item-description">{{ enemy.description }}</p>
+            <p v-if="enemy.description" class="item-description">
+              <RuleText :text="enemy.description" />
+            </p>
 
             <p v-for="(attack, i) in enemy.attacks" :key="`${enemy.name}-attack-${i}`" class="ability">
               <span class="ability-label">Attack {{ i + 1 }}</span>
-              {{ attack }}
+              <RuleText :text="attack.text" />
             </p>
             <p v-if="enemy.agnosia" class="ability">
               <span class="ability-label">Agnosia</span>
-              {{ enemy.agnosia }}
+              <RuleText :text="enemy.agnosia" />
             </p>
             <p v-if="enemy.special" class="ability">
               <span class="ability-label">Special</span>
-              {{ enemy.special }}
+              <RuleText :text="enemy.special" />
             </p>
             <p v-if="enemy.stainwalk" class="ability">
               <span class="ability-label">Stainwalk</span>
-              {{ enemy.stainwalk }}
+              <RuleText :text="enemy.stainwalk" />
             </p>
 
             <button

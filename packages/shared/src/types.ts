@@ -495,6 +495,12 @@ export type ClientMessage =
       featureRotation?: TileImageRotation | null;
       featureFlip?: boolean | null;
     }
+  | {
+      type: "confirmGorgenautAgnosia";
+      enemyId: string;
+      hoverX: number;
+      hoverY: number;
+    }
   | { type: "removeAttractor"; x: number; y: number }
   | { type: "phaseAction"; action: PhaseAction }
   | { type: "setSandboxMode"; sandboxMode: boolean }

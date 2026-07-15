@@ -81,7 +81,9 @@ const playerItemKind = computed(() => {
     </div>
     <div v-else-if="item && playerItemKind" class="panel-body">
       <p v-if="'summary' in item && item.summary" class="item-summary">{{ item.summary }}</p>
-      <p v-if="item.description" class="item-description">{{ item.description }}</p>
+      <p v-if="item.description" class="item-description">
+        <RuleText :text="item.description" />
+      </p>
       <PlayerItemDetail :item="item" :kind="playerItemKind" />
     </div>
     <p v-else class="muted">Entry not found.</p>

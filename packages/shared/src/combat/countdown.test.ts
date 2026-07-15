@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { resolveCountdownExpiry, tickRoundCountdowns } from "./countdown.js";
+import {
+  getCountdownKind,
+  resolveCountdownExpiry,
+  tickRoundCountdowns,
+  trackCountdownKinds,
+} from "./countdown.js";
 import { applyEffectStacks } from "./effects.js";
 import { createDefaultCombatState } from "./types.js";
 import { addTestEnemy, addTestPlayer, makeGameState } from "../test/fixtures.js";
@@ -18,11 +23,19 @@ describe("resolveCountdownExpiry", () => {
   it("chazaor agnosia kills and bursts", () => {
     const state = makeGameState({ combat: createDefaultCombatState(0) });
     addTestPlayer(state, "p1", { x: 3, y: 4, hp: 10, class: "HARPE" });
-    const enemy = addTestEnemy(state, "ch", 3, 4, { name: "CHALAZAOR", hp: 20 });
+    const enemy = addTestEnemy(state, "ch", 3, 4, { name: "Soaring Bombardier", hp: 20 });
     const msgs = resolveCountdownExpiry({ state, unit: enemy, kind: "chazaor_agnosia" });
     expect(enemy.hp).toBe(0);
     expect(state.players[0]!.hp).toBe(5);
     expect(msgs.some((m) => m.includes("agnosia"))).toBe(true);
+  });
+
+  it("infers chazaor kind from Soaring Bombardier display name", () => {
+    const state = makeGameState({ combat: createDefaultCombatState(0) });
+    const enemy = addTestEnemy(state, "ch", 3, 4, { name: "Soaring Bombardier", hp: 20 });
+    applyEffectStacks(enemy, ["Countdown:1"]);
+    trackCountdownKinds(state, enemy, ["Countdown:1"]);
+    expect(getCountdownKind(state, enemy.id)).toBe("chazaor_agnosia");
   });
 
   it("unknown kind creates pending GM action", () => {

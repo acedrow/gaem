@@ -33,9 +33,28 @@
       "speed": 4,
       "actions": "1/2",
       "attacks": [
-        "Line:4. If the target is on a Stained square, deal 8 damage. Otherwise deal 3 damage.",
-        "Deal 5 damage to an adjacent unit. If it kills that creature, spawn one new miniboss of your choosing under your control.",
-        "Move any unit adjacent to any stained square onto that stained square, and deal that unit 5 damage."
+        {
+          "text": "Line:4. If the target is on a Stained square, deal 8 damage. Otherwise deal 3 damage.",
+          "attack": {
+            "targeting": "assisted",
+            "specialId": "orobas-stained-line"
+          }
+        },
+        {
+          "text": "Deal 5 damage to an adjacent unit. If it kills that creature, spawn one new miniboss of your choosing under your control.",
+          "attack": {
+            "targeting": "assisted"
+          }
+        },
+        {
+          "text": "Move any unit adjacent to any stained square onto that stained square, and deal that unit 5 damage.",
+          "attack": {
+            "targeting": "select",
+            "damage": "5",
+            "adjacent": true,
+            "specialId": "stain-teleport"
+          }
+        }
       ],
       "agnosia": "Immediately spawn any one unique fortification within 5 squares of OROBAS.",
       "special": "When OROBAS takes damage, you may increase that damage by 1 to Stain an adjacent square.",
@@ -53,8 +72,21 @@
       "scale": 1,
       "speed": 3,
       "attacks": [
-        "Increase PRISTIR's scale by 2. Any occupied spaces take 5 damage and are pushed out.",
-        "Deal 10 damage to Burst:1, then decrease PRISTIR's scale by 1."
+        {
+          "text": "Increase PRISTIR's scale by 2. Any occupied spaces take 5 damage and are pushed out.",
+          "attack": {
+            "targeting": "assisted"
+          }
+        },
+        {
+          "text": "Deal 10 damage to Burst:1, then decrease PRISTIR's scale by 1.",
+          "attack": {
+            "targeting": "pattern",
+            "patternId": "burst",
+            "size": 1,
+            "damage": "10"
+          }
+        }
       ],
       "agnosia": "Increase PRISTIR's scale by 1 and PRISTIR is now Primed. Any occupied spaces take 5 damage and are pushed out.",
       "stainwalk": "When PRISTIR is on Stain, allies on connected Stained squares take 2 less damage when attacked and PRISTIR takes 2 more damage when attacked."
@@ -71,8 +103,25 @@
       "scale": 2,
       "speed": 6,
       "attacks": [
-        "Cone:3. Deal 5 damage and pull any unit 1 space towards RETIARIUS.",
-        "Deal 10 damage to an adjacent unit. Move that unit to any stained square."
+        {
+          "text": "Cone:3. Deal 5 damage and pull any unit 1 space towards RETIARIUS.",
+          "attack": {
+            "targeting": "pattern",
+            "patternId": "cone",
+            "size": 3,
+            "damage": "5",
+            "effects": ["Pull:1"]
+          }
+        },
+        {
+          "text": "Deal 10 damage to an adjacent unit. Move that unit to any stained square.",
+          "attack": {
+            "targeting": "select",
+            "damage": "10",
+            "adjacent": true,
+            "specialId": "stain-teleport"
+          }
+        }
       ],
       "agnosia": "Draw a 5x5 box with RETIARIUS at the center and Stain them. Pull any enemies within the box 1 square towards RETIARIUS.",
       "stainwalk": "When RETIARIUS is on a Stained square, it recovers 10 HP at the end of your turn."
@@ -91,8 +140,23 @@
       "scale": 1,
       "speed": 8,
       "attacks": [
-        "Create a Flowerbud on an adjacent square with 1 HP and Countdown:2. When the timer reaches 0, it blooms into a Stain Flower.",
-        "Deal 3 damage and Bleed:2 to an adjacent unit."
+        {
+          "text": "Create a Flowerbud on an adjacent square with 1 HP and Countdown:2. When the timer reaches 0, it blooms into a Stain Flower.",
+          "attack": {
+            "targeting": "none",
+            "adjacent": true,
+            "specialId": "flowerbud-plant"
+          }
+        },
+        {
+          "text": "Deal 3 damage and Bleed:2 to an adjacent unit.",
+          "attack": {
+            "targeting": "select",
+            "damage": "3",
+            "effects": ["Bleed:2"],
+            "adjacent": true
+          }
+        }
       ],
       "agnosia": "CHALAZAOR emits a hypnotic pattern of colors that mortal eyes weren't meant to see. Countdown:10. Whenever CHALAZAOR would take damage, it takes 0 damage instead and reduces Countdown by 1. When Countdown reaches zero, CHALAZAOR dies and deals 5 damage to Burst:2."
     },
@@ -109,8 +173,26 @@
       "scale": 2,
       "speed": 4,
       "attacks": [
-        "Range:2, Line:4 Damage:4, and stain targeted squares.",
-        "Deal 10 damage to an adjacent unit, and target gets Pinned:1."
+        {
+          "text": "Range:2, Line:4 Damage:4, and stain targeted squares.",
+          "attack": {
+            "targeting": "pattern",
+            "patternId": "line",
+            "size": 4,
+            "range": 2,
+            "damage": "4",
+            "onHit": [{ "kind": "stainTiles" }]
+          }
+        },
+        {
+          "text": "Deal 10 damage to an adjacent unit, and target gets Pinned:1.",
+          "attack": {
+            "targeting": "select",
+            "damage": "10",
+            "effects": ["Pin:1"],
+            "adjacent": true
+          }
+        }
       ],
       "agnosia": "POTAGON burrows into the ground and counts as Stained ground for other units to occupy.",
       "stainwalk": "When POTAGON ends its turn on a square that isn't stained, it takes 10 HP damage."
@@ -125,7 +207,16 @@
       "hp": 1,
       "scale": 1,
       "speed": 6,
-      "attacks": ["Damage:2, Range:1"],
+      "attacks": [
+        {
+          "text": "Damage:2, Range:1",
+          "attack": {
+            "targeting": "select",
+            "damage": "2",
+            "range": 1
+          }
+        }
+      ],
       "special": "When a Swarm contains 4 or more units, a Swarm may Prime itself. Any Swarm that is Primed will destroy the entire Swarm when taking damage, leaving any spaces they occupied with the Stained condition."
     },
     {
@@ -137,7 +228,16 @@
       "hp": 1,
       "scale": 1,
       "speed": 5,
-      "attacks": ["Deal 4 damage to an adjacent creature."],
+      "attacks": [
+        {
+          "text": "Deal 4 damage to an adjacent creature.",
+          "attack": {
+            "targeting": "select",
+            "damage": "4",
+            "adjacent": true
+          }
+        }
+      ],
       "special": "If a Stain Creep ends its turn on a square that isn't Stained, it dies.",
       "stainwalk": "Allied units can inhabit the same square as Stain Creep."
     },
@@ -152,7 +252,16 @@
       "hp": 1,
       "scale": 1,
       "speed": 4,
-      "attacks": ["Range:2, Damage:2"],
+      "attacks": [
+        {
+          "text": "Range:2, Damage:2",
+          "attack": {
+            "targeting": "select",
+            "damage": "2",
+            "range": 2
+          }
+        }
+      ],
       "special": "When AULAEA leaves a square, it counts as stained until your next turn."
     },
     {
@@ -164,7 +273,16 @@
       "hp": 1,
       "scale": 1,
       "speed": 4,
-      "attacks": ["Push:2"],
+      "attacks": [
+        {
+          "text": "Push:2",
+          "attack": {
+            "targeting": "select",
+            "effects": ["Push:2"],
+            "adjacent": true
+          }
+        }
+      ],
       "special": "When ending its turn on a Stained tile, Latent Pudding may transform into any Paracletus Fortification."
     },
     {
@@ -176,6 +294,17 @@
       "hp": 50,
       "scale": 1,
       "special": "At the end of the round, Paracletus Loom gains a Charge. On the GM's turn, they may spend 1 Charge to spawn a Paracletus minion, or 5 Charges to spawn a miniboss."
+    },
+    {
+      "name": "Flowerbud",
+      "portrait": "stain-flower",
+      "description": "Volatile spawn planted by CHALAZAOR. When its countdown ends, it blooms into a Stain Flower.",
+      "summary": "Immobile 1 HP pod. Countdown:2 blooms into a Stain Flower.",
+      "tags": ["Fortification", "Immobile", "Obstacle"],
+      "hp": 1,
+      "scale": 1,
+      "speed": 0,
+      "special": "When Countdown reaches 0, blooms into a Stain Flower."
     },
     {
       "name": "Stain Flower",

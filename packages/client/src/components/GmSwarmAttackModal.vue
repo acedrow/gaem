@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { parseEnemyAttackString, previewSwarmEnemyAttack } from "@gaem/shared";
+import { enemyAttackDamage, previewSwarmEnemyAttack, type EnemyAttackSpec } from "@gaem/shared";
 import { computed, ref, watch } from "vue";
 
 import { useGameState } from "../composables/useGameState.js";
@@ -10,6 +10,7 @@ const props = defineProps<{
   enemyId: string;
   attackIndex: number;
   attackText: string;
+  attackSpec?: EnemyAttackSpec;
   targetPlayerId: string;
   targetPlayerName: string;
   maxStrikes: number;
@@ -32,13 +33,11 @@ watch(
   },
 );
 
-const parsedAttack = computed(() => parseEnemyAttackString(props.attackText));
-
 const preview = computed(() => {
   const s = gameState.value;
-  if (!s || !props.targetPlayerId) return null;
-  return previewSwarmEnemyAttack(s, props.enemyId, parsedAttack.value, props.targetPlayerId, {
-    damage: props.damageOverride ?? parsedAttack.value.damage,
+  if (!s || !props.targetPlayerId || !props.attackSpec) return null;
+  return previewSwarmEnemyAttack(s, props.enemyId, props.attackSpec, props.targetPlayerId, {
+    damage: props.damageOverride ?? enemyAttackDamage(props.attackSpec),
     strikeCount: strikeCount.value,
   });
 });

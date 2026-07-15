@@ -641,6 +641,13 @@ export class GameRoom {
       if (parsed.type === "gmPaintTile") {
         await this.persistActiveMapTiles(parsed.coords);
       }
+      if (
+        parsed.type === "confirmGorgenautAgnosia" &&
+        "persistCoords" in combatResult &&
+        combatResult.persistCoords
+      ) {
+        await this.persistActiveMapTiles(combatResult.persistCoords);
+      }
       if (parsed.type === "setTileTerrain") {
         await this.persistActiveMapTile(parsed.x, parsed.y);
       }

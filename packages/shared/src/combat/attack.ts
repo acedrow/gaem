@@ -11,8 +11,7 @@ import { buildBoardOccupancy } from "../game.js";
 import { coordKey, ensureObstacleHp, isInBounds, isObstacleTile, isWalkable, setTileTerrain, tileAt } from "../map.js";
 import type { Enemy, GameState, MapTile, Player } from "../types.js";
 import { getWeaponByName } from "../player-data.js";
-import type { WeaponAttackSpec } from "./types.js";
-import type { AttackRangeSpan } from "./types.js";
+import type { AttackRangeSpan, EnemyAttackSpec, WeaponAttackSpec } from "./types.js";
 import { applyEffectStacks } from "./effects.js";
 import { trackCountdownKinds } from "./countdown.js";
 import { effectiveElevation, elevationAtCoords, tileElevation } from "./elevation.js";
@@ -34,6 +33,7 @@ import {
 import { checkSharurEmergencyDefenses } from "./attractor.js";
 import { clampHp, getEnemyMaxHp, getPlayerMaxHp, getEffectiveEnemyMaxHp, removeEnemy } from "../game.js";
 import { maybeTriggerAgnosia } from "./agnosia.js";
+import { tryChalazaorDamageNegation } from "./chalazaor.js";
 import { stainwalkDamageAdjustment } from "./stainwalk.js";
 import {
   buildSwarmGroups,
@@ -438,6 +438,10 @@ export function applyDamageToEnemy(
     piercing?: boolean;
   },
 ): number {
+  if (state && damage > 0) {
+    const negated = tryChalazaorDamageNegation(state, enemy);
+    if (negated) return negated.dealt;
+  }
   const maxHp = state ? getEffectiveEnemyMaxHp(enemy, state) : getEnemyMaxHp(enemy);
   const before = enemy.hp ?? maxHp;
   const adjusted = Math.max(
@@ -840,7 +844,7 @@ export type SwarmEnemyAttackPreview = {
 export function previewSwarmEnemyAttack(
   state: GameState,
   enemyId: string,
-  parsed: ParsedEnemyAttack,
+  spec: EnemyAttackSpec,
   targetPlayerId: string,
   opts?: { damage?: number; strikeCount?: number },
 ): SwarmEnemyAttackPreview {
@@ -849,7 +853,7 @@ export function previewSwarmEnemyAttack(
   const target = state.players.find((p) => p.id === targetPlayerId);
   if (!target) return { totalDamage: 0, strikeCount: 0, detail: "No target" };
 
-  const baseDamage = opts?.damage ?? parsed.damage ?? 0;
+  const baseDamage = opts?.damage ?? enemyAttackDamage(spec) ?? 0;
   const adjacentCount = countSwarmTilesAdjacentTo(state, memberIds, target);
   if (adjacentCount === 0) return { totalDamage: 0, strikeCount: 0, detail: "Not adjacent" };
 
@@ -883,17 +887,17 @@ function pickAdjacentSwarmMember(
 export function applySwarmEnemyAttackToPlayer(
   state: GameState,
   enemyId: string,
-  parsed: ParsedEnemyAttack,
+  spec: EnemyAttackSpec,
   targetPlayerId: string,
   opts?: { damage?: number; strikeCount?: number },
 ): SwarmEnemyAttackPreview {
-  const preview = previewSwarmEnemyAttack(state, enemyId, parsed, targetPlayerId, opts);
+  const preview = previewSwarmEnemyAttack(state, enemyId, spec, targetPlayerId, opts);
   if (preview.strikeCount === 0) return preview;
 
   const group = swarmGroupForEnemy(state, enemyId);
   let memberIds = [...(group?.memberIds ?? [enemyId])];
   const target = state.players.find((p) => p.id === targetPlayerId)!;
-  const baseDamage = opts?.damage ?? parsed.damage ?? 0;
+  const baseDamage = opts?.damage ?? enemyAttackDamage(spec) ?? 0;
   let remainingAdjacent = countSwarmTilesAdjacentTo(state, memberIds, target);
 
   let totalDamage = 0;
@@ -908,7 +912,7 @@ export function applySwarmEnemyAttackToPlayer(
     }
     const strikeDamage = baseDamage + remainingAdjacent;
     totalDamage += applyDamageToPlayer(target, strikeDamage, state, { recordDamage: false });
-    if (parsed.effects) applyUnitEffectStacks(state,target, parsed.effects);
+    if (spec.effects) applyUnitEffectStacks(state, target, spec.effects);
   }
   if (state && totalDamage > 0) {
     if (!state.damageEvents) state.damageEvents = [];
@@ -917,16 +921,6 @@ export function applySwarmEnemyAttackToPlayer(
 
   return preview;
 }
-
-export type ParsedEnemyAttack = {
-  patternId?: string;
-  size?: number;
-  range?: number;
-  width?: number;
-  damage?: number;
-  effects?: string[];
-  raw: string;
-};
 
 export const OMNISTRIKE_DIRECTION: PatternDirection = "e";
 
@@ -1419,66 +1413,83 @@ export function applyWarhook(
   return { message: "Canticle Boosted Warhook", detail, targets };
 }
 
-export function isDirectTargetEnemyAttack(parsed: ParsedEnemyAttack): boolean {
-  if (parsed.patternId || parsed.damage == null) return false;
-  const raw = parsed.raw.trim();
-  if (/^(move|create|increase|decrease|transform)/i.test(raw)) return false;
-  if (/^deal/i.test(raw)) return true;
-  return parsed.range != null || /damage:/i.test(raw);
+export function enemyAttackDamage(spec: EnemyAttackSpec): number | undefined {
+  if (spec.damage == null || spec.damage === "") return undefined;
+  const n = Number(spec.damage);
+  return Number.isFinite(n) ? n : undefined;
 }
 
-export function enemyAttackNeedsStainTeleport(attackText: string): boolean {
-  return /stained square/i.test(attackText);
+export function isDirectTargetEnemyAttack(spec: EnemyAttackSpec): boolean {
+  return spec.targeting === "select" && enemyAttackDamage(spec) != null;
 }
 
-export function enemyAttackPushDistance(parsed: ParsedEnemyAttack): number | null {
-  for (const token of parsed.effects ?? []) {
+export function enemyAttackNeedsStainTeleport(spec: EnemyAttackSpec): boolean {
+  return spec.specialId === "stain-teleport";
+}
+
+export function enemyAttackNeedsFlowerbudPlant(spec: EnemyAttackSpec): boolean {
+  return spec.specialId === "flowerbud-plant";
+}
+
+export function enemyAttackPushDistance(spec: EnemyAttackSpec): number | null {
+  for (const token of spec.effects ?? []) {
     const m = token.match(/^Push:(\d+)$/i);
     if (m) return Number(m[1]);
   }
   return null;
 }
 
-export function enemyAttackNonPushEffects(parsed: ParsedEnemyAttack): string[] {
-  return (parsed.effects ?? []).filter((token) => !/^Push:/i.test(token));
+export function enemyAttackPullDistance(spec: EnemyAttackSpec): number | null {
+  for (const token of spec.effects ?? []) {
+    const m = token.match(/^Pull:(\d+)$/i);
+    if (m) return Number(m[1]);
+  }
+  for (const hit of spec.onHit ?? []) {
+    if (hit.kind === "pullTowardActor") return hit.distance;
+  }
+  return null;
 }
 
-export function isSelectTargetEnemyAttack(parsed: ParsedEnemyAttack): boolean {
-  if (isDirectTargetEnemyAttack(parsed)) return true;
-  if (parsed.patternId) return false;
-  return enemyAttackPushDistance(parsed) != null;
+export function enemyAttackNonPushEffects(spec: EnemyAttackSpec): string[] {
+  return (spec.effects ?? []).filter((token) => !/^(Push|Pull):/i.test(token));
 }
 
-export function isPatternEnemyAttack(parsed: ParsedEnemyAttack): boolean {
-  return !!(parsed.patternId && parsed.size != null && parsed.damage != null);
+export function isSelectTargetEnemyAttack(spec: EnemyAttackSpec): boolean {
+  return spec.targeting === "select";
 }
 
-export function isAutoResolvableEnemyAttack(attackText: string): boolean {
-  if (enemyAttackNeedsStainTeleport(attackText)) return true;
-  const parsed = parseEnemyAttackString(attackText);
-  if (isPatternEnemyAttack(parsed)) return true;
-  return isSelectTargetEnemyAttack(parsed);
+export function isPatternEnemyAttack(spec: EnemyAttackSpec): boolean {
+  return (
+    spec.targeting === "pattern" &&
+    !!spec.patternId &&
+    spec.size != null &&
+    spec.damage != null
+  );
 }
 
-export function parseEnemyAttackPullDistance(raw: string): number | null {
-  const m = raw.match(/pull(?:\s+any\s+unit)?\s+(\d+)\s+space/i);
-  return m ? Number(m[1]) : null;
+export function isAutoResolvableEnemyAttack(spec: EnemyAttackSpec): boolean {
+  if (enemyAttackNeedsStainTeleport(spec)) return true;
+  if (enemyAttackNeedsFlowerbudPlant(spec)) return true;
+  if (isPatternEnemyAttack(spec)) return true;
+  return isSelectTargetEnemyAttack(spec);
 }
 
-export function enemyPatternAttackSpec(parsed: ParsedEnemyAttack): {
+export function enemyPatternAttackSpec(spec: EnemyAttackSpec): {
   patternId: string;
   size: number;
   range?: number;
   width: number;
   damage: string;
 } | null {
-  if (!parsed.patternId || parsed.size == null || parsed.damage == null) return null;
+  if (!isPatternEnemyAttack(spec) || !spec.patternId || spec.size == null || spec.damage == null) {
+    return null;
+  }
   return {
-    patternId: parsed.patternId,
-    size: parsed.size,
-    range: parsed.range,
-    width: parsed.width ?? 1,
-    damage: String(parsed.damage),
+    patternId: spec.patternId,
+    size: spec.size,
+    range: spec.range,
+    width: spec.width ?? 1,
+    damage: spec.damage,
   };
 }
 
@@ -1547,12 +1558,12 @@ export type EnemyPatternAimOption = {
 export function enemyAttackPatternOptionsAt(
   state: GameState,
   enemyId: string,
-  parsed: ParsedEnemyAttack,
+  attackSpec: EnemyAttackSpec,
   x: number,
   y: number,
 ): EnemyPatternAimOption[] {
   const enemy = state.enemies.find((e) => e.id === enemyId);
-  const spec = enemyPatternAttackSpec(parsed);
+  const spec = enemyPatternAttackSpec(attackSpec);
   if (!enemy || !spec) return [];
   const options: EnemyPatternAimOption[] = [];
   for (const direction of PATTERN_DIRECTIONS) {
@@ -1569,12 +1580,12 @@ export function enemyAttackPatternOptionsAt(
 export function enemyAttackDirectionsAt(
   state: GameState,
   enemyId: string,
-  parsed: ParsedEnemyAttack,
+  attackSpec: EnemyAttackSpec,
   x: number,
   y: number,
 ): PatternDirection[] {
   const dirs = new Set<PatternDirection>();
-  for (const option of enemyAttackPatternOptionsAt(state, enemyId, parsed, x, y)) {
+  for (const option of enemyAttackPatternOptionsAt(state, enemyId, attackSpec, x, y)) {
     dirs.add(option.direction);
   }
   return [...dirs];
@@ -1609,12 +1620,23 @@ function enemyAttackOriginTiles(state: GameState, enemyId: string): { x: number;
 export function enemyDirectAttackTargetPlayerIds(
   state: GameState,
   enemyId: string,
-  parsed: ParsedEnemyAttack,
+  spec: EnemyAttackSpec,
   occupancy?: ReturnType<typeof buildBoardOccupancy>,
 ): string[] {
-  const range = parsed.range ?? 1;
+  const range = spec.range ?? 1;
   const occ = occupancy ?? buildBoardOccupancy(state);
   const ids = new Set<string>();
+
+  if (spec.adjacent) {
+    const sourceTiles = enemyAttackOriginTiles(state, enemyId);
+    for (const player of state.players) {
+      if ((player.hp ?? 0) <= 0) continue;
+      const adjacent = sourceTiles.some((st) => isOrthogonallyAdjacent(st, player));
+      if (adjacent) ids.add(player.id);
+    }
+    return [...ids];
+  }
+
   for (const origin of enemyAttackOriginTiles(state, enemyId)) {
     for (const key of rangeAttackTileKeys(state, origin, range)) {
       const p = occ.playerByKey.get(key);
@@ -1627,16 +1649,16 @@ export function enemyDirectAttackTargetPlayerIds(
 export function enemyDirectAttackTargetEnemyIds(
   state: GameState,
   sourceEnemyId: string,
-  parsed: ParsedEnemyAttack,
+  spec: EnemyAttackSpec,
   occupancy?: ReturnType<typeof buildBoardOccupancy>,
 ): string[] {
-  const range = parsed.range ?? 1;
+  const range = spec.range ?? 1;
   const occ = occupancy ?? buildBoardOccupancy(state);
   const sourceGroup = swarmGroupForEnemy(state, sourceEnemyId);
   const sourceCanonical = sourceGroup?.canonicalId ?? sourceEnemyId;
   const ids = new Set<string>();
 
-  if (range <= 1 && /adjacent/i.test(parsed.raw)) {
+  if (spec.adjacent) {
     const sourceTiles = enemyAttackOriginTiles(state, sourceEnemyId);
     for (const enemy of state.enemies) {
       if ((enemy.hp ?? 0) <= 0) continue;
@@ -1661,42 +1683,4 @@ export function enemyDirectAttackTargetEnemyIds(
     }
   }
   return [...ids];
-}
-
-export function parseEnemyAttackString(text: string): ParsedEnemyAttack {
-  const result: ParsedEnemyAttack = { raw: text };
-  const line = text.match(/Line:(\d+)/i);
-  if (line) {
-    result.patternId = "line";
-    result.size = Number(line[1]);
-  }
-  const burst = text.match(/Burst:(\d+)/i);
-  if (burst) {
-    result.patternId = "burst";
-    result.size = Number(burst[1]);
-  }
-  const blast = text.match(/Blast:(\d+)/i);
-  if (blast) {
-    result.patternId = "blast";
-    result.size = Number(blast[1]);
-  }
-  const cone = text.match(/Cone:(\d+)/i);
-  if (cone) {
-    result.patternId = "cone";
-    result.size = Number(cone[1]);
-  }
-  const range = text.match(/Range:(\d+)/i);
-  if (range) result.range = Number(range[1]);
-  const dmgExplicit = text.match(/Damage:(\d+)/i);
-  if (dmgExplicit) result.damage = Number(dmgExplicit[1]);
-  else {
-    const dmg = text.match(/deal\s+(\d+)\s+damage/i);
-    if (dmg) result.damage = Number(dmg[1]);
-  }
-  const effects: string[] = [];
-  for (const m of text.matchAll(/(Bleed|Slow|Blazing|Pin|Push|Shock):(\d+)/gi)) {
-    effects.push(`${m[1]}:${m[2]}`);
-  }
-  if (effects.length) result.effects = effects;
-  return result;
 }

@@ -55,6 +55,31 @@ export type WeaponAttackSpec = {
   heal?: boolean;
 };
 
+export type EnemyAttackTargeting = "pattern" | "select" | "self" | "none" | "assisted";
+
+export type EnemyAttackOnHit =
+  | { kind: "pullTowardActor"; distance: number }
+  | { kind: "stainTiles" }
+  | { kind: "teleportToStain" };
+
+export type EnemyAttackSpec = {
+  targeting: EnemyAttackTargeting;
+  patternId?: string;
+  size?: number;
+  range?: number;
+  width?: number;
+  damage?: string;
+  effects?: string[];
+  adjacent?: boolean;
+  onHit?: EnemyAttackOnHit[];
+  specialId?: string;
+};
+
+export type EnemyAttack = {
+  text: string;
+  attack: EnemyAttackSpec;
+};
+
 export type StructuredArmorAction =
   | { tier: "support"; kind: "teleport_adjacent" }
   | { tier: "support"; kind: "push_recoil"; push?: number }

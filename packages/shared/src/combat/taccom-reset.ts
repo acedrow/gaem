@@ -1,5 +1,5 @@
 import type { GameMap, GameState, Player } from "../types.js";
-import { getPlayerMaxHp } from "../game.js";
+import { getEffectiveEnemyMaxHp, getPlayerMaxHp } from "../game.js";
 import { getArmorByName } from "../player-data.js";
 import { applyResetToStartingState } from "../map.js";
 import { initHeavenBurningLevel, initSabaothCharges } from "./attack.js";
@@ -41,7 +41,28 @@ export function resetEnemiesForTaccomExit(state: GameState, opts?: { removeEnemi
     delete enemy.effects;
     delete enemy.exhausted;
     delete enemy.movementRemaining;
+    delete enemy.agnosiaTriggered;
+    const maxHp = getEffectiveEnemyMaxHp(enemy, state);
+    if (maxHp > 0) enemy.hp = maxHp;
   }
+}
+
+function clearCombatCounters(state: GameState): void {
+  if (!state.combat) return;
+  state.combat.pendingActions = [];
+  state.combat.pendingReaction = null;
+  state.combat.pendingClassReaction = null;
+  state.combat.activeEnemyId = null;
+  state.combat.swarmChipResolvedIds = [];
+  state.combat.thrownTraps = [];
+  state.combat.boardTokens = [];
+  state.combat.attractors = [];
+  state.combat.attractorPulledEnemyIds = [];
+  state.combat.gearCheckGrants = {};
+  state.combat.kopisMarks = {};
+  state.combat.chrysaorBrands = {};
+  state.combat.countdownKinds = {};
+  delete state.combat.passedEnemyIdsByPlayer;
 }
 
 export function enterTaccom(state: GameState): void {
@@ -49,19 +70,7 @@ export function enterTaccom(state: GameState): void {
     state.combat = createDefaultCombatState(state.players.length);
   } else {
     state.combat.playerCountAtStart = state.players.length;
-    state.combat.pendingActions = [];
-    state.combat.pendingReaction = null;
-    state.combat.pendingClassReaction = null;
-    state.combat.activeEnemyId = null;
-    state.combat.swarmChipResolvedIds = [];
-    state.combat.thrownTraps = [];
-    state.combat.boardTokens = [];
-    state.combat.attractors = [];
-    state.combat.attractorPulledEnemyIds = [];
-    state.combat.gearCheckGrants = {};
-    state.combat.kopisMarks = {};
-    state.combat.chrysaorBrands = {};
-    state.combat.countdownKinds = {};
+    clearCombatCounters(state);
   }
   state.actedPlayerIds = [];
   state.turnLog = [];
@@ -85,25 +94,13 @@ export function exitTaccom(state: GameState, opts?: { removeEnemies?: boolean })
   state.actedPlayerIds = [];
   state.turnLog = [];
   state.damageEvents = [];
-  if (state.combat) {
-    state.combat.pendingActions = [];
-    state.combat.pendingReaction = null;
-    state.combat.pendingClassReaction = null;
-    state.combat.activeEnemyId = null;
-    state.combat.swarmChipResolvedIds = [];
-    state.combat.thrownTraps = [];
-    state.combat.boardTokens = [];
-    state.combat.attractors = [];
-    state.combat.attractorPulledEnemyIds = [];
-    state.combat.gearCheckGrants = {};
-    state.combat.kopisMarks = {};
-    state.combat.chrysaorBrands = {};
-    state.combat.countdownKinds = {};
-  }
+  if (state.combat) clearCombatCounters(state);
 }
 
 export function resetTaccomEncounter(state: GameState, map?: GameMap): void {
   exitTaccom(state, { removeEnemies: false });
   if (map?.startingState) applyResetToStartingState(state, map);
+  // After optional snapshot restore, normalize combat currencies again.
+  resetEnemiesForTaccomExit(state, { removeEnemies: false });
   enterTaccom(state);
 }

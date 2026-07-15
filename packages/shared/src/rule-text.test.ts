@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatRuleText, parseRuleText, resolveRuleTermTooltip } from "./rule-text.js";
+import { formatRuleText, parseRuleText, resolveEnemyRuleLink, resolveRuleTermTooltip } from "./rule-text.js";
 
 describe("resolveRuleTermTooltip", () => {
   it("resolves stacked weapon effects", () => {
@@ -20,6 +20,17 @@ describe("resolveRuleTermTooltip", () => {
 
   it("resolves range modifiers", () => {
     expect(resolveRuleTermTooltip("Range:4")?.title).toBe("Range");
+  });
+});
+
+describe("resolveEnemyRuleLink", () => {
+  it("resolves listed names and codenames", () => {
+    expect(resolveEnemyRuleLink("Lurking Freak")).toEqual({ kind: "enemy", name: "Lurking Freak" });
+    expect(resolveEnemyRuleLink("POTAGON")).toEqual({ kind: "enemy", name: "Lurking Freak" });
+  });
+
+  it("resolves possessives to the listing name", () => {
+    expect(resolveEnemyRuleLink("PRISTIR's")).toEqual({ kind: "enemy", name: "Eyesting Rose" });
   });
 });
 
@@ -49,6 +60,34 @@ describe("parseRuleText", () => {
     expect(terms).toContain("Swarm trait");
     expect(terms).not.toContain("Swarm");
   });
+
+  it("links enemy names and codenames in prose", () => {
+    const segments = parseRuleText("Unlock POTAGON and Lurking Freak units.");
+    const linked = segments.filter((segment) => segment.kind === "term" && segment.link);
+    expect(linked).toEqual([
+      expect.objectContaining({
+        kind: "term",
+        text: "POTAGON",
+        link: { kind: "enemy", name: "Lurking Freak" },
+      }),
+      expect.objectContaining({
+        kind: "term",
+        text: "Lurking Freak",
+        link: { kind: "enemy", name: "Lurking Freak" },
+      }),
+    ]);
+  });
+
+  it("keeps possessive suffixes on enemy matches", () => {
+    const segments = parseRuleText("Increase PRISTIR's scale by 2.");
+    expect(segments).toContainEqual(
+      expect.objectContaining({
+        kind: "term",
+        text: "PRISTIR's",
+        link: { kind: "enemy", name: "Eyesting Rose" },
+      }),
+    );
+  });
 });
 
 describe("formatRuleText", () => {
@@ -56,5 +95,9 @@ describe("formatRuleText", () => {
     expect(formatRuleText("Push:3")).toContain('class="rule-term rule-term--defined"');
     expect(formatRuleText("HP")).toContain('class="rule-term"');
     expect(formatRuleText("HP")).not.toContain("rule-term--defined");
+  });
+
+  it("wraps enemy links with a link class", () => {
+    expect(formatRuleText("POTAGON")).toContain('class="rule-term rule-term--link"');
   });
 });

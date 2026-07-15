@@ -303,7 +303,7 @@ watch(
             </button>
           </div>
         </div>
-        <p class="item-description">{{ faction.description }}</p>
+        <p class="item-description"><RuleText :text="faction.description" /></p>
         <div class="qualities">
           <div class="qualities-heading">
             <RuleTerm text="Qualities" :tooltip="qualitiesTooltip" />
@@ -349,7 +349,7 @@ watch(
             class="mechanic"
           >
             <span class="mechanic-name">{{ mech.name }}</span>
-            {{ mech.effect }}
+            <RuleText :text="mech.effect" />
           </p>
         </div>
       </header>
@@ -388,7 +388,7 @@ watch(
               </span>
             </button>
             <div v-if="isExpanded(itemKey('starting', loc.name))" class="list-card-body">
-              <p class="item-description">{{ loc.description }}</p>
+              <p class="item-description"><RuleText :text="loc.description" /></p>
               <p v-if="loc.purpose" class="detail"><span class="detail-label">Purpose</span> {{ loc.purpose }}</p>
               <p v-if="loc.terrain" class="detail"><span class="detail-label">Terrain</span> {{ loc.terrain }}</p>
               <p v-if="loc.defenses" class="detail"><span class="detail-label">Defenses</span> {{ loc.defenses }}</p>
@@ -434,7 +434,7 @@ watch(
               </span>
             </button>
             <div v-if="isExpanded(itemKey('unique', loc.name))" class="list-card-body">
-              <p class="item-description">{{ loc.description }}</p>
+              <p class="item-description"><RuleText :text="loc.description" /></p>
               <p v-if="loc.purpose" class="detail"><span class="detail-label">Purpose</span> {{ loc.purpose }}</p>
               <p v-if="loc.terrain" class="detail"><span class="detail-label">Terrain</span> {{ loc.terrain }}</p>
               <p v-if="loc.defenses" class="detail"><span class="detail-label">Defenses</span> {{ loc.defenses }}</p>
@@ -477,7 +477,7 @@ watch(
               </span>
             </button>
             <div v-if="isExpanded(itemKey('stratcom', action.name))" class="list-card-body">
-              <p v-if="action.flavor" class="flavor">{{ action.flavor }}</p>
+              <p v-if="action.flavor" class="flavor"><RuleText :text="action.flavor" /></p>
               <p class="item-description">
                 <RuleText :text="action.description" />
               </p>
@@ -521,7 +521,7 @@ watch(
               </span>
             </button>
             <div v-if="isExpanded(itemKey('upgrades', upgrade.name))" class="list-card-body">
-              <p v-if="upgrade.flavor" class="flavor">{{ upgrade.flavor }}</p>
+              <p v-if="upgrade.flavor" class="flavor"><RuleText :text="upgrade.flavor" /></p>
               <p class="item-description">
                 <RuleText :text="upgrade.effect" />
               </p>

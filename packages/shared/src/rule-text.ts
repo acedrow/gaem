@@ -1,4 +1,5 @@
 import { findEffectByName, RULE_EFFECTS } from "./effects-data.js";
+import { getEnemyListingByName, listEnemyListings } from "./enemy-data.js";
 import { getGameTermByName } from "./game-terms-data.js";
 import { findModifierByName, findPatternByName } from "./pattern-data.js";
 import { getTerrainTypeById } from "./terrain-data.js";
@@ -23,9 +24,14 @@ export type RuleTermTooltip = {
   description: string;
 };
 
+export type RuleTextLink = {
+  kind: "enemy";
+  name: string;
+};
+
 export type RuleTextSegment =
   | { kind: "text"; text: string }
-  | { kind: "term"; text: string; tooltip?: RuleTermTooltip };
+  | { kind: "term"; text: string; tooltip?: RuleTermTooltip; link?: RuleTextLink };
 
 const EFFECT_IDS = RULE_EFFECTS.map((e) => e.id);
 
@@ -118,18 +124,38 @@ function escapeHtml(text: string): string {
     .replace(/"/g, "&quot;");
 }
 
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function enemyLabelSet(): string[] {
+  const labels = new Set<string>();
+  for (const enemy of listEnemyListings()) {
+    const name = enemy.name.trim();
+    if (name) labels.add(name);
+    const codename = enemy.codename?.trim();
+    if (codename) labels.add(codename);
+  }
+  return [...labels].sort((a, b) => b.length - a.length);
+}
+
 function buildTermPatterns(): RegExp[] {
   const patterns: RegExp[] = [];
 
   for (const term of LITERAL_TERMS) {
-    patterns.push(new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"));
+    patterns.push(new RegExp(escapeRegExp(term), "gi"));
+  }
+
+  for (const label of enemyLabelSet()) {
+    const escaped = escapeRegExp(label);
+    patterns.push(new RegExp(`\\b${escaped}(?:['’]s)?\\b`, "gi"));
   }
 
   const effectNames = [...new Set([...EFFECT_IDS, ...EXTRA_EFFECT_NAMES])].sort(
     (a, b) => b.length - a.length,
   );
   for (const name of effectNames) {
-    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const escaped = escapeRegExp(name);
     patterns.push(new RegExp(`\\b${escaped}:\\d+\\b`, "g"));
     if (!name.includes(" ")) {
       patterns.push(new RegExp(`\\b${escaped}\\b`, "g"));
@@ -225,6 +251,25 @@ export function resolveRuleTermTooltip(match: string): RuleTermTooltip | undefin
   return lookupName(baseName);
 }
 
+function stripPossessive(match: string): string {
+  return match.replace(/['’]s$/i, "");
+}
+
+export function resolveEnemyRuleLink(match: string): RuleTextLink | undefined {
+  const listing = getEnemyListingByName(stripPossessive(match.trim()));
+  if (!listing) return undefined;
+  return { kind: "enemy", name: listing.name };
+}
+
+function enemyTooltip(match: string): RuleTermTooltip | undefined {
+  const listing = getEnemyListingByName(stripPossessive(match.trim()));
+  if (!listing) return undefined;
+  const title = listing.codename ? `${listing.name} · ${listing.codename}` : listing.name;
+  const summary = listing.summary?.trim() || listing.title?.trim() || "";
+  const description = listing.description?.trim() || summary;
+  return { title, summary, description };
+}
+
 export function parseRuleText(text: string): RuleTextSegment[] {
   if (!text) return [];
 
@@ -238,10 +283,12 @@ export function parseRuleText(text: string): RuleTextSegment[] {
     if (match.start > cursor) {
       segments.push({ kind: "text", text: text.slice(cursor, match.start) });
     }
+    const link = resolveEnemyRuleLink(match.text);
     segments.push({
       kind: "term",
       text: match.text,
-      tooltip: resolveRuleTermTooltip(match.text),
+      tooltip: link ? enemyTooltip(match.text) : resolveRuleTermTooltip(match.text),
+      ...(link ? { link } : {}),
     });
     cursor = match.end;
   }
@@ -281,8 +328,10 @@ export function formatRuleText(text: string): string {
   return parseRuleText(text)
     .map((segment) => {
       if (segment.kind === "text") return escapeHtml(segment.text);
-      const classes = segment.tooltip ? "rule-term rule-term--defined" : "rule-term";
-      return `<span class="${classes}">${escapeHtml(segment.text)}</span>`;
+      const classes = ["rule-term"];
+      if (segment.link) classes.push("rule-term--link");
+      else if (segment.tooltip) classes.push("rule-term--defined");
+      return `<span class="${classes.join(" ")}">${escapeHtml(segment.text)}</span>`;
     })
     .join("");
 }

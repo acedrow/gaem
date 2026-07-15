@@ -17,6 +17,8 @@ import {
   getEnemyMaxHp,
   getEnemyScale,
   getEnemyScaleByName,
+  GORGENAUT_AGNOSIA_BOX,
+  agnosiaCenteredHover,
   getObstacleHp,
   getPlayerMaxHp,
   isMovementStepAdjacent,
@@ -99,14 +101,16 @@ import {
   swarmCanonicalDisplayId,
   getEffectiveEnemyHp,
   getEffectiveEnemyMaxHp,
+  getEnemyAttack,
   getEnemyListingByName,
   weaponHasBreakerTag,
   attackTargetsSwarm,
   collectAttackTiles,
   elevationBonusTileCandidates,
   enemyDirectAttackTargetPlayerIds,
-  parseEnemyAttackString,
   enemyAttackNeedsStainTeleport,
+  enemyAttackNeedsFlowerbudPlant,
+  flowerbudPlantTiles,
   tileIsStained,
   swarmChipEligibleTargets,
   swarmChipPromptRequired,
@@ -142,6 +146,7 @@ import { usePlayerTeleportAnimation } from "../composables/usePlayerTeleportAnim
 import { useCharacterSheets } from "../composables/useCharacterSheets.js";
 import { useEnemySpawnSelection } from "../composables/useEnemySpawnSelection.js";
 import { useStainGeyserPlacement } from "../composables/useStainGeyserPlacement.js";
+import { useGorgenautAgnosiaPlacement } from "../composables/useGorgenautAgnosiaPlacement.js";
 import { clearActiveTool, useGmTools } from "../composables/useGmTools.js";
 import { gmToolCursor } from "../lib/gmToolCursors.js";
 import { showToast } from "../composables/useToasts.js";
@@ -231,6 +236,15 @@ const {
   setStainGeyserHover,
   tryApplyStainGeyserPlacement,
 } = useStainGeyserPlacement();
+const {
+  pendingGorgenautAgnosiaEnemyId,
+  gorgenautAgnosiaPlacementActive,
+  gorgenautAgnosiaPreviewTiles,
+  gorgenautAgnosiaPreviewKeys,
+  gorgenautAgnosiaPreviewOverlayUrl,
+  setGorgenautAgnosiaHover,
+  tryApplyGorgenautAgnosiaPlacement,
+} = useGorgenautAgnosiaPlacement();
 const {
   activeTool: gmActiveTool,
   effectiveActiveTool: gmEffectiveActiveTool,
@@ -602,12 +616,13 @@ const swarmAttackModalProps = computed(() => {
   if (!pending || !s) return null;
   const player = s.players.find((p) => p.id === pending.targetPlayerId);
   const enemy = s.enemies.find((e) => e.id === pending.enemyId);
-  const attackText = getEnemyListingByName(enemy?.name)?.attacks?.[pending.attackIndex] ?? "";
+  const attackEntry = getEnemyAttack(enemy?.name, pending.attackIndex);
   const maxStrikes = player ? maxSwarmStrikesAgainstTarget(s, pending.enemyId, player) : 0;
   return {
     enemyId: pending.enemyId,
     attackIndex: pending.attackIndex,
-    attackText,
+    attackText: attackEntry?.text ?? "",
+    attackSpec: attackEntry?.attack,
     targetPlayerId: pending.targetPlayerId,
     targetPlayerName: player?.nickname ?? player?.id ?? "Player",
     maxStrikes,
@@ -1380,9 +1395,9 @@ const redirectTargetKeys = computed(() => {
   if (!s || !sourceId || attackIndex == null) return new Set<string>();
   const source = s.enemies.find((e) => e.id === sourceId);
   if (!source?.name) return new Set<string>();
-  const attacks = getEnemyListingByName(source.name)?.attacks ?? [];
-  const parsed = parseEnemyAttackString(attacks[attackIndex] ?? "");
-  const ids = enemyDirectAttackTargetEnemyIds(s, sourceId, parsed);
+  const attackSpec = getEnemyAttack(source.name, attackIndex)?.attack;
+  if (!attackSpec) return new Set<string>();
+  const ids = enemyDirectAttackTargetEnemyIds(s, sourceId, attackSpec);
   const keys = new Set<string>();
   for (const id of ids) {
     const enemy = s.enemies.find((e) => e.id === id);
@@ -1916,11 +1931,20 @@ const gmEnemyAttackTargetKeys = computed(() => {
   const pending = gmEnemyAttack.value;
   const { enemyId, attackIndex } = pending;
   const enemy = s.enemies.find((e) => e.id === enemyId);
-  const attackText = getEnemyListingByName(enemy?.name)?.attacks?.[attackIndex] ?? "";
-  const parsed = parseEnemyAttackString(attackText);
-  if (isPatternEnemyAttack(parsed)) return keys;
+  const attackSpec = getEnemyAttack(enemy?.name, attackIndex)?.attack;
+  if (!attackSpec) return keys;
+  if (isPatternEnemyAttack(attackSpec)) return keys;
   const stainTeleport =
-    pending.stainTeleport || enemyAttackNeedsStainTeleport(attackText);
+    pending.stainTeleport || enemyAttackNeedsStainTeleport(attackSpec);
+  const plantFlowerbud =
+    pending.plantFlowerbud || enemyAttackNeedsFlowerbudPlant(attackSpec);
+
+  if (plantFlowerbud && enemy) {
+    for (const tile of flowerbudPlantTiles(s, enemy)) {
+      keys.add(coordKey(tile.x, tile.y));
+    }
+    return keys;
+  }
 
   if (stainTeleport && (pending.targetPlayerId || pending.targetEnemyId)) {
     for (const tile of s.tiles) {
@@ -1929,12 +1953,12 @@ const gmEnemyAttackTargetKeys = computed(() => {
     return keys;
   }
 
-  for (const playerId of enemyDirectAttackTargetPlayerIds(s, enemyId, parsed, occ)) {
+  for (const playerId of enemyDirectAttackTargetPlayerIds(s, enemyId, attackSpec, occ)) {
     const player = s.players.find((p) => p.id === playerId);
     if (player) keys.add(coordKey(player.x, player.y));
   }
-  if (stainTeleport || isSelectTargetEnemyAttack(parsed)) {
-    for (const targetId of enemyDirectAttackTargetEnemyIds(s, enemyId, parsed, occ)) {
+  if (stainTeleport || isSelectTargetEnemyAttack(attackSpec)) {
+    for (const targetId of enemyDirectAttackTargetEnemyIds(s, enemyId, attackSpec, occ)) {
       const target = s.enemies.find((e) => e.id === targetId);
       if (!target) continue;
       for (const tile of enemyFootprintTiles(target.x, target.y, getEnemyScale(target))) {
@@ -2214,7 +2238,8 @@ const cellStateByKey = computed(() => {
         (gmSpawnableKeys.value.has(c.key) || gmForceMovableKeys.value.has(c.key)),
       patternPrimary:
         patternPrimaryKeys.value.has(ck) || stainGeyserPreviewKeys.value.has(ck),
-      patternSecondary: patternSecondaryKeys.value.has(ck),
+      patternSecondary:
+        patternSecondaryKeys.value.has(ck) || gorgenautAgnosiaPreviewKeys.value.has(ck),
       combatTargetPrimary: combatPrimary,
       combatTargetSecondary: combatSecondary,
       combatTargetHeal:
@@ -2425,6 +2450,30 @@ const cellStateByKey = computed(() => {
   if (canUseGmTools.value && stainGeyserPlacementActive.value) {
     const overlayUrl = stainGeyserPreviewOverlayUrl.value;
     for (const t of stainGeyserPreviewTiles.value) {
+      const previewCell = map.get(boardCellKey(t.x, t.y));
+      if (!previewCell || previewCell.paintbrushPreview) continue;
+      const tile = previewCell.tile;
+      previewCell.paintbrushPreview = {
+        baseColor: tile?.baseColor ?? null,
+        appearanceUrl: previewCell.tileAppearanceUrl,
+        overlayUrl: overlayUrl ?? previewCell.tileOverlayUrl,
+        featureUrl: previewCell.tileFeatureUrl,
+        appearanceTint: tile?.appearanceTint ?? null,
+        overlayTint: tile?.overlayTint ?? null,
+        featureTint: tile?.featureTint ?? null,
+        appearanceRotation: tile?.appearanceRotation ?? 0,
+        appearanceFlip: !!tile?.appearanceFlip,
+        overlayRotation: tile?.overlayRotation ?? 0,
+        overlayFlip: !!tile?.overlayFlip,
+        featureRotation: tile?.featureRotation ?? 0,
+        featureFlip: !!tile?.featureFlip,
+      };
+    }
+  }
+
+  if (canUseGmTools.value && gorgenautAgnosiaPlacementActive.value) {
+    const overlayUrl = gorgenautAgnosiaPreviewOverlayUrl.value;
+    for (const t of gorgenautAgnosiaPreviewTiles.value) {
       const previewCell = map.get(boardCellKey(t.x, t.y));
       if (!previewCell || previewCell.paintbrushPreview) continue;
       const tile = previewCell.tile;
@@ -2667,9 +2716,30 @@ function onTeleportOverlayTransitionEnd(e: TransitionEvent) {
 const enemyMoveOverlayStyle = computed(() => {
   const anim = enemyMoveAnimation.value;
   if (!anim?.animating) return null;
+  const s = gameState.value;
+  if (!s) return null;
   const x = enemyMoveOverlayAtDest.value ? anim.toX : anim.fromX;
   const y = enemyMoveOverlayAtDest.value ? anim.toY : anim.fromY;
-  return cellCenterStyle(x, y);
+  const enemy = s.enemies.find((e) => e.id === anim.enemyId);
+  const enemyScale = enemy ? getEnemyScale(enemy) : 1;
+  if (enemyScale <= 1) return cellCenterStyle(x, y);
+
+  const gridW = boardWidthPx.value;
+  const gridH = gridW * (s.height / s.width);
+  const cellW = (gridW - (s.width - 1) * BOARD_CELL_GAP) / s.width;
+  const cellH = (gridH - (s.height - 1) * BOARD_CELL_GAP) / s.height;
+  const inset = 8;
+  const offset = 4;
+  const tokenW = enemyScale * cellW + (enemyScale - 1) * BOARD_CELL_GAP - inset;
+  const tokenH = enemyScale * cellH + (enemyScale - 1) * BOARD_CELL_GAP - inset;
+  const left = x * (cellW + BOARD_CELL_GAP) + offset;
+  const top = y * (cellH + BOARD_CELL_GAP) + offset;
+  return {
+    left: `${panX.value + left * scale.value}px`,
+    top: `${panY.value + top * scale.value}px`,
+    width: `${tokenW * scale.value}px`,
+    height: `${tokenH * scale.value}px`,
+  };
 });
 
 const enemyMoveOverlayPortraitUrl = computed(() => {
@@ -3470,9 +3540,9 @@ function advanceRedirectAfterAttackPick() {
   if (!s || !sourceId || attackIndex == null) return;
   const source = s.enemies.find((e) => e.id === sourceId);
   if (!source?.name) return;
-  const attacks = getEnemyListingByName(source.name)?.attacks ?? [];
-  const parsed = parseEnemyAttackString(attacks[attackIndex] ?? "");
-  redirectStep.value = isDirectTargetEnemyAttack(parsed) ? "selectTarget" : "confirmPattern";
+  const attackSpec = getEnemyAttack(source.name, attackIndex)?.attack;
+  if (!attackSpec) return;
+  redirectStep.value = isDirectTargetEnemyAttack(attackSpec) ? "selectTarget" : "confirmPattern";
   attackAimed.value = false;
   attackAnchor.value = null;
   attackDirection.value = "n";
@@ -3520,11 +3590,12 @@ function handleEquipmentRedirectCellClick(x: number, y: number, enemyId?: string
     const sourceId = redirectSourceEnemyId.value;
     const attackIndex = redirectAttackIndex.value;
     if (!sourceId || attackIndex == null) return false;
-    const attacks = getEnemyListingByName(
+    const attackSpec = getEnemyAttack(
       s.enemies.find((e) => e.id === sourceId)?.name,
-    )?.attacks ?? [];
-    const parsed = parseEnemyAttackString(attacks[attackIndex] ?? "");
-    const options = enemyAttackPatternOptionsAt(s, sourceId, parsed, x, y);
+      attackIndex,
+    )?.attack;
+    if (!attackSpec) return false;
+    const options = enemyAttackPatternOptionsAt(s, sourceId, attackSpec, x, y);
     if (options.length === 0) return false;
 
     const key = coordKey(x, y);
@@ -4192,13 +4263,14 @@ function handleGmEnemyAttackCellClick(x: number, y: number): boolean {
   if (!pending || !s || !occ) return false;
   const key = coordKey(x, y);
 
-  const attackText = getEnemyListingByName(
+  const attackSpec = getEnemyAttack(
     s.enemies.find((e) => e.id === pending.enemyId)?.name,
-  )?.attacks?.[pending.attackIndex] ?? "";
-  const parsed = parseEnemyAttackString(attackText);
+    pending.attackIndex,
+  )?.attack;
+  if (!attackSpec) return false;
 
-  if (isPatternEnemyAttack(parsed)) {
-    const options = enemyAttackPatternOptionsAt(s, pending.enemyId, parsed, x, y);
+  if (isPatternEnemyAttack(attackSpec)) {
+    const options = enemyAttackPatternOptionsAt(s, pending.enemyId, attackSpec, x, y);
     if (options.length === 0) return false;
 
     if (attackAimed.value && attackAnchor.value && gmEnemyPatternPrimaryKeys.value.has(key)) {
@@ -4233,8 +4305,25 @@ function handleGmEnemyAttackCellClick(x: number, y: number): boolean {
 
   if (!gmEnemyAttackTargetKeys.value.has(key)) return false;
 
+  const plantFlowerbud =
+    pending.plantFlowerbud || enemyAttackNeedsFlowerbudPlant(attackSpec);
+  if (plantFlowerbud) {
+    send({
+      type: "gmEnemyAction",
+      action: {
+        action: "attack",
+        enemyId: pending.enemyId,
+        attackIndex: pending.attackIndex,
+        destX: x,
+        destY: y,
+      },
+    });
+    clearBoardActionMode();
+    return true;
+  }
+
   const stainTeleport =
-    pending.stainTeleport || enemyAttackNeedsStainTeleport(attackText);
+    pending.stainTeleport || enemyAttackNeedsStainTeleport(attackSpec);
 
   if (stainTeleport && (pending.targetPlayerId || pending.targetEnemyId)) {
     send({
@@ -4600,6 +4689,7 @@ function canStartMapPing(): boolean {
   if (boardActionMode.value != null) return false;
   if (canUseGmTools.value && gmActiveTool.value != null) return false;
   if (stainGeyserPlacementActive.value) return false;
+  if (gorgenautAgnosiaPlacementActive.value) return false;
   return true;
 }
 
@@ -4683,6 +4773,7 @@ function onGmCellClick(x: number, y: number) {
   if (!s) return;
 
   if (tryApplyStainGeyserPlacement(x, y)) return;
+  if (tryApplyGorgenautAgnosiaPlacement(x, y)) return;
 
   if (gmEffectiveActiveTool.value === "paintbrush") {
     handlePaintbrushCellAction(x, y);
@@ -4788,6 +4879,7 @@ function onCellHover(x: number, y: number, key: string) {
   hoveredKey.value = key;
   hoveredCell.value = { x, y };
   setStainGeyserHover(x, y);
+  setGorgenautAgnosiaHover(x, y);
   setPatternHoverOrigin({ x, y });
 }
 
@@ -5229,13 +5321,13 @@ function onKeydown(e: KeyboardEvent) {
         const pending = gmEnemyAttack.value;
         const s = gameState.value;
         if (pending && s) {
-          const attackText = getEnemyListingByName(
+          const attackSpec = getEnemyAttack(
             s.enemies.find((e) => e.id === pending.enemyId)?.name,
-          )?.attacks?.[pending.attackIndex] ?? "";
-          const parsed = parseEnemyAttackString(attackText);
-          if (isPatternEnemyAttack(parsed)) {
+            pending.attackIndex,
+          )?.attack;
+          if (attackSpec && isPatternEnemyAttack(attackSpec)) {
             const enemy = s.enemies.find((e) => e.id === pending.enemyId);
-            const patternId = parsed.patternId;
+            const patternId = attackSpec.patternId;
             if (enemy && patternId) {
               const origins = enemyPatternOrigins(enemy, attackDirection.value, patternId);
               attackAnchor.value = origins[0] ?? null;
@@ -5248,12 +5340,12 @@ function onKeydown(e: KeyboardEvent) {
         const sourceId = redirectSourceEnemyId.value;
         const attackIndex = redirectAttackIndex.value;
         if (s && sourceId && attackIndex != null) {
-          const attackText = getEnemyListingByName(
+          const attackSpec = getEnemyAttack(
             s.enemies.find((e) => e.id === sourceId)?.name,
-          )?.attacks?.[attackIndex] ?? "";
-          const parsed = parseEnemyAttackString(attackText);
+            attackIndex,
+          )?.attack;
           const enemy = s.enemies.find((e) => e.id === sourceId);
-          const patternId = parsed.patternId;
+          const patternId = attackSpec?.patternId;
           if (enemy && patternId) {
             const origins = enemyPatternOrigins(enemy, attackDirection.value, patternId);
             attackAnchor.value = origins[0] ?? null;
@@ -5278,6 +5370,21 @@ function onKeydown(e: KeyboardEvent) {
     if (e.key === "Escape") {
       if (stainGeyserPlacementActive.value) {
         clearStainGeyserPlacement();
+        return;
+      }
+      if (gorgenautAgnosiaPlacementActive.value) {
+        const enemy = gameState.value?.enemies.find(
+          (e) => e.id === pendingGorgenautAgnosiaEnemyId.value,
+        );
+        if (enemy) {
+          const centered = agnosiaCenteredHover(
+            enemy.x,
+            enemy.y,
+            getEnemyScale(enemy),
+            GORGENAUT_AGNOSIA_BOX,
+          );
+          setGorgenautAgnosiaHover(centered.x, centered.y);
+        }
         return;
       }
       if (gmActiveTool.value === "forceMove" && (selectedPlayerId.value || selectedEnemyId.value)) {
@@ -5688,6 +5795,7 @@ onUnmounted(() => {
       :enemy-id="swarmAttackModalProps.enemyId"
       :attack-index="swarmAttackModalProps.attackIndex"
       :attack-text="swarmAttackModalProps.attackText"
+      :attack-spec="swarmAttackModalProps.attackSpec"
       :target-player-id="swarmAttackModalProps.targetPlayerId"
       :target-player-name="swarmAttackModalProps.targetPlayerName"
       :max-strikes="swarmAttackModalProps.maxStrikes"

@@ -3,7 +3,7 @@ import { PATTERN_DIRECTIONS } from "../pattern-data.js";
 import type { GameState } from "../types.js";
 import { buildBoardOccupancy } from "../game.js";
 import { coordKey } from "../map.js";
-import { getEnemyListingByName } from "../enemy-data.js";
+import { getEnemyAttack } from "../enemy-data.js";
 import {
   computeOmnistrikeRangeSpan,
   collectBombPatternTiles,
@@ -14,7 +14,8 @@ import {
   enemyPatternOrigins,
   evaluateOmnistrikePlacement,
   getWeaponAttackSpec,
-  parseEnemyAttackString,
+  isPatternEnemyAttack,
+  isSelectTargetEnemyAttack,
   rangeAttackTileKeys,
   resolveBombAttackSpec,
   resolveCombatAttackSpec,
@@ -245,15 +246,14 @@ function computeGmEnemyAttackHighlights(
   if (enemyId == null || attackIndex == null) return EMPTY;
   const enemy = state.enemies.find((e) => e.id === enemyId);
   if (!enemy?.name) return EMPTY;
-  const parsed = parseEnemyAttackString(
-    getEnemyListingByName(enemy.name)?.attacks?.[attackIndex] ?? "",
-  );
+  const attackSpec = getEnemyAttack(enemy.name, attackIndex)?.attack;
+  if (!attackSpec) return EMPTY;
   const direction = preview.direction ?? "n";
   const aimed = preview.aimed ?? false;
   const occ = buildBoardOccupancy(state);
 
-  if (parsed.patternId && parsed.size != null && parsed.damage != null) {
-    const spec = enemyPatternAttackSpec(parsed)!;
+  if (isPatternEnemyAttack(attackSpec)) {
+    const spec = enemyPatternAttackSpec(attackSpec)!;
     if (aimed) {
       const origin =
         preview.anchorX != null && preview.anchorY != null
@@ -296,8 +296,9 @@ function computeGmEnemyAttackHighlights(
     return { primary: [], secondary: [...secondary], invalid: [], selected: [], heal: false };
   }
 
+  if (!isSelectTargetEnemyAttack(attackSpec)) return EMPTY;
   const selected: string[] = [];
-  for (const playerId of enemyDirectAttackTargetPlayerIds(state, enemyId, parsed, occ)) {
+  for (const playerId of enemyDirectAttackTargetPlayerIds(state, enemyId, attackSpec, occ)) {
     const player = state.players.find((p) => p.id === playerId);
     if (player) selected.push(coordKey(player.x, player.y));
   }

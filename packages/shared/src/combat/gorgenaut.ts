@@ -1,5 +1,6 @@
 import type { Enemy, GameState, Player } from "../types.js";
 import { enemyLabel, playerLabel } from "../console.js";
+import { getEnemyAttack } from "../enemy-data.js";
 import { applyGmForceMove, validateGmForceMove } from "../game.js";
 import {
   applyDamageToEnemy,
@@ -7,10 +8,10 @@ import {
   enemyDirectAttackTargetEnemyIds,
   enemyDirectAttackTargetPlayerIds,
   enemyPatternOrigins,
-  parseEnemyAttackString,
 } from "./attack.js";
 import { applyPatternEnemyAttack } from "./enemy-attack-resolve.js";
 import { stainwalkKind, tileIsStained } from "./stainwalk.js";
+import type { EnemyAttackSpec } from "./types.js";
 import type { PatternDirection } from "../pattern-data.js";
 
 export function isGorgenaut(enemy: Pick<Enemy, "name">): boolean {
@@ -19,17 +20,30 @@ export function isGorgenaut(enemy: Pick<Enemy, "name">): boolean {
 
 export { enemyAttackNeedsStainTeleport } from "./attack.js";
 
+const GORGENAUT_CONE_SPEC: EnemyAttackSpec = {
+  targeting: "pattern",
+  patternId: "cone",
+  size: 3,
+  damage: "5",
+  effects: ["Pull:1"],
+};
+
+const STAIN_TELEPORT_SPEC: EnemyAttackSpec = {
+  targeting: "select",
+  damage: "10",
+  adjacent: true,
+  specialId: "stain-teleport",
+};
+
 export function applyGorgenautConeAttack(
   state: GameState,
   enemy: Enemy,
   direction: PatternDirection,
   damage: number,
 ): string {
-  const parsed = parseEnemyAttackString(
-    "Cone:3. Deal 5 damage and pull any unit 1 space towards RETIARIUS.",
-  );
-  const origins = enemyPatternOrigins(enemy, direction, "cone");
-  return applyPatternEnemyAttack(state, enemy, parsed, direction, {
+  const spec = getEnemyAttack(enemy.name, 0)?.attack ?? GORGENAUT_CONE_SPEC;
+  const origins = enemyPatternOrigins(enemy, direction, spec.patternId ?? "cone");
+  return applyPatternEnemyAttack(state, enemy, spec, direction, {
     damage,
     origin: origins[0],
   });
@@ -44,15 +58,14 @@ export function validateGorgenautStainTeleport(
     destX?: number;
     destY?: number;
   },
+  attackSpec?: EnemyAttackSpec,
 ): string | null {
-  const parsed = parseEnemyAttackString(
-    "Deal 10 damage to an adjacent unit. Move that unit to any stained square.",
-  );
+  const spec = attackSpec ?? STAIN_TELEPORT_SPEC;
   if (opts.targetPlayerId) {
-    const valid = enemyDirectAttackTargetPlayerIds(state, enemy.id, parsed);
+    const valid = enemyDirectAttackTargetPlayerIds(state, enemy.id, spec);
     if (!valid.includes(opts.targetPlayerId)) return "Target out of range";
   } else if (opts.targetEnemyId) {
-    const valid = enemyDirectAttackTargetEnemyIds(state, enemy.id, parsed);
+    const valid = enemyDirectAttackTargetEnemyIds(state, enemy.id, spec);
     if (!valid.includes(opts.targetEnemyId)) return "Target out of range";
   } else {
     return "Select target";

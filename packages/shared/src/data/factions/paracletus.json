@@ -111,9 +111,9 @@
     },
     {
       "name": "Extrarterran Evolution",
-      "flavor": "Imbuing alternate terrains with its spawn, the Seed arms some of the meeker demons for war. Previously groundskeepers and scouts, POTAGON and CHALAZOR are ready for war.",
+      "flavor": "Imbuing alternate terrains with its spawn, the Seed arms some of the meeker demons for war. Previously groundskeepers and scouts, POTAGON and CHALAZAOR are ready for war.",
       "ichorCost": 3,
-      "effect": "Unlock POTAGON and CHALAZOR units for deployment."
+      "effect": "Unlock POTAGON and CHALAZAOR units for deployment."
     },
     {
       "name": "Efficient Building",

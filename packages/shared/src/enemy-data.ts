@@ -1,6 +1,7 @@
 import autophyesJson from "./data/enemies/autophyes.json" with { type: "json" };
 import paracletusJson from "./data/enemies/paracletus.json" with { type: "json" };
 
+import type { EnemyAttack } from "./combat/types.js";
 import type { FactionId } from "./faction-data.js";
 import type { Enemy } from "./types.js";
 
@@ -20,7 +21,7 @@ export type EnemyListing = {
   actions?: string;
   tags?: string[];
   requiresUpgrade?: string;
-  attacks?: string[];
+  attacks?: EnemyAttack[];
   agnosia?: string;
   special?: string;
   stainwalk?: string;
@@ -75,6 +76,14 @@ function findEnemyListing(name: string | undefined): EnemyListing | undefined {
 
 export function getEnemyListingByName(name: string | undefined): EnemyListing | undefined {
   return findEnemyListing(name);
+}
+
+export function getEnemyAttacks(name: string | undefined): EnemyAttack[] {
+  return findEnemyListing(name)?.attacks ?? [];
+}
+
+export function getEnemyAttack(name: string | undefined, index: number): EnemyAttack | undefined {
+  return getEnemyAttacks(name)[index];
 }
 
 export function getEnemyFactionId(name: string | undefined): FactionId | undefined {

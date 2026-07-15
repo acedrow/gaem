@@ -15,8 +15,8 @@ import {
   isPatternEnemyAttack,
   isSelectTargetEnemyAttack,
   enemyAttackNeedsStainTeleport,
+  enemyAttackNeedsFlowerbudPlant,
   isTowerEnemy,
-  parseEnemyAttackString,
   swarmGroupForEnemy,
 } from "@gaem/shared";
 import { computed } from "vue";
@@ -31,6 +31,7 @@ import { useEnemySpawnSelection } from "../composables/useEnemySpawnSelection.js
 import { useEnemyPortraitColors } from "../composables/useEnemyPortraitColors.js";
 import { useSession } from "../composables/useSession.js";
 import { useStainGeyserPlacement } from "../composables/useStainGeyserPlacement.js";
+import { useGorgenautAgnosiaPlacement } from "../composables/useGorgenautAgnosiaPlacement.js";
 import HpBar from "./HpBar.vue";
 import PanelShell from "./PanelShell.vue";
 import RuleText from "./RuleText.vue";
@@ -51,6 +52,7 @@ const { startGmEnemyAttack, startGmSwarmAttack } = useBoardActionMode();
 const { goBackFromDataFocus } = useInfoDataSelection();
 const { selectedSpawnEnemyName, selectSpawnEnemy } = useEnemySpawnSelection();
 const { stainGeyserPlacementActive } = useStainGeyserPlacement();
+const { gorgenautAgnosiaPlacementActive } = useGorgenautAgnosiaPlacement();
 
 const activeEnemy = computed(() =>
   props.enemyId ? gameState.value?.enemies.find((e) => e.id === props.enemyId) : undefined,
@@ -151,7 +153,7 @@ const isInSwarm = computed(() => (swarmGroup.value?.size ?? 0) > 1);
 
 const swarmDirectAttackIndex = computed(() => {
   const attacks = listing.value?.attacks ?? [];
-  return attacks.findIndex((text) => isDirectTargetEnemyAttack(parseEnemyAttackString(text)));
+  return attacks.findIndex((entry) => isDirectTargetEnemyAttack(entry.attack));
 });
 
 const showSwarmAttack = computed(
@@ -194,22 +196,23 @@ function useSwarmAttack() {
 }
 
 function attackIsResolvable(index: number): boolean {
-  const attackText = listing.value?.attacks?.[index];
-  return !!attackText && isAutoResolvableEnemyAttack(attackText);
+  const attackSpec = listing.value?.attacks?.[index]?.attack;
+  return !!attackSpec && isAutoResolvableEnemyAttack(attackSpec);
 }
 
 function useAttack(index: number) {
   const enemy = activeEnemy.value;
-  const attackText = listing.value?.attacks?.[index];
-  if (!enemy || !attackText || !isAutoResolvableEnemyAttack(attackText)) return;
-  const parsed = parseEnemyAttackString(attackText);
+  const attackSpec = listing.value?.attacks?.[index]?.attack;
+  if (!enemy || !attackSpec || !isAutoResolvableEnemyAttack(attackSpec)) return;
   if (
-    enemyAttackNeedsStainTeleport(attackText) ||
-    isSelectTargetEnemyAttack(parsed) ||
-    isPatternEnemyAttack(parsed)
+    enemyAttackNeedsFlowerbudPlant(attackSpec) ||
+    enemyAttackNeedsStainTeleport(attackSpec) ||
+    isSelectTargetEnemyAttack(attackSpec) ||
+    isPatternEnemyAttack(attackSpec)
   ) {
     startGmEnemyAttack(enemy.id, index, undefined, {
-      stainTeleport: enemyAttackNeedsStainTeleport(attackText),
+      stainTeleport: enemyAttackNeedsStainTeleport(attackSpec),
+      plantFlowerbud: enemyAttackNeedsFlowerbudPlant(attackSpec),
     });
   }
 }
@@ -324,6 +327,9 @@ function spawnUnit() {
         >Exhausted</span>
         <span v-if="hasGmCapabilities && listing?.agnosiaHp != null" class="stat">Agnosia HP: {{ listing.agnosiaHp }}</span>
         <span v-if="activeEnemy?.agnosiaTriggered" class="stat">Agnosia triggered</span>
+        <p v-if="gorgenautAgnosiaPlacementActive" class="spawn-hint">
+          Move the 5×5 stain area, then click to confirm (Esc to recenter).
+        </p>
       </div>
 
       <div v-if="listing?.tags?.length || towerDef?.tags" class="tags">
@@ -332,7 +338,9 @@ function spawnUnit() {
       </div>
 
       <p v-if="listing?.codename" class="codename"><em>{{ listing.codename }}</em></p>
-      <p v-if="listing?.description" class="item-description">{{ listing.description }}</p>
+      <p v-if="listing?.description" class="item-description">
+        <RuleText :text="listing.description" />
+      </p>
       <p v-else-if="towerDef?.special" class="ability">
         <span class="ability-label">Special</span>
         <RuleText :text="towerDef.special" />
@@ -342,7 +350,7 @@ function spawnUnit() {
       <template v-if="listing">
         <div v-for="(attack, i) in listing.attacks" :key="i" class="ability">
           <span class="ability-label">Attack {{ i + 1 }}</span>
-          <p class="ability-text">{{ attack }}</p>
+          <p class="ability-text"><RuleText :text="attack.text" /></p>
           <div v-if="showUseAttack && !isInSwarm && attackIsResolvable(i)" class="attack-actions">
             <button
               type="button"
@@ -355,15 +363,15 @@ function spawnUnit() {
         </div>
         <p v-if="listing.agnosia" class="ability">
           <span class="ability-label">Agnosia</span>
-          {{ listing.agnosia }}
+          <RuleText :text="listing.agnosia" />
         </p>
         <p v-if="listing.special" class="ability">
           <span class="ability-label">Special</span>
-          {{ listing.special }}
+          <RuleText :text="listing.special" />
         </p>
         <p v-if="listing.stainwalk" class="ability">
           <span class="ability-label">Stainwalk</span>
-          {{ listing.stainwalk }}
+          <RuleText :text="listing.stainwalk" />
         </p>
       </template>
 

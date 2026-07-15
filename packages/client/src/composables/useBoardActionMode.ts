@@ -80,6 +80,7 @@ const gmEnemyAttack = ref<{
   damage?: number;
   swarm?: boolean;
   stainTeleport?: boolean;
+  plantFlowerbud?: boolean;
   targetPlayerId?: string;
   targetEnemyId?: string;
 } | null>(null);
@@ -170,7 +171,7 @@ export function useBoardActionMode() {
     enemyId: string,
     attackIndex: number,
     damage?: number,
-    opts?: { stainTeleport?: boolean },
+    opts?: { stainTeleport?: boolean; plantFlowerbud?: boolean },
   ) {
     setMode("gmEnemyAttack");
     gmEnemyAttack.value = {
@@ -178,6 +179,7 @@ export function useBoardActionMode() {
       attackIndex,
       damage,
       stainTeleport: opts?.stainTeleport,
+      plantFlowerbud: opts?.plantFlowerbud,
     };
   }
 

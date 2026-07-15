@@ -3,9 +3,9 @@ import {
   applyGmEnemyAction,
   isAutoResolvableEnemyAttack,
   isSelectTargetEnemyAttack,
-  parseEnemyAttackString,
 } from "./index.js";
 import { createDefaultCombatState } from "./types.js";
+import { getEnemyAttack } from "../enemy-data.js";
 import { addTestEnemy, addTestPlayer, makeGameState } from "../test/fixtures.js";
 
 function gmTurn(state: ReturnType<typeof makeGameState>) {
@@ -15,18 +15,12 @@ function gmTurn(state: ReturnType<typeof makeGameState>) {
 }
 
 describe("auto-resolvable enemy attacks", () => {
-  it("classifies pattern, select-target, and push attacks", () => {
-    expect(isAutoResolvableEnemyAttack("Deal 10 damage to Burst:1, then decrease PRISTIR's scale by 1.")).toBe(
-      true,
-    );
-    expect(isAutoResolvableEnemyAttack("Damage:2, Range:1")).toBe(true);
-    expect(isAutoResolvableEnemyAttack("Push:2")).toBe(true);
-    expect(
-      isAutoResolvableEnemyAttack(
-        "Increase PRISTIR's scale by 2. Any occupied spaces take 5 damage and are pushed out.",
-      ),
-    ).toBe(false);
-    expect(isSelectTargetEnemyAttack(parseEnemyAttackString("Push:2"))).toBe(true);
+  it("classifies pattern, select-target, and push attacks from structured specs", () => {
+    expect(isAutoResolvableEnemyAttack(getEnemyAttack("Eyesting Rose", 1)!.attack)).toBe(true);
+    expect(isAutoResolvableEnemyAttack(getEnemyAttack("Scorned Eyes", 0)!.attack)).toBe(true);
+    expect(isAutoResolvableEnemyAttack(getEnemyAttack("Latent Pudding", 0)!.attack)).toBe(true);
+    expect(isAutoResolvableEnemyAttack(getEnemyAttack("Eyesting Rose", 0)!.attack)).toBe(false);
+    expect(isSelectTargetEnemyAttack(getEnemyAttack("Latent Pudding", 0)!.attack)).toBe(true);
   });
 
   it("pattern burst auto-hits and does not create pending enemyAttack", () => {

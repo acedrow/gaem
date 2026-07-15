@@ -174,7 +174,7 @@ const phaseAction = computed((): { label: string; action: PhaseAction } | null =
     if (remainingPlayerIds(s).length > 0) {
       return { label: "End turn", action: "endGmTurn" };
     }
-    return { label: "Countdown tags", action: "countdownTags" };
+    return { label: "End turn", action: "countdownTags" };
   }
   if (s.roundPhase === "countdownTags" && hasGmCapabilities.value) {
     return { label: "End round", action: "endRound" };

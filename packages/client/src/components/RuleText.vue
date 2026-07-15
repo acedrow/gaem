@@ -16,6 +16,7 @@ const segments = computed(() => parseRuleText(props.text));
         v-if="segment.kind === 'term'"
         :text="segment.text"
         :tooltip="segment.tooltip"
+        :link="segment.link"
       />
       <template v-else>{{ segment.text }}</template>
     </template>

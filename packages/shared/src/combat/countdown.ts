@@ -1,5 +1,6 @@
 import type { GameState, MapTile, Player, Enemy } from "../types.js";
 import { enemyLabel, playerLabel } from "../console.js";
+import { getEnemyListingByName } from "../enemy-data.js";
 import {
   addEnemy,
   buildBoardOccupancy,
@@ -88,9 +89,14 @@ registerCountdownHandler("flowerbud", ({ state, unit }) => {
 
 export function inferCountdownKind(unit: Player | Enemy): string | undefined {
   if ("class" in unit) return undefined;
-  const name = (unit as Enemy).name?.toUpperCase() ?? "";
-  if (name.includes("CHALAZAOR")) return "chazaor_agnosia";
-  if (name.includes("FLOWERBUD")) return "flowerbud";
+  const enemy = unit as Enemy;
+  const listing = getEnemyListingByName(enemy.name);
+  if (listing?.codename === "CHALAZAOR" || listing?.name === "Soaring Bombardier") {
+    return "chazaor_agnosia";
+  }
+  const name = enemy.name?.toUpperCase() ?? "";
+  if (name.includes("CHALAZAOR") || name.includes("SOARING BOMBARDIER")) return "chazaor_agnosia";
+  if (listing?.name === "Flowerbud" || name.includes("FLOWERBUD")) return "flowerbud";
   return undefined;
 }
 

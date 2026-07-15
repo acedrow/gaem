@@ -1,11 +1,20 @@
 <script setup lang="ts">
-import type { RuleTermTooltip } from "@gaem/shared";
+import type { RuleTermTooltip, RuleTextLink } from "@gaem/shared";
+import { getEnemyFactionId } from "@gaem/shared";
 import { nextTick, ref } from "vue";
+
+import { useBoardSelection } from "../composables/useBoardSelection.js";
+import { activeTab } from "../composables/useGameConsole.js";
+import { useInfoDataSelection } from "../composables/useInfoDataSelection.js";
 
 const props = defineProps<{
   text: string;
   tooltip?: RuleTermTooltip;
+  link?: RuleTextLink;
 }>();
+
+const { clearBoardSelection } = useBoardSelection();
+const { selectDataFocus } = useInfoDataSelection();
 
 const wrapEl = ref<HTMLElement | null>(null);
 const tooltipEl = ref<HTMLElement | null>(null);
@@ -49,23 +58,51 @@ async function openTooltip() {
 function closeTooltip() {
   showTooltip.value = false;
 }
+
+function openLink() {
+  if (!props.link) return;
+  closeTooltip();
+  clearBoardSelection();
+  const factionId = getEnemyFactionId(props.link.name);
+  const returnTo =
+    factionId === "paracletus" || factionId === "autophyes" ? factionId : undefined;
+  selectDataFocus(
+    { kind: "enemy", name: props.link.name },
+    returnTo ? { returnTo } : undefined,
+  );
+  activeTab.value = "info";
+}
+
+function onActivate(event: MouseEvent | KeyboardEvent) {
+  if (!props.link) return;
+  if ("key" in event && event.key !== "Enter" && event.key !== " ") return;
+  event.preventDefault();
+  openLink();
+}
 </script>
 
 <template>
   <span
-    v-if="tooltip"
+    v-if="tooltip || link"
     ref="wrapEl"
-    class="rule-term rule-term--defined"
-    tabindex="0"
+    class="rule-term"
+    :class="{
+      'rule-term--defined': tooltip && !link,
+      'rule-term--link': !!link,
+    }"
+    :tabindex="tooltip || link ? 0 : undefined"
+    :role="link ? 'link' : undefined"
     @mouseenter="openTooltip"
     @mouseleave="closeTooltip"
     @focusin="openTooltip"
     @focusout="closeTooltip"
+    @click="onActivate"
+    @keydown="onActivate"
   >
     {{ text }}
     <Teleport to="body">
       <div
-        v-if="showTooltip"
+        v-if="showTooltip && tooltip"
         ref="tooltipEl"
         class="rule-term-tooltip"
         :style="tooltipStyle"
@@ -77,6 +114,7 @@ function closeTooltip() {
           {{ tooltip.summary }}
         </p>
         <p class="rule-term-tooltip-body">{{ tooltip.description }}</p>
+        <p v-if="link" class="rule-term-tooltip-hint">Click to open bestiary entry</p>
       </div>
     </Teleport>
   </span>
@@ -87,6 +125,13 @@ function closeTooltip() {
 .rule-term--defined {
   cursor: help;
   text-decoration: underline dotted;
+  text-underline-offset: 0.12em;
+}
+
+.rule-term.rule-term--link {
+  cursor: pointer;
+  color: var(--color-accent-bright);
+  text-decoration: underline;
   text-underline-offset: 0.12em;
 }
 
@@ -120,5 +165,11 @@ function closeTooltip() {
   margin: 0;
   color: var(--color-muted);
   font-style: italic;
+}
+
+.rule-term-tooltip-hint {
+  margin: 0.4rem 0 0;
+  color: var(--color-accent-bright);
+  font-size: 0.7rem;
 }
 </style>

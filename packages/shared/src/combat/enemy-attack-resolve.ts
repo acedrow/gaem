@@ -7,13 +7,14 @@ import {
   applyDamageToEnemy,
   applyDamageToPlayer,
   collectEnemyPatternAttackTiles,
+  enemyAttackDamage,
   enemyAttackNonPushEffects,
+  enemyAttackPullDistance,
   enemyAttackPushDistance,
   enemyPatternAttackSpec,
-  parseEnemyAttackPullDistance,
   resolveEnemyPatternOrigin,
-  type ParsedEnemyAttack,
 } from "./attack.js";
+import type { EnemyAttackSpec } from "./types.js";
 import { parseAndRollDamage } from "./damage.js";
 import { applyEffectStacks } from "./effects.js";
 import { trackCountdownKinds } from "./countdown.js";
@@ -42,7 +43,7 @@ function applyStacks(
 export function applyPatternEnemyAttack(
   state: GameState,
   enemy: Enemy,
-  parsed: ParsedEnemyAttack,
+  attackSpec: EnemyAttackSpec,
   direction: PatternDirection,
   opts?: {
     damage?: number;
@@ -50,7 +51,7 @@ export function applyPatternEnemyAttack(
     onPlayerHit?: (playerId: string) => void;
   },
 ): string {
-  const spec = enemyPatternAttackSpec(parsed);
+  const spec = enemyPatternAttackSpec(attackSpec);
   if (!spec) {
     return `${enemyLabel(enemy)} attack (no pattern)`;
   }
@@ -62,9 +63,9 @@ export function applyPatternEnemyAttack(
   const rolled =
     opts?.damage != null
       ? { total: opts.damage, detail: String(opts.damage) }
-      : parseAndRollDamage(String(parsed.damage ?? 0));
+      : parseAndRollDamage(spec.damage);
   const damage = rolled.total;
-  const pullDistance = parseEnemyAttackPullDistance(parsed.raw);
+  const pullDistance = enemyAttackPullDistance(attackSpec);
 
   const tiles = collectEnemyPatternAttackTiles(
     state,
@@ -80,7 +81,7 @@ export function applyPatternEnemyAttack(
   const hitPlayers = new Set<string>();
   const hitEnemies = new Set<string>();
   const parts: string[] = [];
-  const effectTokens = enemyAttackNonPushEffects(parsed);
+  const effectTokens = enemyAttackNonPushEffects(attackSpec);
 
   for (const tile of tiles) {
     const key = coordKey(tile.x, tile.y);
@@ -130,23 +131,24 @@ export function applyPatternEnemyAttack(
 export function applySelectTargetEnemyAttack(
   state: GameState,
   enemy: Enemy,
-  parsed: ParsedEnemyAttack,
+  attackSpec: EnemyAttackSpec,
   opts: {
     targetPlayerId?: string;
     targetEnemyId?: string;
     damage?: number;
   },
 ): string | null {
-  const pushDistance = enemyAttackPushDistance(parsed);
-  const effectTokens = enemyAttackNonPushEffects(parsed);
+  const pushDistance = enemyAttackPushDistance(attackSpec);
+  const effectTokens = enemyAttackNonPushEffects(attackSpec);
+  const baseDamage = enemyAttackDamage(attackSpec);
 
   let damageTotal: number | null = null;
   let damageDetail = "";
-  if (parsed.damage != null) {
+  if (baseDamage != null) {
     const rolled =
       opts.damage != null
         ? { total: opts.damage, detail: String(opts.damage) }
-        : parseAndRollDamage(String(parsed.damage));
+        : parseAndRollDamage(String(baseDamage));
     damageTotal = rolled.total;
     damageDetail = rolled.detail;
   } else if (opts.damage != null) {

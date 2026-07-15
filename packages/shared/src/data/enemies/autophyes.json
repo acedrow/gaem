@@ -27,9 +27,27 @@
       "speed": 8,
       "actions": "1/2",
       "attacks": [
-        "Target:1, Damage:10, Transference:8",
-        "Line:8 Damage:10, subtract 1 damage for each space between Haagenti and the target. Any impaled characters are Pulled:3 towards her.",
-        "Blob:7 anywhere in line of sight. Deal 3 damage and Mark targeted squares. On her next turn, marked squares become a pool of ANATHEMA."
+        {
+          "text": "Target:1, Damage:10, Transference:8",
+          "attack": {
+            "targeting": "select",
+            "damage": "10",
+            "range": 1,
+            "effects": ["Transference:8"]
+          }
+        },
+        {
+          "text": "Line:8 Damage:10, subtract 1 damage for each space between Haagenti and the target. Any impaled characters are Pulled:3 towards her.",
+          "attack": {
+            "targeting": "assisted"
+          }
+        },
+        {
+          "text": "Blob:7 anywhere in line of sight. Deal 3 damage and Mark targeted squares. On her next turn, marked squares become a pool of ANATHEMA.",
+          "attack": {
+            "targeting": "assisted"
+          }
+        }
       ],
       "agnosia": "Burst:3 for 5 damage, create a 3x3 Box around Haagenti of ANATHEMA. In addition, any instance of damage dealt by ANATHEMA on the map while she is in AGNOSIA creates a special Sloucher minion with HP equal to the amount of damage dealt. It is placed directly adjacent to the victim by the GM and its sole desire in the world is to be consumed again by Haagenti, restoring her whatever HP it has when it makes it to a space adjacent to her.",
       "special": "When Haagenti moves, she bleeds a trail of ANATHEMA behind her. ANATHEMA remains in play until Haagenti is defeated. Players touching ANATHEMA at any point immediately take 3 damage and gain Slow:1 as the life is drained from their bones. ANATHEMA does not effect AUTOPHYES units."
@@ -46,8 +64,25 @@
       "scale": 3,
       "speed": 4,
       "attacks": [
-        "Line:2, Damage:5 as the drills focus their efforts.",
-        "Cone:2, Damage:3 as the drills splay out, Bleed:2."
+        {
+          "text": "Line:2, Damage:5 as the drills focus their efforts.",
+          "attack": {
+            "targeting": "pattern",
+            "patternId": "line",
+            "size": 2,
+            "damage": "5"
+          }
+        },
+        {
+          "text": "Cone:2, Damage:3 as the drills splay out, Bleed:2.",
+          "attack": {
+            "targeting": "pattern",
+            "patternId": "cone",
+            "size": 2,
+            "damage": "3",
+            "effects": ["Bleed:2"]
+          }
+        }
       ],
       "agnosia": "The Engine burrows immediately. Create three markers on the map of rumbling stones and cracking earth. Next full turn, the Engine emerges from the one that'll be the most annoying for the players, doing Burst:2 Damage:7 to everything around it."
     },
@@ -63,8 +98,18 @@
       "scale": 2,
       "speed": 6,
       "attacks": [
-        "Charge:6, Damage:6, deal 3 damage to any units adjacent to the charge path.",
-        "Target:X, Range:1, Damage:3. This attack can be used up to 5 times, selecting a different target each time if possible."
+        {
+          "text": "Charge:6, Damage:6, deal 3 damage to any units adjacent to the charge path.",
+          "attack": {
+            "targeting": "assisted"
+          }
+        },
+        {
+          "text": "Target:X, Range:1, Damage:3. This attack can be used up to 5 times, selecting a different target each time if possible.",
+          "attack": {
+            "targeting": "assisted"
+          }
+        }
       ],
       "agnosia": "The Harvester splits in half like a flatworm, creating two Scale:1 Harvesters with otherwise identical attacks and Speed, with the remaining HP split between both. Both Harvester halves need to be killed for this enemy to be considered dead.",
       "special": "When the Harvester unit becomes active in a battle, any defeated unit leaves behind a Corpse token. If the Harvester runs over a Corpse in the course of its turn, remove the Corpse and add 1 damage to the Harvesters next attack. After the attack, the damage returns to base level. Players can attack these corpses to remove them."
@@ -78,7 +123,17 @@
       "hp": 1,
       "scale": 1,
       "speed": 4,
-      "attacks": ["Damage:3, Range:1 to one adjacent creature."],
+      "attacks": [
+        {
+          "text": "Damage:3, Range:1 to one adjacent creature.",
+          "attack": {
+            "targeting": "select",
+            "damage": "3",
+            "range": 1,
+            "adjacent": true
+          }
+        }
+      ],
       "special": "Extractors may forgo their turn to observe a target in line of sight and form the perfect weapon from their limbs. For the rest of the combat encounter, their attacks do double damage against that target."
     },
     {
@@ -92,7 +147,16 @@
       "scale": 1,
       "speed": 5,
       "attacks": [
-        "Line:10 harpoon attack dealing 3 damage, Pull:3 toward Whaler to the first character in the line."
+        {
+          "text": "Line:10 harpoon attack dealing 3 damage, Pull:3 toward Whaler to the first character in the line.",
+          "attack": {
+            "targeting": "pattern",
+            "patternId": "line",
+            "size": 10,
+            "damage": "3",
+            "effects": ["Pull:3"]
+          }
+        }
       ],
       "special": "Creatures damaged by Whalers are impaled and count as Slow and Bleeding until this enemy is killed or they are no longer within Range:10. The Whaler cannot strike again while it has a creature impaled."
     },
@@ -105,7 +169,17 @@
       "hp": 1,
       "scale": 1,
       "speed": 5,
-      "attacks": ["2 Damage, Transference:2"],
+      "attacks": [
+        {
+          "text": "2 Damage, Transference:2",
+          "attack": {
+            "targeting": "select",
+            "damage": "2",
+            "range": 1,
+            "effects": ["Transference:2"]
+          }
+        }
+      ],
       "special": "Adjacent AUTOPHYES can consume an adjacent Sloucher or Sloucher Swarm to heal damage equal to the Sloucher's HP."
     },
     {
@@ -117,7 +191,17 @@
       "hp": 20,
       "scale": 1,
       "speed": 2,
-      "attacks": ["Shock:1, Damage:5"],
+      "attacks": [
+        {
+          "text": "Shock:1, Damage:5",
+          "attack": {
+            "targeting": "select",
+            "damage": "5",
+            "range": 1,
+            "effects": ["Shock:1"]
+          }
+        }
+      ],
       "special": "Ending a turn adjacent to a Bulwark incurs Poison:2 to non-AUTOPHYES characters."
     },
     {
@@ -129,7 +213,16 @@
       "hp": 1,
       "scale": 1,
       "speed": 6,
-      "attacks": ["Deal 2 damage to an adjacent creature"],
+      "attacks": [
+        {
+          "text": "Deal 2 damage to an adjacent creature",
+          "attack": {
+            "targeting": "select",
+            "damage": "2",
+            "adjacent": true
+          }
+        }
+      ],
       "special": "On any turn, sacrifice 2 Speed to Spawn 1 additional Yearnling adjacent to this one."
     },
     {
@@ -144,7 +237,12 @@
       "scale": 1,
       "speed": 5,
       "attacks": [
-        "Charge:7, Damage:5. Running into other units does not interrupt this Charge. Deal damage to all units run over or into by this attack, enemy or ally."
+        {
+          "text": "Charge:7, Damage:5. Running into other units does not interrupt this Charge. Deal damage to all units run over or into by this attack, enemy or ally.",
+          "attack": {
+            "targeting": "assisted"
+          }
+        }
       ],
       "special": "These creatures always count as having Aegis:5, ignoring terrain features and are treated as having +1 Elevation. They are immune to any attack that only targets adjacent units."
     },
@@ -177,7 +275,14 @@
       "hp": 1,
       "scale": 1,
       "speed": 1,
-      "attacks": ["Wall:3, Damage:2 and applying Pin:1 to anyone trapped within"],
+      "attacks": [
+        {
+          "text": "Wall:3, Damage:2 and applying Pin:1 to anyone trapped within",
+          "attack": {
+            "targeting": "assisted"
+          }
+        }
+      ],
       "special": "Wall: Can be chained into a Swarm as an action, granting the whole swarm Cover:1 and moving along with them. While carrying the Wireweal, the Swarm may only make one attack per round total. They may drop the Wireweal at any time as a Movement action."
     }
   ]

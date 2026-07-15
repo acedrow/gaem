@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { applyPhaseAction, getPlayerMaxHp } from "../game.js";
+import { applyPhaseAction, getEffectiveEnemyMaxHp, getEnemyMaxHp, getPlayerMaxHp } from "../game.js";
 import { resetUnitCombatState } from "./taccom-reset.js";
 import { createDefaultCombatState } from "./types.js";
 import type { GameMap } from "../types.js";
-import { addTestPlayer, gmCtx, makeGameState } from "../test/fixtures.js";
+import { addTestEnemy, addTestPlayer, gmCtx, makeGameState } from "../test/fixtures.js";
+import { getSwarmMaxHp } from "./swarm.js";
 
 describe("resetUnitCombatState", () => {
   it("restores HP, clears effects, and resets equipment uses", () => {
@@ -100,6 +101,62 @@ describe("TACCOM phase actions", () => {
     expect(state.roundPhase).toBe("taccomNotStarted");
     expect(state.enemies).toHaveLength(1);
     expect(state.enemies[0]!.x).toBe(1);
-    expect(state.enemies[0]!.hp).toBe(1);
+    expect(state.enemies[0]!.hp).toBe(getEnemyMaxHp(state.enemies[0]!));
+  });
+
+  it("resetCombat restores enemy HP, clears agnosia, and counters", () => {
+    const state = makeGameState({
+      round: 2,
+      roundPhase: "gmTurn",
+      combat: {
+        ...createDefaultCombatState(1),
+        passedEnemyIdsByPlayer: { p1: ["e1"] },
+      },
+      enemies: [
+        {
+          id: "e1",
+          x: 3,
+          y: 3,
+          name: "Gorgenaut",
+          hp: 12,
+          scale: 2,
+          agnosiaTriggered: true,
+          effects: { Slow: 1 },
+        },
+      ],
+    });
+    const player = addTestPlayer(state, "p1", {
+      x: 2,
+      y: 2,
+      class: "HARPE",
+      hp: 3,
+      counters: { foo: 2 },
+    });
+    applyPhaseAction(state, "resetCombat", gmCtx());
+    expect(state.enemies[0]!.hp).toBe(getEnemyMaxHp(state.enemies[0]!));
+    expect(state.enemies[0]!.agnosiaTriggered).toBeUndefined();
+    expect(state.enemies[0]!.effects).toBeUndefined();
+    expect(state.combat!.passedEnemyIdsByPlayer).toBeUndefined();
+    expect(player.hp).toBe(getPlayerMaxHp(player));
+    expect(player.counters?.foo).toBeUndefined();
+  });
+
+  it("resetCombat restores swarm pool HP to size*10, not listing HP 1", () => {
+    const state = makeGameState({
+      round: 2,
+      roundPhase: "gmTurn",
+      combat: createDefaultCombatState(1),
+    });
+    addTestPlayer(state, "p1", { x: 0, y: 0, class: "HARPE" });
+    addTestEnemy(state, "a", 2, 2, { name: "Scorned Eyes", hp: 5 });
+    addTestEnemy(state, "b", 3, 2, { name: "Scorned Eyes", hp: 5 });
+    addTestEnemy(state, "c", 4, 2, { name: "Scorned Eyes", hp: 5 });
+    applyPhaseAction(state, "resetCombat", gmCtx());
+    expect(getSwarmMaxHp(3)).toBe(30);
+    for (const enemy of state.enemies) {
+      expect(getEnemyMaxHp(enemy)).toBe(1);
+      expect(enemy.hp).toBe(30);
+      expect(getEffectiveEnemyMaxHp(enemy, state)).toBe(30);
+    }
   });
 });

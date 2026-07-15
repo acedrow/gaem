@@ -8,6 +8,7 @@ import {
 } from "./gorgenaut.js";
 import { applyGmEnemyAction, validateGmEnemyAction } from "./messages.js";
 import { createDefaultCombatState } from "./types.js";
+import { getEnemyAttack } from "../enemy-data.js";
 import { tileAt } from "../map.js";
 import { addTestEnemy, addTestPlayer, makeGameState } from "../test/fixtures.js";
 
@@ -25,11 +26,7 @@ function gmTurn(state: ReturnType<typeof makeGameState>) {
 describe("gorgenaut attacks", () => {
   it("detects gorgenaut and stain-teleport attacks", () => {
     expect(isGorgenaut({ name: "RETIARIUS" })).toBe(true);
-    expect(
-      enemyAttackNeedsStainTeleport(
-        "Deal 10 damage to an adjacent unit. Move that unit to any stained square.",
-      ),
-    ).toBe(true);
+    expect(enemyAttackNeedsStainTeleport(getEnemyAttack("Gorgenaut", 1)!.attack)).toBe(true);
   });
 
   it("cone deals damage and pulls units toward RETIARIUS", () => {

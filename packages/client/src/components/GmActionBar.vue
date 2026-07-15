@@ -4,12 +4,12 @@ import {
   getEnemySpeed,
   getSwarmMovementRemaining,
   enemyAttackNeedsStainTeleport,
+  enemyAttackNeedsFlowerbudPlant,
   isAutoResolvableEnemyAttack,
   isDirectTargetEnemyAttack,
   isPatternEnemyAttack,
   isSelectTargetEnemyAttack,
   isTowerEnemy,
-  parseEnemyAttackString,
   swarmGroupForEnemy,
 } from "@gaem/shared";
 import { computed, ref, watch } from "vue";
@@ -49,7 +49,7 @@ const isInSwarm = computed(() => {
 
 const swarmDirectAttackIndex = computed(() => {
   const attacks = listing.value?.attacks ?? [];
-  return attacks.findIndex((text) => isDirectTargetEnemyAttack(parseEnemyAttackString(text)));
+  return attacks.findIndex((entry) => isDirectTargetEnemyAttack(entry.attack));
 });
 
 const showSwarmAttack = computed(
@@ -72,16 +72,13 @@ const speedLabel = computed(() => {
 const resolvableAttackIndices = computed(() => {
   const attacks = listing.value?.attacks ?? [];
   return attacks
-    .map((text, i) => (isAutoResolvableEnemyAttack(text) ? i : -1))
+    .map((entry, i) => (isAutoResolvableEnemyAttack(entry.attack) ? i : -1))
     .filter((i) => i >= 0);
 });
 
 const hasResolvableAttacks = computed(() => resolvableAttackIndices.value.length > 0);
 
-const selectedAttack = computed(() => {
-  const text = listing.value?.attacks?.[attackIndex.value];
-  return text ? parseEnemyAttackString(text) : undefined;
-});
+const selectedAttack = computed(() => listing.value?.attacks?.[attackIndex.value]?.attack);
 
 const isSelectTarget = computed(() =>
   selectedAttack.value ? isSelectTargetEnemyAttack(selectedAttack.value) : false,
@@ -92,12 +89,21 @@ const isPatternAttack = computed(() =>
 );
 
 const needsStainTeleport = computed(() => {
-  const text = listing.value?.attacks?.[attackIndex.value] ?? "";
-  return enemyAttackNeedsStainTeleport(text);
+  const spec = listing.value?.attacks?.[attackIndex.value]?.attack;
+  return !!spec && enemyAttackNeedsStainTeleport(spec);
+});
+
+const needsFlowerbudPlant = computed(() => {
+  const spec = listing.value?.attacks?.[attackIndex.value]?.attack;
+  return !!spec && enemyAttackNeedsFlowerbudPlant(spec);
 });
 
 const usesBoardTargeting = computed(
-  () => needsStainTeleport.value || isSelectTarget.value || isPatternAttack.value,
+  () =>
+    needsStainTeleport.value ||
+    needsFlowerbudPlant.value ||
+    isSelectTarget.value ||
+    isPatternAttack.value,
 );
 
 const targetingAttack = computed(
@@ -122,6 +128,10 @@ const targetingStainDest = computed(
     targetingAttack.value &&
     !!gmEnemyAttack.value?.stainTeleport &&
     !!(gmEnemyAttack.value.targetPlayerId || gmEnemyAttack.value.targetEnemyId),
+);
+
+const targetingFlowerbudPlant = computed(
+  () => targetingAttack.value && (!!gmEnemyAttack.value?.plantFlowerbud || needsFlowerbudPlant.value),
 );
 
 watch(selectedEnemyId, () => {
@@ -149,11 +159,17 @@ function runSwarmAttack() {
 function runAttack() {
   const enemy = activeEnemy.value;
   if (!enemy) return;
-  const attackText = listing.value?.attacks?.[attackIndex.value] ?? "";
-  if (!isAutoResolvableEnemyAttack(attackText)) return;
-  if (needsStainTeleport.value || isSelectTarget.value || isPatternAttack.value) {
+  const attackSpec = listing.value?.attacks?.[attackIndex.value]?.attack;
+  if (!attackSpec || !isAutoResolvableEnemyAttack(attackSpec)) return;
+  if (
+    needsFlowerbudPlant.value ||
+    needsStainTeleport.value ||
+    isSelectTarget.value ||
+    isPatternAttack.value
+  ) {
     startGmEnemyAttack(enemy.id, attackIndex.value, undefined, {
       stainTeleport: needsStainTeleport.value,
+      plantFlowerbud: needsFlowerbudPlant.value,
     });
   }
 }
@@ -204,6 +220,7 @@ function exhaustEnemy() {
     </div>
     <p v-if="targetingSwarmAttack" class="attack-hint">Click a highlighted player to attack</p>
     <p v-else-if="targetingStainDest" class="attack-hint">Click a stained square to move the target</p>
+    <p v-else-if="targetingFlowerbudPlant" class="attack-hint">Click an adjacent empty square to plant a Flowerbud</p>
     <p v-else-if="targetingAttack && needsStainTeleport" class="attack-hint">Click an adjacent unit, then a stained square</p>
     <p v-else-if="targetingPatternAttack && !attackAimed" class="attack-hint">
       Click a pattern tile to aim, then click the pattern to attack

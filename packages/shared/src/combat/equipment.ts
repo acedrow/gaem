@@ -9,22 +9,21 @@ import {
   enemyPatternAttackSpec,
   resolveEnemyPatternOrigin,
   enemiesInTiles,
+  enemyAttackDamage,
   enemyDirectAttackTargetEnemyIds,
   isDirectTargetEnemyAttack,
   manhattanDistance,
-  parseEnemyAttackString,
   resolveAttackWeapon,
   resetHeavenBurningLevelAfterAttack,
   resolveCombatAttackSpec,
   resolveRangeAttackTargetIds,
-  type ParsedEnemyAttack,
 } from "./attack.js";
 import { setTileEffect } from "./effects.js";
 import { applyEffectStacks } from "./effects.js";
-import { enemyFootprintTiles, getEnemyListingByName, getEnemyScale } from "../enemy-data.js";
+import { enemyFootprintTiles, getEnemyAttacks, getEnemyScale } from "../enemy-data.js";
 import { buildBoardOccupancy } from "../game.js";
 import type { Enemy, GameState, Player } from "../types.js";
-import type { PlayerAction, WeaponAttackSpec } from "./types.js";
+import type { EnemyAttackSpec, PlayerAction, WeaponAttackSpec } from "./types.js";
 import {
   bespokeTilesInBounds,
   evaluateAnchoredPatternPlacement,
@@ -193,15 +192,15 @@ export function validateHylicRejectionField(
   return null;
 }
 
-export function isRedirectableEnemyAttack(parsed: ParsedEnemyAttack): boolean {
-  if (isDirectTargetEnemyAttack(parsed)) return true;
-  return !!(parsed.patternId && parsed.size != null && parsed.damage != null);
+export function isRedirectableEnemyAttack(spec: EnemyAttackSpec): boolean {
+  if (isDirectTargetEnemyAttack(spec)) return true;
+  return !!(spec.patternId && spec.size != null && spec.damage != null && spec.targeting === "pattern");
 }
 
 export function listRedirectableEnemyAttackIndices(enemyName: string): number[] {
-  const attacks = getEnemyListingByName(enemyName)?.attacks ?? [];
+  const attacks = getEnemyAttacks(enemyName);
   return attacks
-    .map((text, index) => (isRedirectableEnemyAttack(parseEnemyAttackString(text)) ? index : -1))
+    .map((entry, index) => (isRedirectableEnemyAttack(entry.attack) ? index : -1))
     .filter((index) => index >= 0);
 }
 
@@ -209,10 +208,6 @@ function isSameEnemyOrSwarm(state: GameState, sourceId: string, targetId: string
   if (sourceId === targetId) return true;
   const group = swarmGroupForEnemy(state, sourceId);
   return group?.memberIds.includes(targetId) ?? false;
-}
-
-function enemyAttacks(name: string): string[] {
-  return getEnemyListingByName(name)?.attacks ?? [];
 }
 
 export function validateRedirectionCircuits(
@@ -226,22 +221,20 @@ export function validateRedirectionCircuits(
   if (!source || (source.hp ?? 0) <= 0) return "Unknown enemy";
   if (manhattanDistance(player, source) > REDIRECTION_RANGE) return "Enemy out of range";
   if (action.attackIndex == null) return "Select attack";
-  const attacks = source.name ? enemyAttacks(source.name) : [];
-  const attackText = attacks[action.attackIndex];
-  if (!attackText) return "Invalid attack";
-  const parsed = parseEnemyAttackString(attackText);
-  if (!isRedirectableEnemyAttack(parsed)) return "Attack not supported";
+  const attackSpec = source.name ? getEnemyAttacks(source.name)[action.attackIndex]?.attack : undefined;
+  if (!attackSpec) return "Invalid attack";
+  if (!isRedirectableEnemyAttack(attackSpec)) return "Attack not supported";
 
-  if (isDirectTargetEnemyAttack(parsed)) {
+  if (isDirectTargetEnemyAttack(attackSpec)) {
     if (!action.targetEnemyId) return "Select target enemy";
     if (isSameEnemyOrSwarm(state, source.id, action.targetEnemyId)) return "Invalid target";
-    const validTargets = enemyDirectAttackTargetEnemyIds(state, source.id, parsed);
+    const validTargets = enemyDirectAttackTargetEnemyIds(state, source.id, attackSpec);
     if (!validTargets.includes(action.targetEnemyId)) return "Target out of range";
     return null;
   }
 
   if (!action.direction) return "Select direction";
-  const spec = enemyPatternAttackSpec(parsed);
+  const spec = enemyPatternAttackSpec(attackSpec);
   if (!spec) return "Attack not supported";
   const origin = resolveEnemyPatternOrigin(
     source,
@@ -348,21 +341,28 @@ export function applyRedirectionCircuits(
   action: Extract<PlayerAction, { action: "useEquipment" }>,
 ): { message: string; hitEnemyIds: string[] } {
   const source = state.enemies.find((e) => e.id === action.sourceEnemyId)!;
-  const attacks = source.name ? enemyAttacks(source.name) : [];
-  const parsed = parseEnemyAttackString(attacks[action.attackIndex!] ?? "");
+  const attackSpec = source.name
+    ? getEnemyAttacks(source.name)[action.attackIndex!]?.attack
+    : undefined;
+  if (!attackSpec) {
+    return {
+      message: `${playerLabel(player)} redirected ${enemyLabel(source)} attack (unsupported)`,
+      hitEnemyIds: [],
+    };
+  }
 
-  if (isDirectTargetEnemyAttack(parsed)) {
+  if (isDirectTargetEnemyAttack(attackSpec)) {
     const target = state.enemies.find((e) => e.id === action.targetEnemyId)!;
-    const damage = parsed.damage ?? 0;
+    const damage = enemyAttackDamage(attackSpec) ?? 0;
     applyDamageToEnemy(target, damage, state);
-    if (parsed.effects) applyEffectStacks(target, parsed.effects);
+    if (attackSpec.effects) applyEffectStacks(target, attackSpec.effects);
     return {
       message: `${playerLabel(player)} redirected ${enemyLabel(source)} attack → ${enemyLabel(target)} for ${damage}`,
       hitEnemyIds: [target.id],
     };
   }
 
-  const spec = enemyPatternAttackSpec(parsed);
+  const spec = enemyPatternAttackSpec(attackSpec);
   if (!spec) {
     return {
       message: `${playerLabel(player)} redirected ${enemyLabel(source)} attack (unsupported)`,
@@ -387,14 +387,14 @@ export function applyRedirectionCircuits(
   const hits = enemiesInTiles(state, tiles).filter(
     (t) => !isSameEnemyOrSwarm(state, source.id, t.enemyId),
   );
-  const damage = parsed.damage ?? 0;
+  const damage = enemyAttackDamage(attackSpec) ?? 0;
   const names: string[] = [];
   const hitEnemyIds: string[] = [];
   for (const hit of hits) {
     const enemy = state.enemies.find((e) => e.id === hit.enemyId);
     if (!enemy) continue;
     applyDamageToEnemy(enemy, damage, state);
-    if (parsed.effects) applyEffectStacks(enemy, parsed.effects);
+    if (attackSpec.effects) applyEffectStacks(enemy, attackSpec.effects);
     names.push(enemyLabel(enemy));
     hitEnemyIds.push(enemy.id);
   }

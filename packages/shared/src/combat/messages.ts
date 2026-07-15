@@ -74,6 +74,8 @@ import {
   enemiesInTiles,
   enemyDirectAttackTargetEnemyIds,
   enemyDirectAttackTargetPlayerIds,
+  enemyAttackDamage,
+  enemyAttackNeedsFlowerbudPlant,
   enemyPatternAttackSpec,
   getWeaponAttackSpec,
   isAutoResolvableEnemyAttack,
@@ -82,7 +84,6 @@ import {
   isSelectTargetEnemyAttack,
   isWarhookWeaponName,
   manhattanDistance,
-  parseEnemyAttackString,
   resolveAttackWeapon,
   resolveCombatAttackSpec,
   resolveEnemyPatternOrigin,
@@ -118,13 +119,16 @@ import {
 import { applyEffectStacks, applyTileEffectStacks, clearEffectStacks, clearTileEffects, hasTileEffects, parseEffectToken, replaceTileEffects, tickUnitEndOfTurn } from "./effects.js";
 import { isKnownEffectId } from "../effects-data.js";
 import { createPendingAction, addPendingAction, applyAssistedOutcome } from "./pending.js";
-import { appendCombatSideEffectMessages, maybeTriggerAgnosia } from "./agnosia.js";
+import { appendCombatSideEffectMessages, applyGorgenautAgnosia, maybeTriggerAgnosia, validateConfirmGorgenautAgnosia } from "./agnosia.js";
 import {
   applyGorgenautStainTeleport,
   enemyAttackNeedsStainTeleport,
-  isGorgenaut,
   validateGorgenautStainTeleport,
 } from "./gorgenaut.js";
+import {
+  applyFlowerbudPlant,
+  validateFlowerbudPlant,
+} from "./chalazaor.js";
 import {
   applyPatternEnemyAttack,
   applySelectTargetEnemyAttack,
@@ -1021,9 +1025,8 @@ export function validateGmEnemyAction(state: GameState, action: GmEnemyAction): 
     case "attack": {
       const chipErr = requireSwarmChipResolved(state, action.enemyId);
       if (chipErr) return chipErr;
-      const attacks = enemy.name ? enemyAttacks(enemy.name) : [];
-      const attackText = attacks[action.attackIndex] ?? "";
-      const parsed = attackText ? parseEnemyAttackString(attackText) : { raw: "" };
+      const attackSpec = enemy.name ? enemyAttacks(enemy.name)[action.attackIndex]?.attack : undefined;
+      if (!attackSpec) return "Invalid attack";
 
       if (action.swarmStrikes != null) {
         const group = swarmGroupForEnemy(state, action.enemyId);
@@ -1038,18 +1041,30 @@ export function validateGmEnemyAction(state: GameState, action: GmEnemyAction): 
         }
       }
 
-      if (enemyAttackNeedsStainTeleport(attackText) || (isGorgenaut(enemy) && action.attackIndex === 1)) {
-        return validateGorgenautStainTeleport(state, enemy, {
-          targetPlayerId: action.targetPlayerId,
-          targetEnemyId: action.targetEnemyId,
+      if (enemyAttackNeedsStainTeleport(attackSpec)) {
+        return validateGorgenautStainTeleport(
+          state,
+          enemy,
+          {
+            targetPlayerId: action.targetPlayerId,
+            targetEnemyId: action.targetEnemyId,
+            destX: action.destX,
+            destY: action.destY,
+          },
+          attackSpec,
+        );
+      }
+
+      if (enemyAttackNeedsFlowerbudPlant(attackSpec)) {
+        return validateFlowerbudPlant(state, enemy, {
           destX: action.destX,
           destY: action.destY,
         });
       }
 
-      if (isPatternEnemyAttack(parsed)) {
+      if (isPatternEnemyAttack(attackSpec)) {
         if (!action.direction) return "Select direction";
-        const spec = enemyPatternAttackSpec(parsed);
+        const spec = enemyPatternAttackSpec(attackSpec);
         if (!spec) return "Invalid attack";
         const resolved = resolveEnemyPatternOrigin(
           enemy,
@@ -1063,21 +1078,21 @@ export function validateGmEnemyAction(state: GameState, action: GmEnemyAction): 
         return null;
       }
 
-      if (isSelectTargetEnemyAttack(parsed)) {
+      if (isSelectTargetEnemyAttack(attackSpec)) {
         if (action.targetPlayerId) {
-          const valid = enemyDirectAttackTargetPlayerIds(state, enemy.id, parsed);
+          const valid = enemyDirectAttackTargetPlayerIds(state, enemy.id, attackSpec);
           if (!valid.includes(action.targetPlayerId)) return "Target out of range";
           return null;
         }
         if (action.targetEnemyId) {
-          const valid = enemyDirectAttackTargetEnemyIds(state, enemy.id, parsed);
+          const valid = enemyDirectAttackTargetEnemyIds(state, enemy.id, attackSpec);
           if (!valid.includes(action.targetEnemyId)) return "Target out of range";
           return null;
         }
         return "Select target";
       }
 
-      if (!isAutoResolvableEnemyAttack(attackText)) return null;
+      if (!isAutoResolvableEnemyAttack(attackSpec)) return null;
       return null;
     }
     case "assisted":
@@ -1127,20 +1142,22 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
       if (swarmGroupForEnemy(state, enemy.id)) {
         markSwarmChipResolved(state, enemy.id);
       }
-      const attacks = enemy.name ? enemyAttacks(enemy.name) : [];
-      const attackText = attacks[action.attackIndex];
-      const parsed = attackText ? parseEnemyAttackString(attackText) : { raw: "" };
+      const attackSpec = enemy.name ? enemyAttacks(enemy.name)[action.attackIndex]?.attack : undefined;
+      if (!attackSpec) {
+        return appendCombatSideEffectMessages(
+          state,
+          `${enemyLabel(enemy)} attack ${action.attackIndex + 1} (not auto-resolved — use damage/force-move tools)`,
+        );
+      }
+      const baseDamage = enemyAttackDamage(attackSpec);
 
-      if (
-        (isGorgenaut(enemy) && action.attackIndex === 1) ||
-        (attackText != null && enemyAttackNeedsStainTeleport(attackText))
-      ) {
+      if (enemyAttackNeedsStainTeleport(attackSpec)) {
         if (
           action.destX != null &&
           action.destY != null &&
           (action.targetPlayerId || action.targetEnemyId)
         ) {
-          const dmg = action.damage ?? parsed.damage ?? 10;
+          const dmg = action.damage ?? baseDamage ?? 10;
           return appendCombatSideEffectMessages(
             state,
             applyGorgenautStainTeleport(state, enemy, {
@@ -1154,46 +1171,55 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
         }
       }
 
-      if (isPatternEnemyAttack(parsed) && action.direction) {
-        const msg = applyPatternEnemyAttack(state, enemy, parsed, action.direction, {
+      if (enemyAttackNeedsFlowerbudPlant(attackSpec)) {
+        if (action.destX != null && action.destY != null) {
+          return appendCombatSideEffectMessages(
+            state,
+            applyFlowerbudPlant(state, enemy, action.destX, action.destY),
+          );
+        }
+      }
+
+      if (isPatternEnemyAttack(attackSpec) && action.direction) {
+        const msg = applyPatternEnemyAttack(state, enemy, attackSpec, action.direction, {
           damage: action.damage,
           origin:
             action.originX != null && action.originY != null
               ? { x: action.originX, y: action.originY }
               : undefined,
           onPlayerHit: (playerId) =>
-            maybeSetEnemyAttackReversal(state, playerId, enemy.id, action.damage ?? parsed.damage ?? 0),
+            maybeSetEnemyAttackReversal(state, playerId, enemy.id, action.damage ?? baseDamage ?? 0),
         });
         return appendCombatSideEffectMessages(state, msg);
       }
 
       const group = swarmGroupForEnemy(state, enemy.id);
       if (
-        parsed.damage &&
+        baseDamage != null &&
         action.targetPlayerId &&
         group &&
-        isDirectTargetEnemyAttack(parsed)
+        isDirectTargetEnemyAttack(attackSpec)
       ) {
         const target = state.players.find((p) => p.id === action.targetPlayerId);
         if (target) {
           const preview = applySwarmEnemyAttackToPlayer(
             state,
             enemy.id,
-            parsed,
+            attackSpec,
             action.targetPlayerId,
-            { damage: action.damage ?? parsed.damage, strikeCount: action.swarmStrikes },
+            { damage: action.damage ?? baseDamage, strikeCount: action.swarmStrikes },
           );
           let msg = `${enemyLabel(enemy)} used attack ${action.attackIndex + 1}`;
           msg += ` → ${playerLabel(target)} for ${preview.totalDamage} (${preview.detail})`;
           if (action.targetPlayerId && state.combat) {
-            maybeSetEnemyAttackReversal(state, action.targetPlayerId, enemy.id, action.damage ?? parsed.damage ?? 0);
+            maybeSetEnemyAttackReversal(state, action.targetPlayerId, enemy.id, action.damage ?? baseDamage ?? 0);
           }
           return appendCombatSideEffectMessages(state, msg);
         }
       }
 
-      if (isSelectTargetEnemyAttack(parsed) && (action.targetPlayerId || action.targetEnemyId)) {
-        const resolved = applySelectTargetEnemyAttack(state, enemy, parsed, {
+      if (isSelectTargetEnemyAttack(attackSpec) && (action.targetPlayerId || action.targetEnemyId)) {
+        const resolved = applySelectTargetEnemyAttack(state, enemy, attackSpec, {
           targetPlayerId: action.targetPlayerId,
           targetEnemyId: action.targetEnemyId,
           damage: action.damage,
@@ -1204,7 +1230,7 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
               state,
               action.targetPlayerId,
               enemy.id,
-              action.damage ?? parsed.damage ?? 0,
+              action.damage ?? baseDamage ?? 0,
             );
           }
           return appendCombatSideEffectMessages(state, resolved);
@@ -1321,7 +1347,7 @@ function maybeSetEnemyAttackReversal(
   }
 }
 
-function enemyAttacks(name: string): string[] {
+function enemyAttacks(name: string) {
   return getEnemyListingByName(name)?.attacks ?? [];
 }
 
@@ -1893,9 +1919,9 @@ export function previewEnemyAttack(
 ): { x: number; y: number }[] {
   const enemy = state.enemies.find((e) => e.id === enemyId);
   if (!enemy?.name) return [];
-  const attacks = enemyAttacks(enemy.name);
-  const parsed = parseEnemyAttackString(attacks[attackIndex] ?? "");
-  const spec = enemyPatternAttackSpec(parsed);
+  const attackSpec = enemyAttacks(enemy.name)[attackIndex]?.attack;
+  if (!attackSpec) return [];
+  const spec = enemyPatternAttackSpec(attackSpec);
   if (!spec) return [];
   const resolved = resolveEnemyPatternOrigin(enemy, spec.patternId, direction, origin ?? null);
   if (!resolved) return [];
@@ -1909,7 +1935,7 @@ export function previewAttackTargets(
   return enemiesInTiles(state, tiles).map((t) => t.enemyId);
 }
 export type CombatHandleResult =
-  | { handled: true; message: string; silent?: boolean }
+  | { handled: true; message: string; silent?: boolean; persistCoords?: { x: number; y: number }[] }
   | { handled: false };
 
 export function validateSetAttackPreview(
@@ -2082,6 +2108,19 @@ export function handleCombatMessage(
         applyGmPaintTile(state, x, y, fields);
       }
       return { handled: true, message: "", silent: true };
+    }
+    case "confirmGorgenautAgnosia": {
+      if (!hasGmCapabilities(ctx)) return { handled: true, error: "Only GM can do that" };
+      const err = validateConfirmGorgenautAgnosia(
+        state,
+        parsed.enemyId,
+        parsed.hoverX,
+        parsed.hoverY,
+      );
+      if (err) return { handled: true, error: err };
+      const enemy = state.enemies.find((e) => e.id === parsed.enemyId)!;
+      const result = applyGorgenautAgnosia(state, enemy, parsed.hoverX, parsed.hoverY);
+      return { handled: true, message: result.message, persistCoords: result.coords };
     }
     case "removeAttractor": {
       const err = validateRemoveAttractor(state, parsed.x, parsed.y, ctx);

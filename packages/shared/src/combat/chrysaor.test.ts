@@ -14,7 +14,7 @@ import {
   tickBrands,
 } from "./chrysaor.js";
 import { applyPatternEnemyAttack, applySelectTargetEnemyAttack } from "./enemy-attack-resolve.js";
-import { parseEnemyAttackString } from "./attack.js";
+import type { EnemyAttackSpec } from "./types.js";
 import { applyTileEffectStacks } from "./effects.js";
 import { createDefaultCombatState } from "./types.js";
 import { applyGmPaintTile } from "./messages.js";
@@ -112,8 +112,14 @@ describe("CHRYSAOR Brand", () => {
     state.combat = createDefaultCombatState(1);
     applySoulBranding(state, "p1", { kind: "enemy", id: "marked" });
 
-    const parsed = parseEnemyAttackString("Deal 5 damage and Shock:2 to Burst:1");
-    applyPatternEnemyAttack(state, state.enemies.find((e) => e.id === "rose")!, parsed, "n", {
+    const attackSpec: EnemyAttackSpec = {
+      targeting: "pattern",
+      patternId: "burst",
+      size: 1,
+      damage: "5",
+      effects: ["Shock:2"],
+    };
+    applyPatternEnemyAttack(state, state.enemies.find((e) => e.id === "rose")!, attackSpec, "n", {
       damage: 5,
     });
 
@@ -139,8 +145,13 @@ describe("CHRYSAOR Brand", () => {
     addTestEnemy(state, "e1", 3, 3, { name: "Creep", hp: 100 });
     state.combat = createDefaultCombatState(1);
 
-    const parsed = parseEnemyAttackString("Damage:5, Shock:2");
-    applySelectTargetEnemyAttack(state, state.enemies[0]!, parsed, {
+    const attackSpec: EnemyAttackSpec = {
+      targeting: "select",
+      damage: "5",
+      effects: ["Shock:2"],
+      range: 1,
+    };
+    applySelectTargetEnemyAttack(state, state.enemies[0]!, attackSpec, {
       targetPlayerId: "p1",
       damage: 5,
     });
