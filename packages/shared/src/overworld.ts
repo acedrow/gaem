@@ -176,17 +176,16 @@ export function ensureOverworldConvoys(state: GameState): OverworldConvoy[] {
     state.overworldConvoys = [];
     return state.overworldConvoys;
   }
-  const seen = new Set<string>();
+  const seenIds = new Set<string>();
   const out: OverworldConvoy[] = [];
   for (const convoy of state.overworldConvoys) {
     if (!convoy || typeof convoy !== "object") continue;
     if (typeof convoy.id !== "string" || !convoy.id) continue;
+    if (seenIds.has(convoy.id)) continue;
     if (!CONVOY_TYPES.includes(convoy.type as OverworldConvoyType)) continue;
     if (!FACTION_IDS.includes(convoy.factionId as FactionId)) continue;
     if (!isOverworldQuarterInBounds(convoy.qx, convoy.qy)) continue;
-    const key = `${convoy.qx},${convoy.qy}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
+    seenIds.add(convoy.id);
     out.push({
       id: convoy.id,
       qx: convoy.qx,
@@ -211,7 +210,6 @@ export function convoyAtQuarter(
 export function listOverworldConvoyDestinations(
   convoy: Pick<OverworldConvoy, "qx" | "qy">,
   mapSpeed: number,
-  occupied: ReadonlySet<string>,
 ): { qx: number; qy: number }[] {
   const reach = overworldTravelReachQuarters(mapSpeed);
   if (reach <= 0) return [];
@@ -223,7 +221,6 @@ export function listOverworldConvoyDestinations(
   for (let qy = minQy; qy <= maxQy; qy++) {
     for (let qx = minQx; qx <= maxQx; qx++) {
       if (!isOverworldTravelDestination(convoy, { qx, qy }, mapSpeed)) continue;
-      if (occupied.has(`${qx},${qy}`)) continue;
       out.push({ qx, qy });
     }
   }
@@ -313,9 +310,6 @@ export function validateOverworldConvoyAction(
       if (!isOverworldQuarterInBounds(action.qx, action.qy)) return "Out of bounds";
       if (!CONVOY_TYPES.includes(action.type)) return "Unknown convoy type";
       if (!FACTION_IDS.includes(action.factionId as FactionId)) return "Unknown faction";
-      if (convoyAtQuarter(state, action.qx, action.qy)) {
-        return "A convoy is already placed here";
-      }
       return null;
     }
     case "remove": {
@@ -336,8 +330,6 @@ export function validateOverworldConvoyAction(
       if (!isOverworldTravelDestination(convoy, { qx: action.qx, qy: action.qy }, party.mapSpeed)) {
         return "Invalid convoy destination";
       }
-      const other = convoyAtQuarter(state, action.qx, action.qy);
-      if (other && other.id !== convoy.id) return "A convoy is already placed here";
       return null;
     }
     case "setInfoVisible": {

@@ -36,6 +36,12 @@ import {
 import { useOverworldEntitySelection } from "../composables/useOverworldEntitySelection.js";
 import { useSession } from "../composables/useSession.js";
 import { showToast } from "../composables/useToasts.js";
+import {
+  orderOccupants,
+  slotForOccupant,
+  stackSpreadFromZoom,
+  type OverworldStackOccupant,
+} from "../lib/overworldTokenLayout.js";
 import locationUrl from "../assets/location.svg";
 import skullUrl from "../assets/skull.svg";
 import BoardContextMenu, { type BoardContextMenuItem } from "./BoardContextMenu.vue";
@@ -47,7 +53,7 @@ import PlaceOverworldLocationModal from "./PlaceOverworldLocationModal.vue";
 
 const CELL = 64;
 const QUARTER = CELL / 2;
-const COLOCATED_CONVOY_OFFSET = 6;
+const LOCATION_MARKER_Y_NUDGE = QUARTER / 6;
 const DIS_NODE = 72;
 const DIS_GAP = 56;
 const boardWidthPx = OVERWORLD_WIDTH * CELL;
@@ -130,9 +136,29 @@ const locationByKey = computed(() => {
   return map;
 });
 const convoyByKey = computed(() => {
-  const map = new Map<string, OverworldConvoy>();
+  const map = new Map<string, OverworldConvoy[]>();
   for (const convoy of convoys.value) {
-    map.set(`${convoy.qx},${convoy.qy}`, convoy);
+    const key = `${convoy.qx},${convoy.qy}`;
+    const existing = map.get(key);
+    if (existing) existing.push(convoy);
+    else map.set(key, [convoy]);
+  }
+  return map;
+});
+
+const occupantsByCell = computed(() => {
+  const map = new Map<string, OverworldStackOccupant[]>();
+  function add(qx: number, qy: number, occupant: OverworldStackOccupant) {
+    const key = `${qx},${qy}`;
+    const existing = map.get(key);
+    if (existing) existing.push(occupant);
+    else map.set(key, [occupant]);
+  }
+  for (const loc of locations.value) add(loc.qx, loc.qy, { kind: "location", id: loc.id });
+  for (const convoy of convoys.value) add(convoy.qx, convoy.qy, { kind: "convoy", id: convoy.id });
+  if (!atDis.value) add(party.value.qx, party.value.qy, { kind: "party" });
+  for (const [key, occupants] of map) {
+    map.set(key, orderOccupants(occupants));
   }
   return map;
 });
@@ -140,15 +166,6 @@ const convoyByKey = computed(() => {
 const selectedConvoy = computed(
   () => convoys.value.find((c) => c.id === selectedOverworldConvoyId.value) ?? null,
 );
-
-const convoyOccupiedKeys = computed(() => {
-  const keys = new Set<string>();
-  for (const convoy of convoys.value) {
-    if (convoy.id === selectedOverworldConvoyId.value) continue;
-    keys.add(`${convoy.qx},${convoy.qy}`);
-  }
-  return keys;
-});
 
 const convoyMoveMode = computed(
   () => hasGmCapabilities.value && selectedConvoy.value != null && !travelMode.value && !deployMode.value,
@@ -169,11 +186,9 @@ const deployDestKeys = computed(() => {
 const convoyDestKeys = computed(() => {
   if (!convoyMoveMode.value || !selectedConvoy.value) return new Set<string>();
   return new Set(
-    listOverworldConvoyDestinations(
-      selectedConvoy.value,
-      party.value.mapSpeed,
-      convoyOccupiedKeys.value,
-    ).map((d) => `${d.qx},${d.qy}`),
+    listOverworldConvoyDestinations(selectedConvoy.value, party.value.mapSpeed).map(
+      (d) => `${d.qx},${d.qy}`,
+    ),
   );
 });
 
@@ -190,17 +205,19 @@ const partyTransitionReady = ref(false);
 
 const partyTokenStyle = computed(() => {
   if (atDis.value) {
-    // Sit in the lower half of the DIS node so the label stays readable.
     return {
-      left: `${(boardWidthPx - QUARTER) / 2}px`,
-      top: `${boardHeightPx + DIS_GAP + DIS_NODE * 0.58 - QUARTER / 2}px`,
+      left: `${boardWidthPx / 2}px`,
+      top: `${boardHeightPx + DIS_GAP + DIS_NODE * 0.58}px`,
       width: `${QUARTER}px`,
       height: `${QUARTER}px`,
     };
   }
+  const occupant = { kind: "party" as const };
+  const occupants = occupantsByCell.value.get(`${party.value.qx},${party.value.qy}`) ?? [occupant];
+  const slot = slotForOccupant(occupants, occupant, stackSpread.value);
   return {
-    left: `${party.value.qx * QUARTER}px`,
-    top: `${party.value.qy * QUARTER}px`,
+    left: `${(party.value.qx + slot.fx) * QUARTER}px`,
+    top: `${(party.value.qy + slot.fy) * QUARTER}px`,
     width: `${QUARTER}px`,
     height: `${QUARTER}px`,
   };
@@ -315,17 +332,16 @@ function onBoardContextMenu(e: MouseEvent) {
     return;
   }
   const existingLoc = locationByKey.value.get(`${qx},${qy}`);
-  const existingConvoy = convoyByKey.value.get(`${qx},${qy}`);
+  const existingConvoys = convoyByKey.value.get(`${qx},${qy}`) ?? [];
   const items: BoardContextMenuItem[] = [];
   if (existingLoc) {
     items.push({ id: "remove-location", label: "Remove location", danger: true });
   } else {
     items.push({ id: "place-location", label: "Place location" });
   }
-  if (existingConvoy) {
+  items.push({ id: "deploy-convoy", label: "Deploy convoy" });
+  if (existingConvoys.length > 0) {
     items.push({ id: "remove-convoy", label: "Remove convoy", danger: true });
-  } else {
-    items.push({ id: "deploy-convoy", label: "Deploy convoy" });
   }
   contextMenu.value = {
     open: true,
@@ -355,7 +371,11 @@ function onContextMenuSelect(id: string) {
     return;
   }
   if (id === "remove-convoy") {
-    const existing = convoyByKey.value.get(`${qx},${qy}`);
+    const atCell = convoyByKey.value.get(`${qx},${qy}`) ?? [];
+    const selectedId = selectedOverworldConvoyId.value;
+    const existing =
+      (selectedId ? atCell.find((c) => c.id === selectedId) : undefined) ??
+      [...atCell].sort((a, b) => a.id.localeCompare(b.id))[0];
     if (!existing) return;
     removeConvoyModal.value = { open: true, convoy: existing };
   }
@@ -393,20 +413,24 @@ function confirmRemoveConvoy() {
 }
 
 function locationMarkerStyle(loc: OverworldLocation) {
+  const occupant = { kind: "location" as const, id: loc.id };
+  const occupants = occupantsByCell.value.get(`${loc.qx},${loc.qy}`) ?? [occupant];
+  const slot = slotForOccupant(occupants, occupant, stackSpread.value);
   return {
-    left: `${(loc.qx * QUARTER + QUARTER / 2) - 2}px`,
-    top: `${loc.qy * QUARTER + (QUARTER / 4)}px`,
+    left: `${(loc.qx + slot.fx) * QUARTER}px`,
+    top: `${(loc.qy + slot.fy) * QUARTER - LOCATION_MARKER_Y_NUDGE}px`,
     width: `${QUARTER}px`,
     height: `${QUARTER}px`,
   };
 }
 
 function convoyMarkerStyle(convoy: OverworldConvoy) {
-  const colocated = locationByKey.value.has(`${convoy.qx},${convoy.qy}`);
-  const offset = colocated ? COLOCATED_CONVOY_OFFSET : 0;
+  const occupant = { kind: "convoy" as const, id: convoy.id };
+  const occupants = occupantsByCell.value.get(`${convoy.qx},${convoy.qy}`) ?? [occupant];
+  const slot = slotForOccupant(occupants, occupant, stackSpread.value);
   return {
-    left: `${convoy.qx * QUARTER + offset - 2}px`,
-    top: `${convoy.qy * QUARTER + offset - 2}px`,
+    left: `${(convoy.qx + slot.fx) * QUARTER}px`,
+    top: `${(convoy.qy + slot.fy) * QUARTER}px`,
     width: `${QUARTER}px`,
     height: `${QUARTER}px`,
   };
@@ -482,6 +506,8 @@ const {
   observeViewport,
   disconnect,
 } = useBoardViewport(viewportEl, contentWidthPx, contentHeightPx, isReady, viewportKey);
+
+const stackSpread = computed(() => stackSpreadFromZoom(fitScale.value, scale.value));
 
 function onLocationClick(loc: OverworldLocation) {
   if (consumeSuppressMapPingClick()) return;
@@ -1078,6 +1104,7 @@ const gridCells = computed(() =>
   position: relative;
   z-index: 1;
   flex-shrink: 0;
+  box-sizing: content-box;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   overflow: visible;
@@ -1382,7 +1409,7 @@ const gridCells = computed(() =>
   justify-content: center;
   pointer-events: none;
   cursor: pointer;
-  transform: scale(var(--board-icon-counter-scale, 2));
+  transform: translate(-50%, -50%) scale(var(--board-icon-counter-scale, 2));
   transform-origin: center;
   transition: left 350ms ease, top 350ms ease;
 }
@@ -1458,7 +1485,7 @@ const gridCells = computed(() =>
   align-items: center;
   justify-content: center;
   pointer-events: none;
-  transform: scale(var(--board-icon-counter-scale, 2));
+  transform: translate(-50%, -50%) scale(var(--board-icon-counter-scale, 2));
   transform-origin: center;
   transition: left 350ms ease, top 350ms ease;
 }

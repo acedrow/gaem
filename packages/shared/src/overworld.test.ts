@@ -340,7 +340,7 @@ describe("overworldConvoyAction", () => {
     });
   });
 
-  it("rejects place when the cell already has a convoy", () => {
+  it("allows placing a convoy on a cell that already has one", () => {
     const state = makeGameState({
       overworldConvoys: [
         {
@@ -361,7 +361,15 @@ describe("overworldConvoyAction", () => {
         type: "support",
         factionId: "syncrasis",
       }),
-    ).toBe("A convoy is already placed here");
+    ).toBeNull();
+    applyOverworldConvoyAction(state, {
+      kind: "place",
+      qx: 8,
+      qy: 10,
+      type: "support",
+      factionId: "syncrasis",
+    });
+    expect(state.overworldConvoys).toHaveLength(2);
   });
 
   it("moves a convoy within party map speed reach", () => {
@@ -385,6 +393,35 @@ describe("overworldConvoyAction", () => {
     expect(state.overworldConvoys![0]).toMatchObject({ qx: 13, qy: 10 });
   });
 
+  it("allows moving a convoy onto another convoy's cell", () => {
+    const state = makeGameState({
+      overworldParty: partyOnMap({ mapSpeed: 1 }),
+      overworldConvoys: [
+        {
+          id: "c-1",
+          qx: 10,
+          qy: 10,
+          type: "assault",
+          factionId: "autophyes",
+          infoVisibleToPlayers: false,
+        },
+        {
+          id: "c-2",
+          qx: 13,
+          qy: 10,
+          type: "supply",
+          factionId: "syncrasis",
+          infoVisibleToPlayers: false,
+        },
+      ],
+    });
+    expect(
+      validateOverworldConvoyAction(state, { kind: "move", convoyId: "c-1", qx: 13, qy: 10 }),
+    ).toBeNull();
+    applyOverworldConvoyAction(state, { kind: "move", convoyId: "c-1", qx: 13, qy: 10 });
+    expect(state.overworldConvoys!.filter((c) => c.qx === 13 && c.qy === 10)).toHaveLength(2);
+  });
+
   it("rejects convoy moves beyond map speed reach", () => {
     const state = makeGameState({
       overworldParty: partyOnMap({ mapSpeed: 1 }),
@@ -404,11 +441,10 @@ describe("overworldConvoyAction", () => {
     ).toBe("Invalid convoy destination");
   });
 
-  it("lists destinations excluding other convoys", () => {
-    const occupied = new Set(["12,10"]);
-    const dests = listOverworldConvoyDestinations({ qx: 10, qy: 10 }, 1, occupied);
-    expect(dests.some((d) => d.qx === 12 && d.qy === 10)).toBe(false);
+  it("lists destinations within map speed reach", () => {
+    const dests = listOverworldConvoyDestinations({ qx: 10, qy: 10 }, 1);
     expect(dests.some((d) => d.qx === 11 && d.qy === 10)).toBe(true);
+    expect(dests.some((d) => d.qx === 20 && d.qy === 10)).toBe(false);
   });
 
   it("removes and reveals convoys", () => {

@@ -150,6 +150,26 @@ function toggleTables() {
   tablesExpanded.value = !tablesExpanded.value;
 }
 
+const openDropdownCount = computed(() => {
+  let count = 0;
+  if (hasGmCapabilities.value && mapsExpanded.value) count += 1;
+  if (sheetsExpanded.value) count += 1;
+  if (dataExpanded.value) count += 1;
+  if (factionsExpanded.value) count += 1;
+  if (tablesExpanded.value) count += 1;
+  return count;
+});
+
+const showCollapseAll = computed(() => openDropdownCount.value >= 2);
+
+function collapseAll() {
+  if (hasGmCapabilities.value) mapsExpanded.value = false;
+  sheetsExpanded.value = false;
+  dataExpanded.value = false;
+  factionsExpanded.value = false;
+  tablesExpanded.value = false;
+}
+
 function onSelectSheet(sheetId: string) {
   selectSheetFromNav(sheetId);
 }
@@ -263,6 +283,15 @@ watch(sheetsVersion, () => {
 
 <template>
   <nav class="side-nav">
+    <button
+      v-if="showCollapseAll"
+      class="collapse-all-btn"
+      type="button"
+      @click="collapseAll"
+    >
+      Collapse all
+    </button>
+
     <template v-if="hasGmCapabilities">
       <button class="nav-link nav-toggle" :class="{ expanded: mapsExpanded }" type="button" @click="toggleMaps">
         Maps
@@ -517,6 +546,24 @@ watch(sheetsVersion, () => {
   gap: 0.35rem;
   min-width: 10rem;
   padding: 0 0.75rem 1rem;
+}
+
+.collapse-all-btn {
+  align-self: flex-end;
+  margin: 0.15rem 0 0.1rem;
+  padding: 0.15rem 0.35rem;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-muted);
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.collapse-all-btn:hover {
+  color: var(--color-text);
 }
 
 .nav-link {
