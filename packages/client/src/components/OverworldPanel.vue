@@ -394,8 +394,8 @@ function confirmRemoveConvoy() {
 
 function locationMarkerStyle(loc: OverworldLocation) {
   return {
-    left: `${loc.qx * QUARTER}px`,
-    top: `${loc.qy * QUARTER}px`,
+    left: `${(loc.qx * QUARTER + QUARTER / 2) - 2}px`,
+    top: `${loc.qy * QUARTER + (QUARTER / 4)}px`,
     width: `${QUARTER}px`,
     height: `${QUARTER}px`,
   };
@@ -405,8 +405,8 @@ function convoyMarkerStyle(convoy: OverworldConvoy) {
   const colocated = locationByKey.value.has(`${convoy.qx},${convoy.qy}`);
   const offset = colocated ? COLOCATED_CONVOY_OFFSET : 0;
   return {
-    left: `${convoy.qx * QUARTER + offset}px`,
-    top: `${convoy.qy * QUARTER + offset}px`,
+    left: `${convoy.qx * QUARTER + offset - 2}px`,
+    top: `${convoy.qy * QUARTER + offset - 2}px`,
     width: `${QUARTER}px`,
     height: `${QUARTER}px`,
   };
@@ -492,7 +492,7 @@ function onLocationClick(loc: OverworldLocation) {
     return;
   }
   selectOverworldLocation(loc.id);
-  panToRect(loc.qx * QUARTER, loc.qy * QUARTER, QUARTER, QUARTER);
+  panToRect(loc.qx * QUARTER, loc.qy * QUARTER + QUARTER / 6, QUARTER, QUARTER);
 
   const infoVisible = hasGmCapabilities.value || isLocationInfoVisibleToPlayers(loc);
   if (!infoVisible) {
@@ -1339,7 +1339,7 @@ const gridCells = computed(() =>
   justify-content: center;
   pointer-events: none;
   cursor: pointer;
-  transform: scale(calc(2 * var(--board-fit-scale, 1) / var(--board-scale, 1)));
+  transform: translate(-50%, -50%) scale(var(--board-icon-counter-scale, 2));
   transform-origin: center;
   transition: left 350ms ease, top 350ms ease;
 }
@@ -1382,7 +1382,7 @@ const gridCells = computed(() =>
   justify-content: center;
   pointer-events: none;
   cursor: pointer;
-  transform: scale(calc(2 * var(--board-fit-scale, 1) / var(--board-scale, 1)));
+  transform: scale(var(--board-icon-counter-scale, 2));
   transform-origin: center;
   transition: left 350ms ease, top 350ms ease;
 }
@@ -1458,7 +1458,7 @@ const gridCells = computed(() =>
   align-items: center;
   justify-content: center;
   pointer-events: none;
-  transform: scale(calc(2 * var(--board-fit-scale, 1) / var(--board-scale, 1)));
+  transform: scale(var(--board-icon-counter-scale, 2));
   transform-origin: center;
   transition: left 350ms ease, top 350ms ease;
 }

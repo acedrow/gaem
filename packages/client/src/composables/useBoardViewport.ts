@@ -33,12 +33,24 @@ export function useBoardViewport(
   const fitPanY = ref(0);
   const stageAnimating = ref(false);
 
-  const stageStyle = computed(() => ({
-    transform: `translate(${panX.value}px, ${panY.value}px) scale(${scale.value})`,
-    "--board-scale": String(scale.value),
-    "--board-fit-scale": String(fitScale.value),
-    ...(stageAnimating.value ? { transition: `transform ${FOCUS_ANIM_MS}ms ease-out` } : {}),
-  }));
+  const stageStyle = computed(() => {
+    const s = scale.value;
+    const fit = fitScale.value;
+    // Keep on-screen icon size at fit zoom; grow linearly to 2× that size at max zoom.
+    let iconCounterScale = 2;
+    if (fit > 0 && s > 0) {
+      const r = s / fit;
+      const growth = Math.max(1, (r + ZOOM_MAX_FACTOR - 2) / (ZOOM_MAX_FACTOR - 1));
+      iconCounterScale = ((2 * fit) / s) * growth;
+    }
+    return {
+      transform: `translate(${panX.value}px, ${panY.value}px) scale(${s})`,
+      "--board-scale": String(s),
+      "--board-fit-scale": String(fit),
+      "--board-icon-counter-scale": String(iconCounterScale),
+      ...(stageAnimating.value ? { transition: `transform ${FOCUS_ANIM_MS}ms ease-out` } : {}),
+    };
+  });
 
   const isTransformed = computed(
     () =>
