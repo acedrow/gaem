@@ -60,8 +60,11 @@ export function enterTaccom(state: GameState): void {
     state.combat.attractorPulledEnemyIds = [];
     state.combat.gearCheckGrants = {};
     state.combat.kopisMarks = {};
+    state.combat.chrysaorBrands = {};
     state.combat.countdownKinds = {};
   }
+  state.actedPlayerIds = [];
+  state.turnLog = [];
   resetAllPlayersForTaccom(state);
   for (const player of state.players) {
     if (player.speed == null) {
@@ -94,6 +97,7 @@ export function exitTaccom(state: GameState, opts?: { removeEnemies?: boolean })
     state.combat.attractorPulledEnemyIds = [];
     state.combat.gearCheckGrants = {};
     state.combat.kopisMarks = {};
+    state.combat.chrysaorBrands = {};
     state.combat.countdownKinds = {};
   }
 }

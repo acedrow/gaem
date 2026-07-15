@@ -19,6 +19,7 @@ export type BoardActionMode =
   | "kataptyPick"
   | "rez"
   | "kopisMark"
+  | "chrysaorBrand"
   | "sharurAttractor"
   | "hephaestusSynesis"
   | "hephaestusRestore"

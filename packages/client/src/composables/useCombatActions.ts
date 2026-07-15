@@ -149,7 +149,7 @@ export function useCombatActions(playerId?: () => string | null) {
   const sprintRemaining = computed(() => budget.value?.sprintRemaining ?? 0);
 
   const canStartSprint = computed(
-    () => canAux.value && sprintRemaining.value <= 0,
+    () => sprintRemaining.value > 0 || canAux.value,
   );
 
   const sabaothChargesRemaining = computed(() => {

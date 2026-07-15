@@ -12,6 +12,7 @@ export * from "./yadathan.js";
 export * from "./swarm.js";
 export * from "./provoke.js";
 export * from "./kopis.js";
+export * from "./chrysaor.js";
 export * from "./class-abilities.js";
 export * from "./los.js";
 export * from "./pull.js";

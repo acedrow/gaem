@@ -14,10 +14,11 @@ import {
 import {
   applyBreakerAttackToSwarm,
   applyRangeAttackToEnemies,
+  applySwarmEnemyAttackToPlayer,
   previewSwarmEnemyAttack,
   SETHIAN_DAMAGE_CAP,
 } from "./attack.js";
-import { addEnemy, getEnemyMaxHp } from "../game.js";
+import { addEnemy, getEnemyMaxHp, normalizeGameState } from "../game.js";
 import { createDefaultCombatState } from "../combat/types.js";
 import { addTestEnemy, addTestPlayer, makeGameState } from "../test/fixtures.js";
 
@@ -75,6 +76,51 @@ describe("swarm", () => {
     expect(soloA.hp).toBeLessThanOrEqual(10);
     expect(soloB.hp).toBeLessThanOrEqual(10);
     expect((soloA.hp ?? 0) + (soloB.hp ?? 0)).toBeGreaterThanOrEqual(pooledHp - 1);
+  });
+
+  it("reconcileSwarmHp preserves damaged HP when composition is unchanged", () => {
+    const state = makeGameState();
+    addEnemy(state, { id: "a", x: 2, y: 2, name: SWARM_NAME, hp: 1 });
+    addEnemy(state, { id: "b", x: 3, y: 2, name: SWARM_NAME, hp: 1 });
+    expect(state.enemies[0]!.hp).toBe(20);
+
+    for (const e of state.enemies) e.hp = 7;
+    reconcileSwarmHp(state, buildSwarmGroups(state));
+
+    expect(state.enemies.every((e) => e.hp === 7)).toBe(true);
+  });
+
+  it("normalizeGameState preserves damaged swarm HP", () => {
+    const state = makeGameState();
+    addEnemy(state, { id: "a", x: 2, y: 2, name: SWARM_NAME, hp: 1 });
+    addEnemy(state, { id: "b", x: 3, y: 2, name: SWARM_NAME, hp: 1 });
+    addEnemy(state, { id: "c", x: 2, y: 3, name: SWARM_NAME, hp: 1 });
+    for (const e of state.enemies) e.hp = 12;
+
+    normalizeGameState(state);
+
+    expect(state.enemies.every((e) => e.hp === 12)).toBe(true);
+    expect(getSwarmMaxHp(3)).toBe(30);
+  });
+
+  it("swarm attack expend does not heal remaining pooled HP", () => {
+    const state = makeGameState();
+    addEnemy(state, { id: "a", x: 2, y: 2, name: SWARM_NAME, hp: 1 });
+    addEnemy(state, { id: "b", x: 3, y: 2, name: SWARM_NAME, hp: 1 });
+    addEnemy(state, { id: "c", x: 2, y: 3, name: SWARM_NAME, hp: 1 });
+    addTestPlayer(state, "p1", { x: 3, y: 3, hp: 50 });
+    for (const e of state.enemies) e.hp = 12;
+
+    applySwarmEnemyAttackToPlayer(
+      state,
+      "a",
+      { raw: "", damage: 2, range: 1 },
+      "p1",
+      { strikeCount: 2 },
+    );
+
+    expect(state.enemies).toHaveLength(2);
+    expect(state.enemies.every((e) => e.hp === 12)).toBe(true);
   });
 
   it("swarmChipEligibleTargets finds adjacent players only", () => {
@@ -144,7 +190,7 @@ describe("swarm", () => {
     const preview = previewSwarmEnemyAttack(
       state,
       "a",
-      { raw: "", damage: 2, range: 1 },
+      { raw: "", damage: 2, size: 1 },
       "p1",
       {},
     );

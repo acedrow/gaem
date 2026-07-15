@@ -35,6 +35,13 @@
     "icon": "M4 8 C4 5.5 6.5 5 8 7 C9.5 5 12 5.5 12 8 C12 10.5 9.5 11 8 9 C6.5 11 4 10.5 4 8"
   },
   {
+    "id": "Brand",
+    "summary": "Explodes at 0 for 4D6 on the target and 6 adjacent. −1 stack at end of round.",
+    "description": "Placed by CHRYSAOR Soul-Branding Demolition Sigil. When Brand reaches 0, the branded creature or object explodes, dealing 4D6 damage to the target and 6 damage to all adjacent targets. Remove 1 stack at the end of the round.",
+    "stacking": "add",
+    "icon": "M8 2 L10 6 L14 7 L11 10 L12 14 L8 12 L4 14 L5 10 L2 7 L6 6 Z"
+  },
+  {
     "id": "Broken",
     "summary": "All attacks deal maximum damage. −1 stack after each attack.",
     "description": "All attacks against this target deal maximum damage. Remove 1 stack after each attack against the affected unit.",

@@ -38,7 +38,7 @@ describe("Heaven Burning Sword", () => {
     player.counters!.heavenBurningLevel = 2;
     const spec = resolveCombatAttackSpec(player, HEAVEN_BURNING_SWORD_NAME);
     expect(spec?.damage).toBe("15");
-    expect(spec?.tiles?.length).toBe(8);
+    expect(spec?.tiles?.length).toBe(9);
   });
 
   it("Unfolding charges the sword as an aux action up to level 3", () => {

@@ -1103,6 +1103,11 @@ const gridCells = computed(() =>
   transform-origin: center;
 }
 
+.location-marker:hover,
+.location-marker:focus-visible {
+  z-index: 6;
+}
+
 .location-marker--inert {
   pointer-events: none;
   cursor: default;

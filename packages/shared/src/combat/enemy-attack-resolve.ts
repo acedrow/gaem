@@ -17,6 +17,10 @@ import {
 import { parseAndRollDamage } from "./damage.js";
 import { applyEffectStacks } from "./effects.js";
 import { trackCountdownKinds } from "./countdown.js";
+import {
+  chrysaorImmuneToAreaEffects,
+  maybeOfferBrandStrip,
+} from "./chrysaor.js";
 import { applyPullToward } from "./pull.js";
 import { applyPushFromOrigin } from "./push.js";
 import { swarmGroupForEnemy } from "./swarm.js";
@@ -26,9 +30,11 @@ function applyStacks(
   unit: Player | Enemy,
   effects: string[],
   source?: Enemy,
+  opts?: { areaAttack?: boolean },
 ): void {
   if (!effects.length) return;
   if ((source?.effects?.Bound ?? 0) > 0) return;
+  if (opts?.areaAttack && chrysaorImmuneToAreaEffects(unit)) return;
   applyEffectStacks(unit as { effects?: EffectStacks; counters?: Record<string, number> }, effects);
   trackCountdownKinds(state, unit, effects);
 }
@@ -82,7 +88,8 @@ export function applyPatternEnemyAttack(
     if (player && !hitPlayers.has(player.id) && (player.hp ?? 0) > 0) {
       hitPlayers.add(player.id);
       applyDamageToPlayer(player, damage, state);
-      applyStacks(state, player, effectTokens, enemy);
+      applyStacks(state, player, effectTokens, enemy, { areaAttack: true });
+      maybeOfferBrandStrip(state, player);
       opts?.onPlayerHit?.(player.id);
       let part = `${playerLabel(player)} ${rolled.detail}`;
       if (pullDistance != null && pullDistance > 0) {
@@ -102,7 +109,7 @@ export function applyPatternEnemyAttack(
       hitEnemies.add(canon);
       const hit = state.enemies.find((e) => e.id === canon) ?? target;
       applyDamageToEnemy(hit, damage, state);
-      applyStacks(state, hit, effectTokens, enemy);
+      applyStacks(state, hit, effectTokens, enemy, { areaAttack: true });
       let part = `${enemyLabel(hit)} ${rolled.detail}`;
       if (pullDistance != null && pullDistance > 0) {
         const pullMsg = applyPullToward(state, hit, enemy.x, enemy.y, pullDistance, {

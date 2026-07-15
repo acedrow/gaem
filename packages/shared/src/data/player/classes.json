@@ -67,6 +67,9 @@
   },
   {
     "name": "CHRYSAOR",
+    "activeTier": "support",
+    "activeKind": "soul_branding",
+    "passiveKind": "flame_rejection",
     "summary": "Punish attacks that aren't aimed directly at you and only you.",
     "description": "\"Would you like to know the moment you'll die? Would you like it burned on your skin, ticking down with each breath? Would you have it blaze in fire above your head, a true crown of glory declaring the violence of your end to all who would suffer from it? Don't run.\"",
     "hp": 20,

@@ -7,7 +7,7 @@ import {
 } from "../player-data.js";
 import { getUnlockedOptions } from "../base-upgrades-unlocks.js";
 import { playerLabel, enemyLabel } from "../console.js";
-import { coordKey, isWalkable, tileAt } from "../map.js";
+import { coordKey, isObstacleTile, isWalkable, tileAt } from "../map.js";
 import { isOrthogonallyAdjacent } from "../patterns.js";
 import { hasLineOfSight, tilesOnCardinalLine } from "./los.js";
 import {
@@ -29,6 +29,12 @@ import {
   ensureKopisCombatFields,
   handleEnemyDefeated,
 } from "./kopis.js";
+import {
+  applySoulBranding,
+  CHRYSAOR_CLASS,
+  ensureChrysaorCombatFields,
+  stripOwnedBrand,
+} from "./chrysaor.js";
 import { unitHasSeeking, unitPiercingStacks } from "./elevation.js";
 import { adjacentEnemies } from "./movement.js";
 
@@ -44,6 +50,7 @@ function ensureCombat(state: GameState): boolean {
   if (!state.combat) return false;
   if (!state.combat.thrownTraps) state.combat.thrownTraps = [];
   if (!state.combat.attractors) state.combat.attractors = [];
+  ensureChrysaorCombatFields(state);
   return ensureKopisCombatFields(state);
 }
 
@@ -144,6 +151,47 @@ export function validateClassActive(
     return null;
   }
 
+  if (player.class === CHRYSAOR_CLASS) {
+    const enemyId = action.targetEnemyIds?.[0];
+    const playerId = action.targetPlayerIds?.[0];
+    const hasObstacle = action.x != null && action.y != null;
+    const targetCount = (enemyId ? 1 : 0) + (playerId ? 1 : 0) + (hasObstacle ? 1 : 0);
+    if (targetCount !== 1) return "Select one creature or obstacle";
+
+    let tx: number;
+    let ty: number;
+    let losTarget: Player | Enemy | undefined;
+    if (enemyId) {
+      const enemy = state.enemies.find((e) => e.id === enemyId);
+      if (!enemy) return "Unknown enemy";
+      tx = enemy.x;
+      ty = enemy.y;
+      losTarget = enemy;
+    } else if (playerId) {
+      const targetPlayer = state.players.find((p) => p.id === playerId);
+      if (!targetPlayer) return "Unknown player";
+      tx = targetPlayer.x;
+      ty = targetPlayer.y;
+      losTarget = targetPlayer;
+    } else {
+      const tile = tileAt(state.tiles, action.x!, action.y!);
+      if (!tile || !isObstacleTile(tile)) return "Not an obstacle";
+      tx = action.x!;
+      ty = action.y!;
+    }
+    if (
+      !hasLineOfSight(state, player.x, player.y, tx, ty, {
+        viewer: player,
+        target: losTarget,
+        piercing: unitPiercingStacks(player),
+        seeking: unitHasSeeking(player),
+      })
+    ) {
+      return "No line of sight";
+    }
+    return null;
+  }
+
   return `Unsupported class active: ${kind}`;
 }
 
@@ -182,6 +230,22 @@ export function validateResolveClassReaction(
   }
   if (reaction.kind === "offhand_pistol_push") {
     if (action.accept === undefined) return "Choose push";
+    return null;
+  }
+  if (reaction.kind === "brand_strip") {
+    if (action.accept === false) return null;
+    if (action.accept !== true) return "Choose brand strip";
+    const hasEnemy = !!action.targetEnemyId;
+    const hasPlayer = !!action.targetPlayerId;
+    const hasObstacle = action.x != null && action.y != null;
+    const count = (hasEnemy ? 1 : 0) + (hasPlayer ? 1 : 0) + (hasObstacle ? 1 : 0);
+    if (count !== 1) return "Select one Brand to remove";
+    const ok = reaction.candidates.some((c) => {
+      if (c.kind === "enemy") return c.id === action.targetEnemyId;
+      if (c.kind === "player") return c.id === action.targetPlayerId;
+      return c.x === action.x && c.y === action.y;
+    });
+    if (!ok) return "Not a valid Brand target";
     return null;
   }
   return "Unknown reaction";
@@ -293,6 +357,24 @@ export function applyClassActive(
     return msg;
   }
 
+  if (player.class === CHRYSAOR_CLASS) {
+    const enemyId = action.targetEnemyIds?.[0];
+    const targetPlayerId = action.targetPlayerIds?.[0];
+    let brandMsg: string;
+    if (enemyId) {
+      brandMsg = applySoulBranding(state, player.id, { kind: "enemy", id: enemyId });
+    } else if (targetPlayerId) {
+      brandMsg = applySoulBranding(state, player.id, { kind: "player", id: targetPlayerId });
+    } else {
+      brandMsg = applySoulBranding(state, player.id, {
+        kind: "obstacle",
+        x: action.x!,
+        y: action.y!,
+      });
+    }
+    return `${playerLabel(player)} Soul-Branding → ${brandMsg}`;
+  }
+
   return "Class active not implemented";
 }
 
@@ -368,6 +450,16 @@ export function applyResolveClassReaction(
     let msg = pushMsg ? `Offhand Pistol push — ${pushMsg}` : "Offhand Pistol push — no movement";
     if (defeatMsgs.length) msg += `; ${defeatMsgs.join("; ")}`;
     return msg;
+  }
+  if (reaction.kind === "brand_strip") {
+    state.combat!.pendingClassReaction = null;
+    if (!action.accept) return "Brand strip skipped";
+    const candidate = reaction.candidates.find((c) => {
+      if (c.kind === "enemy") return c.id === action.targetEnemyId;
+      if (c.kind === "player") return c.id === action.targetPlayerId;
+      return c.x === action.x && c.y === action.y;
+    })!;
+    return stripOwnedBrand(state, reaction.playerId, candidate);
   }
   const enemy = state.enemies.find((e) => e.id === reaction.enemyId)!;
   const owner = state.players.find((p) => p.id === reaction.trapOwnerId)!;

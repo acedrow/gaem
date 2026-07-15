@@ -43,3 +43,15 @@ RAW (Scale / Zone of Control) says a unit’s whole zone counts as their space a
 **Ruling:** A scale > 1 enemy is affected by a tile effect if **any** tile in its footprint has that effect. This includes Stainwalk (e.g. Gorgenaut recovers 10 HP at end of GM turn when any footprint tile is Stained).
 
 **Exception:** Void instant death still requires the enemy’s **entire** footprint to be on Void tiles (official errata).
+
+---
+
+## CHRYSAOR Brand
+
+### End-of-round tick
+
+RAW does not specify when Brand stacks tick down. **Ruling:** Brand ticks like Countdown — remove 1 stack at the **end of the round**. When Brand reaches 0, the branded creature or object detonates (4D6 on the target, 6 to adjacent targets).
+
+### Action tier
+
+Soul-Branding Demolition Sigil does not state Main or Support. **Ruling:** It is a **Support Action** (same default as Mag Dump and other mark-at-range class actives).

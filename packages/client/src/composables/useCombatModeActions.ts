@@ -15,6 +15,7 @@ import { useCombatActions } from "./useCombatActions.js";
 const CLASS_MODE_BY_NAME: Record<string, BoardActionMode> = {
   HARPE: "harpeTrap",
   KOPIS: "kopisMark",
+  CHRYSAOR: "chrysaorBrand",
   SHARUR: "sharurAttractor",
   HEPHAESTUS: "hephaestusSynesis",
   VARUNASTRA: "varunastraBorrow",

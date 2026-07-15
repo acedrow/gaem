@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import type { BrandStripCandidate } from "@gaem/shared";
 
 import { useCombatActions } from "../composables/useCombatActions.js";
+import { useGameState } from "../composables/useGameState.js";
 import NumberStepper from "./NumberStepper.vue";
 
 const { pendingClassReaction, activePlayer, sendPlayerAction, canSupport } = useCombatActions();
+const { gameState } = useGameState();
 
 const pullDistance = ref(1);
 const pullToward = ref<"self" | "weapon">("self");
@@ -12,6 +15,7 @@ const pullToward = ref<"self" | "weapon">("self");
 const isHarpePull = computed(() => pendingClassReaction.value?.kind === "harpe_trap_pull");
 const isBorrowFollowUp = computed(() => pendingClassReaction.value?.kind === "borrowing_follow_up");
 const isOffhandPistolPush = computed(() => pendingClassReaction.value?.kind === "offhand_pistol_push");
+const isBrandStrip = computed(() => pendingClassReaction.value?.kind === "brand_strip");
 
 const harpeDamageDealt = computed(() => {
   const r = pendingClassReaction.value;
@@ -36,6 +40,30 @@ const borrowMaxDamage = computed(() => {
   return r.maxDamage;
 });
 
+const brandStripCandidates = computed(() => {
+  const r = pendingClassReaction.value;
+  if (r?.kind !== "brand_strip") return [];
+  return r.candidates;
+});
+
+function brandCandidateLabel(c: BrandStripCandidate): string {
+  const s = gameState.value;
+  if (c.kind === "enemy") {
+    const enemy = s?.enemies.find((e) => e.id === c.id);
+    return enemy?.name ?? c.id;
+  }
+  if (c.kind === "player") {
+    const player = s?.players.find((p) => p.id === c.id);
+    return player?.nickname ?? c.id;
+  }
+  return `Obstacle (${c.x}, ${c.y})`;
+}
+
+function brandCandidateKey(c: BrandStripCandidate): string {
+  if (c.kind === "obstacle") return `obs-${c.x}-${c.y}`;
+  return `${c.kind}-${c.id}`;
+}
+
 function confirmHarpePull() {
   sendPlayerAction({
     action: "resolveClassReaction",
@@ -57,6 +85,35 @@ function confirmOffhandPush() {
 }
 
 function skipOffhandPush() {
+  sendPlayerAction({ action: "resolveClassReaction", accept: false });
+}
+
+function confirmBrandStrip(c: BrandStripCandidate) {
+  if (c.kind === "enemy") {
+    sendPlayerAction({
+      action: "resolveClassReaction",
+      accept: true,
+      targetEnemyId: c.id,
+    });
+    return;
+  }
+  if (c.kind === "player") {
+    sendPlayerAction({
+      action: "resolveClassReaction",
+      accept: true,
+      targetPlayerId: c.id,
+    });
+    return;
+  }
+  sendPlayerAction({
+    action: "resolveClassReaction",
+    accept: true,
+    x: c.x,
+    y: c.y,
+  });
+}
+
+function skipBrandStrip() {
   sendPlayerAction({ action: "resolveClassReaction", accept: false });
 }
 
@@ -125,6 +182,25 @@ watch(pendingClassReaction, (r) => {
         <button type="button" class="action-btn reject" @click="skipOffhandPush">Skip</button>
       </div>
     </div>
+
+    <div v-else-if="isBrandStrip" class="class-reaction-copy">
+      <strong>Embedded Flame Rejection — strip Brand</strong>
+      <p class="class-reaction-detail">
+        Remove 1 Brand stack from someone you Branded?
+      </p>
+      <div class="class-reaction-actions class-reaction-actions--wrap">
+        <button
+          v-for="c in brandStripCandidates"
+          :key="brandCandidateKey(c)"
+          type="button"
+          class="action-btn"
+          @click="confirmBrandStrip(c)"
+        >
+          {{ brandCandidateLabel(c) }}
+        </button>
+        <button type="button" class="action-btn reject" @click="skipBrandStrip">Skip</button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -174,5 +250,11 @@ watch(pendingClassReaction, (r) => {
 .class-reaction-actions {
   display: flex;
   gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.class-reaction-actions--wrap {
+  max-height: 8rem;
+  overflow-y: auto;
 }
 </style>

@@ -18,6 +18,7 @@ import { coordKey, isWalkable, tileAt } from "../map.js";
 import { getWeaponByName } from "../player-data.js";
 import { isOrthogonallyAdjacent } from "../patterns.js";
 import { enemyHasFlyingTag, syncUnitElevationOnTile } from "./elevation.js";
+import { enemyMoveStepCost } from "./movement.js";
 
 export type SwarmGroup = {
   canonicalId: string;
@@ -226,8 +227,7 @@ export function reconcileSwarmHp(
     const unchanged =
       prevIds &&
       prevIds.length === ids.length &&
-      ids.every((id) => prevIds.includes(id)) &&
-      ids.every((id) => splitMemberIds.has(id));
+      ids.every((id) => prevIds.includes(id));
 
     if (unchanged) {
       const hp = members[0]!.hp ?? getSwarmMaxHp(members.length);
@@ -425,7 +425,8 @@ export function validateSwarmMemberMove(
   }
 
   if (!isSandboxMode(state)) {
-    if (getSwarmMovementRemaining(state, group.memberIds) < 1) return "Not enough movement";
+    const cost = enemyMoveStepCost(state, member, member.x, member.y, destX, destY, { swarm: true });
+    if (getSwarmMovementRemaining(state, group.memberIds) < cost) return "Not enough movement";
   }
 
   return null;
@@ -461,9 +462,14 @@ export function applySwarmMemberMove(
   destX: number,
   destY: number,
 ): void {
-  applySwarmMemberForcedMove(state, memberId, destX, destY);
+  const member = state.enemies.find((e) => e.id === memberId);
   const group = swarmGroupForEnemy(state, memberId);
-  if (group && !isSandboxMode(state)) spendSwarmMovement(state, group.memberIds, 1);
+  const cost =
+    member && group
+      ? enemyMoveStepCost(state, member, member.x, member.y, destX, destY, { swarm: true })
+      : 1;
+  applySwarmMemberForcedMove(state, memberId, destX, destY);
+  if (group && !isSandboxMode(state)) spendSwarmMovement(state, group.memberIds, cost);
 }
 
 export function applySwarmMemberForcedMove(
@@ -525,11 +531,12 @@ export function validateSwarmMove(
   const moverId = pickSwarmMoveMember(state, group.memberIds, destX, destY);
   if (!moverId) return "No valid swarm limb can reach that tile";
 
+  const mover = state.enemies.find((e) => e.id === moverId)!;
   if (!isSandboxMode(state)) {
-    if (getSwarmMovementRemaining(state, group.memberIds) < 1) return "Not enough movement";
+    const cost = enemyMoveStepCost(state, mover, mover.x, mover.y, destX, destY, { swarm: true });
+    if (getSwarmMovementRemaining(state, group.memberIds) < cost) return "Not enough movement";
   }
 
-  const mover = state.enemies.find((e) => e.id === moverId)!;
   return validateEnemyFootprint(state, destX, destY, getEnemyScale(mover), moverId, undefined, mover);
 }
 
@@ -547,7 +554,10 @@ export function applySwarmMove(
   if (!moverId) return null;
 
   const mover = state.enemies.find((e) => e.id === moverId)!;
-  if (!isSandboxMode(state)) spendSwarmMovement(state, group.memberIds, 1);
+  if (!isSandboxMode(state)) {
+    const cost = enemyMoveStepCost(state, mover, mover.x, mover.y, destX, destY, { swarm: true });
+    spendSwarmMovement(state, group.memberIds, cost);
+  }
   mover.x = destX;
   mover.y = destY;
   reconcileSwarmHp(state, prevGroups);

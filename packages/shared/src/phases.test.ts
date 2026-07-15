@@ -3,6 +3,7 @@ import {
   applyPhaseAction,
   canResetPhase,
   canRewindPhase,
+  spawnPlayerFromSheet,
   validatePhaseAction,
 } from "./game.js";
 import { addTestPlayer, gmCtx, makeGameState, playerCtx } from "./test/fixtures.js";
@@ -100,5 +101,38 @@ describe("phases", () => {
     applyPhaseAction(state, "resetRound", gmCtx());
     expect(state.round).toBe(1);
     expect(state.roundPhase).toBe("taccomNotStarted");
+  });
+
+  it("spawn during deployment does not skip player turns on round 1", () => {
+    const state = makeGameState();
+    applyPhaseAction(state, "startTaccom", gmCtx());
+    expect(state.roundPhase).toBe("deployment");
+
+    const a = spawnPlayerFromSheet(state, {
+      id: "p1",
+      characterSheetId: "sheet-1",
+      className: "HARPE",
+      armor: "Mail",
+      weapon: "Kopis",
+    });
+    const b = spawnPlayerFromSheet(state, {
+      id: "p2",
+      characterSheetId: "sheet-2",
+      className: "HARPE",
+      armor: "Mail",
+      weapon: "Kopis",
+    });
+    expect(a).toEqual({ playerId: "p1" });
+    expect(b).toEqual({ playerId: "p2" });
+    expect(state.actedPlayerIds).toEqual(["p1", "p2"]);
+
+    applyPhaseAction(state, "endDeployment", gmCtx());
+    expect(state.roundPhase).toBe("startRoundEffects");
+    expect(state.actedPlayerIds).toEqual([]);
+
+    applyPhaseAction(state, "doEffects", gmCtx());
+    expect(state.roundPhase).toBe("playersChoice");
+    expect(state.turn).toBeNull();
+    expect(state.actedPlayerIds).toEqual([]);
   });
 });

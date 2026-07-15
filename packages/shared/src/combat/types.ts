@@ -148,10 +148,22 @@ export type OffhandPistolPushReaction = {
   originY: number;
 };
 
+export type BrandStripCandidate =
+  | { kind: "enemy"; id: string }
+  | { kind: "player"; id: string }
+  | { kind: "obstacle"; x: number; y: number };
+
+export type BrandStripReaction = {
+  kind: "brand_strip";
+  playerId: string;
+  candidates: BrandStripCandidate[];
+};
+
 export type PendingClassReaction =
   | HarpeTrapPullReaction
   | BorrowingFollowUpReaction
-  | OffhandPistolPushReaction;
+  | OffhandPistolPushReaction
+  | BrandStripReaction;
 
 export type ClassActiveKind =
   | "weapon_trap"
@@ -159,7 +171,8 @@ export type ClassActiveKind =
   | "back_up"
   | "borrowing_this"
   | "synesis_conversion"
-  | "bag_of_tricks";
+  | "bag_of_tricks"
+  | "soul_branding";
 
 export type AttackPreviewMode =
   | "attack"
@@ -205,6 +218,8 @@ export type CombatState = {
   attractorPulledEnemyIds?: string[];
   gearCheckGrants?: Record<string, string>;
   kopisMarks?: Record<string, string>;
+  // Brand target key (unit id or `obs:x,y`) → CHRYSAOR owner player id
+  chrysaorBrands?: Record<string, string>;
   countdownKinds?: Record<string, string>;
   equipmentTerrainSnapshots?: { x: number; y: number; terrain: TerrainType[] }[];
   sideEffectMessages?: string[];
@@ -272,6 +287,10 @@ export type PlayerAction =
       pullDistance?: number;
       pullToward?: "self" | "weapon";
       accept?: boolean;
+      targetEnemyId?: string;
+      targetPlayerId?: string;
+      x?: number;
+      y?: number;
     }
   | {
       action: "weaponActive";

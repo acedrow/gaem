@@ -904,7 +904,6 @@ export function applySwarmEnemyAttackToPlayer(
         removeEnemy(state, expendId);
         memberIds = memberIds.filter((id) => id !== expendId);
         remainingAdjacent -= 1;
-        if (group) reconcileSwarmHp(state);
       }
     }
     const strikeDamage = baseDamage + remainingAdjacent;

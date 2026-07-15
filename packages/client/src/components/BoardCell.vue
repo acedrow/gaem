@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { EffectStacks, Enemy, MapTile, Player, TileColorTint } from "@gaem/shared";
-import { getEnemyMaxHp, getEnemyScale, getEffectSummary, getPlayerMaxHp, isFortificationEnemy, formatTileEffectTooltipLabel, primaryTerrainTypeForIcon, terrainTypeDisplayName, tileEffectShowsStackCount } from "@gaem/shared";
+import { getEnemyMaxHp, getEnemyScale, getPlayerMaxHp, isFortificationEnemy, formatTileEffectTooltipLabel, primaryTerrainTypeForIcon, terrainTypeDisplayName, tileEffectShowsStackCount } from "@gaem/shared";
 import { computed } from "vue";
 
 import { tileImageLayerStyle } from "../lib/tileColorTint.js";
@@ -143,8 +143,7 @@ const overflowCount = computed(() =>
 );
 
 function effectTitle(id: string, stacks: number): string {
-  const summary = getEffectSummary(id);
-  return summary ? `${id}:${stacks} — ${summary}` : `${id}:${stacks}`;
+  return `${id}: ${stacks}`;
 }
 
 function tileEffectTitle(id: string, stacks: number): string {

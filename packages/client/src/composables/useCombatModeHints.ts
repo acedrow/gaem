@@ -125,6 +125,11 @@ export function useCombatModeHints(opts: {
     return "Aim the borrowed pattern, then click highlighted tiles to attack";
   });
 
+  const chrysaorBrandHint = computed(() => {
+    if (mode.value !== "chrysaorBrand") return null;
+    return "Click a creature or obstacle in line of sight to Brand:2";
+  });
+
   const assistedLaunchHint = computed(() => {
     if (mode.value !== "assistedLaunch") return null;
     if (assistedLaunchStep.value === "selectAnchor") return "Select impassable terrain, an obstacle, or an ally to launch from";
@@ -180,6 +185,7 @@ export function useCombatModeHints(opts: {
     if (towerTeleportHint.value) rows.push({ key: "towerTeleport", text: towerTeleportHint.value });
     if (kataptyHint.value) rows.push({ key: "katapty", text: kataptyHint.value });
     if (varunastraBorrowHint.value) rows.push({ key: "varunastraBorrow", text: varunastraBorrowHint.value });
+    if (chrysaorBrandHint.value) rows.push({ key: "chrysaorBrand", text: chrysaorBrandHint.value });
     if (assistedLaunchHint.value) rows.push({ key: "assistedLaunch", text: assistedLaunchHint.value });
     return rows;
   });
@@ -194,6 +200,7 @@ export function useCombatModeHints(opts: {
     towerTeleportHint,
     kataptyHint,
     varunastraBorrowHint,
+    chrysaorBrandHint,
     assistedLaunchHint,
     equipmentCorridorHint,
     equipmentCoverHint,

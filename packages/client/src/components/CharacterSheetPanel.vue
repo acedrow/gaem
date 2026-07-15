@@ -755,6 +755,7 @@ onUnmounted(() => {
                 :active="
                   mode === 'harpeTrap' ||
                   mode === 'kopisMark' ||
+                  mode === 'chrysaorBrand' ||
                   mode === 'sharurAttractor' ||
                   mode === 'hephaestusSynesis' ||
                   mode === 'varunastraBorrow'

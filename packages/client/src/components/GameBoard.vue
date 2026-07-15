@@ -31,7 +31,7 @@ import {
   manhattanDistance,
   movementStepCost,
   stepMoveCost,
-  terrainStepCost,
+  enemyMoveStepCost,
   isFlyingStepReachable,
   aegisFlyingRemaining,
   playerAllowsDiagonalMovement,
@@ -122,7 +122,6 @@ import {
   tilesInAttractorZone,
   hasTileEffects,
   formatTileEffectTooltipLabel,
-  getEffectSummary,
   terrainTypeDisplayName,
   type ProvokeTrigger,
   computeAttackPreviewHighlights,
@@ -167,6 +166,7 @@ import ChangeTileTerrainModal from "./ChangeTileTerrainModal.vue";
 import BreakerPromptModal from "./BreakerPromptModal.vue";
 import ProvokePromptModal from "./ProvokePromptModal.vue";
 import SwarmChipModal from "./SwarmChipModal.vue";
+import GmSwarmAttackModal from "./GmSwarmAttackModal.vue";
 import TargetPickerModal, { type TargetPickerEnemy } from "./TargetPickerModal.vue";
 
 const props = defineProps<{
@@ -497,6 +497,13 @@ const pendingProvokeMove = ref<(() => void) | null>(null);
 const swarmChipOpen = ref(false);
 const swarmChipEnemyId = ref<string | null>(null);
 const swarmChipTargets = ref<import("@gaem/shared").SwarmChipTarget[]>([]);
+const swarmAttackModalOpen = ref(false);
+const swarmAttackPending = ref<{
+  enemyId: string;
+  attackIndex: number;
+  targetPlayerId: string;
+  damage?: number;
+} | null>(null);
 const targetPickerOpen = ref(false);
 const targetPickerEnemies = ref<TargetPickerEnemy[]>([]);
 const targetPickerMaxSelectable = ref(1);
@@ -587,6 +594,25 @@ const swarmChipEnemyName = computed(() => {
   const id = swarmChipEnemyId.value;
   if (!s || !id) return "Swarm";
   return s.enemies.find((e) => e.id === id)?.name ?? "Swarm";
+});
+
+const swarmAttackModalProps = computed(() => {
+  const pending = swarmAttackPending.value;
+  const s = gameState.value;
+  if (!pending || !s) return null;
+  const player = s.players.find((p) => p.id === pending.targetPlayerId);
+  const enemy = s.enemies.find((e) => e.id === pending.enemyId);
+  const attackText = getEnemyListingByName(enemy?.name)?.attacks?.[pending.attackIndex] ?? "";
+  const maxStrikes = player ? maxSwarmStrikesAgainstTarget(s, pending.enemyId, player) : 0;
+  return {
+    enemyId: pending.enemyId,
+    attackIndex: pending.attackIndex,
+    attackText,
+    targetPlayerId: pending.targetPlayerId,
+    targetPlayerName: player?.nickname ?? player?.id ?? "Player",
+    maxStrikes,
+    damageOverride: pending.damage,
+  };
 });
 const teleportOverlayAtDest = ref(false);
 
@@ -870,6 +896,24 @@ const classAbilityPrimaryKeys = computed(() => {
     const visible = new Set(visibleEnemyIds(s, me.id));
     for (const e of s.enemies) {
       if (visible.has(e.id)) keys.add(coordKey(e.x, e.y));
+    }
+  }
+  if (m === "chrysaorBrand") {
+    const visible = new Set(visibleEnemyIds(s, me.id));
+    for (const e of s.enemies) {
+      if (visible.has(e.id)) keys.add(coordKey(e.x, e.y));
+    }
+    for (const p of s.players) {
+      if (p.id === me.id) continue;
+      if (hasLineOfSight(s, me.x, me.y, p.x, p.y, { viewer: me, target: p })) {
+        keys.add(coordKey(p.x, p.y));
+      }
+    }
+    for (const tile of s.tiles) {
+      if (!isObstacleTile(tile)) continue;
+      if (hasLineOfSight(s, me.x, me.y, tile.x, tile.y, { viewer: me })) {
+        keys.add(coordKey(tile.x, tile.y));
+      }
     }
   }
   if (m === "hephaestusSynesis") {
@@ -1783,11 +1827,12 @@ const gmEnemyMoveTargetKeys = computed(() => {
   const occ = occupancy.value ?? undefined;
 
   if (group && isSoloSwarmMemberSelected.value) {
-    if (!isSandboxMode(s) && getSwarmMovementRemaining(s, group.memberIds) < 1) return keys;
+    const remaining = isSandboxMode(s) ? Infinity : getSwarmMovementRemaining(s, group.memberIds);
+    if (remaining < 1) return keys;
     for (const tile of swarmFringeTiles(s, group.memberIds, occ)) {
-      if (canSwarmMemberReachDest(s, id, tile.x, tile.y, occ)) {
-        keys.add(boardCellKey(tile.x, tile.y));
-      }
+      if (!canSwarmMemberReachDest(s, id, tile.x, tile.y, occ)) continue;
+      const cost = enemyMoveStepCost(s, enemy, enemy.x, enemy.y, tile.x, tile.y, { swarm: true });
+      if (cost <= remaining) keys.add(boardCellKey(tile.x, tile.y));
     }
     const deltas = [
       { dx: 0, dy: -1 },
@@ -1798,27 +1843,32 @@ const gmEnemyMoveTargetKeys = computed(() => {
     for (const { dx, dy } of deltas) {
       const destX = enemy.x + dx;
       const destY = enemy.y + dy;
-      if (canSwarmMemberReachDest(s, id, destX, destY, occ)) {
-        keys.add(boardCellKey(destX, destY));
-      }
+      if (!canSwarmMemberReachDest(s, id, destX, destY, occ)) continue;
+      const cost = enemyMoveStepCost(s, enemy, enemy.x, enemy.y, destX, destY, { swarm: true });
+      if (cost <= remaining) keys.add(boardCellKey(destX, destY));
     }
     return keys;
   }
 
   if (group) {
-    if (!isSandboxMode(s) && getSwarmMovementRemaining(s, group.memberIds) < 1) return keys;
+    const remaining = isSandboxMode(s) ? Infinity : getSwarmMovementRemaining(s, group.memberIds);
+    if (remaining < 1) return keys;
     for (const tile of swarmFringeTiles(s, group.memberIds, occupancy.value ?? undefined)) {
-      if (pickSwarmMoveMember(s, group.memberIds, tile.x, tile.y)) {
-        keys.add(boardCellKey(tile.x, tile.y));
-      }
+      const moverId = pickSwarmMoveMember(s, group.memberIds, tile.x, tile.y);
+      if (!moverId) continue;
+      const mover = s.enemies.find((e) => e.id === moverId);
+      if (!mover) continue;
+      const cost = enemyMoveStepCost(s, mover, mover.x, mover.y, tile.x, tile.y, { swarm: true });
+      if (cost <= remaining) keys.add(boardCellKey(tile.x, tile.y));
     }
     return keys;
   }
 
   if (!isSandboxMode(s)) {
     ensureEnemyMovement(enemy);
-    if ((enemy.movementRemaining ?? 0) < 1) return keys;
   }
+  const remaining = isSandboxMode(s) ? Infinity : (enemy.movementRemaining ?? 0);
+  if (remaining < 1) return keys;
   const scale = getEnemyScale(enemy);
   const deltas = [
     { dx: 0, dy: -1 },
@@ -1829,6 +1879,8 @@ const gmEnemyMoveTargetKeys = computed(() => {
   for (const { dx, dy } of deltas) {
     const anchorX = enemy.x + dx;
     const anchorY = enemy.y + dy;
+    const cost = enemyMoveStepCost(s, enemy, enemy.x, enemy.y, anchorX, anchorY);
+    if (cost > remaining) continue;
     if (validateEnemyFootprint(s, anchorX, anchorY, scale, id, occupancy.value ?? undefined, enemy) !== null) {
       continue;
     }
@@ -1935,10 +1987,8 @@ const yourPlayer = computed(() => {
 let sprintModePrev: typeof boardActionMode.value = null;
 watch(boardActionMode, (mode) => {
   if (mode === "sprint" && sprintModePrev !== "sprint") {
-    sendPlayerAction({ action: "sprint" });
-  } else if (sprintModePrev === "sprint" && mode !== "sprint") {
     const remaining = yourPlayer.value?.actionBudget?.sprintRemaining ?? 0;
-    if (remaining > 0) sendPlayerAction({ action: "sprintCancel" });
+    if (remaining <= 0) sendPlayerAction({ action: "sprint" });
   }
   sprintModePrev = mode;
 });
@@ -2068,7 +2118,7 @@ const cellStateByKey = computed(() => {
       !enemy &&
       adjacent &&
       showStepMoveHighlights &&
-      inAegisMode &&
+      (inAegisMode || inSprintMode) &&
       me != null &&
       isFlyingStepReachable(s, me, { x: me.x, y: me.y }, c);
     const stepCost = me && stepBase ? movementStepCost(s, me, c.x, c.y) : Infinity;
@@ -2082,10 +2132,13 @@ const cellStateByKey = computed(() => {
       !inAegisMode &&
       (sandbox || (stepCost <= movementRemaining && movementRemaining > 0));
     const showSprintStep = stepBase && inSprintMode && stepCost <= sprintRemaining && sprintRemaining > 0;
+    const aegisUsesSprint = sprintRemaining > 0 && (inSprintMode || inAegisMode);
+    const aegisMoveBudget = aegisUsesSprint ? sprintRemaining : movementRemaining;
     const showAegisStep =
       aegisStepBase &&
-      aegisStepCost <= movementRemaining &&
-      movementRemaining > 0 &&
+      (inAegisMode || inSprintMode) &&
+      aegisStepCost <= aegisMoveBudget &&
+      aegisMoveBudget > 0 &&
       aegisRemaining > 0 &&
       (sandbox || onPlayerTurn);
 
@@ -2481,9 +2534,8 @@ const tooltipData = computed(() => {
     const enemy = s.enemies.find((e) => e.id === sel.id);
     if (!enemy) return null;
     if (!isMovementStepAdjacent(enemy, cell, false)) return null;
-    return terrainStepCost(s, enemy.x, enemy.y, cell.x, cell.y, {
-      seeking: (enemy.effects?.Seeking ?? 0) > 0,
-    });
+    const swarm = swarmGroupForEnemy(s, enemy.id) != null;
+    return enemyMoveStepCost(s, enemy, enemy.x, enemy.y, cell.x, cell.y, { swarm });
   })();
   return {
     x: cell.x,
@@ -2714,8 +2766,7 @@ function effectEntries(stacks?: EffectStacks) {
 }
 
 function effectTooltipLabel(id: string, stacks: number): string {
-  const summary = getEffectSummary(id);
-  return summary ? `${id}: ${stacks} — ${summary}` : `${id}: ${stacks}`;
+  return `${id}: ${stacks}`;
 }
 
 function boardTokenTooltipLabel(token: { ownerId: string; kind: "kopis" }): string {
@@ -3834,7 +3885,14 @@ function handleCombatCellClick(x: number, y: number): boolean {
     const id = yourPlayerId.value;
     if (!s || !id) return true;
     const path = [{ x, y }];
-    gateProvoke(previewPathProvokes(s, id, path, { flying: true }), () => sendMovePath(path, true));
+    const sprintLeft = me.actionBudget?.sprintRemaining ?? 0;
+    if (sprintLeft > 0) {
+      gateProvoke(previewSprintProvokes(s, id, x, y, { flying: true }), () => {
+        sendPlayerAction({ action: "sprintMove", x, y, flying: true });
+      });
+    } else {
+      gateProvoke(previewPathProvokes(s, id, path, { flying: true }), () => sendMovePath(path, true));
+    }
     return true;
   }
   if (m === "move") {
@@ -3905,10 +3963,17 @@ function handleCombatCellClick(x: number, y: number): boolean {
   }
   if (m === "sprint") {
     if (!activePlayerSelected.value) return true;
-    if (!cellStateByKey.value.get(boardCellKey(x, y))?.moveSecondary) return true;
+    const cell = cellStateByKey.value.get(boardCellKey(x, y));
     const s = gameState.value;
     const id = yourPlayerId.value;
     if (!s || !id) return true;
+    if (cell?.moveAegis) {
+      gateProvoke(previewSprintProvokes(s, id, x, y, { flying: true }), () => {
+        sendPlayerAction({ action: "sprintMove", x, y, flying: true });
+      });
+      return true;
+    }
+    if (!cell?.moveSecondary) return true;
     gateProvoke(previewSprintProvokes(s, id, x, y), () => {
       sendPlayerAction({ action: "sprintMove", x, y });
     });
@@ -3979,6 +4044,32 @@ function handleCombatCellClick(x: number, y: number): boolean {
   if (m === "kopisMark" && enemy) {
     sendPlayerAction({ action: "classActive", kind: "mag_dump", targetEnemyIds: [enemy.id] });
     clearBoardActionMode();
+    return true;
+  }
+  if (m === "chrysaorBrand") {
+    const key = coordKey(x, y);
+    if (!classAbilityPrimaryKeys.value.has(key)) return true;
+    if (enemy) {
+      sendPlayerAction({ action: "classActive", kind: "soul_branding", targetEnemyIds: [enemy.id] });
+      clearBoardActionMode();
+      return true;
+    }
+    if (player) {
+      sendPlayerAction({
+        action: "classActive",
+        kind: "soul_branding",
+        targetPlayerIds: [player.id],
+      });
+      clearBoardActionMode();
+      return true;
+    }
+    const s = gameState.value;
+    const tile = s ? tileAt(s.tiles, x, y) : undefined;
+    if (tile && isObstacleTile(tile)) {
+      sendPlayerAction({ action: "classActive", kind: "soul_branding", x, y });
+      clearBoardActionMode();
+      return true;
+    }
     return true;
   }
   if (m === "hephaestusSynesis" && enemy && classAbilityPrimaryKeys.value.has(coordKey(x, y))) {
@@ -4193,18 +4284,13 @@ function handleGmEnemyAttackCellClick(x: number, y: number): boolean {
 
   if (pending.swarm) {
     if (!player) return false;
-    const maxStrikes = maxSwarmStrikesAgainstTarget(s, pending.enemyId, player);
-    send({
-      type: "gmEnemyAction",
-      action: {
-        action: "attack",
-        enemyId: pending.enemyId,
-        attackIndex: pending.attackIndex,
-        targetPlayerId: player.id,
-        damage: pending.damage,
-        swarmStrikes: maxStrikes,
-      },
-    });
+    swarmAttackPending.value = {
+      enemyId: pending.enemyId,
+      attackIndex: pending.attackIndex,
+      targetPlayerId: player.id,
+      damage: pending.damage,
+    };
+    swarmAttackModalOpen.value = true;
     clearBoardActionMode();
     return true;
   }
@@ -4241,6 +4327,29 @@ function handleGmEnemyAttackCellClick(x: number, y: number): boolean {
   }
 
   return false;
+}
+
+function onSwarmAttackConfirm(strikeCount: number) {
+  const pending = swarmAttackPending.value;
+  if (!pending) return;
+  send({
+    type: "gmEnemyAction",
+    action: {
+      action: "attack",
+      enemyId: pending.enemyId,
+      attackIndex: pending.attackIndex,
+      targetPlayerId: pending.targetPlayerId,
+      damage: pending.damage,
+      swarmStrikes: strikeCount,
+    },
+  });
+  swarmAttackModalOpen.value = false;
+  swarmAttackPending.value = null;
+}
+
+function onSwarmAttackClose() {
+  swarmAttackModalOpen.value = false;
+  swarmAttackPending.value = null;
 }
 
 function cellFromClientPoint(clientX: number, clientY: number): { x: number; y: number } | null {
@@ -5571,6 +5680,20 @@ onUnmounted(() => {
       :targets="swarmChipTargets"
       @close="onSwarmChipClose"
       @confirm="onSwarmChipConfirm"
+    />
+
+    <GmSwarmAttackModal
+      v-if="swarmAttackModalProps"
+      :open="swarmAttackModalOpen"
+      :enemy-id="swarmAttackModalProps.enemyId"
+      :attack-index="swarmAttackModalProps.attackIndex"
+      :attack-text="swarmAttackModalProps.attackText"
+      :target-player-id="swarmAttackModalProps.targetPlayerId"
+      :target-player-name="swarmAttackModalProps.targetPlayerName"
+      :max-strikes="swarmAttackModalProps.maxStrikes"
+      :damage-override="swarmAttackModalProps.damageOverride"
+      @close="onSwarmAttackClose"
+      @confirm="onSwarmAttackConfirm"
     />
 
     <TargetPickerModal

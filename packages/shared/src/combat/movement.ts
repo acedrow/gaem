@@ -1,4 +1,4 @@
-import type { GameState, Player } from "../types.js";
+import type { Enemy, GameState, Player } from "../types.js";
 import type { BoardCoord } from "../patterns.js";
 import { isMovementStepAdjacent, isOrthogonallyAdjacent } from "../patterns.js";
 import { areActionLimitsEnforced, buildBoardOccupancy, canPlayerMove, isSandboxMode, type BoardOccupancy } from "../game.js";
@@ -17,7 +17,13 @@ import {
 import { canUseActionTier, spendActionTierOrHaste, spendMovement } from "./actions.js";
 import { swarmGroupForEnemy } from "./swarm.js";
 import { createDefaultActionBudget, type ActionBudget } from "./types.js";
-import { isUnitFalling, syncUnitElevationOnTile } from "./elevation.js";
+import { enemyHasFlyingTag, isUnitFalling, syncUnitElevationOnTile } from "./elevation.js";
+
+export type TerrainStepCostOpts = {
+  seeking?: boolean;
+  ignoreElevation?: boolean;
+  flying?: boolean;
+};
 
 export type MovementStep = { x: number; y: number; cost: number };
 
@@ -56,15 +62,19 @@ function terrainMoveCost(
   fromY: number,
   toX: number,
   toY: number,
-  seeking = false,
+  opts?: TerrainStepCostOpts,
 ): number {
   const fromTile = tileAt(state.tiles, fromX, fromY);
   const toTile = tileAt(state.tiles, toX, toY);
   if (!fromTile || !toTile) return 1;
   let cost = 1;
-  if (toTile.terrain.includes("uneasy")) cost += 1;
+  const flying = opts?.flying === true;
+  if (!flying && toTile.terrain.includes("uneasy")) cost += 1;
+  if (opts?.ignoreElevation === true) return cost;
   // RAW: +1 Speed to enter higher elevation (flat), stacks with Uneasy
-  if (toTile.elevation > fromTile.elevation && !seeking) cost += 1;
+  // Flying treats origin as +1 elev (same as flyingStepCost)
+  const fromElev = flying ? fromTile.elevation + 1 : fromTile.elevation;
+  if (toTile.elevation > fromElev && opts?.seeking !== true) cost += 1;
   return cost;
 }
 
@@ -74,9 +84,26 @@ export function terrainStepCost(
   fromY: number,
   toX: number,
   toY: number,
-  opts?: { seeking?: boolean },
+  opts?: TerrainStepCostOpts,
 ): number {
-  return terrainMoveCost(state, fromX, fromY, toX, toY, opts?.seeking === true);
+  return terrainMoveCost(state, fromX, fromY, toX, toY, opts);
+}
+
+export function enemyMoveStepCost(
+  state: GameState,
+  enemy: Enemy,
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number,
+  opts?: { swarm?: boolean },
+): number {
+  const base = terrainMoveCost(state, fromX, fromY, toX, toY, {
+    seeking: (enemy.effects?.Seeking ?? 0) > 0,
+    ignoreElevation: opts?.swarm === true,
+    flying: enemyHasFlyingTag(enemy),
+  });
+  return base * movementCostMultiplier(enemy.effects);
 }
 
 export function computePathCost(
@@ -94,7 +121,7 @@ export function computePathCost(
   for (const step of path) {
     if (!isMovementStepAdjacent({ x: cx, y: cy }, step, allowDiagonal)) return null;
     const seeking = (player.effects?.Seeking ?? 0) > 0;
-    const base = terrainMoveCost(state, cx, cy, step.x, step.y, seeking);
+    const base = terrainMoveCost(state, cx, cy, step.x, step.y, { seeking });
     const cost = base * mult;
     total += cost;
     steps.push({ x: step.x, y: step.y, cost });
@@ -106,7 +133,7 @@ export function computePathCost(
 
 export function maxSprintCost(player: Player): number {
   const speed = player.speed ?? getArmorSpeed(player.armor);
-  return Math.floor(speed / 2);
+  return Math.ceil(speed / 2);
 }
 
 export function movementStepCost(
@@ -116,7 +143,10 @@ export function movementStepCost(
   toY: number,
 ): number {
   const seeking = (player.effects?.Seeking ?? 0) > 0;
-  return terrainMoveCost(state, player.x, player.y, toX, toY, seeking) * movementCostMultiplier(player.effects);
+  return (
+    terrainMoveCost(state, player.x, player.y, toX, toY, { seeking }) *
+    movementCostMultiplier(player.effects)
+  );
 }
 
 export function clearSprintBudget(budget: ActionBudget | undefined): void {
@@ -418,7 +448,8 @@ export function validateSprintBegin(state: GameState, playerId: string): string 
   if (!player) return "Unknown player";
   if (!canPlayerMove(state, playerId)) return "Not your turn";
   if (state.roundPhase === "deployment") return "Wrong phase";
-  if ((player.effects?.Pin ?? 0) > 0) return "Pinned — cannot move";
+  if ((player.effects?.Pin ?? 0) > 0) return "Pinned — cannot Sprint";
+  if (isUnitFalling(player)) return "Falling — cannot Sprint";
   if (!player.actionBudget) {
     const speed = player.speed ?? getArmorSpeed(player.armor);
     if (speed) player.actionBudget = createDefaultActionBudget(speed);
@@ -451,7 +482,7 @@ export function validateSprintMove(
   if (!player) return "Unknown player";
   if (!canPlayerMove(state, playerId)) return "Not your turn";
   if (state.roundPhase === "deployment") return "Wrong phase";
-  if ((player.effects?.Pin ?? 0) > 0) return "Pinned — cannot move";
+  if ((player.effects?.Pin ?? 0) > 0) return "Pinned — cannot Sprint";
   const remaining = player.actionBudget?.sprintRemaining ?? 0;
   if (remaining <= 0) return "No sprint movement remaining";
   const flying = opts?.flying ?? false;
@@ -479,6 +510,7 @@ export function applySprintMove(
   if (flying) spendAegisFlying(player, 1);
   player.x = x;
   player.y = y;
+  syncUnitElevationOnTile(state, player, x, y);
   const budget = player.actionBudget!;
   budget.sprintRemaining = Math.max(0, (budget.sprintRemaining ?? 0) - cost);
   if (budget.sprintRemaining <= 0) clearSprintBudget(budget);

@@ -19,6 +19,7 @@ export const BOARD_CELL_TARGETING_MODES = [
   "kataptyPick",
   "rez",
   "kopisMark",
+  "chrysaorBrand",
   "sharurAttractor",
   "hephaestusSynesis",
   "hephaestusRestore",

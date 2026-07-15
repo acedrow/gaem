@@ -40,7 +40,7 @@
     "description": "\"It's an inversion of the Heimarne matrix—it projects, rather than contains. Expands, rather than condenses. And frees, rather than enslaves. You need condensed celestials for power, but that's child's play for us these days.\" — Technite Zostrianos",
     "attack": {
       "damage": "3+5D6",
-      "tiles": [[1, 0], [2, 0], [3, 0], [2, 1], [2, -1]]
+      "tiles": [[2, -1], [2, 0], [2, 1], [3, 0]]
     },
     "activeAbility": "Canticle Boosted Warhook — Target an enemy, obstacle, or wall within Range:3. Instantly move adjacent to your target. If the target is an enemy, inflict Blazing:2 and deal damage. You become immune to Blazing until the end of your next turn.",
     "passiveAbility": "Precise Chaos — This weapon has the Breaker tag. If you choose not to deal damage to the squares of a Swarm separately with Breaker, deal this weapon's damage to the Swarm once for each square of your pattern that targets it (up to a maximum of 12+20D6 damage)."
@@ -60,24 +60,24 @@
     "description": "Zubana ascended first among the stars, and her rage claimed a million barren planets before it was quelled. Awakening the heavens to the brutality inflicted in their false name can only lead to righteous fury and immolating flame. Now her fury, and that of her three sisters, is set to a task worthy of its nuclear flame.",
     "attack": {
       "damage": "6",
-      "tiles": [[1, 0], [2, 0], [3, 0], [2, 1], [2, -1]],
+      "tiles": [[1, 0], [1, 1], [1, -1], [2, 0], [3, 0]],
       "levels": [
         {
           "label": "Level 1",
           "damage": "6",
-          "tiles": [[1, 0], [2, 0], [3, 0], [2, 1], [2, -1]]
+          "tiles": [[1, 0], [1, 1], [1, -1], [2, 0], [3, 0]]
         },
         {
           "label": "Level 2",
           "damage": "15",
-          "tiles": [[1, 0], [2, 0], [3, 0], [4, 0], [5, 0], [6, 0], [6, 1], [6, -1]]
+          "tiles": [[1, 0], [2, 0], [3, 0], [4, 0], [5, 0], [6, 0], [6, 1], [6, -1], [7, 0]]
         },
         {
           "label": "Level 3",
           "damage": "25",
           "tiles": [
             [1, 0],
-            [2, -2], [2, -1], [2, 0], [2, 1], [2, 2],
+            [2, -1], [2, 0], [2, 1],
             [3, -2], [3, -1], [3, 0], [3, 1], [3, 2],
             [4, -2], [4, -1], [4, 0], [4, 1], [4, 2],
             [5, -2], [5, -1], [5, 0], [5, 1], [5, 2],

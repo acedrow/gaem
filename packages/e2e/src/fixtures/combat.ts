@@ -72,9 +72,13 @@ async function openCombatSession(
 export async function setupCombatBoard(
   session: CombatSession,
   enemyName = "Stain Creep",
+  offset: { dx?: number; dy?: number } = {},
 ): Promise<{ playerCell: CellCoord; enemyCell: CellCoord }> {
   const playerCell = session.playerCell;
-  const enemyCell = { x: playerCell.x + 1, y: playerCell.y };
+  const enemyCell = {
+    x: playerCell.x + (offset.dx ?? 2),
+    y: playerCell.y + (offset.dy ?? 0),
+  };
   await spawnEnemy(session.gmPage, enemyName, enemyCell);
   return { playerCell, enemyCell };
 }

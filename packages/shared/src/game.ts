@@ -3,8 +3,10 @@ import type { Enemy, GameMap, GameState, GaemRole, PhaseAction, Player, TerrainO
 import { playerLabel } from "./console.js";
 import { createDefaultActionBudget, createDefaultCombatState } from "./combat/types.js";
 import { tickRoundCountdowns, tickUnitEndOfTurn, tickUnitStartOfTurn } from "./combat/effects.js";
+import { tickBrands } from "./combat/chrysaor.js";
 import { clearAegisFlyingUsed, ensureAssistedAscensionAegis } from "./combat/aegis.js";
 import { enemyHasFlyingTag, initializeUnitElevation, syncUnitElevationOnTile } from "./combat/elevation.js";
+import { enemyMoveStepCost } from "./combat/movement.js";
 import { resetEnemyExhaustion, resetGmTurnActions } from "./combat/enemy.js";
 import { applyStainwalkGmTurnEnd, applyStainwalkMovement } from "./combat/stainwalk.js";
 import { getEnemyMaxHpByName, getEnemyScale, getEnemyScaleByName, enemyFootprintTiles, ensureEnemyMovement, spendEnemyMovement } from "./enemy-data.js";
@@ -301,6 +303,7 @@ function finishPlayerTurn(state: GameState, playerId: string, suffix = "ended th
 function advanceRound(state: GameState): string {
   const endedRound = state.round;
   tickRoundCountdowns(state);
+  tickBrands(state);
   tickProvokeRangeGear(state);
   resetEnemyExhaustion(state);
   if (state.combat) {
@@ -917,7 +920,8 @@ export function validateEnemyMove(
 
   if (!isSandboxMode(state)) {
     ensureEnemyMovement(enemy);
-    if ((enemy.movementRemaining ?? 0) < 1) return "Not enough movement";
+    const cost = enemyMoveStepCost(state, enemy, enemy.x, enemy.y, toX, toY);
+    if ((enemy.movementRemaining ?? 0) < cost) return "Not enough movement";
   }
 
   return validateEnemyFootprint(state, toX, toY, getEnemyScale(enemy), enemyId, undefined, enemy);
@@ -946,7 +950,10 @@ export function applyEnemyMove(
     }
   } else {
     const prevGroups = buildSwarmGroups(state);
-    if (!isSandboxMode(state)) spendEnemyMovement(enemy, 1);
+    if (!isSandboxMode(state)) {
+      const cost = enemyMoveStepCost(state, enemy, enemy.x, enemy.y, toX, toY);
+      spendEnemyMovement(enemy, cost);
+    }
     enemy.x = toX;
     enemy.y = toY;
     syncUnitElevationOnTile(state, enemy, toX, toY);
@@ -1393,7 +1400,7 @@ export function normalizeGameState(state: GameState, map?: GameMap): GameState {
   }
   normalizePlayers(state.players);
   normalizeEnemies(state.enemies);
-  reconcileSwarmHp(state);
+  reconcileSwarmHp(state, buildSwarmGroups(state));
   return state;
 }
 
