@@ -643,10 +643,19 @@ export function swarmChipResolved(state: GameState, enemyId: string): boolean {
   return state.combat?.swarmChipResolvedIds?.includes(group.canonicalId) ?? false;
 }
 
+function swarmHasMovedOrActedThisPhase(state: GameState, group: SwarmGroup): boolean {
+  const members = swarmMembers(state, group.memberIds);
+  if (!members.length) return false;
+  if (members.some((m) => m.exhausted)) return true;
+  const speed = getEnemySpeed(members[0]!);
+  return getSwarmMovementRemaining(state, group.memberIds) < speed;
+}
+
 export function swarmChipPromptRequired(state: GameState, enemyId: string): boolean {
   const group = swarmGroupForEnemy(state, enemyId);
   if (!group || group.size < 2) return false;
   if (swarmChipResolved(state, enemyId)) return false;
+  if (swarmHasMovedOrActedThisPhase(state, group)) return false;
   return swarmChipEligibleTargets(state, enemyId).length > 0;
 }
 

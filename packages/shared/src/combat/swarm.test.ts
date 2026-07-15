@@ -7,6 +7,7 @@ import {
   getSwarmMemberHp,
   reconcileSwarmHp,
   swarmChipEligibleTargets,
+  swarmChipPromptRequired,
   validateSwarmMemberMove,
   markSwarmChipResolved,
   requireSwarmChipResolved,
@@ -146,6 +147,25 @@ describe("swarm", () => {
     state.combat = createDefaultCombatState(0);
 
     expect(swarmChipEligibleTargets(state, "a")).toEqual([]);
+    expect(requireSwarmChipResolved(state, "a")).toBeNull();
+  });
+
+  it("swarmChipPromptRequired skips swarms that have already moved this phase", () => {
+    const state = makeGameState();
+    addTestEnemy(state, "a", 2, 2, { name: SWARM_NAME });
+    addTestEnemy(state, "b", 3, 2, { name: SWARM_NAME });
+    addTestPlayer(state, "p1", 2, 3);
+    reconcileSwarmHp(state);
+    state.roundPhase = "gmTurn";
+    state.turn = { role: "gm" };
+    state.combat = createDefaultCombatState(0);
+
+    expect(swarmChipPromptRequired(state, "a")).toBe(true);
+
+    for (const e of state.enemies.filter((en) => en.name === SWARM_NAME)) {
+      e.movementRemaining = (e.movementRemaining ?? e.speed ?? 4) - 1;
+    }
+    expect(swarmChipPromptRequired(state, "a")).toBe(false);
     expect(requireSwarmChipResolved(state, "a")).toBeNull();
   });
 

@@ -1099,6 +1099,9 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
       for (const step of action.path) {
         applyEnemyMove(state, action.enemyId, step.x, step.y);
       }
+      if (swarmGroupForEnemy(state, action.enemyId)) {
+        markSwarmChipResolved(state, action.enemyId);
+      }
       setActiveEnemy(state, action.enemyId);
       return `${enemyLabel(enemy)} moved to (${dest.x}, ${dest.y})`;
     }
@@ -1121,6 +1124,9 @@ export function applyGmEnemyAction(state: GameState, action: GmEnemyAction): str
     case "attack": {
       clearAttractorPullForEnemy(state, enemy.id);
       setActiveEnemy(state, enemy.id);
+      if (swarmGroupForEnemy(state, enemy.id)) {
+        markSwarmChipResolved(state, enemy.id);
+      }
       const attacks = enemy.name ? enemyAttacks(enemy.name) : [];
       const attackText = attacks[action.attackIndex];
       const parsed = attackText ? parseEnemyAttackString(attackText) : { raw: "" };
