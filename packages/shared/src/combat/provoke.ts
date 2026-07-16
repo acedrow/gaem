@@ -10,8 +10,10 @@ import { applyPushFromOrigin } from "./push.js";
 import { playerArmorGearName } from "./attractor.js";
 import {
   enemyHasSwarmTrait,
+  linkedStainFlowerIdsNear,
   pickSwarmMoveMember,
   swarmGroupForEnemy,
+  swarmTilePositions,
 } from "./swarm.js";
 import { handleEnemyDefeated } from "./kopis.js";
 import { isTowerEnemy } from "./yadathan.js";
@@ -205,7 +207,7 @@ function collectPlayerStepProvokes(
       if (visitedSwarmGroups.has(group.canonicalId)) continue;
       visitedSwarmGroups.add(group.canonicalId);
 
-      const positions = swarmMemberPositions(state, group.memberIds);
+      const positions = swarmTilePositions(state, group.memberIds);
       const memberTiles = positions.map((p) => ({ x: p.x, y: p.y }));
       const wasInRange = threatRange > 1
         ? minDistanceToTiles(from, memberTiles) <= threatRange
@@ -253,10 +255,20 @@ function collectEnemyStepProvokes(
   if (enemyHasFlyingTag(enemy)) return [];
 
   const group = !opts.soloSwarmMember ? swarmGroupForEnemy(state, enemyId) : null;
-  if (group && group.memberIds.length >= 2) {
+  if (group && group.size >= 2) {
     const moverId = pickSwarmMoveMember(state, group.memberIds, to.x, to.y) ?? enemyId;
-    const before = swarmMemberPositions(state, group.memberIds);
-    const after = before.map((p) => (p.id === moverId ? { ...p, x: to.x, y: to.y } : p));
+    const before = swarmTilePositions(state, group.memberIds);
+    const afterMembers = swarmMemberPositions(state, group.memberIds).map((p) =>
+      p.id === moverId ? { ...p, x: to.x, y: to.y } : p,
+    );
+    const afterFlowerIds = linkedStainFlowerIdsNear(
+      state,
+      afterMembers.map((p) => ({ x: p.x, y: p.y })),
+    );
+    const after = [
+      ...afterMembers,
+      ...swarmMemberPositions(state, afterFlowerIds),
+    ];
     const triggers: ProvokeTrigger[] = [];
 
     for (const player of state.players) {

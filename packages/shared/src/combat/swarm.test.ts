@@ -2,28 +2,32 @@ import { describe, expect, it } from "vitest";
 import {
   applySwarmMemberMove,
   buildSwarmGroups,
+  countSwarmTilesAdjacentTo,
   getEffectiveEnemyHp,
   getSwarmMaxHp,
   getSwarmMemberHp,
   reconcileSwarmHp,
   swarmChipEligibleTargets,
   swarmChipPromptRequired,
+  swarmGroupForEnemy,
   validateSwarmMemberMove,
   markSwarmChipResolved,
   requireSwarmChipResolved,
 } from "./swarm.js";
 import {
   applyBreakerAttackToSwarm,
+  applyDamageToEnemy,
   applyRangeAttackToEnemies,
   applySwarmEnemyAttackToPlayer,
   previewSwarmEnemyAttack,
   SETHIAN_DAMAGE_CAP,
 } from "./attack.js";
-import { addEnemy, getEnemyMaxHp, normalizeGameState } from "../game.js";
+import { addEnemy, getEnemyMaxHp, normalizeGameState, removeEnemy } from "../game.js";
 import { createDefaultCombatState } from "../combat/types.js";
 import { addTestEnemy, addTestPlayer, makeGameState } from "../test/fixtures.js";
 
 const SWARM_NAME = "Scorned Eyes";
+const FLOWER_NAME = "Stain Flower";
 
 describe("swarm", () => {
   it("buildSwarmGroups groups adjacent same-name swarm enemies", () => {
@@ -241,5 +245,94 @@ describe("swarm", () => {
     const groups = buildSwarmGroups(state);
     expect(groups.size).toBe(1);
     expect([...groups.values()][0]!.sort()).toEqual(["b", "c"]);
+  });
+
+  it("Stain Flower bumps swarm size without joining memberIds", () => {
+    const state = makeGameState();
+    addTestEnemy(state, "a", 2, 2, { name: SWARM_NAME });
+    addTestEnemy(state, "b", 3, 2, { name: SWARM_NAME });
+    addTestEnemy(state, "flower", 2, 3, { name: FLOWER_NAME });
+    reconcileSwarmHp(state);
+
+    const group = swarmGroupForEnemy(state, "a");
+    expect(group).not.toBeNull();
+    expect(group!.memberIds.sort()).toEqual(["a", "b"]);
+    expect(group!.linkedFlowerIds).toEqual(["flower"]);
+    expect(group!.size).toBe(3);
+    expect(group!.maxHp).toBe(30);
+    expect(swarmGroupForEnemy(state, "flower")).toBeNull();
+  });
+
+  it("lone swarm minion plus adjacent Stain Flower forms a swarm", () => {
+    const state = makeGameState();
+    addTestEnemy(state, "a", 2, 2, { name: SWARM_NAME });
+    addTestEnemy(state, "flower", 3, 2, { name: FLOWER_NAME });
+    reconcileSwarmHp(state);
+
+    const groups = buildSwarmGroups(state);
+    expect(groups.size).toBe(1);
+    expect([...groups.values()][0]).toEqual(["a"]);
+    const group = swarmGroupForEnemy(state, "a")!;
+    expect(group.size).toBe(2);
+    expect(group.maxHp).toBe(20);
+    expect(group.memberIds).toEqual(["a"]);
+    expect(state.enemies.find((e) => e.id === "a")!.hp).toBe(20);
+  });
+
+  it("Stain Flower alone or next to non-swarm minion does not form a swarm", () => {
+    const state = makeGameState();
+    addTestEnemy(state, "flower", 2, 2, { name: FLOWER_NAME });
+    addTestEnemy(state, "creep", 3, 2, { name: "Stain Creep" });
+    reconcileSwarmHp(state);
+
+    expect(buildSwarmGroups(state).size).toBe(0);
+    expect(swarmGroupForEnemy(state, "creep")).toBeNull();
+    expect(swarmGroupForEnemy(state, "flower")).toBeNull();
+  });
+
+  it("countSwarmTilesAdjacentTo and chip eligibility include Stain Flower tiles", () => {
+    const state = makeGameState();
+    addTestEnemy(state, "a", 2, 2, { name: SWARM_NAME });
+    addTestEnemy(state, "b", 3, 2, { name: SWARM_NAME });
+    addTestEnemy(state, "flower", 4, 2, { name: FLOWER_NAME });
+    addTestPlayer(state, "p1", 4, 3);
+    reconcileSwarmHp(state);
+
+    expect(countSwarmTilesAdjacentTo(state, ["a", "b"], { x: 4, y: 3 })).toBe(1);
+    const targets = swarmChipEligibleTargets(state, "a");
+    expect(targets.some((t) => t.id === "p1")).toBe(true);
+  });
+
+  it("removing Stain Flower shrinks swarm size and max HP", () => {
+    const state = makeGameState();
+    addEnemy(state, { id: "a", x: 2, y: 2, name: SWARM_NAME, hp: 1 });
+    addEnemy(state, { id: "b", x: 3, y: 2, name: SWARM_NAME, hp: 1 });
+    addEnemy(state, { id: "flower", x: 2, y: 3, name: FLOWER_NAME, hp: 10 });
+    expect(swarmGroupForEnemy(state, "a")!.size).toBe(3);
+    expect(state.enemies.find((e) => e.id === "a")!.hp).toBe(20);
+
+    for (const e of state.enemies.filter((en) => en.name === SWARM_NAME)) e.hp = 28;
+    removeEnemy(state, "flower");
+
+    const group = swarmGroupForEnemy(state, "a")!;
+    expect(group.size).toBe(2);
+    expect(group.maxHp).toBe(20);
+    expect(state.enemies.every((e) => e.name !== FLOWER_NAME)).toBe(true);
+    expect(state.enemies.find((e) => e.id === "a")!.hp).toBe(20);
+  });
+
+  it("damaging Stain Flower does not change swarm pooled HP", () => {
+    const state = makeGameState();
+    addEnemy(state, { id: "a", x: 2, y: 2, name: SWARM_NAME, hp: 1 });
+    addEnemy(state, { id: "b", x: 3, y: 2, name: SWARM_NAME, hp: 1 });
+    addEnemy(state, { id: "flower", x: 2, y: 3, name: FLOWER_NAME, hp: 10 });
+    for (const e of state.enemies.filter((en) => en.name === SWARM_NAME)) e.hp = 18;
+
+    const flower = state.enemies.find((e) => e.id === "flower")!;
+    applyDamageToEnemy(flower, 4, state);
+
+    expect(flower.hp).toBe(6);
+    expect(state.enemies.find((e) => e.id === "a")!.hp).toBe(18);
+    expect(state.enemies.find((e) => e.id === "b")!.hp).toBe(18);
   });
 });

@@ -2715,7 +2715,7 @@ function onTeleportOverlayTransitionEnd(e: TransitionEvent) {
 
 const enemyMoveOverlayStyle = computed(() => {
   const anim = enemyMoveAnimation.value;
-  if (!anim?.animating) return null;
+  if (!anim) return null;
   const s = gameState.value;
   if (!s) return null;
   const x = enemyMoveOverlayAtDest.value ? anim.toX : anim.fromX;
@@ -2769,6 +2769,18 @@ const enemyMoveOverlayBg = computed(() => {
   const url = enemyPortraitUrlForName(enemy.name);
   if (!listing?.portrait || !url) return null;
   return portraitBackgroundFor(listing.portrait, url);
+});
+
+const enemyMoveOverlaySelected = computed(() => {
+  const anim = enemyMoveAnimation.value;
+  if (!anim) return false;
+  return isEnemySelected(anim.enemyId) || isEnemyBulkSelected(anim.enemyId);
+});
+
+const teleportOverlaySelected = computed(() => {
+  const anim = teleportAnimation.value;
+  if (!anim) return false;
+  return isPlayerSelected(anim.playerId) || isPlayerBulkSelected(anim.playerId);
 });
 
 let enemyMoveFinishTimer: ReturnType<typeof setTimeout> | null = null;
@@ -5692,6 +5704,7 @@ onUnmounted(() => {
             'enemy-move-overlay-animating': enemyMoveOverlayAtDest,
             'has-portrait': !!enemyMoveOverlayPortraitUrl,
             'fortification-overlay': enemyMoveOverlayIsFortification,
+            selected: enemyMoveOverlaySelected,
           }"
           :style="[
             enemyMoveOverlayStyle,
@@ -5710,7 +5723,10 @@ onUnmounted(() => {
         <div
           v-if="teleportOverlayStyle && teleportOverlayPlayer"
           class="teleport-overlay"
-          :class="{ 'teleport-overlay-animating': teleportOverlayAtDest }"
+          :class="{
+            'teleport-overlay-animating': teleportOverlayAtDest,
+            selected: teleportOverlaySelected,
+          }"
           :style="[
             teleportOverlayStyle,
             !teleportOverlayPlayer.characterSheetId || !portraitUrlFor(teleportOverlayPlayer.characterSheetId)
@@ -5968,6 +5984,11 @@ onUnmounted(() => {
   overflow: hidden;
   background: var(--color-surface);
   transition: left 350ms ease, top 350ms ease;
+}
+
+.teleport-overlay.selected,
+.enemy-move-overlay.selected {
+  outline: 2px solid var(--color-on-accent);
 }
 
 .teleport-overlay .portrait-img {

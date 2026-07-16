@@ -23,6 +23,7 @@ import { enemyMoveStepCost } from "./movement.js";
 export type SwarmGroup = {
   canonicalId: string;
   memberIds: string[];
+  linkedFlowerIds: string[];
   size: number;
   currentHp: number;
   maxHp: number;
@@ -37,10 +38,50 @@ export function enemyHasSwarmTrait(enemy: Pick<Enemy, "name">): boolean {
   return listing?.tags?.includes("Swarm") ?? false;
 }
 
+export function isStainFlower(enemy: Pick<Enemy, "name">): boolean {
+  return enemy.name === "Stain Flower";
+}
+
+function stainFlowerAlive(enemy: Enemy): boolean {
+  if (!isStainFlower(enemy)) return false;
+  const max = getEnemyMaxHp(enemy);
+  return (enemy.hp ?? max) > 0;
+}
+
+export function linkedStainFlowerIdsNear(
+  state: GameState,
+  positions: { x: number; y: number }[],
+): string[] {
+  if (!positions.length) return [];
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const flower of state.enemies) {
+    if (!stainFlowerAlive(flower) || seen.has(flower.id)) continue;
+    if (!positions.some((p) => tilesAdjacent(p, flower))) continue;
+    seen.add(flower.id);
+    ids.push(flower.id);
+  }
+  return ids;
+}
+
+export function linkedStainFlowerIds(state: GameState, memberIds: string[]): string[] {
+  const members = memberIds
+    .map((id) => state.enemies.find((e) => e.id === id))
+    .filter(Boolean) as Enemy[];
+  return linkedStainFlowerIdsNear(
+    state,
+    members.map((m) => ({ x: m.x, y: m.y })),
+  );
+}
+
 function swarmEligible(enemy: Enemy): boolean {
   const max = getEnemyMaxHp(enemy);
   if ((enemy.hp ?? max) <= 0) return false;
   return enemyHasSwarmTrait(enemy) && getEnemyScale(enemy) <= 1;
+}
+
+function effectiveSwarmSize(state: GameState, memberIds: string[]): number {
+  return memberIds.length + linkedStainFlowerIds(state, memberIds).length;
 }
 
 function enemiesShareSwarmName(a: Enemy, b: Enemy): boolean {
@@ -84,7 +125,7 @@ export function buildSwarmGroups(state: GameState): Map<string, string[]> {
   const components = findConnectedComponents(eligible);
   const map = new Map<string, string[]>();
   for (const ids of components) {
-    if (ids.length < 2) continue;
+    if (ids.length < 2 && effectiveSwarmSize(state, ids) < 2) continue;
     const canonicalId = [...ids].sort()[0]!;
     map.set(canonicalId, ids);
   }
@@ -105,14 +146,17 @@ export function swarmGroupForEnemy(
 ): SwarmGroup | null {
   const resolvedGroups = groups ?? buildSwarmGroups(state);
   const memberIds = groupForEnemyId(resolvedGroups, enemyId);
-  if (!memberIds || memberIds.length < 2) return null;
+  if (!memberIds) return null;
+  const linkedFlowerIds = linkedStainFlowerIds(state, memberIds);
+  const size = memberIds.length + linkedFlowerIds.length;
+  if (size < 2) return null;
   const canonicalId = [...memberIds].sort()[0]!;
   const first = state.enemies.find((e) => e.id === memberIds[0])!;
   const currentHp = first.hp ?? getEnemyMaxHp(first);
-  const size = memberIds.length;
   return {
     canonicalId,
     memberIds,
+    linkedFlowerIds,
     size,
     currentHp,
     maxHp: getSwarmMaxHp(size),
@@ -165,7 +209,7 @@ function mergeHp(members: Enemy[], prevGroups: Map<string, string[]>): number {
   let total = 0;
   for (const member of members) {
     const prevIds = groupForEnemyId(prevGroups, member.id);
-    if (prevIds && prevIds.length > 1) {
+    if (prevIds) {
       const key = [...prevIds].sort().join(",");
       if (!seenGroupKeys.has(key)) {
         seenGroupKeys.add(key);
@@ -176,6 +220,10 @@ function mergeHp(members: Enemy[], prevGroups: Map<string, string[]>): number {
     }
   }
   return total;
+}
+
+function applyPooledHpToMembers(members: Enemy[], hp: number): void {
+  for (const member of members) member.hp = hp;
 }
 
 export function reconcileSwarmHp(
@@ -199,7 +247,7 @@ export function reconcileSwarmHp(
     );
     if (subs.length <= 1) continue;
     const sharedHp = state.enemies.find((e) => e.id === remaining[0])?.hp ?? 0;
-    const sizes = subs.map((s) => s.length);
+    const sizes = subs.map((s) => effectiveSwarmSize(state, s));
     const split = splitHp(sharedHp, sizes);
     for (let i = 0; i < subs.length; i++) {
       for (const id of subs[i]!) {
@@ -211,7 +259,8 @@ export function reconcileSwarmHp(
   }
 
   for (const ids of components) {
-    if (ids.length < 2) {
+    const size = effectiveSwarmSize(state, ids);
+    if (size < 2) {
       for (const id of ids) {
         if (splitMemberIds.has(id)) continue;
         const enemy = state.enemies.find((e) => e.id === id);
@@ -223,6 +272,7 @@ export function reconcileSwarmHp(
     }
 
     const members = ids.map((id) => state.enemies.find((e) => e.id === id)!).filter(Boolean);
+    const maxHp = getSwarmMaxHp(size);
     const prevIds = groupForEnemyId(prevGroups, ids[0]!);
     const unchanged =
       prevIds &&
@@ -230,23 +280,24 @@ export function reconcileSwarmHp(
       ids.every((id) => prevIds.includes(id));
 
     if (unchanged) {
-      const hp = members[0]!.hp ?? getSwarmMaxHp(members.length);
-      for (const member of members) member.hp = hp;
+      const hp = clampHp(members[0]!.hp ?? maxHp, maxHp);
+      applyPooledHpToMembers(members, hp);
       continue;
     }
 
     if (ids.every((id) => splitMemberIds.has(id))) {
-      const hp = members[0]!.hp ?? getSwarmMaxHp(members.length);
-      for (const member of members) member.hp = hp;
+      const hp = clampHp(members[0]!.hp ?? maxHp, maxHp);
+      applyPooledHpToMembers(members, hp);
       continue;
     }
 
-    const maxHp = getSwarmMaxHp(members.length);
-    const merged = mergeHp(members, prevGroups);
-    const currentHp = clampHp(Math.min(maxHp, merged), maxHp);
-    for (const member of members) {
-      member.hp = currentHp;
+    let merged = mergeHp(members, prevGroups);
+    if (!prevIds) {
+      const flowerCount = size - ids.length;
+      if (flowerCount > 0) merged += getSwarmMaxHp(flowerCount);
     }
+    const currentHp = clampHp(Math.min(maxHp, merged), maxHp);
+    applyPooledHpToMembers(members, currentHp);
   }
 
   reconcileSwarmMovement(state);
@@ -304,6 +355,14 @@ function swarmMemberPositions(state: GameState, memberIds: string[]): { x: numbe
       return e ? { x: e.x, y: e.y, id: e.id } : null;
     })
     .filter(Boolean) as { x: number; y: number; id: string }[];
+}
+
+export function swarmTilePositions(
+  state: GameState,
+  memberIds: string[],
+): { x: number; y: number; id: string }[] {
+  const flowerIds = linkedStainFlowerIds(state, memberIds);
+  return [...swarmMemberPositions(state, memberIds), ...swarmMemberPositions(state, flowerIds)];
 }
 
 function isSwarmConnected(positions: { x: number; y: number }[]): boolean {
@@ -440,12 +499,18 @@ function memberStaysInSwarmAfterMove(
   destY: number,
 ): boolean {
   const remaining = memberIds.filter((id) => id !== memberId);
-  if (remaining.length === 0) return false;
-  const afterMove = [
-    ...swarmMemberPositions(state, remaining).map((p) => ({ x: p.x, y: p.y })),
-    { x: destX, y: destY },
-  ];
-  return isSwarmConnected(afterMove);
+  if (remaining.length > 0) {
+    const afterMove = [
+      ...swarmMemberPositions(state, remaining).map((p) => ({ x: p.x, y: p.y })),
+      { x: destX, y: destY },
+    ];
+    if (isSwarmConnected(afterMove)) return true;
+  }
+  for (const flower of state.enemies) {
+    if (!stainFlowerAlive(flower)) continue;
+    if (tilesAdjacent(flower, { x: destX, y: destY })) return true;
+  }
+  return false;
 }
 
 function markSilentHpEnemyIds(state: GameState, enemyIds: string[]): void {
@@ -611,7 +676,9 @@ export type SwarmChipTarget = { kind: "player"; id: string; label: string };
 
 export function swarmChipEligibleTargets(state: GameState, enemyId: string): SwarmChipTarget[] {
   const group = swarmGroupForEnemy(state, enemyId);
-  const positions = swarmMemberPositions(state, group?.memberIds ?? [enemyId]);
+  const positions = group
+    ? swarmTilePositions(state, group.memberIds)
+    : swarmMemberPositions(state, [enemyId]);
   const occ = buildBoardOccupancy(state);
   const seen = new Set<string>();
   const targets: SwarmChipTarget[] = [];
@@ -698,7 +765,7 @@ export function countSwarmTilesAdjacentTo(
   target: { x: number; y: number },
 ): number {
   let count = 0;
-  for (const pos of swarmMemberPositions(state, memberIds)) {
+  for (const pos of swarmTilePositions(state, memberIds)) {
     if (isOrthogonallyAdjacent(pos, target)) count += 1;
   }
   return count;
